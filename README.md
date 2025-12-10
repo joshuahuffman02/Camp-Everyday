@@ -1,0 +1,39 @@
+# Campreserv (platform monorepo)
+
+pnpm workspace with NestJS API (`platform/apps/api`) and Next.js web (`platform/apps/web`).
+
+## Prereqs
+- Node 18+ recommended
+- pnpm (install locally if not already: `npm install -g pnpm`)
+
+## Setup
+1) Install deps
+```bash
+pnpm install
+```
+
+2) Environment
+- API: copy `platform/apps/api/.env.example` to `platform/apps/api/.env` and set `PLATFORM_DATABASE_URL` (Postgres), `PLATFORM_REDIS_URL` (optional), `JWT_SECRET`.
+- Web: copy `platform/apps/web/.env.example` to `platform/apps/web/.env` and set `NEXT_PUBLIC_API_BASE`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`.
+
+3) Database (API)
+```bash
+pnpm --dir platform/apps/api prisma:generate
+pnpm --dir platform/apps/api prisma:migrate
+pnpm --dir platform/apps/api prisma:seed   # optional sample data
+```
+
+4) Run dev servers
+- API: `pnpm --dir platform/apps/api dev` (port 4000)
+- Web: `pnpm --dir platform/apps/web dev` (port 3000)
+- Both: `pnpm dev` (root, uses concurrently)
+
+## Build & test
+- Lint web: `pnpm --dir platform/apps/web lint`
+- API smoke tests: `pnpm --dir platform/apps/api test:smoke`
+- Build all: `pnpm build`
+
+## Notes
+- Prisma schema and seeds live in `platform/apps/api/prisma/`.
+- Shared types live in `platform/packages/shared`.
+- SDK lives in `platform/packages/sdk`.

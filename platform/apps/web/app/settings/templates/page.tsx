@@ -1,0 +1,497 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DashboardShell } from "@/components/ui/layout/DashboardShell";
+import { apiClient } from "@/lib/api-client";
+
+interface Template {
+  id: string;
+  campgroundId: string;
+  name: string;
+  channel: "email" | "sms";
+  category: string | null;
+  subject: string | null;
+  html: string | null;
+  textBody: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const TEMPLATE_VARIABLES = [
+  { key: "{{guest_name}}", desc: "Guest's full name" },
+  { key: "{{campground_name}}", desc: "Campground name" },
+  { key: "{{site_number}}", desc: "Site number" },
+  { key: "{{arrival_date}}", desc: "Check-in date" },
+  { key: "{{departure_date}}", desc: "Check-out date" },
+  { key: "{{amount}}", desc: "Payment amount" },
+  { key: "{{reservation_id}}", desc: "Reservation ID" },
+  { key: "{{balance_due}}", desc: "Outstanding balance" },
+];
+
+const CATEGORIES = [
+  "booking",
+  "payment",
+  "reminder",
+  "confirmation",
+  "marketing",
+  "operational",
+  "general",
+];
+
+export default function TemplatesPage() {
+  const [campgroundId, setCampgroundId] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("campreserv:selectedCampground");
+    if (stored) setCampgroundId(stored);
+  }, []);
+
+  const templatesQuery = useQuery({
+    queryKey: ["campaign-templates", campgroundId],
+    queryFn: () => apiClient.getCampaignTemplates(campgroundId!),
+    enabled: !!campgroundId,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiClient.deleteCampaignTemplate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaign-templates"] });
+      setSelectedTemplate(null);
+    },
+  });
+
+  const templates = templatesQuery.data ?? [];
+
+  // Group by category
+  const templatesByCategory = CATEGORIES.reduce((acc, cat) => {
+    acc[cat] = templates.filter((t: Template) => (t.category || "general") === cat);
+    return acc;
+  }, {} as Record<string, Template[]>);
+
+  if (!campgroundId) {
+    return (
+      <DashboardShell>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-500">Select a campground to manage templates</p>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  return (
+    <DashboardShell>
+      <div className="p-6 max-w-[1600px] mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Email & SMS Templates</h1>
+            <p className="text-slate-500 mt-1">Create and manage notification templates</p>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700 transition-colors flex items-center gap-2"
+          >
+            <span>+</span> New Template
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Templates List */}
+          <div className="lg:col-span-1 space-y-4">
+            {templatesQuery.isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600" />
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+                <div className="text-4xl mb-3">📧</div>
+                <p className="text-slate-500">No templates yet</p>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="mt-4 text-violet-600 hover:text-violet-700 text-sm font-medium"
+                >
+                  Create your first template →
+                </button>
+              </div>
+            ) : (
+              CATEGORIES.map(cat => {
+                const catTemplates = templatesByCategory[cat];
+                if (catTemplates.length === 0) return null;
+                return (
+                  <div key={cat} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+                      <h3 className="font-medium text-slate-700 capitalize">{cat}</h3>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {catTemplates.map((template: Template) => (
+                        <button
+                          key={template.id}
+                          onClick={() => setSelectedTemplate(template)}
+                          className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors ${
+                            selectedTemplate?.id === template.id ? "bg-violet-50 border-l-2 border-violet-500" : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-slate-900">{template.name}</div>
+                              <div className="text-xs text-slate-500">
+                                {template.channel === "email" ? "📧" : "📱"} {template.channel}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Template Editor */}
+          <div className="lg:col-span-2">
+            {selectedTemplate ? (
+              <TemplateEditor
+                template={selectedTemplate}
+                onSave={() => {
+                  queryClient.invalidateQueries({ queryKey: ["campaign-templates"] });
+                }}
+                onDelete={() => {
+                  if (confirm("Delete this template?")) {
+                    deleteMutation.mutate(selectedTemplate.id);
+                  }
+                }}
+                previewMode={previewMode}
+                onTogglePreview={() => setPreviewMode(!previewMode)}
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 h-[500px] flex items-center justify-center">
+                <div className="text-center text-slate-400">
+                  <div className="text-4xl mb-3">✨</div>
+                  <p>Select a template to edit</p>
+                </div>
+              </div>
+            )}
+
+            {/* Variables Reference */}
+            <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
+              <h4 className="font-medium text-slate-800 mb-3">Available Variables</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {TEMPLATE_VARIABLES.map(v => (
+                  <div
+                    key={v.key}
+                    className="px-2 py-1 bg-slate-50 rounded text-xs cursor-pointer hover:bg-slate-100"
+                    onClick={() => navigator.clipboard.writeText(v.key)}
+                    title={`Click to copy: ${v.key}`}
+                  >
+                    <code className="text-violet-600">{v.key}</code>
+                    <div className="text-slate-500 text-[10px]">{v.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Create Modal */}
+        {showCreateModal && (
+          <CreateTemplateModal
+            campgroundId={campgroundId}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={(template) => {
+              setShowCreateModal(false);
+              setSelectedTemplate(template);
+              queryClient.invalidateQueries({ queryKey: ["campaign-templates"] });
+            }}
+          />
+        )}
+      </div>
+    </DashboardShell>
+  );
+}
+
+function TemplateEditor({
+  template,
+  onSave,
+  onDelete,
+  previewMode,
+  onTogglePreview,
+}: {
+  template: Template;
+  onSave: () => void;
+  onDelete: () => void;
+  previewMode: boolean;
+  onTogglePreview: () => void;
+}) {
+  const [name, setName] = useState(template.name);
+  const [subject, setSubject] = useState(template.subject ?? "");
+  const [html, setHtml] = useState(template.html ?? "");
+  const [textBody, setTextBody] = useState(template.textBody ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setName(template.name);
+    setSubject(template.subject ?? "");
+    setHtml(template.html ?? "");
+    setTextBody(template.textBody ?? "");
+  }, [template]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiClient.updateCampaignTemplate(template.id, {
+        name,
+        subject: subject || undefined,
+        html: html || undefined,
+        textBody: textBody || undefined,
+      });
+      onSave();
+    } catch (err) {
+      console.error("Failed to save template:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Preview with sample data
+  const previewHtml = html
+    .replace(/\{\{guest_name\}\}/g, "John Smith")
+    .replace(/\{\{campground_name\}\}/g, "Pine Valley Campground")
+    .replace(/\{\{site_number\}\}/g, "A-15")
+    .replace(/\{\{arrival_date\}\}/g, "Dec 15, 2024")
+    .replace(/\{\{departure_date\}\}/g, "Dec 18, 2024")
+    .replace(/\{\{amount\}\}/g, "$150.00")
+    .replace(/\{\{reservation_id\}\}/g, "RES-12345")
+    .replace(/\{\{balance_due\}\}/g, "$50.00");
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-lg">{template.channel === "email" ? "📧" : "📱"}</span>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            className="font-semibold text-slate-900 bg-transparent border-none outline-none focus:ring-0 text-lg"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onTogglePreview}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+              previewMode ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {previewMode ? "Edit" : "Preview"}
+          </button>
+          <button
+            onClick={onDelete}
+            className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-sm"
+          >
+            Delete
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-1.5 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-5 space-y-4">
+        {template.channel === "email" && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Subject Line</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+              placeholder="Email subject..."
+            />
+          </div>
+        )}
+
+        {previewMode ? (
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-sm text-slate-600">
+              Preview (with sample data)
+            </div>
+            {template.channel === "email" ? (
+              <div
+                className="p-4 prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+            ) : (
+              <div className="p-4 bg-slate-900 text-white font-mono text-sm whitespace-pre-wrap">
+                {textBody
+                  .replace(/\{\{guest_name\}\}/g, "John Smith")
+                  .replace(/\{\{campground_name\}\}/g, "Pine Valley")
+                  .replace(/\{\{site_number\}\}/g, "A-15")}
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {template.channel === "email" ? (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">HTML Content</label>
+                <textarea
+                  value={html}
+                  onChange={e => setHtml(e.target.value)}
+                  rows={15}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono text-sm"
+                  placeholder="<h1>Hello {{guest_name}}</h1>..."
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  SMS Text <span className="text-slate-400 font-normal">({textBody.length}/160 chars)</span>
+                </label>
+                <textarea
+                  value={textBody}
+                  onChange={e => setTextBody(e.target.value)}
+                  rows={4}
+                  maxLength={160}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  placeholder="Your reservation at {{campground_name}} is confirmed..."
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CreateTemplateModal({
+  campgroundId,
+  onClose,
+  onCreated,
+}: {
+  campgroundId: string;
+  onClose: () => void;
+  onCreated: (template: Template) => void;
+}) {
+  const [name, setName] = useState("");
+  const [channel, setChannel] = useState<"email" | "sms">("email");
+  const [category, setCategory] = useState("general");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) return;
+    setSaving(true);
+    try {
+      const result = await apiClient.createCampaignTemplate(campgroundId, {
+        name,
+        channel,
+        category,
+        subject: channel === "email" ? "New Template" : undefined,
+        html: channel === "email" ? "<p>Hello {{guest_name}},</p>" : undefined,
+        textBody: channel === "sms" ? "Hello {{guest_name}}!" : undefined,
+      });
+      onCreated(result as Template);
+    } catch (err) {
+      console.error("Failed to create template:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-slate-900">New Template</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Template Name *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+              placeholder="Booking Confirmation"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Channel</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setChannel("email")}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  channel === "email"
+                    ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
+                    : "bg-slate-50 text-slate-600 border border-slate-200"
+                }`}
+              >
+                📧 Email
+              </button>
+              <button
+                type="button"
+                onClick={() => setChannel("sms")}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  channel === "sms"
+                    ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
+                    : "bg-slate-50 text-slate-600 border border-slate-200"
+                }`}
+              >
+                📱 SMS
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            >
+              {CATEGORIES.map(cat => (
+                <option key={cat} value={cat} className="capitalize">{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !name}
+              className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50"
+            >
+              {saving ? "Creating..." : "Create Template"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

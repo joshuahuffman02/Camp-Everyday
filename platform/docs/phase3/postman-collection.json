@@ -1,0 +1,77 @@
+{
+  "info": {
+    "name": "Campreserv Phase3",
+    "_postman_id": "replace-with-uuid",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Webhook - Availability",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{idemKey}}" },
+          { "key": "X-Version", "value": "1" },
+          { "key": "X-Timestamp", "value": "{{timestamp}}" },
+          { "key": "X-Signature", "value": "{{signature}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/webhooks/channel/{{channel}}/availability",
+          "host": ["{{baseUrl}}"],
+          "path": ["webhooks", "channel", "{{channel}}", "availability"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"parkId\": \"pk_123\",\n  \"unitTypeId\": \"ut_9\",\n  \"tz\": \"America/Denver\",\n  \"version\": 1,\n  \"dates\": [{\"date\":\"2025-06-01\",\"inventory\":3}]\n}"
+        }
+      }
+    },
+    {
+      "name": "Webhook - Reservation",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{idemKey}}" },
+          { "key": "X-Version", "value": "5" },
+          { "key": "X-Timestamp", "value": "{{timestamp}}" },
+          { "key": "X-Signature", "value": "{{signature}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/webhooks/channel/{{channel}}/reservations",
+          "host": ["{{baseUrl}}"],
+          "path": ["webhooks", "channel", "{{channel}}", "reservations"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"otaReservationId\":\"abc-123\",\n  \"channel\":\"booking.com\",\n  \"parkId\":\"pk_123\",\n  \"unitTypeId\":\"ut_9\",\n  \"status\":\"confirmed\",\n  \"otaUpdatedAt\":\"2025-05-12T18:34:00Z\",\n  \"version\":5,\n  \"checksum\":\"sha256:...\",\n  \"stay\":{\"arrival\":\"2025-06-10\",\"departure\":\"2025-06-14\",\"tz\":\"America/Denver\"},\n  \"price\":{\"currency\":\"USD\",\"total\":620.5}\n}"
+        }
+      }
+    },
+    {
+      "name": "Quote",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/pricing/quote",
+          "host": ["{{baseUrl}}"],
+          "path": ["pricing", "quote"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"parkId\":\"pk_123\",\n  \"unitTypeId\":\"ut_9\",\n  \"dates\":{\"arrival\":\"2025-06-10\",\"departure\":\"2025-06-14\"},\n  \"guests\":{},\n  \"promoCode\":\"SUMMER20\",\n  \"membershipId\":\"mem_1\"\n}"
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "https://api.example.com" },
+    { "key": "channel", "value": "booking.com" },
+    { "key": "idemKey", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "timestamp", "value": "2025-05-12T18:34:00Z" },
+    { "key": "signature", "value": "replace" }
+  ]
+}
+

@@ -1,0 +1,35 @@
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { SitesService } from "./sites.service";
+import { CreateSiteDto } from "./dto/create-site.dto";
+import { JwtAuthGuard } from "../auth/guards";
+
+@UseGuards(JwtAuthGuard)
+@Controller()
+export class SitesController {
+  constructor(private readonly sites: SitesService) { }
+
+  @Get("campgrounds/:campgroundId/sites")
+  list(@Param("campgroundId") campgroundId: string) {
+    return this.sites.listByCampground(campgroundId);
+  }
+
+  @Get("sites/:id")
+  getById(@Param("id") id: string) {
+    return this.sites.findOne(id);
+  }
+
+  @Post("campgrounds/:campgroundId/sites")
+  create(@Param("campgroundId") campgroundId: string, @Body() body: Omit<CreateSiteDto, "campgroundId">) {
+    return this.sites.create({ campgroundId, ...body });
+  }
+
+  @Patch("sites/:id")
+  update(@Param("id") id: string, @Body() body: Partial<CreateSiteDto>) {
+    return this.sites.update(id, body);
+  }
+
+  @Delete("sites/:id")
+  remove(@Param("id") id: string) {
+    return this.sites.remove(id);
+  }
+}

@@ -1,0 +1,52 @@
+import { Guest } from "@campreserv/shared";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Mail, Phone, MapPin, User } from "lucide-react";
+
+interface GuestCardProps {
+    guest: Guest;
+}
+
+export function GuestCard({ guest }: GuestCardProps) {
+    const createdYear = (guest as any).createdAt ? new Date((guest as any).createdAt).getFullYear() : "—";
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                    <User className="w-5 h-5 text-slate-500" />
+                    Guest Details
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div>
+                    <div className="font-semibold text-slate-900 text-lg">
+                        {guest.primaryFirstName} {guest.primaryLastName}
+                    </div>
+                    <div className="text-sm text-slate-500">Guest since {createdYear}</div>
+                </div>
+
+                <div className="space-y-3">
+                    <div className="flex items-center gap-3 text-slate-600">
+                        <Mail className="w-4 h-4" />
+                        <a href={`mailto:${guest.email}`} className="hover:text-blue-600 transition-colors">
+                            {guest.email}
+                        </a>
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-600">
+                        <Phone className="w-4 h-4" />
+                        <a href={`tel:${guest.phone}`} className="hover:text-blue-600 transition-colors">
+                            {guest.phone}
+                        </a>
+                    </div>
+                    {(guest.city || guest.state) && (
+                        <div className="flex items-center gap-3 text-slate-600">
+                            <MapPin className="w-4 h-4" />
+                            <span>
+                                {[guest.city, guest.state].filter(Boolean).join(", ")}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}

@@ -1,0 +1,159 @@
+import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from "class-validator";
+import { ReservationStatus } from "@prisma/client";
+
+export class CreateReservationDto {
+  @IsString()
+  @IsNotEmpty()
+  campgroundId!: string;
+
+  @IsOptional()
+  @IsString()
+  siteId?: string;
+
+  @IsOptional()
+  @IsString()
+  siteClassId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  guestId!: string;
+
+  @IsDateString()
+  arrivalDate!: string;
+
+  @IsDateString()
+  departureDate!: string;
+
+  @IsInt()
+  @Min(0)
+  adults!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  children?: number;
+
+  @IsInt()
+  @Min(0)
+  totalAmount!: number;
+
+  @IsOptional()
+  @IsEnum(ReservationStatus)
+  status?: ReservationStatus;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  paidAmount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  balanceAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  baseSubtotal?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  feesAmount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  taxesAmount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  discountsAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  promoCode?: string;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @IsString()
+  policyVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  checkInWindowStart?: string;
+
+  @IsOptional()
+  @IsString()
+  checkInWindowEnd?: string;
+
+  @IsOptional()
+  @IsString()
+  vehiclePlate?: string;
+
+  @IsOptional()
+  @IsString()
+  vehicleState?: string;
+
+  @IsOptional()
+  @IsString()
+  rigType?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  rigLength?: number;
+
+  @IsOptional()
+  @IsString()
+  holdId?: string;
+
+  @IsOptional()
+  @IsString()
+  createdBy?: string;
+
+  @IsOptional()
+  @IsString()
+  updatedBy?: string;
+
+  @IsOptional()
+  @IsDateString()
+  checkInAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  checkOutAt?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  rvType?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  transactionId?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentNotes?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  pets?: number;
+}

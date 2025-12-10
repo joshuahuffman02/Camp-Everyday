@@ -1,0 +1,394 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DashboardShell } from "@/components/ui/layout/DashboardShell";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { apiClient } from "@/lib/api-client";
+import { useToast } from "@/components/ui/use-toast";
+import { CheckCircle2, Cloud, FileDown, RefreshCcw, RotateCcw, Shield, ShieldCheck, ShieldOff } from "lucide-react";
+
+type PrivacySettings = {
+  redactPII: boolean;
+  consentRequired: boolean;
+  backupRetentionDays: number;
+  keyRotationDays: number;
+};
+
+type AuditLogRow = {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  createdAt: string;
+  actor: { id: string; email: string; firstName: string | null; lastName: string | null } | null;
+};
+
+export default function SecuritySettingsPage() {
+  const [campgroundId, setCampgroundId] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("campreserv:selectedCampground");
+    if (stored) setCampgroundId(stored);
+  }, []);
+
+  const quickAuditQuery = useQuery<{
+    privacyDefaults: PrivacySettings;
+    piiTagCount: number;
+    piiTagsPreview: { resource: string; field: string; classification: string; redactionMode?: string | null }[];
+    auditEvents: AuditLogRow[];
+  }>({
+    queryKey: ["security-quick-audit", campgroundId],
+    queryFn: () => apiClient.getSecurityQuickAudit(campgroundId!),
+    enabled: !!campgroundId,
+  });
+
+  const backupQuery = useQuery({
+    queryKey: ["backup-status", campgroundId],
+    queryFn: () => apiClient.getBackupStatus(campgroundId!),
+    enabled: !!campgroundId,
+    staleTime: 15000
+  });
+
+  const simulateRestore = useMutation({
+    mutationFn: () => apiClient.simulateRestore(campgroundId!),
+    onSuccess: (data) => {
+      toast({
+        title: "Restore simulation recorded (stub)",
+        description: "No data moved; status updated for DR drills."
+      });
+      if (campgroundId) {
+        qc.setQueryData(["backup-status", campgroundId], {
+          campgroundId,
+          lastBackupAt: data.lastBackupAt,
+          lastBackupLocation: data.lastBackupLocation,
+          retentionDays: data.retentionDays,
+          restoreSimulation: data.restoreSimulation
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Restore simulation failed",
+        description: err?.message ?? "Unexpected error while running the stub drill.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const piiCount = quickAuditQuery.data?.piiTagCount ?? 0;
+  const piiTagsPreview = quickAuditQuery.data?.piiTagsPreview ?? [];
+  const auditEvents = quickAuditQuery.data?.auditEvents ?? [];
+  const latestAudit = auditEvents?.[0];
+
+  const handleRefresh = () => {
+    if (!campgroundId) return;
+    qc.invalidateQueries({ queryKey: ["security-quick-audit", campgroundId] });
+    qc.invalidateQueries({ queryKey: ["backup-status", campgroundId] });
+  };
+
+  const handleExport = () => {
+    toast({
+      title: "Audit export queued (stub)",
+      description: "We will email a CSV export once the endpoint is wired.",
+      duration: 4200,
+    });
+  };
+
+  const statusBadge = (on?: boolean) => {
+    if (on === undefined) {
+      return (
+        <Badge variant="outline" className="gap-1">
+          <Shield className="w-4 h-4" />
+          Pending
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant={on ? "default" : "outline"} className="gap-1">
+        {on ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+        {on ? "On" : "Off"}
+      </Badge>
+    );
+  };
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return "Not yet recorded";
+    try {
+      return new Date(value).toLocaleString();
+    } catch {
+      return String(value);
+    }
+  };
+
+  const restoreStatusBadge = (status?: "idle" | "running" | "ok" | "error") => {
+    if (!status) {
+      return (
+        <Badge variant="outline" className="gap-1">
+          <RotateCcw className="w-4 h-4" />
+          Pending
+        </Badge>
+      );
+    }
+    const variant = status === "ok" ? "default" : status === "running" ? "secondary" : "outline";
+    const label = status === "ok" ? "Healthy" : status === "running" ? "Running" : status === "idle" ? "Idle" : "Needs review";
+    return (
+      <Badge variant={variant} className="gap-1">
+        <RotateCcw className="w-4 h-4" />
+        {label}
+      </Badge>
+    );
+  };
+
+  const settings = quickAuditQuery.data?.privacyDefaults as PrivacySettings | undefined;
+  const backupStatus = backupQuery.data;
+
+  return (
+    <DashboardShell>
+      <div className="space-y-6">
+        <Breadcrumbs items={[{ label: "Settings" }, { label: "Security" }]} />
+
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Security quick audit</h1>
+            <p className="text-sm text-slate-600">
+              Snapshot of privacy defaults, PII coverage, and recent audit activity.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={!campgroundId || quickAuditQuery.isLoading}
+            >
+              <RefreshCcw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+            <Button size="sm" variant="secondary" onClick={handleExport} disabled={!campgroundId}>
+              <FileDown className="w-4 h-4 mr-2" />
+              Export audit
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <div>
+                <CardTitle>Privacy defaults</CardTitle>
+                <CardDescription>Campground-wide redaction and consent posture.</CardDescription>
+              </div>
+              <Badge variant="outline">
+                {campgroundId ? `Campground ${campgroundId.slice(0, 6)}…` : "No campground selected"}
+              </Badge>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded border border-slate-200 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-slate-800">Redact PII in logs</div>
+                  {statusBadge(settings?.redactPII)}
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Removes or masks PII from audit trails and previews.
+                </p>
+              </div>
+              <div className="rounded border border-slate-200 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-slate-800">Consent required</div>
+                  {statusBadge(settings?.consentRequired)}
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Requires opt-in before sending outbound communications.
+                </p>
+              </div>
+              <div className="rounded border border-slate-200 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-slate-800">Backup retention</div>
+                  <Badge variant="secondary">{settings?.backupRetentionDays ?? "—"} days</Badge>
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Retention window for encrypted backups.
+                </p>
+              </div>
+              <div className="rounded border border-slate-200 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-slate-800">Key rotation</div>
+                  <Badge variant="secondary">{settings?.keyRotationDays ?? "—"} days</Badge>
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Cadence for rotating encryption and signing keys.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>PII tags</CardTitle>
+              <CardDescription>Classification coverage across resources.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-700">Tracked fields</div>
+                <Badge variant="default" className="gap-1">
+                  <CheckCircle2 className="w-4 h-4" />
+                  {piiCount}
+                </Badge>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                {piiTagsPreview.slice(0, 4).map((tag: any) => (
+                  <div key={`${tag.resource}:${tag.field}`} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-700">{tag.resource}.{tag.field}</span>
+                    <Badge variant="outline" className="text-[11px] uppercase">
+                      {tag.classification}
+                    </Badge>
+                  </div>
+                ))}
+                {piiTagsPreview.length === 0 && (
+                  <div className="overflow-hidden rounded border border-slate-200 bg-white">
+                    <table className="w-full text-sm">
+                      <tbody>
+                        <tr>
+                          <td className="px-4 py-6 text-center text-slate-500">No PII tags defined yet.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {piiTagsPreview.length > 4 && (
+                  <div className="text-xs text-slate-500">Showing 4 of {piiCount} tags.</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between space-y-0">
+            <div>
+              <CardTitle>Backup & DR readiness</CardTitle>
+              <CardDescription>Stub status only; no real restore is executed.</CardDescription>
+            </div>
+            <Badge variant="outline" className="gap-1">
+              <Cloud className="w-4 h-4" />
+              {backupStatus ? `${backupStatus.retentionDays}d` : "—"}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {backupQuery.isLoading && <div className="text-sm text-slate-500">Loading backup posture…</div>}
+            {!backupQuery.isLoading && !backupStatus && (
+              <div className="text-sm text-slate-500">Select a campground to view backup posture.</div>
+            )}
+            {backupStatus && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-700">Last backup</div>
+                  <div className="text-xs text-right text-slate-600">
+                    <div>{formatDate(backupStatus.lastBackupAt)}</div>
+                    <div className="text-[11px] text-slate-500">{backupStatus.lastBackupLocation}</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-700">Retention window</div>
+                  <Badge variant="secondary">{backupStatus.retentionDays} days</Badge>
+                </div>
+                <div className="rounded border border-slate-200 p-3 bg-slate-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">Restore simulation (stub)</div>
+                      <p className="text-xs text-slate-600">Records a drill only — no data moved.</p>
+                    </div>
+                    {restoreStatusBadge(backupStatus.restoreSimulation?.status as any)}
+                  </div>
+                  <div className="text-xs text-slate-600 mt-2">
+                    Last run: {formatDate(backupStatus.restoreSimulation?.lastRunAt)}
+                  </div>
+                  <div className="flex items-center gap-2 mt-3">
+                    <Button size="sm" onClick={() => simulateRestore.mutate()} disabled={!campgroundId || simulateRestore.isPending}>
+                      {simulateRestore.isPending ? "Simulating..." : "Simulate restore"}
+                    </Button>
+                    <Badge variant="outline" className="text-xs">
+                      {campgroundId ? `Camp ${campgroundId.slice(0, 6)}…` : "No campground"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle>Recent audit log</CardTitle>
+              <CardDescription>Last 5 security-relevant events from the audit trail.</CardDescription>
+            </div>
+            <Badge variant="outline" className="gap-1">
+              <Shield className="w-4 h-4" />
+              {auditEvents.length} entries
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {latestAudit ? (
+              <div className="rounded border border-slate-200 p-3 bg-slate-50">
+                <div className="flex items-center justify-between text-sm text-slate-800">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span className="font-semibold">{latestAudit.action}</span>
+                    <span className="text-slate-500">on {latestAudit.entity}</span>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {new Date(latestAudit.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-600 mt-1">
+                  Actor: {latestAudit.actor?.email ?? "unknown"} • Entity ID: {latestAudit.entityId ?? "n/a"}
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded border border-slate-200 bg-white">
+                <table className="w-full text-sm">
+                  <tbody>
+                    <tr>
+                      <td className="px-4 py-6 text-center text-slate-500">No audit entries yet.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <Separator />
+
+            <div className="grid gap-2">
+              {auditEvents.map((row: AuditLogRow) => (
+                <div key={row.id} className="rounded border border-slate-200 p-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-800">
+                      {row.action} • {row.entity}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {new Date(row.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    Actor: {row.actor?.email ?? "unknown"} | Entity ID: {row.entityId ?? "n/a"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardShell>
+  );
+}
+

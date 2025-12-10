@@ -1,0 +1,1025 @@
+import { Body, Controller, Get, Headers, Param, Post, RawBodyRequest, Req, BadRequestException, UseGuards, NotFoundException, Query, Res, Logger, ForbiddenException, ConflictException } from "@nestjs/common";
+import Stripe from "stripe";
+import { Response } from "express";
+import { ReservationsService } from "../reservations/reservations.service";
+import { CreatePaymentIntentDto } from "./dto/create-payment-intent.dto";
+import { StripeService } from "./stripe.service";
+import { Request } from 'express';
+import { JwtAuthGuard } from "../auth/guards";
+import { RolesGuard, Roles } from "../auth/guards/roles.guard";
+import { ScopeGuard } from "../permissions/scope.guard";
+import { RequireScope } from "../permissions/scope.decorator";
+import { UserRole, IdempotencyStatus } from "@prisma/client";
+type BillingPlan = "ota_only" | "standard" | "enterprise";
+type PaymentFeeMode = "absorb" | "pass_through";
+type DisputeStatus = "warning_needs_response" | "warning_under_review" | "needs_response" | "under_review" | "charge_refunded" | "won" | "lost";
+type PayoutStatus = "pending" | "in_transit" | "paid" | "failed" | "canceled";
+import { PrismaService } from "../prisma/prisma.service";
+import { PaymentsReconciliationService } from "./reconciliation.service";
+import { IsInt, IsOptional, Min } from "class-validator";
+import { Type } from "class-transformer";
+import { IdempotencyService } from "./idempotency.service";
+
+// DTO for public payment intent creation
+class CreatePublicPaymentIntentDto {
+  amountCents!: number;
+  currency?: string;
+  reservationId!: string;
+  guestEmail?: string;
+  captureMethod?: 'automatic' | 'manual';
+}
+
+class UpdatePaymentSettingsDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  applicationFeeFlatCents?: number;
+
+  @IsOptional()
+  billingPlan?: BillingPlan;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  perBookingFeeCents?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  monthlyFeeCents?: number;
+
+  @IsOptional()
+  feeMode?: PaymentFeeMode;
+}
+
+// DTO for refund request
+class RefundPaymentIntentDto {
+  amountCents?: number;
+  reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer';
+}
+
+// DTO for capture request
+class CapturePaymentIntentDto {
+  amountCents?: number;
+}
+
+@Controller()
+export class PaymentsController {
+  constructor(
+    private readonly reservations: ReservationsService,
+    private readonly stripeService: StripeService,
+    private readonly prisma: PrismaService,
+    private readonly recon: PaymentsReconciliationService,
+    private readonly idempotency: IdempotencyService
+  ) { }
+
+  private readonly logger = new Logger(PaymentsController.name);
+  private readonly capabilitiesTtlMs = Number(process.env.STRIPE_CAPABILITIES_TTL_MS ?? 6 * 60 * 60 * 1000); // default 6h
+
+  private async refreshCapabilitiesIfNeeded(params: {
+    campgroundId: string;
+    stripeAccountId?: string | null;
+    currentCapabilities?: Record<string, string> | null;
+    fetchedAt?: Date | null;
+    force?: boolean;
+  }) {
+    const { campgroundId, stripeAccountId, currentCapabilities, fetchedAt, force } = params;
+    if (!stripeAccountId) {
+      return { capabilities: null, fetchedAt: null, refreshed: false, skipped: true };
+    }
+
+    const ageMs = fetchedAt ? Date.now() - new Date(fetchedAt).getTime() : Infinity;
+    if (!force && ageMs < this.capabilitiesTtlMs) {
+      return { capabilities: currentCapabilities ?? null, fetchedAt: fetchedAt ?? null, refreshed: false, skipped: false };
+    }
+
+    try {
+      const capabilities = await this.stripeService.retrieveAccountCapabilities(stripeAccountId);
+      if (!capabilities) {
+        // Stripe not configured or mock disabled; avoid failing the request.
+        return { capabilities: currentCapabilities ?? null, fetchedAt: fetchedAt ?? null, refreshed: false, skipped: true };
+      }
+
+      const updated = await this.prisma.campground.update({
+        where: { id: campgroundId },
+        data: {
+          stripeCapabilities: capabilities as any,
+          stripeCapabilitiesFetchedAt: new Date()
+        },
+        select: {
+          stripeCapabilities: true as any,
+          stripeCapabilitiesFetchedAt: true as any
+        }
+      } as any);
+
+      return {
+        capabilities: (updated as any).stripeCapabilities as Record<string, string> | null,
+        fetchedAt: (updated as any).stripeCapabilitiesFetchedAt as Date | null,
+        refreshed: true,
+        skipped: false
+      };
+    } catch (err: any) {
+      this.logger.warn(`Capability refresh failed for campground ${campgroundId}: ${err?.message || err}`);
+      return { capabilities: currentCapabilities ?? null, fetchedAt: fetchedAt ?? null, refreshed: false, skipped: false, error: err };
+    }
+  }
+
+  private async getPaymentContext(reservationId: string) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: reservationId },
+      select: {
+        id: true,
+        campgroundId: true,
+        balanceAmount: true,
+        totalAmount: true,
+        paidAmount: true
+      }
+    });
+    if (!reservation) {
+      throw new BadRequestException("Reservation not found for payment");
+    }
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: reservation.campgroundId },
+      select: {
+        // Note: prisma types may lag schema changes; cast to any for new fields.
+        stripeAccountId: true as any,
+        applicationFeeFlatCents: true as any,
+        billingPlan: true,
+        perBookingFeeCents: true as any,
+        monthlyFeeCents: true as any,
+        feeMode: true,
+        name: true,
+        stripeCapabilities: true as any,
+        stripeCapabilitiesFetchedAt: true as any
+      } as any
+    });
+    const stripeAccountId = (campground as any)?.stripeAccountId as string | undefined;
+    if (!stripeAccountId) {
+      throw new BadRequestException("Campground is not connected to Stripe. Please complete onboarding.");
+    }
+    if (!this.stripeService.isConfigured()) {
+      throw new BadRequestException("Stripe keys are not configured for the platform. Set STRIPE_SECRET_KEY to enable payments.");
+    }
+    const plan = (campground as any)?.billingPlan as BillingPlan | undefined;
+    const planDefaultFee = plan === "standard" ? 200 : plan === "enterprise" ? 100 : 300;
+    const applicationFeeCents =
+      (campground as any)?.perBookingFeeCents ??
+      (campground as any)?.applicationFeeFlatCents ??
+      Number(process.env.PAYMENT_PLATFORM_FEE_CENTS ?? planDefaultFee);
+    const feeMode = ((campground as any)?.feeMode as PaymentFeeMode | undefined) ?? "absorb";
+    const refreshed = await this.refreshCapabilitiesIfNeeded({
+      campgroundId: reservation.campgroundId,
+      stripeAccountId,
+      currentCapabilities: (campground as any)?.stripeCapabilities as any,
+      fetchedAt: (campground as any)?.stripeCapabilitiesFetchedAt as any
+    });
+    return {
+      stripeAccountId,
+      applicationFeeCents,
+      campgroundId: reservation.campgroundId,
+      feeMode,
+      reservation,
+      capabilities: refreshed.capabilities ?? ((campground as any)?.stripeCapabilities as Record<string, string> | undefined),
+      capabilitiesFetchedAt: refreshed.fetchedAt ?? ((campground as any)?.stripeCapabilitiesFetchedAt as Date | undefined)
+    };
+  }
+
+  private getPaymentMethodTypes(capabilities?: Record<string, string> | undefined | null) {
+    const achActive = capabilities?.us_bank_account_ach_payments === "active";
+    const cardActive = capabilities?.card_payments === "active";
+    const types: string[] = [];
+    if (cardActive) types.push("card");
+    if (achActive) types.push("us_bank_account");
+    return types.length ? types : ["card"];
+  }
+
+  private computeChargeAmounts(opts: {
+    reservation: { balanceAmount?: number | null; totalAmount?: number | null; paidAmount?: number | null };
+    feeMode: PaymentFeeMode | string;
+    applicationFeeCents: number;
+    requestedAmountCents?: number;
+  }) {
+    const baseDue =
+      opts.reservation.balanceAmount ??
+      Math.max(0, (opts.reservation.totalAmount ?? 0) - (opts.reservation.paidAmount ?? 0));
+    const passThroughFee = opts.feeMode === "pass_through" ? opts.applicationFeeCents : 0;
+    const maxCharge = Math.max(0, baseDue + passThroughFee);
+    const desired = opts.requestedAmountCents ?? maxCharge;
+    const amountCents = Math.min(Math.max(desired, 0), maxCharge);
+    return { amountCents, passThroughFeeCents: passThroughFee };
+  }
+
+  private ensureCampgroundMembership(user: any, campgroundId: string | null | undefined) {
+    const actorCampgrounds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    if (!campgroundId || !actorCampgrounds.includes(campgroundId)) {
+      throw new ForbiddenException("Forbidden by campground scope");
+    }
+  }
+
+  /**
+   * Create a payment intent (staff-only, requires authentication)
+   * Accepts Idempotency-Key header for safe retries
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post("payments/intents")
+  async createIntent(
+    @Body() body: CreatePaymentIntentDto,
+    @Req() req: any,
+    @Headers("idempotency-key") idempotencyKey?: string
+  ) {
+    const currency = (body.currency || "usd").toLowerCase();
+
+    const ctx = await this.getPaymentContext(body.reservationId);
+    this.ensureCampgroundMembership(req?.user, ctx.campgroundId);
+    const { stripeAccountId, applicationFeeCents, feeMode, reservation, campgroundId, capabilities } = ctx;
+    const { amountCents, passThroughFeeCents } = this.computeChargeAmounts({
+      reservation,
+      feeMode,
+      applicationFeeCents,
+      requestedAmountCents: body.amountCents
+    });
+
+    // Check idempotency if key provided
+    if (idempotencyKey) {
+      const existing = await this.idempotency.start(idempotencyKey, body, campgroundId);
+      if (existing.status === IdempotencyStatus.succeeded && existing.responseJson) {
+        return existing.responseJson;
+      }
+      if (existing.status === IdempotencyStatus.inflight && existing.createdAt) {
+        const ageMs = Date.now() - new Date(existing.createdAt).getTime();
+        if (ageMs < 60000) {
+          throw new ConflictException("Request already in progress");
+        }
+      }
+    }
+
+    try {
+      const intent = await this.stripeService.createPaymentIntent(
+        amountCents,
+        currency,
+        {
+          reservationId: body.reservationId,
+          campgroundId,
+          source: 'staff_checkout',
+          feeMode,
+          applicationFeeCents: String(applicationFeeCents),
+          passThroughFeeCents: String(passThroughFeeCents)
+        },
+        stripeAccountId,
+        applicationFeeCents,
+        body.autoCapture === false ? 'manual' : 'automatic',
+        this.getPaymentMethodTypes(capabilities),
+        idempotencyKey
+      );
+
+      const response = {
+        id: intent.id,
+        clientSecret: intent.client_secret,
+        amountCents,
+        currency,
+        reservationId: body.reservationId,
+        status: intent.status
+      };
+
+      if (idempotencyKey) {
+        await this.idempotency.complete(idempotencyKey, response);
+      }
+
+      return response;
+    } catch (err) {
+      if (idempotencyKey) {
+        await this.idempotency.fail(idempotencyKey);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Create a setup intent for saving payment methods (staff)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post("payments/setup-intents")
+  async createSetupIntent(@Body() body: { reservationId: string; customerEmail?: string }, @Req() req: any) {
+    if (!body.reservationId) throw new BadRequestException("reservationId is required");
+    const ctx = await this.getPaymentContext(body.reservationId);
+    this.ensureCampgroundMembership(req?.user, ctx.campgroundId);
+    const { stripeAccountId, capabilities } = ctx;
+    const setupIntent = await this.stripeService.createSetupIntent(
+      stripeAccountId,
+      {
+        reservationId: body.reservationId,
+        source: 'staff_setup'
+      },
+      this.getPaymentMethodTypes(capabilities)
+    );
+    return { id: setupIntent.id, clientSecret: setupIntent.client_secret };
+  }
+
+  /**
+   * Public setup intent for guests (save for future/ACH)
+   */
+  @Post("public/payments/setup-intents")
+  async createPublicSetupIntent(@Body() body: { reservationId: string; guestEmail?: string }) {
+    if (!body.reservationId) throw new BadRequestException("reservationId is required");
+    const { stripeAccountId, capabilities } = await this.getPaymentContext(body.reservationId);
+    const setupIntent = await this.stripeService.createSetupIntent(
+      stripeAccountId,
+      {
+        reservationId: body.reservationId,
+        source: 'public_setup',
+        guestEmail: body.guestEmail || ''
+      },
+      this.getPaymentMethodTypes(capabilities)
+    );
+    return { id: setupIntent.id, clientSecret: setupIntent.client_secret };
+  }
+
+  /**
+   * Create a payment intent for public/guest checkout (no authentication required)
+   */
+  @Post("public/payments/intents")
+  async createPublicIntent(@Body() body: CreatePublicPaymentIntentDto) {
+    const currency = (body.currency || "usd").toLowerCase();
+
+    if (!body.reservationId) {
+      throw new BadRequestException("reservationId is required for payment");
+    }
+
+    const { stripeAccountId, applicationFeeCents, feeMode, reservation, campgroundId, capabilities } = await this.getPaymentContext(body.reservationId);
+    const { amountCents, passThroughFeeCents } = this.computeChargeAmounts({
+      reservation,
+      feeMode,
+      applicationFeeCents
+    });
+
+    const metadata: Record<string, string> = {
+      reservationId: body.reservationId,
+      campgroundId,
+      source: 'public_checkout',
+      feeMode,
+      applicationFeeCents: String(applicationFeeCents),
+      passThroughFeeCents: String(passThroughFeeCents)
+    };
+    if (body.guestEmail) {
+      metadata.guestEmail = body.guestEmail;
+    }
+
+    const intent = await this.stripeService.createPaymentIntent(
+      amountCents,
+      currency,
+      metadata,
+      stripeAccountId,
+      applicationFeeCents,
+      body.captureMethod === 'manual' ? 'manual' : 'automatic',
+      this.getPaymentMethodTypes(capabilities)
+    );
+
+    return {
+      id: intent.id,
+      clientSecret: intent.client_secret,
+      amountCents,
+      currency,
+      status: intent.status
+    };
+  }
+
+  /**
+   * Create/connect a campground Stripe account (Express) and return onboarding link
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post("campgrounds/:campgroundId/payments/connect")
+  async connectCampground(@Param("campgroundId") campgroundId: string, @Req() req: any) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { id: true, email: true, stripeAccountId: true as any }
+    } as any);
+    if (!campground) throw new BadRequestException("Campground not found");
+
+    let accountId = (campground as any)?.stripeAccountId as string | undefined;
+    if (!accountId) {
+      const account = await this.stripeService.createExpressAccount(campground.email || undefined, { campgroundId });
+      accountId = account.id;
+      await this.prisma.campground.update({
+        where: { id: campgroundId },
+        data: { stripeAccountId: accountId } as any
+      });
+    }
+
+    const returnUrl = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/settings/payments/success` : "https://app.campreserv.com/settings/payments/success";
+    const refreshUrl = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/settings/payments/error` : "https://app.campreserv.com/settings/payments/error";
+    const link = await this.stripeService.createAccountOnboardingLink(accountId, returnUrl, refreshUrl);
+
+    // Fetch capabilities after onboarding link creation
+    try {
+      const capabilities = await this.stripeService.retrieveAccountCapabilities(accountId);
+      await this.prisma.campground.update({
+        where: { id: campgroundId },
+        data: {
+          stripeCapabilities: capabilities as any,
+          stripeCapabilitiesFetchedAt: new Date()
+        }
+      } as any);
+    } catch { /* noop */ }
+
+    return { accountId, onboardingUrl: link.url };
+  }
+
+  /**
+   * Update campground payment settings (e.g., application fee)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post("campgrounds/:campgroundId/payments/settings")
+  async updatePaymentSettings(
+    @Param("campgroundId") campgroundId: string,
+    @Body() body: UpdatePaymentSettingsDto,
+    @Req() req: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const campground = await this.prisma.campground.findUnique({ where: { id: campgroundId } });
+    if (!campground) throw new BadRequestException("Campground not found");
+
+    const updated = await this.prisma.campground.update({
+      where: { id: campgroundId },
+      data: {
+        applicationFeeFlatCents: body.applicationFeeFlatCents ?? (campground as any).applicationFeeFlatCents,
+        perBookingFeeCents: body.perBookingFeeCents ?? (campground as any).perBookingFeeCents,
+        monthlyFeeCents: body.monthlyFeeCents ?? (campground as any).monthlyFeeCents,
+        billingPlan: body.billingPlan ?? ((campground as any).billingPlan as BillingPlan),
+        feeMode: body.feeMode ?? ((campground as any).feeMode as PaymentFeeMode)
+      } as any,
+      select: {
+        stripeAccountId: true as any,
+        applicationFeeFlatCents: true as any,
+        perBookingFeeCents: true as any,
+        monthlyFeeCents: true as any,
+        billingPlan: true,
+        feeMode: true,
+        stripeCapabilities: true as any,
+        stripeCapabilitiesFetchedAt: true as any
+      }
+    } as any);
+
+    return updated;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post("campgrounds/:campgroundId/payments/capabilities/refresh")
+  async refreshCapabilities(@Param("campgroundId") campgroundId: string, @Req() req: any) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const cg = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: {
+        stripeAccountId: true as any,
+        applicationFeeFlatCents: true as any,
+        perBookingFeeCents: true as any,
+        monthlyFeeCents: true as any,
+        billingPlan: true,
+        feeMode: true,
+        stripeCapabilities: true as any,
+        stripeCapabilitiesFetchedAt: true as any
+      }
+    } as any);
+
+    if (!cg?.stripeAccountId) {
+      return {
+        ...cg,
+        stripeCapabilities: null,
+        stripeCapabilitiesFetchedAt: null,
+        connected: false,
+        refreshed: false
+      };
+    }
+
+    const refreshed = await this.refreshCapabilitiesIfNeeded({
+      campgroundId,
+      stripeAccountId: cg.stripeAccountId,
+      currentCapabilities: cg.stripeCapabilities as any,
+      fetchedAt: cg.stripeCapabilitiesFetchedAt as any,
+      force: true
+    });
+
+    return {
+      ...cg,
+      stripeCapabilities: refreshed.capabilities ?? cg.stripeCapabilities,
+      stripeCapabilitiesFetchedAt: refreshed.fetchedAt ?? cg.stripeCapabilitiesFetchedAt,
+      connected: true,
+      refreshed: refreshed.refreshed
+    };
+  }
+
+  /**
+   * Get the status of a payment intent
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("payments/intents/:id")
+  async getPaymentIntent(@Param("id") id: string, @Req() req: any) {
+    try {
+      const intent = await this.stripeService.retrievePaymentIntent(id);
+      const campgroundId = (intent.metadata as any)?.campgroundId ?? null;
+      this.ensureCampgroundMembership(req?.user, campgroundId);
+      return {
+        id: intent.id,
+        status: intent.status,
+        amountCents: intent.amount,
+        amountReceivedCents: intent.amount_received,
+        currency: intent.currency,
+        metadata: intent.metadata,
+        captureMethod: intent.capture_method,
+        createdAt: new Date(intent.created * 1000).toISOString(),
+      };
+    } catch (error: any) {
+      if (error.code === 'resource_missing') {
+        throw new NotFoundException(`Payment intent ${id} not found`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Capture an authorized payment intent (for deposit/hold flows)
+   * Accepts Idempotency-Key header for safe retries
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post("payments/intents/:id/capture")
+  async capturePaymentIntent(
+    @Param("id") id: string,
+    @Body() body: CapturePaymentIntentDto,
+    @Req() req: any,
+    @Headers("idempotency-key") idempotencyKey?: string
+  ) {
+    try {
+      const current = await this.stripeService.retrievePaymentIntent(id);
+      const campgroundId = (current.metadata as any)?.campgroundId ?? null;
+      this.ensureCampgroundMembership(req?.user, campgroundId);
+
+      // Check idempotency if key provided
+      if (idempotencyKey) {
+        const existing = await this.idempotency.start(idempotencyKey, { id, ...body }, campgroundId);
+        if (existing.status === IdempotencyStatus.succeeded && existing.responseJson) {
+          return existing.responseJson;
+        }
+      }
+
+      const intent = await this.stripeService.capturePaymentIntent(id, body.amountCents, idempotencyKey);
+
+      // Record the payment in the reservation if applicable
+      const reservationId = intent.metadata?.reservationId;
+      if (reservationId) {
+        await this.reservations.recordPayment(reservationId, intent.amount_received, {
+          transactionId: intent.id,
+          paymentMethod: intent.payment_method_types?.[0] || 'card',
+          source: intent.metadata?.source || 'staff_checkout',
+          stripePaymentIntentId: intent.id,
+          stripeChargeId: (intent as any)?.latest_charge as any,
+          capturedAt: new Date()
+        });
+      }
+
+      const response = {
+        id: intent.id,
+        status: intent.status,
+        amountCents: intent.amount,
+        amountReceivedCents: intent.amount_received,
+        currency: intent.currency,
+      };
+
+      if (idempotencyKey) {
+        await this.idempotency.complete(idempotencyKey, response);
+      }
+
+      return response;
+    } catch (error: any) {
+      if (idempotencyKey) {
+        await this.idempotency.fail(idempotencyKey);
+      }
+      if (error.code === 'resource_missing') {
+        throw new NotFoundException(`Payment intent ${id} not found`);
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * Issue a refund for a payment intent
+   * Accepts Idempotency-Key header for safe retries
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post("payments/intents/:id/refund")
+  async refundPaymentIntent(
+    @Param("id") id: string,
+    @Body() body: RefundPaymentIntentDto,
+    @Req() req: any,
+    @Headers("idempotency-key") idempotencyKey?: string
+  ) {
+    try {
+      const intent = await this.stripeService.retrievePaymentIntent(id);
+      const campgroundId = (intent.metadata as any)?.campgroundId ?? null;
+      this.ensureCampgroundMembership(req?.user, campgroundId);
+
+      // Check idempotency if key provided
+      if (idempotencyKey) {
+        const existing = await this.idempotency.start(idempotencyKey, { id, ...body }, campgroundId);
+        if (existing.status === IdempotencyStatus.succeeded && existing.responseJson) {
+          return existing.responseJson;
+        }
+      }
+
+      const refund = await this.stripeService.createRefund(id, body.amountCents, body.reason, idempotencyKey);
+
+      const reservationId = intent.metadata?.reservationId;
+      if (reservationId) {
+        await this.reservations.recordRefund(reservationId, refund.amount || 0, refund.id);
+      }
+
+      const response = {
+        id: refund.id,
+        status: refund.status,
+        amountCents: refund.amount,
+        paymentIntentId: id,
+        reason: refund.reason,
+      };
+
+      if (idempotencyKey) {
+        await this.idempotency.complete(idempotencyKey, response);
+      }
+
+      return response;
+    } catch (error: any) {
+      if (idempotencyKey) {
+        await this.idempotency.fail(idempotencyKey);
+      }
+      if (error.code === 'resource_missing') {
+        throw new NotFoundException(`Payment intent ${id} not found`);
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * Handle Stripe webhooks
+   */
+  @Post("payments/webhook")
+  async handleWebhook(@Req() req: RawBodyRequest<Request>, @Headers("stripe-signature") signature: string) {
+    if (!signature) throw new BadRequestException("Missing stripe-signature header");
+
+    let event;
+    try {
+      event = this.stripeService.constructEventFromPayload(signature, req.rawBody!);
+    } catch (err: any) {
+      throw new BadRequestException(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === "payment_intent.succeeded") {
+      const paymentIntent = event.data.object as any;
+      const reservationId = paymentIntent.metadata.reservationId;
+      const amountCents = paymentIntent.amount;
+
+      if (reservationId) {
+        await this.reservations.recordPayment(reservationId, amountCents, {
+          transactionId: paymentIntent.id,
+          paymentMethod: paymentIntent.payment_method_types?.[0] || 'card',
+          source: paymentIntent.metadata.source || 'online',
+          stripePaymentIntentId: paymentIntent.id,
+          stripeChargeId: paymentIntent.latest_charge,
+          stripeBalanceTransactionId: paymentIntent.charges?.data?.[0]?.balance_transaction,
+          applicationFeeCents: paymentIntent.application_fee_amount ?? undefined,
+          methodType: paymentIntent.payment_method_types?.[0],
+          capturedAt: paymentIntent.status === 'succeeded' ? new Date(paymentIntent.created * 1000) : undefined
+        });
+      }
+    }
+
+    if (event.type === "payment_intent.payment_failed") {
+      const pi = event.data.object as any;
+      const pmType = pi.payment_method_types?.[0];
+      if (pmType === "us_bank_account") {
+        console.warn(`[ACH] Payment failed for PI ${pi.id}: ${pi.last_payment_error?.message ?? "unknown"}`);
+        await this.handleAchReturn(pi);
+      }
+    }
+
+    if (event.type === "account.updated") {
+      const acct = event.data.object as any;
+      const acctId = acct.id as string;
+      try {
+        const capabilities = acct.capabilities;
+        await this.prisma.campground.updateMany({
+          where: { stripeAccountId: acctId },
+          data: {
+            stripeCapabilities: capabilities as any,
+            stripeCapabilitiesFetchedAt: new Date()
+          }
+        } as any);
+        await this.recon.sendAlert(`Stripe capabilities updated for ${acctId}: ${JSON.stringify(capabilities)}`);
+      } catch (err) {
+        console.warn(`Failed to update capabilities for account ${acctId}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    if (event.type === "payout.paid" || event.type === "payout.failed" || event.type === "payout.updated") {
+      const payout = event.data.object as any;
+      await this.recon.reconcilePayout(payout);
+    }
+
+    if (event.type === "charge.dispute.created" || event.type === "charge.dispute.updated" || event.type === "charge.dispute.closed") {
+      const dispute = event.data.object as any;
+      await this.recon.upsertDispute(dispute);
+    }
+
+    // Handle refund events
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as any;
+      const paymentIntentId = charge.payment_intent;
+
+      if (paymentIntentId) {
+        try {
+          const intent = await this.stripeService.retrievePaymentIntent(paymentIntentId);
+          const reservationId = intent.metadata?.reservationId;
+          if (reservationId) {
+            await this.reservations.recordRefund(reservationId, charge.amount_refunded, charge.id);
+          }
+        } catch {
+          // Log but don't fail - the refund still happened in Stripe
+          console.error('Failed to update reservation after refund webhook');
+        }
+      }
+    }
+
+    return { received: true };
+  }
+
+  // -----------------------------------------------------------------------------
+  // Admin queries
+  // -----------------------------------------------------------------------------
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/payouts")
+  async listPayouts(
+    @Param("campgroundId") campgroundId: string,
+    @Query("status") status?: PayoutStatus,
+    @Req() req?: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const payouts = await (this.prisma as any).payout.findMany({
+      where: {
+        campgroundId,
+        status: status ? (status as string) : undefined
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        lines: true
+      }
+    });
+    return payouts;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/payouts/:payoutId")
+  async getPayout(
+    @Param("campgroundId") campgroundId: string,
+    @Param("payoutId") payoutId: string,
+    @Req() req?: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const payout = await (this.prisma as any).payout.findFirst({
+      where: { id: payoutId, campgroundId },
+      include: { lines: true }
+    });
+    if (!payout) throw new NotFoundException("Payout not found");
+    return payout;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/payouts/:payoutId/recon")
+  async getPayoutRecon(
+    @Param("campgroundId") campgroundId: string,
+    @Param("payoutId") payoutId: string,
+    @Req() req?: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    try {
+      return await this.recon.computeReconSummary(payoutId, campgroundId);
+    } catch (err) {
+      throw new NotFoundException((err as Error).message);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/payouts/:payoutId/export")
+  async exportPayoutCsv(
+    @Param("campgroundId") campgroundId: string,
+    @Param("payoutId") payoutId: string,
+    @Res() res: Response,
+    @Req() req?: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const payout = await (this.prisma as any).payout.findFirst({
+      where: { id: payoutId, campgroundId },
+      include: { lines: true }
+    });
+    if (!payout) throw new NotFoundException("Payout not found");
+
+    const headers = ["type", "amount_cents", "currency", "description", "reservation_id", "payment_intent_id", "charge_id", "balance_transaction_id", "created_at"];
+    const rows = (payout.lines || []).map((l: any) => [
+      l.type,
+      l.amountCents,
+      l.currency,
+      l.description ?? "",
+      l.reservationId ?? "",
+      l.paymentIntentId ?? "",
+      l.chargeId ?? "",
+      l.balanceTransactionId ?? "",
+      l.createdAt ?? ""
+    ]);
+    const csv = [headers.join(","), ...rows.map((r: any[]) => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+    (res as any).setHeader("Content-Type", "text/csv");
+    (res as any).setHeader("Content-Disposition", `attachment; filename="payout-${payout.stripePayoutId}.csv"`);
+    return (res as any).send(csv);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/payouts/:payoutId/ledger-export")
+  async exportPayoutLedgerCsv(
+    @Param("campgroundId") campgroundId: string,
+    @Param("payoutId") payoutId: string,
+    @Res() res: Response,
+    @Req() req?: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const payout = await (this.prisma as any).payout.findFirst({
+      where: { id: payoutId, campgroundId },
+      include: { lines: true }
+    });
+    if (!payout) throw new NotFoundException("Payout not found");
+    const reservationIds = Array.from(new Set((payout.lines || []).map((l: any) => l.reservationId).filter(Boolean)));
+    const ledgerEntries = reservationIds.length
+      ? await (this.prisma as any).ledgerEntry.findMany({ where: { reservationId: { in: reservationIds } } })
+      : [];
+    const headers = ["id", "reservation_id", "gl_code", "account", "description", "amount_cents", "direction", "occurred_at"];
+    const rows = ledgerEntries.map((e: any) => [
+      e.id,
+      e.reservationId ?? "",
+      e.glCode ?? "",
+      e.account ?? "",
+      e.description ?? "",
+      e.amountCents,
+      e.direction,
+      e.occurredAt?.toISOString?.() ?? ""
+    ]);
+    const csv = [headers.join(","), ...rows.map((r: any[]) => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+    (res as any).setHeader("Content-Type", "text/csv");
+    (res as any).setHeader("Content-Disposition", `attachment; filename="payout-ledger-${payout.stripePayoutId}.csv"`);
+    return (res as any).send(csv);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/disputes")
+  async listDisputes(
+    @Param("campgroundId") campgroundId: string,
+    @Query("status") status?: DisputeStatus,
+    @Req() req?: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const disputes = await (this.prisma as any).dispute.findMany({
+      where: {
+        campgroundId,
+        status: status ? (status as string) : undefined
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    return disputes;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/disputes/:disputeId")
+  async getDispute(
+    @Param("campgroundId") campgroundId: string,
+    @Param("disputeId") disputeId: string,
+    @Req() req?: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const dispute = await (this.prisma as any).dispute.findFirst({
+      where: { id: disputeId, campgroundId }
+    });
+    if (!dispute) throw new NotFoundException("Dispute not found");
+    return dispute;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/disputes/export")
+  async exportDisputesCsv(
+    @Param("campgroundId") campgroundId: string,
+    @Query("status") status: string | undefined,
+    @Res() res: Response,
+    @Req() req?: any
+  ) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    const disputes = await (this.prisma as any).dispute.findMany({
+      where: { campgroundId, status: status ? (status as string) : undefined }
+    });
+    const headers = ["stripe_dispute_id", "status", "amount_cents", "currency", "reason", "reservation_id", "charge_id", "payment_intent_id", "evidence_due_by"];
+    const rows = disputes.map((d: any) => [
+      d.stripeDisputeId,
+      d.status,
+      d.amountCents,
+      d.currency,
+      d.reason ?? "",
+      d.reservationId ?? "",
+      d.stripeChargeId ?? "",
+      d.stripePaymentIntentId ?? "",
+      d.evidenceDueBy ? d.evidenceDueBy.toISOString() : ""
+    ]);
+    const csv = [headers.join(","), ...rows.map((r: any[]) => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+    (res as any).setHeader("Content-Type", "text/csv");
+    (res as any).setHeader("Content-Disposition", `attachment; filename="disputes-${campgroundId}.csv"`);
+    return (res as any).send(csv);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "payments", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Get("campgrounds/:campgroundId/disputes/templates")
+  async disputeTemplates(@Param("campgroundId") campgroundId: string, @Req() req?: any) {
+    this.ensureCampgroundMembership(req?.user, campgroundId);
+    return [
+      { id: "receipt", label: "Receipt / proof of payment" },
+      { id: "terms", label: "Signed terms, policies, cancellation rules" },
+      { id: "stay-proof", label: "Proof of stay/use (check-in logs, gate, photos)" },
+      { id: "comms", label: "Message history with guest" },
+      { id: "id", label: "ID/vehicle verification if collected" },
+    ];
+  }
+
+  // ACH return handling: create refund ledger entry and record refund
+  private async handleAchReturn(paymentIntent: any) {
+    const reservationId = paymentIntent.metadata?.reservationId;
+    const amount = paymentIntent.amount_received ?? paymentIntent.amount ?? 0;
+    if (!reservationId || amount <= 0) return;
+    try {
+      await this.reservations.recordRefund(reservationId, amount, `ACH return ${paymentIntent.last_payment_error?.code ?? ""}`);
+      await (this.prisma as any).ledgerEntry.create({
+        data: {
+          campgroundId: paymentIntent.metadata?.campgroundId ?? "",
+          reservationId,
+          glCode: "CHARGEBACK",
+          account: "Chargebacks",
+          description: `ACH return ${paymentIntent.id}`,
+          amountCents: amount,
+          direction: "debit",
+          occurredAt: new Date()
+        }
+      });
+      await (this.prisma as any).ledgerEntry.create({
+        data: {
+          campgroundId: paymentIntent.metadata?.campgroundId ?? "",
+          reservationId,
+          glCode: "CASH",
+          account: "Cash",
+          description: `ACH return ${paymentIntent.id} (offset)`,
+          amountCents: amount,
+          direction: "credit",
+          occurredAt: new Date()
+        }
+      });
+    } catch (err) {
+      console.warn(`[ACH] Failed to record ACH return for PI ${paymentIntent.id}: ${err instanceof Error ? err.message : err}`);
+    await this.recon.sendAlert(`[ACH] Failed to record ACH return for PI ${paymentIntent.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+}

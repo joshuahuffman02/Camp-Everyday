@@ -1,0 +1,369 @@
+"use client";
+
+import { useEffect, useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { DashboardShell } from "@/components/ui/layout/DashboardShell";
+import { apiClient } from "@/lib/api-client";
+import Link from "next/link";
+
+export default function AnalyticsPage() {
+  const [selectedCampgroundId, setSelectedCampgroundId] = useState<string | null>(null);
+  const [selectedCampgroundName, setSelectedCampgroundName] = useState<string | null>(null);
+  const [period, setPeriod] = useState<7 | 30 | 90>(30);
+
+  // Read selected campground from localStorage (set by the dashboard switcher)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const readSelection = () => {
+      const cgId = localStorage.getItem("campreserv:selectedCampground");
+      const cgName = localStorage.getItem("campreserv:selectedCampgroundName"); // optional, if stored elsewhere
+      setSelectedCampgroundId(cgId);
+      setSelectedCampgroundName(cgName);
+    };
+    readSelection();
+    window.addEventListener("storage", readSelection);
+    return () => window.removeEventListener("storage", readSelection);
+  }, []);
+
+  const metricsQuery = useQuery({
+    queryKey: ["dashboard-metrics", selectedCampgroundId, period],
+    queryFn: () => apiClient.getDashboardMetrics(selectedCampgroundId!, period),
+    enabled: !!selectedCampgroundId,
+    refetchInterval: 60000 // Refresh every minute
+  });
+
+  const trendQuery = useQuery({
+    queryKey: ["revenue-trend", selectedCampgroundId],
+    queryFn: () => apiClient.getRevenueTrend(selectedCampgroundId!, 12),
+    enabled: !!selectedCampgroundId
+  });
+
+  const forecastQuery = useQuery({
+    queryKey: ["occupancy-forecast", selectedCampgroundId],
+    queryFn: () => apiClient.getOccupancyForecast(selectedCampgroundId!, 30),
+    enabled: !!selectedCampgroundId
+  });
+
+  const taskMetricsQuery = useQuery({
+    queryKey: ["task-metrics", selectedCampgroundId],
+    queryFn: () => apiClient.getTaskMetrics(selectedCampgroundId!),
+    enabled: !!selectedCampgroundId,
+    refetchInterval: 30000 // Refresh every 30 seconds
+  });
+
+  const formatCurrency = (cents: number) => {
+    return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  };
+
+  const metrics = metricsQuery.data;
+  const trend = trendQuery.data;
+  const forecast = forecastQuery.data;
+  const tasks = taskMetricsQuery.data;
+
+  // Calculate max for chart scaling
+  const maxRevenue = useMemo(() => {
+    if (!trend) return 0;
+    return Math.max(...trend.map(t => t.revenueCents));
+  }, [trend]);
+
+  if (!selectedCampgroundId) {
+    return (
+      <DashboardShell>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-500">Select a campground to view analytics</p>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  return (
+    <DashboardShell>
+      <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Analytics Dashboard</h1>
+            <p className="text-slate-500 mt-1">
+              Real-time performance metrics for {selectedCampgroundName ?? "your selected campground"}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {[7, 30, 90].map(d => (
+              <button
+                key={d}
+                onClick={() => setPeriod(d as 7 | 30 | 90)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  period === d
+                    ? "bg-emerald-600 text-white"
+                    : "bg-white border border-slate-200 text-slate-700 hover:border-emerald-300"
+                }`}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            label="Revenue"
+            value={metrics ? formatCurrency(metrics.revenue.totalCents) : "—"}
+            change={metrics?.revenue.changePct}
+            loading={metricsQuery.isLoading}
+            color="emerald"
+          />
+          <KpiCard
+            label="ADR"
+            value={metrics ? formatCurrency(metrics.revenue.adrCents) : "—"}
+            subtitle="Avg Daily Rate"
+            loading={metricsQuery.isLoading}
+            color="blue"
+          />
+          <KpiCard
+            label="RevPAR"
+            value={metrics ? formatCurrency(metrics.revenue.revparCents) : "—"}
+            subtitle="Revenue per Available Room"
+            loading={metricsQuery.isLoading}
+            color="violet"
+          />
+          <KpiCard
+            label="Occupancy"
+            value={metrics ? `${metrics.occupancy.pct}%` : "—"}
+            subtitle={metrics ? `${metrics.occupancy.totalNights} nights sold` : undefined}
+            loading={metricsQuery.isLoading}
+            color="amber"
+          />
+        </div>
+
+        {/* Operations Quick Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <QuickStat label="Today's Arrivals" value={metrics?.today.arrivals ?? 0} icon="🛬" href="/check-in-out" />
+          <QuickStat label="Today's Departures" value={metrics?.today.departures ?? 0} icon="🛫" href="/check-in-out" />
+          <QuickStat label="Future Bookings" value={metrics?.futureBookings ?? 0} icon="📅" href="/reservations" />
+          <QuickStat label="Outstanding Balance" value={metrics ? formatCurrency(metrics.balances.outstandingCents) : "—"} icon="💰" href="/billing/repeat-charges" />
+          <QuickStat label="Total Sites" value={metrics?.totalSites ?? 0} icon="🏕️" href="/campgrounds" />
+        </div>
+
+        {/* Tasks Widget */}
+        {tasks && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-900">Operations Tasks</h3>
+              <Link href="/operations" className="text-sm text-emerald-600 hover:text-emerald-700">
+                View all →
+              </Link>
+            </div>
+            <div className="grid grid-cols-5 gap-4 text-center">
+              <div>
+                <div className="text-2xl font-bold text-amber-600">{tasks.pending}</div>
+                <div className="text-xs text-slate-500">Pending</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-blue-600">{tasks.inProgress}</div>
+                <div className="text-xs text-slate-500">In Progress</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-emerald-600">{tasks.completedToday}</div>
+                <div className="text-xs text-slate-500">Done Today</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-orange-600">{tasks.atRisk}</div>
+                <div className="text-xs text-slate-500">At Risk</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-red-600">{tasks.breached}</div>
+                <div className="text-xs text-slate-500">SLA Breached</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Revenue Trend */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-900 mb-4">Revenue Trend (12 months)</h3>
+            {trendQuery.isLoading ? (
+              <div className="h-48 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600" />
+              </div>
+            ) : trend && trend.length > 0 ? (
+              <div className="h-48 flex items-end gap-1">
+                {trend.map((t, i) => {
+                  const height = maxRevenue > 0 ? (t.revenueCents / maxRevenue) * 100 : 0;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center group">
+                      <div className="relative w-full flex justify-center">
+                        <div
+                          className="w-full max-w-8 bg-emerald-500 rounded-t transition-all hover:bg-emerald-600"
+                          style={{ height: `${Math.max(height, 2)}%` }}
+                        />
+                        <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                          {formatCurrency(t.revenueCents)} • {t.bookings} bookings
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1">{t.month}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-48 flex items-center justify-center text-slate-400">
+                No revenue data available
+              </div>
+            )}
+          </div>
+
+          {/* Occupancy Forecast */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-900 mb-4">Occupancy Forecast (30 days)</h3>
+            {forecastQuery.isLoading ? (
+              <div className="h-48 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600" />
+              </div>
+            ) : forecast && forecast.length > 0 ? (
+              <div className="h-48 flex items-end gap-0.5">
+                {forecast.map((f, i) => {
+                  const dayOfWeek = new Date(f.date).getDay();
+                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center group">
+                      <div className="relative w-full flex justify-center">
+                        <div
+                          className={`w-full rounded-t transition-all ${
+                            f.pct >= 90 ? "bg-red-500" :
+                            f.pct >= 70 ? "bg-amber-500" :
+                            f.pct >= 50 ? "bg-emerald-500" :
+                            "bg-slate-300"
+                          } ${isWeekend ? "opacity-80" : ""}`}
+                          style={{ height: `${Math.max(f.pct, 2)}%` }}
+                        />
+                        <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                          {new Date(f.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                          <br />{f.pct}% ({f.occupiedSites}/{f.totalSites})
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-48 flex items-center justify-center text-slate-400">
+                No forecast data available
+              </div>
+            )}
+            <div className="flex justify-center gap-4 mt-3 text-xs">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> 90%+</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> 70-89%</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> 50-69%</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-300" /> &lt;50%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Links */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <QuickLink href="/reports" label="Full Reports" icon="📊" />
+          <QuickLink href="/reports/audit" label="Audit Log" icon="📜" />
+          <QuickLink href="/settings/pricing-rules" label="Pricing Rules" icon="💲" />
+          <QuickLink href="/settings/deposit-policies" label="Deposit Policies" icon="🏦" />
+        </div>
+      </div>
+    </DashboardShell>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  change,
+  subtitle,
+  loading,
+  color
+}: {
+  label: string;
+  value: string;
+  change?: number;
+  subtitle?: string;
+  loading: boolean;
+  color: "emerald" | "blue" | "violet" | "amber";
+}) {
+  const colorClasses = {
+    emerald: "border-emerald-200 bg-emerald-50",
+    blue: "border-blue-200 bg-blue-50",
+    violet: "border-violet-200 bg-violet-50",
+    amber: "border-amber-200 bg-amber-50"
+  };
+
+  return (
+    <div className={`rounded-xl border ${colorClasses[color]} p-4`}>
+      {loading ? (
+        <div className="animate-pulse space-y-2">
+          <div className="h-3 w-20 bg-slate-200 rounded" />
+          <div className="h-8 w-24 bg-slate-200 rounded" />
+        </div>
+      ) : (
+        <>
+          <div className="text-xs font-medium text-slate-600 mb-1">{label}</div>
+          <div className="flex items-baseline gap-2">
+            <div className="text-2xl font-bold text-slate-900">{value}</div>
+            {change !== undefined && (
+              <span className={`text-xs font-medium ${change >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                {change >= 0 ? "↑" : "↓"} {Math.abs(change)}%
+              </span>
+            )}
+          </div>
+          {subtitle && <div className="text-xs text-slate-500 mt-1">{subtitle}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function QuickStat({
+  label,
+  value,
+  icon,
+  href
+}: {
+  label: string;
+  value: string | number;
+  icon: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="bg-white rounded-xl border border-slate-200 p-4 hover:border-emerald-300 hover:shadow-sm transition-all"
+    >
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{icon}</span>
+        <div>
+          <div className="text-lg font-bold text-slate-900">{value}</div>
+          <div className="text-xs text-slate-500">{label}</div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function QuickLink({
+  href,
+  label,
+  icon
+}: {
+  href: string;
+  label: string;
+  icon: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-sm transition-all"
+    >
+      <span className="text-xl">{icon}</span>
+      <span className="font-medium text-slate-700">{label}</span>
+    </Link>
+  );
+}

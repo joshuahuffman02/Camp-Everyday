@@ -1,0 +1,184 @@
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import { apiClient } from "@/lib/api-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Send, Loader2, MessageCircle } from "lucide-react";
+import { format } from "date-fns";
+
+type Message = {
+    id: string;
+    senderType: "guest" | "staff";
+    content: string;
+    readAt: string | null;
+    createdAt: string;
+    guest: {
+        id: string;
+        primaryFirstName: string;
+        primaryLastName: string;
+    };
+};
+
+interface MessagesPanelProps {
+    reservationId: string;
+    guestId: string;
+}
+
+export function MessagesPanel({ reservationId, guestId }: MessagesPanelProps) {
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [newMessage, setNewMessage] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [sending, setSending] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        loadMessages();
+    }, [reservationId]);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    useEffect(() => {
+        // Mark guest messages as read when viewing
+        if (messages.some(m => m.senderType === "guest" && !m.readAt)) {
+            apiClient.markMessagesAsRead(reservationId, "staff").catch(console.error);
+        }
+    }, [messages, reservationId]);
+
+    const loadMessages = async () => {
+        try {
+            const data = await apiClient.getReservationMessages(reservationId);
+            setMessages(data);
+        } catch (error) {
+            console.error("Failed to load messages:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSend = async () => {
+        if (!newMessage.trim() || sending) return;
+
+        setSending(true);
+        try {
+            await apiClient.sendReservationMessage(
+                reservationId,
+                newMessage.trim(),
+                "staff",
+                guestId
+            );
+            setNewMessage("");
+            await loadMessages();
+        } catch (error) {
+            console.error("Failed to send message:", error);
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+        }
+    };
+
+    const unreadCount = messages.filter(m => m.senderType === "guest" && !m.readAt).length;
+
+    if (loading) {
+        return (
+            <Card>
+                <CardContent className="py-8 flex justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    return (
+        <Card className="flex flex-col h-[400px]">
+            <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                        <MessageCircle className="h-5 w-5" />
+                        Guest Messages
+                    </span>
+                    {unreadCount > 0 && (
+                        <Badge variant="destructive" className="text-xs">
+                            {unreadCount} unread
+                        </Badge>
+                    )}
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col overflow-hidden">
+                {/* Messages List */}
+                <div className="flex-1 overflow-y-auto space-y-3 pb-4">
+                    {messages.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-8">
+                            <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No messages yet</p>
+                        </div>
+                    ) : (
+                        messages.map((msg) => (
+                            <div
+                                key={msg.id}
+                                className={`flex ${msg.senderType === "staff" ? "justify-end" : "justify-start"}`}
+                            >
+                                <div
+                                    className={`max-w-[85%] rounded-lg px-3 py-2 ${msg.senderType === "staff"
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-muted"
+                                        }`}
+                                >
+                                    {msg.senderType === "guest" && (
+                                        <p className="text-xs font-medium mb-0.5">
+                                            {msg.guest.primaryFirstName} {msg.guest.primaryLastName}
+                                        </p>
+                                    )}
+                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                    <p
+                                        className={`text-[10px] mt-1 ${msg.senderType === "staff"
+                                                ? "text-primary-foreground/70"
+                                                : "text-muted-foreground"
+                                            }`}
+                                    >
+                                        {format(new Date(msg.createdAt), "MMM d, h:mm a")}
+                                        {msg.senderType === "staff" && " • Staff"}
+                                    </p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
+
+                {/* Input Area */}
+                <div className="flex gap-2 pt-3 border-t">
+                    <Input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Reply to guest..."
+                        disabled={sending}
+                        className="flex-1"
+                    />
+                    <Button size="sm" onClick={handleSend} disabled={sending || !newMessage.trim()}>
+                        {sending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Send className="h-4 w-4" />
+                        )}
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}

@@ -1,0 +1,13 @@
+{
+  "tz": "America/Denver",
+  "currency": "USD",
+  "taxInclusiveDefault": false,
+  "rateLimitOut": { "rps": 5, "burst": 10 },
+  "rateLimitIn": { "rps": 20, "burst": 40 },
+  "retry": { "backoff": [0.5, 1, 2, 4], "jitter": 0.25, "maxAttempts": 5 },
+  "hmacSecret": "replace_me",
+  "supportsPushAvailability": false,
+  "supportsPushRates": false,
+  "supportsPullReservations": true
+}
+

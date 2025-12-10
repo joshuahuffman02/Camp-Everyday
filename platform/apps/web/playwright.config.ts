@@ -1,0 +1,22 @@
+import type { PlaywrightTestConfig } from "@playwright/test";
+
+const config: PlaywrightTestConfig = {
+  timeout: 30_000,
+  testDir: "./e2e",
+  retries: 0,
+  use: {
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000",
+    headless: true,
+    trace: "on-first-retry"
+  },
+  reporter: [["list"]],
+  webServer: {
+    command: "pnpm start",
+    port: 3000,
+    reuseExistingServer: !process.env.CI,
+    cwd: __dirname
+  }
+};
+
+export default config;
+

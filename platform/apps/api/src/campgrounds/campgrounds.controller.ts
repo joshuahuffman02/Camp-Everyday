@@ -1,0 +1,323 @@
+import { Body, Controller, Get, Param, Post, Req, ForbiddenException, NotFoundException, Patch, UseGuards, Delete, BadRequestException } from "@nestjs/common";
+import { CampgroundsService } from "./campgrounds.service";
+import { CreateCampgroundDto } from "./dto/create-campground.dto";
+import type { Request } from "express";
+import { JwtAuthGuard } from "../auth/guards";
+import { AddMemberDto, UpdateMemberRoleDto } from "./dto/membership.dto";
+import { RolesGuard, Roles } from "../auth/guards/roles.guard";
+import { UserRole } from "@prisma/client";
+import { ExternalCampgroundUpsertDto, OsmIngestRequestDto } from "./dto/external-campground.dto";
+import { UpdatePhotosDto } from "./dto/update-photos.dto";
+import { DepositConfigSchema, DepositRule } from "@campreserv/shared";
+
+@Controller()
+export class CampgroundsController {
+  constructor(private readonly campgrounds: CampgroundsService) { }
+
+  // Public endpoints (no auth required)
+  @Get("public/campgrounds")
+  listPublic() {
+    return this.campgrounds.listPublic();
+  }
+
+  @Get("public/campgrounds/:slug")
+  async getPublicBySlug(@Param("slug") slug: string) {
+    const campground: any = await this.campgrounds.findBySlug(slug);
+    if (!campground) throw new NotFoundException("Campground not found");
+    if (!campground.isPublished && !campground.isExternal) throw new NotFoundException("Campground not found");
+    return campground;
+  }
+
+  // Admin endpoints (auth required)
+  @UseGuards(JwtAuthGuard)
+  @Get("campgrounds")
+  listAll(@Req() req: Request) {
+    const org = (req as any).organizationId || null;
+    // If org is provided, scope; otherwise return all (for now) to avoid blocking when no header is set.
+    return this.campgrounds.listAll(org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("campgrounds/:id")
+  getOne(@Param("id") id: string, @Req() req: Request) {
+    const org = (req as any).organizationId || null;
+    const cg = this.campgrounds.findOne(id, org || undefined);
+    if (!cg) throw new NotFoundException("Campground not found");
+    return cg;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch("campgrounds/:id/store-hours")
+  updateStoreHours(
+    @Param("id") id: string,
+    @Body() body: { storeOpenHour?: number; storeCloseHour?: number },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateStoreHours(id, body.storeOpenHour, body.storeCloseHour, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch("campgrounds/:id/order-webhook")
+  updateOrderWebhook(
+    @Param("id") id: string,
+    @Body() body: { orderWebhookUrl?: string },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateOrderWebhook(id, body.orderWebhookUrl, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Patch("campgrounds/:id/sla")
+  updateSla(
+    @Param("id") id: string,
+    @Body() body: { slaMinutes: number },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateSlaMinutes(id, body.slaMinutes, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Patch("campgrounds/:id/ops")
+  updateOpsSettings(
+    @Param("id") id: string,
+    @Body() body: { quietHoursStart?: string | null; quietHoursEnd?: string | null; routingAssigneeId?: string | null },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateOpsSettings(id, body, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Patch("campgrounds/:id/sender-domain")
+  verifySenderDomain(
+    @Param("id") id: string,
+    @Body() body: { domain: string },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.verifySenderDomain(id, body.domain, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch("campgrounds/:id/analytics")
+  updateAnalytics(
+    @Param("id") id: string,
+    @Body() body: { gaMeasurementId?: string | null; metaPixelId?: string | null },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateAnalytics(id, body, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Patch("campgrounds/:id/nps")
+  updateNpsSettings(
+    @Param("id") id: string,
+    @Body() body: { npsAutoSendEnabled?: boolean; npsSendHour?: number | null; npsTemplateId?: string | null; npsSchedule?: any },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateNpsSettings(id, body, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch("campgrounds/:id/branding")
+  updateBranding(
+    @Param("id") id: string,
+    @Body() body: {
+      logoUrl?: string | null;
+      primaryColor?: string | null;
+      accentColor?: string | null;
+      secondaryColor?: string | null;
+      buttonColor?: string | null;
+      brandFont?: string | null;
+      emailHeader?: string | null;
+      receiptFooter?: string | null;
+      brandingNote?: string | null;
+    },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateBranding(id, body, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Patch("campgrounds/:id/photos")
+  updatePhotos(@Param("id") id: string, @Body() body: UpdatePhotosDto, @Req() req: Request) {
+    const org = (req as any).organizationId || null;
+    const actorId = (req as any)?.user?.id || null;
+    return this.campgrounds.updatePhotos(id, body, org || undefined, actorId || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch("campgrounds/:id/policies")
+  updatePolicies(
+    @Param("id") id: string,
+    @Body() body: {
+      cancellationPolicyType?: string | null;
+      cancellationWindowHours?: number | null;
+      cancellationFeeType?: string | null;
+      cancellationFeeFlatCents?: number | null;
+      cancellationFeePercent?: number | null;
+      cancellationNotes?: string | null;
+    },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updatePolicies(id, body, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("organizations/:organizationId/campgrounds")
+  listByOrganization(@Param("organizationId") organizationId: string) {
+    return this.campgrounds.listByOrganization(organizationId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("organizations/:organizationId/campgrounds")
+  create(
+    @Param("organizationId") organizationId: string,
+    @Body() body: Omit<CreateCampgroundDto, "organizationId">
+  ) {
+    // Creation remains admin-only; owners should not hit this. If an org is provided, we allow only if it matches header.
+    // In a real app, we'd check a role; for now, require header match when provided.
+    // (No-op for compatibility with existing admin flows.)
+    return this.campgrounds.create({ organizationId, ...body });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete("campgrounds/:id")
+  remove(@Param("id") id: string) {
+    return this.campgrounds.remove(id);
+  }
+
+  // External ingestion endpoints
+  @UseGuards(JwtAuthGuard)
+  @Post("campgrounds/external/upsert")
+  upsertExternal(@Body() body: ExternalCampgroundUpsertDto) {
+    return this.campgrounds.upsertExternalCampground(body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("campgrounds/external/ingest/osm")
+  ingestOsm(@Body() body: OsmIngestRequestDto) {
+    return this.campgrounds.ingestFromOsm(body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch("campgrounds/:id/deposit")
+  async updateDepositRule(
+    @Param("id") id: string,
+    @Body() body: { depositRule?: string; depositPercentage?: number | null; depositConfig?: unknown }
+  ) {
+    const allowed = ["none", "full", "half", "first_night", "first_night_fees", "percentage", "percentage_50"];
+    const incomingRule = body.depositRule;
+    const incomingPct = body.depositPercentage ?? null;
+
+    let parsedConfig: any = null;
+    let normalizedRule = incomingRule || "none";
+    let normalizedPct: number | null = incomingPct;
+
+    if (body.depositConfig) {
+      try {
+        parsedConfig = DepositConfigSchema.parse(body.depositConfig);
+      } catch (err) {
+        throw new BadRequestException("Invalid deposit config");
+      }
+      const summary = this.ruleSummaryFromConfig(parsedConfig.defaultRule);
+      normalizedRule = incomingRule || summary.rule;
+      normalizedPct = incomingPct ?? summary.percentage;
+    }
+
+    if (!allowed.includes(normalizedRule)) {
+      throw new ForbiddenException("Invalid deposit rule");
+    }
+
+    if (normalizedRule === "percentage" && (normalizedPct ?? 0) < 0) {
+      throw new BadRequestException("Deposit percentage must be provided for percentage rules");
+    }
+
+    return this.campgrounds.updateDepositRule(id, normalizedRule, normalizedPct, parsedConfig);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("campgrounds/:id/members")
+  getMembers(@Param("id") id: string) {
+    return this.campgrounds.getMembers(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Post("campgrounds/:id/members")
+  addMember(@Param("id") id: string, @Body() body: AddMemberDto, @Req() req: Request) {
+    const actorId = (req as any)?.user?.id;
+    return this.campgrounds.addMember(
+      id,
+      {
+        email: body.email,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        role: body.role
+      },
+      actorId
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Patch("campgrounds/:campgroundId/members/:membershipId")
+  updateMember(
+    @Param("campgroundId") campgroundId: string,
+    @Param("membershipId") membershipId: string,
+    @Body() body: UpdateMemberRoleDto,
+    @Req() req: Request
+  ) {
+    const actorId = (req as any)?.user?.id;
+    return this.campgrounds.updateMemberRole(campgroundId, membershipId, body.role, actorId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Delete("campgrounds/:campgroundId/members/:membershipId")
+  removeMember(
+    @Param("campgroundId") campgroundId: string,
+    @Param("membershipId") membershipId: string,
+    @Req() req: Request
+  ) {
+    const actorId = (req as any)?.user?.id;
+    return this.campgrounds.removeMember(campgroundId, membershipId, actorId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Post("campgrounds/:campgroundId/members/:membershipId/resend-invite")
+  resendInvite(
+    @Param("campgroundId") campgroundId: string,
+    @Param("membershipId") membershipId: string,
+    @Req() req: Request
+  ) {
+    const actorId = (req as any)?.user?.id;
+    return this.campgrounds.resendInvite(campgroundId, membershipId, actorId);
+  }
+
+  private ruleSummaryFromConfig(rule: DepositRule) {
+    if (rule.type === "percent_total") {
+      return { rule: "percentage", percentage: rule.percent ?? null };
+    }
+    if (rule.type === "fixed_amount") return { rule: "none", percentage: null };
+    if (rule.type === "full") return { rule: "full", percentage: null };
+    if (rule.type === "half") return { rule: "half", percentage: null };
+    if (rule.type === "first_night") return { rule: "first_night", percentage: null };
+    if (rule.type === "first_night_fees") return { rule: "first_night_fees", percentage: null };
+    return { rule: "none", percentage: null };
+  }
+}
+

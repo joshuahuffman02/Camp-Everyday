@@ -1,0 +1,11 @@
+packages:
+  - platform/apps/*
+  - platform/packages/*
+
+ignoredBuiltDependencies:
+  - '@nestjs/core'
+  - '@prisma/client'
+  - '@prisma/engines'
+  - esbuild
+  - prisma
+  - sharp

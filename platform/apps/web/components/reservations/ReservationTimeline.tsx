@@ -1,0 +1,100 @@
+import { Reservation } from "@campreserv/shared";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Clock, CheckCircle2, XCircle, CreditCard } from "lucide-react";
+import { format } from "date-fns";
+
+interface ReservationTimelineProps {
+    reservation: Reservation;
+}
+
+export function ReservationTimeline({ reservation }: ReservationTimelineProps) {
+    const normalizeDate = (d?: string | Date | null) => (d ? new Date(d) : new Date());
+    const paidCents = reservation.paidAmount ?? 0;
+
+    const events = [
+        {
+            title: "Reservation Created",
+            date: normalizeDate(reservation.createdAt),
+            icon: Clock,
+            color: "text-slate-500",
+            bg: "bg-slate-100"
+        }
+    ];
+
+    if (paidCents > 0) {
+        events.push({
+            title: "Payment Received",
+            date: normalizeDate(reservation.createdAt), // Ideally would be payment date
+            icon: CreditCard,
+            color: "text-emerald-600",
+            bg: "bg-emerald-100"
+        });
+    }
+
+    if (reservation.status === "checked_in" || reservation.status === "checked_out") {
+        events.push({
+            title: "Guest Checked In",
+            date: normalizeDate(reservation.checkInAt),
+            icon: CheckCircle2,
+            color: "text-blue-600",
+            bg: "bg-blue-100"
+        });
+    }
+
+    if (reservation.status === "checked_out") {
+        events.push({
+            title: "Guest Checked Out",
+            date: normalizeDate(reservation.checkOutAt),
+            icon: CheckCircle2,
+            color: "text-slate-600",
+            bg: "bg-slate-100"
+        });
+    }
+
+    if (reservation.status === "cancelled") {
+        events.push({
+            title: "Reservation Cancelled",
+            date: normalizeDate(reservation.updatedAt),
+            icon: XCircle,
+            color: "text-red-600",
+            bg: "bg-red-100"
+        });
+    }
+
+    // Sort by date desc
+    events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                    <Clock className="w-5 h-5 text-slate-500" />
+                    Timeline
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="relative space-y-6 pl-2">
+                    {events.map((event, i) => (
+                        <div key={i} className="relative flex gap-4">
+                            {/* Line */}
+                            {i !== events.length - 1 && (
+                                <div className="absolute left-[19px] top-10 bottom-[-24px] w-0.5 bg-slate-200" />
+                            )}
+
+                            <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center ${event.bg} border-2 border-white shadow-sm`}>
+                                <event.icon className={`w-5 h-5 ${event.color}`} />
+                            </div>
+
+                            <div className="flex-1 pt-2">
+                                <div className="font-medium text-slate-900">{event.title}</div>
+                                <div className="text-sm text-slate-500">
+                                    {format(new Date(event.date), "MMM d, yyyy 'at' h:mm a")}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}

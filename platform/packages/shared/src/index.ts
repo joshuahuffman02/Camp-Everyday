@@ -1,0 +1,984 @@
+import { z } from "zod";
+import {
+  DepositConfigSchema,
+  DepositRuleSchema,
+  DepositScheduleEntrySchema,
+  DepositTierSchema,
+  DepositSeasonSchema,
+  DepositScopeRuleSchema
+} from "./deposits.types";
+export * from "./deposits";
+
+const numberish = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((val) => {
+    if (val === null || val === undefined) return undefined;
+    if (typeof val === "string" || typeof val === "number") {
+      const num = Number(val);
+      return Number.isNaN(num) ? val : num;
+    }
+    return val;
+  }, schema);
+
+export { DepositConfigSchema } from "./deposits.types";
+export type {
+  DepositConfig,
+  DepositRule,
+  DepositScheduleEntry,
+  DepositTier,
+  DepositSeason,
+  DepositScopeRule
+} from "./deposits.types";
+
+export const NpsScheduleEntrySchema = z.object({
+  id: z.string(),
+  anchor: z.enum(["arrival", "departure"]),
+  direction: z.enum(["before", "after"]),
+  offset: z.number().int(),
+  unit: z.enum(["hours", "days"]),
+  templateId: z.string().nullish(),
+  enabled: z.boolean().default(true)
+});
+export type NpsScheduleEntry = z.infer<typeof NpsScheduleEntrySchema>;
+
+export const CampgroundSchema = z.object({
+  id: z.string().cuid(),
+  organizationId: z.string().cuid(),
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  isExternal: z.boolean().optional(),
+  isBookable: z.boolean().optional(),
+  externalUrl: z.string().url().nullish(),
+  nonBookableReason: z.string().nullish(),
+
+  // Location
+  city: z.string().min(1).nullish(),
+  state: z.string().min(1).nullish(),
+  country: z.string().min(1).nullish(),
+  address1: z.string().nullish(),
+  address2: z.string().nullish(),
+  postalCode: z.string().nullish(),
+  latitude: numberish(z.number().optional()),
+  longitude: numberish(z.number().optional()),
+  timezone: z.string().nullish(),
+
+  // Contact
+  phone: z.string().nullish(),
+  email: z.string().nullish(),
+  website: z.string().url().nullish(),
+  facebookUrl: z.string().url().nullish(),
+  instagramUrl: z.string().url().nullish(),
+  dataSource: z.string().nullish(),
+  dataSourceId: z.string().nullish(),
+  dataSourceUpdatedAt: z.string().nullish(),
+  provenance: z.record(z.any()).optional().nullable(),
+
+  // Public listing
+  description: z.string().nullish(),
+  tagline: z.string().nullish(),
+  amenities: z.array(z.string()).optional(),
+  photos: z.array(z.string()).optional(),
+  photosMeta: z.any().optional().nullable(),
+  heroImageUrl: z.string().url().nullish(),
+  isPublished: z.boolean().optional(),
+  amenitySummary: z.record(z.any()).optional().nullable(),
+  importedAt: z.string().nullish(),
+
+  // Operations
+  seasonStart: z.string().nullish(),
+  seasonEnd: z.string().nullish(),
+  checkInTime: z.string().nullish(),
+  checkOutTime: z.string().nullish(),
+  slaMinutes: z.number().int().optional().nullable(),
+  senderDomain: z.string().optional().nullable(),
+  senderDomainStatus: z.string().optional().nullable(),
+  senderDomainCheckedAt: z.string().optional().nullable(),
+  senderDomainDmarc: z.string().optional().nullable(),
+  senderDomainSpf: z.string().optional().nullable(),
+  quietHoursStart: z.string().optional().nullable(),
+  quietHoursEnd: z.string().optional().nullable(),
+  routingAssigneeId: z.string().optional().nullable(),
+
+  // Branding
+  logoUrl: z.string().nullish(),
+  primaryColor: z.string().nullish(),
+  accentColor: z.string().nullish(),
+  brandingNote: z.string().nullish(),
+  secondaryColor: z.string().nullish(),
+  buttonColor: z.string().nullish(),
+  brandFont: z.string().nullish(),
+  emailHeader: z.string().nullish(),
+  receiptFooter: z.string().nullish(),
+
+  // Financial
+  taxState: numberish(z.number().optional()),
+  taxLocal: numberish(z.number().optional()),
+  depositRule: z
+    .enum(["none", "full", "half", "first_night", "first_night_fees", "percentage", "percentage_50"])
+    .nullish(),
+  depositPercentage: z.number().int().min(0).max(100).nullish(),
+  depositConfig: DepositConfigSchema.nullish(),
+  cancellationPolicyType: z.string().nullish(),
+  cancellationWindowHours: z.number().int().nullish(),
+  cancellationFeeType: z.string().nullish(),
+  cancellationFeeFlatCents: z.number().int().nullish(),
+  cancellationFeePercent: z.number().int().nullish(),
+  cancellationNotes: z.string().nullish(),
+
+  // Store hours
+  storeOpenHour: z.number().int().optional().nullable(),
+  storeCloseHour: z.number().int().optional().nullable(),
+
+  // Reviews / NPS
+  npsAutoSendEnabled: z.boolean().optional(),
+  npsSendHour: z.number().int().optional(),
+  npsTemplateId: z.string().nullish(),
+  npsSchedule: z.array(NpsScheduleEntrySchema).optional(),
+  reviewScore: numberish(z.number().optional()).nullish(),
+  reviewCount: z.number().int().optional().default(0),
+  reviewSources: z.record(z.any()).optional().nullable(),
+  reviewsUpdatedAt: z.string().nullish()
+});
+export type Campground = z.infer<typeof CampgroundSchema>;
+
+export const FormTemplateSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  title: z.string(),
+  type: z.enum(["waiver", "vehicle", "intake", "custom"]),
+  description: z.string().nullish(),
+  fields: z.record(z.any()).optional().nullable(),
+  isActive: z.boolean().default(true).optional(),
+  version: z.number().int(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+export type FormTemplate = z.infer<typeof FormTemplateSchema>;
+
+export const FormSubmissionSchema = z.object({
+  id: z.string().cuid(),
+  formTemplateId: z.string().cuid(),
+  reservationId: z.string().nullish(),
+  guestId: z.string().nullish(),
+  status: z.enum(["pending", "completed", "void"]),
+  responses: z.record(z.any()).optional().nullable(),
+  signedAt: z.string().nullish(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  formTemplate: FormTemplateSchema.pick({ id: true, title: true, type: true }).optional()
+});
+export type FormSubmission = z.infer<typeof FormSubmissionSchema>;
+
+export const SiteClassSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  name: z.string().min(1),
+  description: z.string().nullish(),
+  defaultRate: z.number().int().nonnegative(),
+  siteType: z.enum(["rv", "tent", "cabin", "group", "glamping"]),
+  maxOccupancy: z.number().int().nonnegative(),
+  rigMaxLength: z.number().int().nonnegative().nullish(),
+  hookupsPower: z.boolean().optional(),
+  hookupsWater: z.boolean().optional(),
+  hookupsSewer: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+  glCode: z.string().nullish(),
+  clientAccount: z.string().nullish(),
+  minNights: z.number().int().optional().nullable(),
+  maxNights: z.number().int().optional().nullable(),
+  petFriendly: z.boolean().optional(),
+  accessible: z.boolean().optional(),
+  photos: z.array(z.string()).optional(),
+  photoAttributions: z.any().optional().nullable(),
+  policyVersion: z.string().nullish(),
+  isActive: z.boolean().optional().default(true)
+});
+export type SiteClass = z.infer<typeof SiteClassSchema>;
+
+export const SiteSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  siteClassId: z.string().cuid().optional().nullable(),
+  name: z.string().min(1),
+  siteNumber: z.string().min(1),
+  siteType: z.enum(["rv", "tent", "cabin", "group", "glamping"]),
+  maxOccupancy: z.number().int().nonnegative(),
+  rigMaxLength: numberish(z.number().int().nonnegative()).nullish(),
+  hookupsPower: z.boolean().optional(),
+  hookupsWater: z.boolean().optional(),
+  hookupsSewer: z.boolean().optional(),
+  powerAmps: z.number().int().optional().nullable(),
+  petFriendly: z.boolean().optional(),
+  accessible: z.boolean().optional(),
+  minNights: z.number().int().optional().nullable(),
+  maxNights: z.number().int().optional().nullable(),
+  photos: z.array(z.string()).optional(),
+  photoAttributions: z.any().optional().nullable(),
+  description: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  vibeTags: z.array(z.string()).optional(),
+  popularityScore: z.number().int().optional().default(0),
+  isActive: z.boolean().default(true),
+  status: z.string().nullish(),
+  housekeepingStatus: z.string().optional().default("clean"),
+  latitude: numberish(z.number().optional()),
+  longitude: numberish(z.number().optional())
+});
+export type Site = z.infer<typeof SiteSchema>;
+
+export const GuestSchema = z.object({
+  id: z.string().cuid(),
+  primaryFirstName: z.string().min(1),
+  primaryLastName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().min(3),
+  address1: z.string().nullish(),
+  address2: z.string().nullish(),
+  city: z.string().nullish(),
+  state: z.string().nullish(),
+  postalCode: z.string().nullish(),
+  country: z.string().nullish(),
+  rigType: z.string().nullish(),
+  rigLength: numberish(z.number().int().optional()),
+  preferredContact: z.string().nullish(),
+  preferredLanguage: z.string().nullish(),
+  vehiclePlate: z.string().nullish(),
+  vehicleState: z.string().nullish(),
+  tags: z.array(z.string()).optional(),
+  vip: z.boolean().optional(),
+  leadSource: z.string().nullish(),
+  marketingOptIn: z.boolean().optional(),
+  repeatStays: z.number().int().optional(),
+  notes: z.string().nullish(),
+  preferences: z.record(z.any()).optional().nullable(),
+  insights: z.record(z.any()).optional().nullable(),
+  loyaltyProfile: z.object({
+    tier: z.string(),
+    pointsBalance: z.number()
+  }).optional().nullable(),
+  reservations: z.array(z.object({
+    departureDate: z.string(),
+    site: z.object({
+      id: z.string(),
+      name: z.string(),
+      siteNumber: z.string(),
+      siteClassId: z.string().nullable()
+    }).optional().nullable()
+  })).optional()
+});
+export type Guest = z.infer<typeof GuestSchema>;
+
+export const ReservationSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  siteId: z.string().cuid(),
+  guestId: z.string().cuid(),
+  arrivalDate: z.string(),
+  departureDate: z.string(),
+  adults: z.number().int().nonnegative(),
+  children: z.number().int().nonnegative().default(0),
+  status: z.enum(["pending", "confirmed", "checked_in", "checked_out", "cancelled"]),
+  totalAmount: z.number().nonnegative(),
+  paidAmount: numberish(z.number().nonnegative().optional()),
+  balanceAmount: numberish(z.number().nonnegative().optional()),
+  paymentStatus: z.string().nullish(),
+  baseSubtotal: z.number().nonnegative().optional(),
+  feesAmount: z.number().nonnegative().optional(),
+  taxesAmount: z.number().nonnegative().optional(),
+  discountsAmount: z.number().nonnegative().optional(),
+  promoCode: z.string().nullish(),
+  source: z.string().nullish(),
+  policyVersion: z.string().nullish(),
+  checkInWindowStart: z.string().nullish(),
+  checkInWindowEnd: z.string().nullish(),
+  vehiclePlate: z.string().nullish(),
+  vehicleState: z.string().nullish(),
+  rigType: z.string().nullish(),
+  rigLength: numberish(z.number().int().optional()),
+  createdBy: z.string().nullish(),
+  updatedBy: z.string().nullish(),
+  checkInAt: z.string().nullish(),
+  checkOutAt: z.string().nullish(),
+  notes: z.string().nullish(),
+  taxWaiverSigned: z.boolean().optional().default(false),
+  taxWaiverDate: z.string().nullish(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  guest: GuestSchema.optional(),
+  site: z
+    .object({
+      id: z.string(),
+      name: z.string().optional().nullable(),
+      siteNumber: z.string().optional().nullable(),
+      siteType: z.string().optional().nullable()
+    })
+    .optional()
+});
+export type Reservation = z.infer<typeof ReservationSchema>;
+
+export const CreateOrganizationSchema = z.object({
+  name: z.string().min(1)
+});
+export type CreateOrganizationDto = z.infer<typeof CreateOrganizationSchema>;
+
+export const CreateCampgroundSchema = z.object({
+  organizationId: z.string().cuid(),
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  timezone: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().optional(),
+  seasonStart: z.string().optional(),
+  seasonEnd: z.string().optional(),
+  logoUrl: z.string().optional(),
+  primaryColor: z.string().optional(),
+  accentColor: z.string().optional(),
+  taxState: z.number().optional(),
+  taxLocal: z.number().optional(),
+  brandingNote: z.string().optional(),
+  depositRule: z.enum(["none", "full", "half", "first_night", "first_night_fees"]).optional(),
+  isExternal: z.boolean().optional(),
+  isBookable: z.boolean().optional(),
+  externalUrl: z.string().optional(),
+  nonBookableReason: z.string().optional(),
+  dataSource: z.string().optional(),
+  dataSourceId: z.string().optional(),
+  dataSourceUpdatedAt: z.string().optional(),
+  amenities: z.array(z.string()).optional(),
+  photos: z.array(z.string()).optional(),
+  npsAutoSendEnabled: z.boolean().optional(),
+  npsSendHour: z.number().int().optional(),
+  reviewScore: z.number().optional(),
+  reviewCount: z.number().optional()
+});
+export type CreateCampgroundDto = z.infer<typeof CreateCampgroundSchema>;
+
+export const CreateSiteClassSchema = SiteClassSchema.omit({ id: true });
+export type CreateSiteClassDto = z.infer<typeof CreateSiteClassSchema>;
+
+export const CreateSiteSchema = z.object({
+  campgroundId: z.string().cuid(),
+  siteClassId: z.string().cuid().optional().nullable(),
+  name: z.string().min(1),
+  siteNumber: z.string().min(1),
+  siteType: SiteSchema.shape.siteType,
+  maxOccupancy: z.number().int().nonnegative(),
+  rigMaxLength: z.number().int().nonnegative().optional(),
+  hookupsPower: z.boolean().optional(),
+  hookupsWater: z.boolean().optional(),
+  hookupsSewer: z.boolean().optional(),
+  isActive: z.boolean().default(true)
+});
+export type CreateSiteDto = z.infer<typeof CreateSiteSchema>;
+
+export const CreateGuestSchema = z.object({
+  primaryFirstName: z.string().min(1),
+  primaryLastName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().min(3),
+  notes: z.string().optional()
+});
+export type CreateGuestDto = z.infer<typeof CreateGuestSchema>;
+
+export const CreateReservationSchema = z.object({
+  campgroundId: z.string().cuid(),
+  siteId: z.string().cuid().optional(),
+  siteClassId: z.string().cuid().optional(),
+  guestId: z.string().cuid(),
+  arrivalDate: z.string(),
+  departureDate: z.string(),
+  adults: z.number().int().nonnegative(),
+  children: z.number().int().nonnegative().default(0),
+  totalAmount: z.number().nonnegative(),
+  status: ReservationSchema.shape.status,
+  paidAmount: z.number().nonnegative().optional(),
+  balanceAmount: z.number().nonnegative().optional(),
+  paymentStatus: z.string().optional(),
+  baseSubtotal: z.number().nonnegative().optional(),
+  feesAmount: z.number().nonnegative().optional(),
+  taxesAmount: z.number().nonnegative().optional(),
+  discountsAmount: z.number().nonnegative().optional(),
+  promoCode: z.string().optional(),
+  source: z.string().optional(),
+  policyVersion: z.string().optional(),
+  checkInWindowStart: z.string().optional(),
+  checkInWindowEnd: z.string().optional(),
+  vehiclePlate: z.string().optional(),
+  vehicleState: z.string().optional(),
+  rigType: z.string().optional(),
+  rigLength: z.number().int().optional(),
+  rvType: z.string().optional(),
+  holdId: z.string().cuid().optional(),
+  paymentMethod: z.string().optional(),
+  transactionId: z.string().optional(),
+  paymentNotes: z.string().optional(),
+  pets: z.number().int().optional(),
+  createdBy: z.string().optional(),
+  updatedBy: z.string().optional(),
+  checkInAt: z.string().optional(),
+  checkOutAt: z.string().optional(),
+  notes: z.string().optional()
+}).refine(
+  (data) => data.siteId || data.siteClassId,
+  { message: "Either siteId or siteClassId must be provided" }
+);
+export type CreateReservationDto = z.infer<typeof CreateReservationSchema>;
+
+// Maintenance
+export const MaintenanceSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  siteId: z.string().cuid().nullable().optional(),
+  title: z.string().min(1),
+  description: z.string().nullish(),
+  status: z.enum(["open", "in_progress", "closed"]),
+  priority: z.enum(["low", "medium", "high", "critical"]),
+  dueDate: z.string().nullish(),
+  assignedTo: z.string().nullish(),
+  isBlocking: z.boolean().optional().default(false),
+  resolvedAt: z.string().nullish(),
+  siteName: z.string().nullish().optional(),
+  siteNumber: z.string().nullish().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type Maintenance = z.infer<typeof MaintenanceSchema>;
+export const CreateMaintenanceSchema = MaintenanceSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type CreateMaintenanceDto = z.infer<typeof CreateMaintenanceSchema>;
+
+// Pricing
+export const PricingRuleSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  siteClassId: z.string().cuid().nullish(),
+  label: z.string().nullish(),
+  ruleType: z.enum(["flat", "percent", "seasonal", "dow"]),
+  startDate: z.string().nullish(),
+  endDate: z.string().nullish(),
+  dayOfWeek: z.number().int().min(0).max(6).nullish(),
+  percentAdjust: numberish(z.number().optional().nullable()),
+  flatAdjust: z.number().int().optional().nullable(),
+  minNights: z.number().int().optional().nullable(),
+  isActive: z.boolean().optional().default(true)
+});
+export type PricingRule = z.infer<typeof PricingRuleSchema>;
+export const CreatePricingRuleSchema = PricingRuleSchema.omit({ id: true });
+export type CreatePricingRuleDto = z.infer<typeof CreatePricingRuleSchema>;
+
+// Pricing quote
+export const QuoteSchema = z.object({
+  nights: z.number().int().nonnegative(),
+  baseSubtotalCents: z.number().int().nonnegative(),
+  rulesDeltaCents: z.number().int(),
+  totalCents: z.number().int().nonnegative(),
+  perNightCents: z.number().int().nonnegative(),
+  taxExemptionEligible: z.boolean().optional(),
+  requiresWaiver: z.boolean().optional(),
+  waiverText: z.string().optional().nullable()
+});
+export type Quote = z.infer<typeof QuoteSchema>;
+
+// Payments / Ledger
+export const PaymentSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  reservationId: z.string().cuid(),
+  amountCents: z.number().int(),
+  method: z.string(),
+  direction: z.enum(["charge", "refund"]),
+  note: z.string().nullish(),
+  createdAt: z.string()
+});
+export type Payment = z.infer<typeof PaymentSchema>;
+
+export const LedgerEntrySchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  reservationId: z.string().cuid().optional().nullable(),
+  glCode: z.string().nullish(),
+  account: z.string().nullish(),
+  description: z.string().nullish(),
+  amountCents: z.number().int(),
+  direction: z.enum(["debit", "credit"]),
+  occurredAt: z.string(),
+  createdAt: z.string()
+});
+export type LedgerEntry = z.infer<typeof LedgerEntrySchema>;
+
+// Users
+export const UserRoleSchema = z.enum([
+  "owner",
+  "manager",
+  "front_desk",
+  "maintenance",
+  "finance",
+  "marketing",
+  "readonly"
+]);
+export type UserRole = z.infer<typeof UserRoleSchema>;
+
+export const UserSchema = z.object({
+  id: z.string().cuid(),
+  email: z.string().email(),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  isActive: z.boolean().default(true),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type User = z.infer<typeof UserSchema>;
+
+export const CampgroundMembershipSchema = z.object({
+  id: z.string().cuid(),
+  userId: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  role: UserRoleSchema,
+  createdAt: z.string().optional()
+});
+export type CampgroundMembership = z.infer<typeof CampgroundMembershipSchema>;
+
+export const CreateUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1)
+});
+export type CreateUserDto = z.infer<typeof CreateUserSchema>;
+
+// Organization
+export const SubscriptionTierSchema = z.enum([
+  "free",
+  "starter",
+  "professional",
+  "enterprise"
+]);
+export type SubscriptionTier = z.infer<typeof SubscriptionTierSchema>;
+
+export const OrganizationSchema = z.object({
+  id: z.string().cuid(),
+  name: z.string().min(1),
+
+  // Billing & subscription
+  subscriptionTier: SubscriptionTierSchema.optional(),
+  billingEmail: z.string().email().nullish(),
+  billingName: z.string().nullish(),
+  billingAddress1: z.string().nullish(),
+  billingAddress2: z.string().nullish(),
+  billingCity: z.string().nullish(),
+  billingState: z.string().nullish(),
+  billingPostalCode: z.string().nullish(),
+  billingCountry: z.string().nullish(),
+  stripeCustomerId: z.string().nullish(),
+  subscriptionStatus: z.enum(["active", "past_due", "canceled", "trialing"]).nullish(),
+  trialEndsAt: z.string().nullish(),
+
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type Organization = z.infer<typeof OrganizationSchema>;
+
+// Events
+export const EventTypeSchema = z.enum([
+  "activity",
+  "workshop",
+  "entertainment",
+  "holiday",
+  "recurring",
+  "ongoing",
+  "themed"
+]);
+export type EventType = z.infer<typeof EventTypeSchema>;
+
+const eventShape = {
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+
+  // Basic info
+  title: z.string().min(1),
+  description: z.string().nullish(),
+  eventType: EventTypeSchema,
+
+  // Scheduling
+  startDate: z.string(),
+  endDate: z.string().nullish(),
+  startTime: z.string().nullish(),
+  endTime: z.string().nullish(),
+  isAllDay: z.boolean().optional(),
+  isRecurring: z.boolean().optional(),
+  recurrenceRule: z.string().nullish(),
+
+  // Location
+  location: z.string().nullish(),
+
+  // Capacity & pricing
+  capacity: z.number().int().optional().nullable(),
+  currentSignups: z.number().int().optional(),
+  priceCents: z.number().int().optional(),
+  isGuestOnly: z.boolean().optional(),
+
+  // Media
+  imageUrl: z.string().url().nullish(),
+
+  // Status
+  isPublished: z.boolean().optional(),
+  isCancelled: z.boolean().optional(),
+  cancelledAt: z.string().nullish(),
+  cancellationReason: z.string().nullish(),
+
+  // Recurrence enhancements
+  recurrenceDays: z.array(z.number().int().min(0).max(6)).optional(),
+  recurrenceEndDate: z.string().nullish(),
+
+  // Parent/child for holiday/themed weekends
+  parentEventId: z.string().cuid().nullish(),
+
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+};
+
+export const EventSchema: z.ZodType<any> = z.lazy(() =>
+  z.object({
+    ...eventShape,
+    children: z.array(EventSchema).optional()
+  })
+);
+export type Event = z.infer<typeof EventSchema>;
+
+export const CreateEventSchema = z.object(eventShape).omit({
+  id: true,
+  currentSignups: true,
+  isCancelled: true,
+  cancelledAt: true,
+  cancellationReason: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type CreateEventDto = z.infer<typeof CreateEventSchema>;
+
+// Store
+export const ProductCategorySchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  name: z.string().min(1),
+  description: z.string().nullish(),
+  sortOrder: z.number().int().optional(),
+  isActive: z.boolean().optional().default(true),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type ProductCategory = z.infer<typeof ProductCategorySchema>;
+
+export const CreateProductCategorySchema = ProductCategorySchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type CreateProductCategoryDto = z.infer<typeof CreateProductCategorySchema>;
+
+export const ProductSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  categoryId: z.string().cuid().nullish(),
+  name: z.string().min(1),
+  description: z.string().nullish(),
+  priceCents: z.number().int().nonnegative(),
+  imageUrl: z.string().url().nullish(),
+  sku: z.string().nullish(),
+  stockQty: z.number().int().nonnegative().optional(),
+  posStockQty: z.number().int().nonnegative().optional(),
+  onlineStockQty: z.number().int().nonnegative().optional(),
+  onlineBufferQty: z.number().int().nonnegative().optional(),
+  lowStockAlert: z.number().int().nonnegative().optional(),
+  trackInventory: z.boolean().optional(),
+  afterHoursAllowed: z.boolean().optional(),
+  channelInventoryMode: z.enum(["shared", "split"]).optional().default("shared"),
+  sortOrder: z.number().int().optional(),
+  glCode: z.string().nullish(),
+  isActive: z.boolean().optional().default(true),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type Product = z.infer<typeof ProductSchema>;
+
+export const CreateProductSchema = ProductSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type CreateProductDto = z.infer<typeof CreateProductSchema>;
+
+export const AddOnSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  name: z.string().min(1),
+  description: z.string().nullish(),
+  priceCents: z.number().int().nonnegative(),
+  pricingType: z.enum(["flat", "per_night", "per_person"]).optional().default("flat"),
+  sortOrder: z.number().int().optional(),
+  glCode: z.string().nullish(),
+  isActive: z.boolean().optional().default(true),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type AddOn = z.infer<typeof AddOnSchema>;
+
+export const CreateAddOnSchema = AddOnSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type CreateAddOnDto = z.infer<typeof CreateAddOnSchema>;
+
+// Blackout Dates
+export const BlackoutDateSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  siteId: z.string().cuid().optional().nullable(),
+  startDate: z.string(),
+  endDate: z.string(),
+  reason: z.string().optional().nullable(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  site: SiteSchema.optional().nullable()
+});
+export type BlackoutDate = z.infer<typeof BlackoutDateSchema>;
+
+export const CreateBlackoutDateSchema = BlackoutDateSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  site: true
+});
+export type CreateBlackoutDateDto = z.infer<typeof CreateBlackoutDateSchema>;
+
+// Waitlist
+export const WaitlistEntrySchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  guestId: z.string().cuid().nullable().optional(),
+  siteId: z.string().cuid().optional().nullable(),
+  siteTypeId: z.string().cuid().optional().nullable(),
+  arrivalDate: z.string().nullable().optional(),
+  departureDate: z.string().nullable().optional(),
+  status: z.enum(["active", "fulfilled", "expired", "cancelled"]).default("active"),
+  type: z.enum(["regular", "seasonal"]).default("regular"),
+  contactName: z.string().nullable().optional(),
+  contactEmail: z.string().nullable().optional(),
+  contactPhone: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  lastNotifiedAt: z.string().nullable().optional(),
+  notifiedCount: z.number().int().nonnegative().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type WaitlistEntry = z.infer<typeof WaitlistEntrySchema>;
+
+export const CreateWaitlistEntrySchema = WaitlistEntrySchema.omit({
+  id: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type CreateWaitlistEntryDto = z.infer<typeof CreateWaitlistEntrySchema>;
+
+// Communications
+export const CommunicationSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  organizationId: z.string().cuid().optional().nullable(),
+  guestId: z.string().cuid().optional().nullable(),
+  reservationId: z.string().cuid().optional().nullable(),
+  type: z.enum(["email", "sms", "note", "call"]),
+  direction: z.enum(["inbound", "outbound"]),
+  subject: z.string().nullish(),
+  body: z.string().nullish(),
+  preview: z.string().nullish(),
+  status: z.string(),
+  provider: z.string().nullish(),
+  providerMessageId: z.string().nullish(),
+  toAddress: z.string().nullish(),
+  fromAddress: z.string().nullish(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type Communication = z.infer<typeof CommunicationSchema>;
+
+export const CommunicationTemplateSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  name: z.string(),
+  subject: z.string().nullish(),
+  bodyHtml: z.string().nullish(),
+  status: z.enum(["draft", "pending", "approved", "rejected"]),
+  version: z.number().int(),
+  approvedById: z.string().nullish(),
+  approvedAt: z.string().nullish(),
+  auditLog: z.record(z.any()).optional().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+export type CommunicationTemplate = z.infer<typeof CommunicationTemplateSchema>;
+
+export const CommunicationPlaybookSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  type: z.enum(["arrival", "unpaid", "upsell", "abandoned_cart", "nps"]),
+  enabled: z.boolean(),
+  templateId: z.string().nullish(),
+  channel: z.enum(["email", "sms"]).nullish(),
+  offsetMinutes: z.number().int().nullish(),
+  quietHoursStart: z.string().nullish(),
+  quietHoursEnd: z.string().nullish(),
+  throttlePerMinute: z.number().int().nullish(),
+  routingAssigneeId: z.string().nullish(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+export type CommunicationPlaybook = z.infer<typeof CommunicationPlaybookSchema>;
+
+export const CommunicationPlaybookJobSchema = z.object({
+  id: z.string().cuid(),
+  playbookId: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  reservationId: z.string().cuid().nullish(),
+  guestId: z.string().cuid().nullish(),
+  status: z.string(),
+  scheduledAt: z.string(),
+  attempts: z.number().int(),
+  lastError: z.string().nullish(),
+  metadata: z.record(z.any()).optional().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+export type CommunicationPlaybookJob = z.infer<typeof CommunicationPlaybookJobSchema>;
+
+export const CreateCommunicationSchema = CommunicationSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  preview: true,
+  status: true
+});
+export type CreateCommunicationDto = z.infer<typeof CreateCommunicationSchema>;
+
+// NPS
+export const NpsSurveySchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  name: z.string(),
+  question: z.string().nullable(),
+  status: z.enum(["draft", "active", "paused", "archived"]),
+  channels: z.array(z.string()).optional(),
+  locales: z.array(z.string()).optional(),
+  cooldownDays: z.number().int().nullable().optional(),
+  samplingPercent: z.number().int().nullable().optional(),
+  activeFrom: z.string().nullable().optional(),
+  activeTo: z.string().nullable().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type NpsSurvey = z.infer<typeof NpsSurveySchema>;
+
+export const NpsInviteSchema = z.object({
+  id: z.string().cuid(),
+  surveyId: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  guestId: z.string().cuid().nullable().optional(),
+  reservationId: z.string().cuid().nullable().optional(),
+  channel: z.string(),
+  status: z.enum(["queued", "sent", "bounced", "opened", "responded", "expired"]),
+  token: z.string(),
+  expiresAt: z.string().nullable().optional(),
+  sentAt: z.string().nullable().optional(),
+  openedAt: z.string().nullable().optional(),
+  respondedAt: z.string().nullable().optional(),
+  createdAt: z.string().optional()
+});
+export type NpsInvite = z.infer<typeof NpsInviteSchema>;
+
+export const NpsResponseSchema = z.object({
+  id: z.string().cuid(),
+  surveyId: z.string().cuid(),
+  inviteId: z.string().cuid().nullable().optional(),
+  campgroundId: z.string().cuid(),
+  guestId: z.string().cuid().nullable().optional(),
+  reservationId: z.string().cuid().nullable().optional(),
+  score: z.number().int().min(0).max(10),
+  comment: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  sentiment: z.string().nullable().optional(),
+  createdAt: z.string().optional()
+});
+export type NpsResponse = z.infer<typeof NpsResponseSchema>;
+
+export const NpsMetricsSchema = z.object({
+  totalResponses: z.number(),
+  promoters: z.number(),
+  passives: z.number(),
+  detractors: z.number(),
+  nps: z.number().nullable(),
+  responseRate: z.number().nullable()
+});
+export type NpsMetrics = z.infer<typeof NpsMetricsSchema>;
+
+// Reviews
+export const ReviewSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  rating: z.number().int().min(1).max(5),
+  title: z.string().nullable().optional(),
+  body: z.string().nullable().optional(),
+  photos: z.array(z.string()).optional(),
+  tags: z.array(z.string()).optional(),
+  sentiment: z.string().nullable().optional(),
+  source: z.enum(["onsite", "email", "sms", "kiosk", "import"]),
+  status: z.enum(["pending", "approved", "rejected", "removed"]),
+  exposure: z.enum(["private", "public"]),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+export type Review = z.infer<typeof ReviewSchema>;
+
+export const ReviewRequestSchema = z.object({
+  id: z.string().cuid(),
+  campgroundId: z.string().cuid(),
+  guestId: z.string().cuid().nullable().optional(),
+  reservationId: z.string().cuid().nullable().optional(),
+  channel: z.string(),
+  status: z.string(),
+  token: z.string(),
+  expiresAt: z.string().nullable().optional(),
+  sentAt: z.string().nullable().optional(),
+  respondedAt: z.string().nullable().optional()
+});
+export type ReviewRequest = z.infer<typeof ReviewRequestSchema>;
+
+export const ReviewModerationSchema = z.object({
+  id: z.string().cuid(),
+  reviewId: z.string().cuid(),
+  status: z.enum(["pending", "approved", "rejected", "removed"]),
+  reasons: z.array(z.string()).optional(),
+  decidedBy: z.string().nullable().optional(),
+  decidedAt: z.string().nullable().optional(),
+  notes: z.string().nullable().optional()
+});
+export type ReviewModeration = z.infer<typeof ReviewModerationSchema>;
+
+export const ReviewReplySchema = z.object({
+  id: z.string().cuid(),
+  reviewId: z.string().cuid(),
+  authorType: z.string(),
+  authorId: z.string().nullable().optional(),
+  body: z.string(),
+  createdAt: z.string().optional()
+});
+export type ReviewReply = z.infer<typeof ReviewReplySchema>;
+
+// Deposits helpers
+export * from "./deposits";

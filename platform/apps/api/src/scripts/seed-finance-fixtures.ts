@@ -1,0 +1,99 @@
+import { PrismaClient } from "@prisma/client";
+import { randomUUID } from "crypto";
+
+/**
+ * Seeds sample finance data (payouts, disputes, gift cards) for UI validation.
+ * Safe to run in dev/staging. Idempotent-ish: uses fixed IDs to avoid dupes.
+ */
+async function main() {
+  const prisma = new PrismaClient();
+  const campgroundId = process.env.SEED_CAMPGROUND_ID || "camp-finance-ui";
+
+  // Sample payout with one line
+  const payoutId = "po_ui_sample_1";
+  await prisma.payout.upsert({
+    where: { id: payoutId },
+    create: {
+      id: payoutId,
+      campgroundId,
+      stripePayoutId: "po_ui_stripe_1",
+      stripeAccountId: "acct_ui_123",
+      amountCents: 125000,
+      feeCents: 3500,
+      currency: "usd",
+      status: "paid",
+      arrivalDate: new Date(),
+      createdAt: new Date(),
+      lines: {
+        create: [
+          {
+            id: randomUUID(),
+            type: "charge",
+            amountCents: 90000,
+            currency: "usd",
+            description: "Booking payment",
+            reservationId: "resv_ui_1",
+            paymentIntentId: "pi_ui_1",
+            chargeId: "ch_ui_1",
+            balanceTransactionId: "bt_ui_1",
+            createdAt: new Date(),
+          },
+        ],
+      },
+    },
+    update: {},
+  });
+
+  // Sample dispute
+  const disputeId = "disp_ui_sample_1";
+  await prisma.dispute.upsert({
+    where: { id: disputeId },
+    create: {
+      id: disputeId,
+      campgroundId,
+      stripeDisputeId: "dp_ui_1",
+      stripeChargeId: "ch_ui_2",
+      stripePaymentIntentId: "pi_ui_2",
+      reservationId: "resv_ui_2",
+      payoutId,
+      amountCents: 4200,
+      currency: "usd",
+      reason: "fraudulent",
+      status: "needs_response",
+      evidenceDueBy: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      notes: "UI sample dispute",
+    },
+    update: {},
+  });
+
+  // Sample gift card (only if model exists in client)
+  if ("giftCard" in prisma) {
+    const cardCode = "UI-GIFT-50";
+    await (prisma as any).giftCard.upsert({
+      where: { code: cardCode },
+      create: {
+        code: cardCode,
+        balanceCents: 5000,
+        kind: "gift_card",
+        expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+      },
+      update: {
+        balanceCents: 5000,
+        expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+      },
+    });
+  }
+
+  console.log("Seeded finance fixtures for campground:", campgroundId);
+  await prisma.$disconnect();
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+
+

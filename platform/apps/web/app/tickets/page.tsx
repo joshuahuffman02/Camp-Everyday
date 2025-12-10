@@ -1,0 +1,503 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { useWhoami } from "@/hooks/use-whoami";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+
+type Ticket = {
+  id: string;
+  createdAt: string;
+  completedAt?: string;
+  title: string;
+  notes?: string;
+  url?: string;
+  path?: string;
+  pageTitle?: string;
+  userAgent?: string;
+  selection?: string;
+  status: "open" | "completed";
+  agentNotes?: string;
+  votes?: number;
+  category?: "issue" | "question" | "feature" | "other";
+  submitter?: { id?: string | null; name?: string | null; email?: string | null };
+  upvoters?: Array<{ id?: string | null; name?: string | null; email?: string | null }>;
+  client?: { userAgent?: string | null; platform?: string | null; language?: string | null; deviceType?: string };
+};
+
+export default function TicketsPage() {
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [upvotingId, setUpvotingId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "completed">("all");
+  const [detailTicket, setDetailTicket] = useState<Ticket | null>(null);
+  const [response, setResponse] = useState("");
+  const [responding, setResponding] = useState(false);
+  const [search, setSearch] = useState("");
+  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
+  const { data: whoami } = useWhoami();
+
+  const loadTickets = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tickets", { cache: "no-store" });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      setTickets(data.tickets ?? []);
+    } catch (err) {
+      console.error(err);
+      setError("Could not load tickets.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTickets();
+  }, []);
+
+  const filteredTickets = tickets
+    .filter((t) => (statusFilter === "all" ? true : t.status === statusFilter))
+    .filter((t) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        t.title.toLowerCase().includes(q) ||
+        (t.notes ?? "").toLowerCase().includes(q) ||
+        (t.pageTitle ?? "").toLowerCase().includes(q) ||
+        (t.path ?? "").toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const deviceLabel = (t: Ticket) => {
+    const device = (t.client?.deviceType ?? "").toLowerCase();
+    const platform = (t.client?.platform ?? "").toLowerCase();
+    const ua = t.client?.userAgent ?? "";
+    const browser =
+      /chrome|crios/i.test(ua) && !/edg/i.test(ua)
+        ? "Chrome"
+        : /safari/i.test(ua) && !/chrome|crios/i.test(ua)
+        ? "Safari"
+        : /firefox/i.test(ua)
+        ? "Firefox"
+        : /edg/i.test(ua)
+        ? "Edge"
+        : "Browser";
+
+    if (device === "mobile") {
+      if (platform.includes("iphone")) return `Mobile · iPhone · ${browser}`;
+      if (platform.includes("android")) return `Mobile · Android · ${browser}`;
+      return `Mobile · ${browser}`;
+    }
+    if (device === "tablet") return `Tablet · ${browser}`;
+    if (platform.includes("mac")) return `Desktop · Mac · ${browser}`;
+    if (platform.includes("win")) return `Desktop · PC · ${browser}`;
+    return `Desktop · ${browser}`;
+  };
+
+  const categoryBadge = (t: Ticket) => {
+    const c = t.category || "issue";
+    const map: Record<string, { label: string; className: string }> = {
+      issue: { label: "Issue", className: "bg-rose-50 text-rose-700 border border-rose-100" },
+      question: { label: "Question", className: "bg-sky-50 text-sky-700 border border-sky-100" },
+      feature: { label: "Feature", className: "bg-amber-50 text-amber-800 border border-amber-100" },
+      other: { label: "Other", className: "bg-slate-100 text-slate-700 border border-slate-200" },
+    };
+    const picked = map[c] || map.issue;
+    return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${picked.className}`}>{picked.label}</span>;
+  };
+
+  const displayUrl = (raw?: string) => {
+    if (!raw) return "";
+    try {
+      const u = new URL(raw);
+      return u.host + u.pathname;
+    } catch {
+      return raw.length > 40 ? raw.slice(0, 37) + "..." : raw;
+    }
+  };
+
+  const markCompleted = async (ticket: Ticket) => {
+    const notes = window.prompt("Add quick notes (optional):", ticket.agentNotes ?? "") ?? ticket.agentNotes ?? "";
+    setUpdatingId(ticket.id);
+    try {
+      const res = await fetch("/api/tickets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, status: "completed", agentNotes: notes }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      await loadTickets();
+    } catch (err) {
+      console.error(err);
+      setError("Could not update ticket.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const upvote = async (ticket: Ticket) => {
+    setUpvotingId(ticket.id);
+    try {
+      const actor = {
+        id: (whoami as any)?.id ?? (whoami as any)?.user?.id ?? null,
+        name:
+          (whoami as any)?.name ??
+          (whoami as any)?.user?.name ??
+          (whoami as any)?.email ??
+          (whoami as any)?.user?.email ??
+          null,
+        email: (whoami as any)?.email ?? (whoami as any)?.user?.email ?? null,
+      };
+
+      const res = await fetch("/api/tickets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, action: "upvote", actor }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      await loadTickets();
+    } catch (err) {
+      console.error(err);
+      setError("Could not upvote ticket.");
+    } finally {
+      setUpvotingId(null);
+    }
+  };
+
+  const submitResponse = async () => {
+    if (!detailTicket) return;
+    const trimmed = response.trim();
+    if (!trimmed) return;
+    setResponding(true);
+    try {
+      const combinedNotes = detailTicket.agentNotes
+        ? `${detailTicket.agentNotes}\n\nResponse: ${trimmed}`
+        : `Response: ${trimmed}`;
+      const res = await fetch("/api/tickets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: detailTicket.id, agentNotes: combinedNotes }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      setResponse("");
+      setDetailTicket(null);
+      await loadTickets();
+    } catch (err) {
+      console.error(err);
+      setError("Could not save response.");
+    } finally {
+      setResponding(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 md:px-6 py-6 lg:max-w-6xl sm:max-w-5xl">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Tickets</h1>
+          <p className="text-sm text-slate-600">Track issues, triage, and respond quickly.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+            {(["all", "open", "completed"] as const).map((key) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={statusFilter === key ? "default" : "ghost"}
+                onClick={() => setStatusFilter(key)}
+              >
+                {key === "all" ? "All" : key === "open" ? "Open" : "Completed"}
+              </Button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search tickets..."
+              className="h-9 w-48 border-0 bg-transparent px-0 text-sm focus-visible:ring-0"
+            />
+          </div>
+          <Button variant="outline" asChild>
+            <a href="/roadmap" className="flex items-center gap-2" target="_blank" rel="noreferrer">
+              Roadmap
+            </a>
+          </Button>
+          <Button variant="secondary" onClick={loadTickets} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
+      </div>
+
+      {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+      {loading ? (
+        <div className="text-sm text-slate-600">Loading tickets...</div>
+      ) : filteredTickets.length === 0 ? (
+        <div className="text-sm text-slate-600">No tickets yet. Use the floating button to add one.</div>
+      ) : (
+        <>
+          {/* Desktop table */}
+          <div className="hidden rounded-lg border border-slate-200 bg-white shadow-sm md:block">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Votes</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Title</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Details</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Submitter</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Device</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Page</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">When</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filteredTickets.map((ticket) => (
+                  <tr key={ticket.id} className="hover:bg-slate-50 bg-white">
+                    <td className="px-4 py-4 align-top text-sm text-slate-700">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => upvote(ticket)}
+                          disabled={upvotingId === ticket.id}
+                        >
+                          {upvotingId === ticket.id ? "…" : "Upvote"}
+                        </Button>
+                        <span className="text-sm font-semibold text-slate-900">{ticket.votes ?? 0}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 align-top text-xs font-semibold">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-1 ${
+                          ticket.status === "completed"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {ticket.status === "completed" ? "Completed" : "Open"}
+                      </span>
+                      {ticket.completedAt && (
+                        <div className="text-[11px] text-slate-500">
+                          {new Date(ticket.completedAt).toLocaleString()}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 align-top text-sm font-semibold text-slate-900">
+                      <div className="flex items-center gap-2">
+                        {categoryBadge(ticket)}
+                        <span className="truncate">{ticket.title}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 align-top text-sm text-slate-700 whitespace-pre-wrap space-y-2">
+                      <div className={expandedNotes[ticket.id] ? "" : "line-clamp-3"}>{ticket.notes ?? "—"}</div>
+                      {ticket.notes && ticket.notes.length > 140 && (
+                        <button
+                          className="text-xs font-semibold text-emerald-700 hover:underline"
+                          onClick={() =>
+                            setExpandedNotes((prev) => ({ ...prev, [ticket.id]: !prev[ticket.id] }))
+                          }
+                        >
+                          {expandedNotes[ticket.id] ? "Show less" : "Show all"}
+                        </button>
+                      )}
+                      {ticket.agentNotes && (
+                        <Button size="sm" variant="ghost" className="px-0 text-emerald-700" onClick={() => setDetailTicket(ticket)}>
+                          View agent notes
+                        </Button>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 align-top text-sm text-slate-700 space-y-1">
+                      {ticket.submitter?.name && <div className="font-semibold text-slate-900">{ticket.submitter.name}</div>}
+                      {ticket.submitter?.email && <div className="text-xs text-slate-500">{ticket.submitter.email}</div>}
+                      {!ticket.submitter?.name && !ticket.submitter?.email && <div className="text-xs text-slate-500">Anonymous</div>}
+                      {ticket.upvoters && ticket.upvoters.length > 0 && (
+                        <div className="text-[11px] text-slate-500">
+                          Upvoted by{" "}
+                          {ticket.upvoters
+                            .map((u) => u.name || u.email || "Someone")
+                            .slice(0, 3)
+                            .join(", ")}
+                          {ticket.upvoters.length > 3 ? ` +${ticket.upvoters.length - 3}` : ""}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 align-top text-xs text-slate-600 space-y-1">
+                      <div className="font-semibold text-slate-800">{deviceLabel(ticket)}</div>
+                      {ticket.client?.language && <div className="text-xs text-slate-500">{ticket.client.language}</div>}
+                    </td>
+                  <td className="px-4 py-4 align-top text-xs text-slate-600 space-y-1 max-w-[220px]">
+                    {ticket.pageTitle && <div className="font-semibold text-slate-800 line-clamp-1">{ticket.pageTitle}</div>}
+                    {ticket.url && (
+                      <a
+                        href={ticket.url}
+                        className="block text-emerald-700 hover:underline truncate"
+                        title={ticket.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {displayUrl(ticket.url)}
+                      </a>
+                    )}
+                    {ticket.path && <div className="text-slate-500 line-clamp-1" title={ticket.path}>{ticket.path}</div>}
+                    {ticket.selection && <div className="text-slate-500 line-clamp-1" title={ticket.selection}>Selection: “{ticket.selection}”</div>}
+                  </td>
+                    <td className="px-4 py-4 align-top text-sm text-slate-600">
+                      {ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : "—"}
+                    </td>
+                  <td className="px-4 py-4 align-top text-sm text-slate-600 bg-white">
+                    <div className="flex flex-col gap-2">
+                      <Button size="sm" variant="ghost" className="justify-start px-0 text-emerald-700" onClick={() => setDetailTicket(ticket)}>
+                        Details
+                      </Button>
+                      {ticket.status === "completed" ? (
+                        <span className="text-xs text-slate-500">Done</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => markCompleted(ticket)}
+                          disabled={updatingId === ticket.id}
+                        >
+                          {updatingId === ticket.id ? "Saving..." : "Mark completed"}
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="space-y-3 md:hidden">
+            {filteredTickets.map((ticket) => (
+              <div key={ticket.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-slate-500">{ticket.status === "completed" ? "Completed" : "Open"}</div>
+                    <div className="flex items-center gap-2">
+                      {categoryBadge(ticket)}
+                      <div className="text-base font-semibold text-slate-900 line-clamp-2">{ticket.title}</div>
+                    </div>
+                    <div className="text-xs text-slate-500">{ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : "—"}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => upvote(ticket)} disabled={upvotingId === ticket.id}>
+                      {upvotingId === ticket.id ? "…" : "Upvote"}
+                    </Button>
+                    <span className="text-sm font-semibold text-slate-900">{ticket.votes ?? 0}</span>
+                  </div>
+                </div>
+                <div className="mt-2 text-sm text-slate-700 line-clamp-3">{ticket.notes ?? "—"}</div>
+                {ticket.notes && ticket.notes.length > 140 && (
+                  <button
+                    className="text-xs font-semibold text-emerald-700 hover:underline"
+                    onClick={() =>
+                      setExpandedNotes((prev) => ({ ...prev, [ticket.id]: !prev[ticket.id] }))
+                    }
+                  >
+                    {expandedNotes[ticket.id] ? "Show less" : "Show all"}
+                  </button>
+                )}
+                <div className="mt-2 text-xs text-slate-600">
+                  {ticket.submitter?.name || ticket.submitter?.email ? (
+                    <>
+                      <span className="font-semibold">{ticket.submitter?.name}</span>
+                      {ticket.submitter?.email && <> · {ticket.submitter.email}</>}
+                    </>
+                  ) : (
+                    "Anonymous"
+                  )}
+                </div>
+                <div className="mt-1 text-xs text-slate-600">{deviceLabel(ticket)}</div>
+                {ticket.pageTitle && (
+                  <div className="mt-1 text-xs text-slate-600 line-clamp-1">
+                    <span className="font-semibold">{ticket.pageTitle}</span>
+                  </div>
+                )}
+                {ticket.url && (
+                  <a
+                    className="mt-1 block text-xs text-emerald-700 underline truncate"
+                    href={ticket.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={ticket.url}
+                  >
+                    {displayUrl(ticket.url)}
+                  </a>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" variant="ghost" className="px-0 text-emerald-700" onClick={() => setDetailTicket(ticket)}>
+                    Details
+                  </Button>
+                  {ticket.status === "completed" ? (
+                    <span className="text-xs text-slate-500 self-center">Done</span>
+                  ) : (
+                    <Button size="sm" variant="secondary" onClick={() => markCompleted(ticket)} disabled={updatingId === ticket.id}>
+                      {updatingId === ticket.id ? "Saving..." : "Mark completed"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="text-xs text-slate-500">
+        Raw storage: <code>data/tickets.json</code> (local JSON for testing; swap to real persistence later).
+      </div>
+
+      <Dialog open={!!detailTicket} onOpenChange={(open) => (!open ? setDetailTicket(null) : undefined)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{detailTicket?.title ?? "Details"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-slate-700">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs font-semibold uppercase text-slate-500">Ticket details</div>
+              <div className="mt-1 whitespace-pre-wrap">{detailTicket?.notes ?? "—"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase text-slate-500">Agent notes</div>
+              <div className="whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3">
+                {detailTicket?.agentNotes ?? "No agent notes yet."}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase text-slate-500">Add response</div>
+              <Textarea
+                rows={3}
+                placeholder="Reply or add context. This will append to agent notes."
+                value={response}
+                onChange={(e) => setResponse(e.target.value)}
+              />
+              <div className="text-[11px] text-slate-500">Saved to agent notes history.</div>
+            </div>
+          </div>
+          <DialogFooter>
+            <div className="flex w-full justify-end gap-2">
+              <Button variant="ghost" onClick={() => setDetailTicket(null)} disabled={responding}>
+                Close
+              </Button>
+              <Button onClick={submitResponse} disabled={responding || !response.trim()}>
+                {responding ? "Saving..." : "Save response"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

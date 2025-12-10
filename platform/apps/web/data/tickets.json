@@ -1,0 +1,437 @@
+[
+  {
+    "id": "f788ba0a-6f1a-461b-a177-2043a870d374",
+    "createdAt": "2025-12-10T03:12:15.010Z",
+    "status": "completed",
+    "title": "campgrounds ratings",
+    "notes": "on the homepage the campgrounds ratings look to be static and not reflective of their actualy ratings... if a campground has no ratings yet, we can indicate that somehow in a friendly way... also, make sure all the data on his page is rich and dynmic.",
+    "url": "http://localhost:3000/",
+    "path": "/",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure | Camp Everyday",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+    "extra": {
+      "viewport": {
+        "width": 1800,
+        "height": 1008
+      },
+      "referrer": ""
+    },
+    "completedAt": "2025-12-10T03:19:01.423Z",
+    "agentNotes": "Hooked up homepage campground cards to real reviewScore/reviewCount from /public/campgrounds, removed fake static ratings, and show a friendly no-reviews-yet message when none exist.",
+    "votes": 0,
+    "upvoters": [],
+    "client": {
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+      "platform": null,
+      "language": null,
+      "deviceType": "unknown"
+    },
+    "category": "issue"
+  },
+  {
+    "id": "2df28c9e-2da1-4f0d-8caf-ca1f3558df80",
+    "createdAt": "2025-12-10T04:37:54.569Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": null,
+      "name": null,
+      "email": null
+    },
+    "upvoters": [],
+    "title": "Home screen spacing.",
+    "notes": "I noticed on mobile phone the spacing in the search bar of the text is crammed.",
+    "url": "https://camp.everyday.host.ngrok-free.app/",
+    "path": "/",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure | Camp Everyday",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+    "extra": {
+      "viewport": {
+        "width": 352,
+        "height": 625
+      },
+      "referrer": ""
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+      "platform": "iPhone",
+      "language": "en-US",
+      "deviceType": "mobile"
+    },
+    "completedAt": "2025-12-10T13:18:04.318Z",
+    "agentNotes": "Adjusted homepage search bar for mobile: stack layout with extra gap, reduced padding/font sizes, and made filter/search buttons full width so text no longer feels cramped on small screens.",
+    "category": "issue"
+  },
+  {
+    "id": "4081fb65-fca8-49d6-ac6c-8991dc6f1c82",
+    "createdAt": "2025-12-10T04:41:31.459Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": null,
+      "name": null,
+      "email": null
+    },
+    "upvoters": [],
+    "title": "Help screen",
+    "notes": "Help screen info should only be visable by campground staff users.",
+    "url": "https://camp.everyday.host.ngrok-free.app/help",
+    "path": "/help",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+    "extra": {
+      "viewport": {
+        "width": 352,
+        "height": 625
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/help"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+      "platform": "iPhone",
+      "language": "en-US",
+      "deviceType": "mobile"
+    },
+    "completedAt": "2025-12-10T13:21:25.418Z",
+    "agentNotes": "Locked help page to staff: load whoami, show staff-only message with sign-in link when not authorized, and keep skeleton while loading.",
+    "category": "issue"
+  },
+  {
+    "id": "5aed4125-146f-44fb-b903-c58e49d803e1",
+    "createdAt": "2025-12-10T04:42:17.171Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": null,
+      "name": null,
+      "email": null
+    },
+    "upvoters": [],
+    "title": "Dissapesrs",
+    "notes": "Submit a ticket randomly disappears. Need a confirm to close.",
+    "url": "https://camp.everyday.host.ngrok-free.app/help",
+    "path": "/help",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+    "extra": {
+      "viewport": {
+        "width": 352,
+        "height": 625
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/help"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+      "platform": "iPhone",
+      "language": "en-US",
+      "deviceType": "mobile"
+    },
+    "completedAt": "2025-12-10T13:21:25.421Z",
+    "agentNotes": "Added close-confirm to ticket dialog so drafts aren’t lost; keeps data unless user confirms discard.",
+    "category": "issue"
+  },
+  {
+    "id": "9b1d4a36-0306-4a9d-8216-606dd798a3d0",
+    "createdAt": "2025-12-10T13:54:23.228Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": "cmizgft380000c5h03gmly7br",
+      "name": "josh@campeveryday.com",
+      "email": "josh@campeveryday.com"
+    },
+    "upvoters": [],
+    "title": "ticket submit went away",
+    "notes": "as I'm trying a support ticket, the whole submit a ticket thing went away... it was doing this on mobile a bunch but you said you fixed it",
+    "url": "https://camp.everyday.host.ngrok-free.app/booking",
+    "path": "/booking",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+    "extra": {
+      "viewport": {
+        "width": 1800,
+        "height": 1008
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/booking"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+      "platform": "MacIntel",
+      "language": "en-US",
+      "deviceType": "desktop"
+    },
+    "completedAt": "2025-12-10T14:05:00.000Z",
+    "agentNotes": "Raised the floating ticket widget z-index to 1200 so it sits above overlays/modals. Please retry; if it still disappears, note the page and screen size.",
+    "category": "issue"
+  },
+  {
+    "id": "4937a6ab-c051-462e-a27d-93d757c032f9",
+    "createdAt": "2025-12-10T13:56:13.645Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": "cmizgft380000c5h03gmly7br",
+      "name": "josh@campeveryday.com",
+      "email": "josh@campeveryday.com"
+    },
+    "upvoters": [],
+    "title": "Richer Text",
+    "notes": "a guests info should be auto populate ie equipment/rv type and length when you select/create a guest. if a guest doesn't have an rv whatever you type in should save to their account",
+    "url": "https://camp.everyday.host.ngrok-free.app/booking",
+    "path": "/booking",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+    "extra": {
+      "viewport": {
+        "width": 1800,
+        "height": 1008
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/booking"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+      "platform": "MacIntel",
+      "language": "en-US",
+      "deviceType": "desktop"
+    },
+    "completedAt": "2025-12-10T15:07:19.449Z",
+    "agentNotes": "Booking: create-guest now saves rig type/length to the guest record and selects the values immediately; when editing an existing guest, new rig type/length entries are persisted before creating the reservation so RV details stay attached to the guest.",
+    "category": "issue"
+  },
+  {
+    "id": "25f54160-8bce-4389-8d28-cc258e8d92fb",
+    "createdAt": "2025-12-10T14:01:19.950Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": null,
+      "name": null,
+      "email": null
+    },
+    "upvoters": [],
+    "title": "Sort by move",
+    "notes": "Can the sort by, that’s for all the campgrounds, move above the filter so it doesn’t feel so squished on mobile",
+    "url": "https://camp.everyday.host.ngrok-free.app/",
+    "path": "/",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure | Camp Everyday",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+    "extra": {
+      "viewport": {
+        "width": 352,
+        "height": 625
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+      "platform": "iPhone",
+      "language": "en-US",
+      "deviceType": "mobile"
+    },
+    "completedAt": "2025-12-10T15:12:36.664Z",
+    "agentNotes": "Homepage sort dropdown now stacks and spans full width on mobile to remove squish; heading/sort row uses responsive layout for small screens.",
+    "category": "issue"
+  },
+  {
+    "id": "1dd34e41-5209-41df-978f-fe74058f55f3",
+    "createdAt": "2025-12-10T14:02:06.635Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": null,
+      "name": null,
+      "email": null
+    },
+    "upvoters": [],
+    "title": "Fixed width",
+    "notes": "On mobile the weight seems to change a lot. Let’s keep it fixed like a true mobile app",
+    "url": "https://camp.everyday.host.ngrok-free.app/",
+    "path": "/",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure | Camp Everyday",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+    "extra": {
+      "viewport": {
+        "width": 352,
+        "height": 625
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+      "platform": "iPhone",
+      "language": "en-US",
+      "deviceType": "mobile"
+    },
+    "completedAt": "2025-12-10T15:13:22.292Z",
+    "agentNotes": "Homepage now uses a fixed-width container on mobile (~480px max, centered) to prevent layout resizing and keep a consistent phone-app feel; larger screens remain fluid.",
+    "category": "issue"
+  },
+  {
+    "id": "504dcdb5-a0ef-4195-ab94-5e2c5b12ba67",
+    "createdAt": "2025-12-10T14:03:25.945Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": "cmizgft380000c5h03gmly7br",
+      "name": "josh@campeveryday.com",
+      "email": "josh@campeveryday.com"
+    },
+    "upvoters": [],
+    "title": "Text outside buttom",
+    "notes": "The resolve text lives outside of the button in the attention area",
+    "url": "https://camp.everyday.host.ngrok-free.app/dashboard",
+    "path": "/dashboard",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+    "extra": {
+      "viewport": {
+        "width": 352,
+        "height": 625
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/dashboard"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+      "platform": "iPhone",
+      "language": "en-US",
+      "deviceType": "mobile"
+    },
+    "completedAt": "2025-12-10T15:14:29.843Z",
+    "agentNotes": "Dashboard “Resolve” link in Attention list now stays inside a proper button on mobile: row stacks on small screens, adds spacing, and keeps amount/resolve aligned without wrapping out of the button.",
+    "category": "issue"
+  },
+  {
+    "id": "f1e3ddd6-eaf1-4f8f-841c-3b9f763ed92b",
+    "createdAt": "2025-12-10T14:04:27.681Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": "cmizgft380000c5h03gmly7br",
+      "name": "josh@campeveryday.com",
+      "email": "josh@campeveryday.com"
+    },
+    "upvoters": [],
+    "title": "Recent activity",
+    "notes": "In recent activity the reservation button is like 0 pixels away from the other text and looks awkward on mobile",
+    "url": "https://camp.everyday.host.ngrok-free.app/dashboard",
+    "path": "/dashboard",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+    "extra": {
+      "viewport": {
+        "width": 352,
+        "height": 625
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/dashboard"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1",
+      "platform": "iPhone",
+      "language": "en-US",
+      "deviceType": "mobile"
+    },
+    "completedAt": "2025-12-10T15:15:33.977Z",
+    "agentNotes": "Dashboard Recent Activity rows now add spacing and stack on small screens; date badge has its own column so the “reservation” info no longer collides on mobile.",
+    "category": "issue"
+  },
+  {
+    "id": "75b44e21-00fc-4e4e-9fb1-94680f3cc983",
+    "createdAt": "2025-12-10T15:42:21.256Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": "cmizgft380000c5h03gmly7br",
+      "name": "josh@campeveryday.com",
+      "email": "josh@campeveryday.com"
+    },
+    "upvoters": [],
+    "title": "group bookings",
+    "notes": "this might be more of a question, but I see how to create groups for bookings, but how do i attach reservations to a group?",
+    "url": "https://camp.everyday.host.ngrok-free.app/groups",
+    "path": "/groups",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+    "extra": {
+      "viewport": {
+        "width": 1800,
+        "height": 1008
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/groups"
+    },
+    "client": {
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+      "platform": "MacIntel",
+      "language": "en-US",
+      "deviceType": "desktop"
+    },
+    "agentNotes": "I had another agent fix it",
+    "category": "issue",
+    "completedAt": "2025-12-10T16:45:40.922Z"
+  },
+  {
+    "id": "4a1c0070-e7fe-4acf-96db-c59139087ed6",
+    "createdAt": "2025-12-10T16:44:46.133Z",
+    "status": "completed",
+    "votes": 0,
+    "submitter": {
+      "id": null,
+      "name": null,
+      "email": null
+    },
+    "upvoters": [],
+    "title": "I'm not even logged into the campground dashboard",
+    "notes": "on a new browser I went directly to /roadmap and it opened it up. gave me the whole menu ssytem for the campground dashboard. there's even a sign out button, but I'm not even signed it. it should not be possible to see anything campground dashboard related if you are not signed in as a campground staff, also the signout button shouldn't be there if you're not even signed in...",
+    "url": "https://camp.everyday.host.ngrok-free.app/roadmap",
+    "path": "/roadmap",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    "extra": {
+      "viewport": {
+        "width": 5120,
+        "height": 1440
+      },
+      "referrer": "https://camp.everyday.host.ngrok-free.app/roadmap"
+    },
+    "category": "issue",
+    "client": {
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+      "platform": "MacIntel",
+      "language": "en-US",
+      "deviceType": "desktop"
+    },
+    "completedAt": "2025-12-10T16:51:28.284Z",
+    "agentNotes": "Added global auth middleware to gate staff/dashboard routes; unauthenticated users are redirected to sign-in and public pages remain open."
+  },
+  {
+    "id": "9d4c886b-1736-4c42-a08b-ca0576e1e4a0",
+    "createdAt": "2025-12-10T21:21:59.847Z",
+    "status": "open",
+    "votes": 0,
+    "submitter": {
+      "id": "cmizgft380000c5h03gmly7br",
+      "name": "josh@campeveryday.com",
+      "email": "josh@campeveryday.com"
+    },
+    "upvoters": [],
+    "title": "bell notifcations",
+    "notes": "if it hit the bell for the notications on the top menu bar, and then hit 'mark resolved' it doesn't actually resolve the notications. then if I hit the more button or whatever it is on the button of the list, it takes me to the roadmaps update page, which doesn't feel like the right page I should be going to. I should be going to whereever these notications are coming from? please think through that.",
+    "url": "https://camp.everyday.host.ngrok-free.app/dashboard",
+    "path": "/dashboard",
+    "pageTitle": "Camp Everyday - Find your perfect camping adventure",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+    "extra": {
+      "viewport": {
+        "width": 1044,
+        "height": 1008
+      },
+      "referrer": ""
+    },
+    "category": "issue",
+    "client": {
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+      "platform": "MacIntel",
+      "language": "en-US",
+      "deviceType": "desktop"
+    }
+  }
+]
