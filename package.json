@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@7.33.6",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
     "api": "pnpm --dir platform/apps/api dev",
