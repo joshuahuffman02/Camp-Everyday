@@ -1459,7 +1459,9 @@
   {
     "id": "1ffbe070-9dea-4ade-a108-c33cbbcec6d7",
     "createdAt": "2025-12-11T13:49:48.250Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:05:00.000Z",
+    "agentNotes": "Added 10 prebuilt templates covering: Booking Confirmation, Booking Reminder (3 Days), Check-In Reminder SMS, Payment Received, Payment Due Reminder, Check-Out Thank You, Cancellation Confirmation, Welcome SMS, Seasonal Promotion, and Weather Alert. One-click add gallery added below template editor.",
     "votes": 0,
     "submitter": {
       "id": "cmizgft3d0001c5h0rjai0mih",
@@ -1491,7 +1493,9 @@
   {
     "id": "d52cd322-2504-4c9c-9ef6-3e1dae5000f0",
     "createdAt": "2025-12-11T13:50:28.732Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:05:00.000Z",
+    "agentNotes": "Added 'How Security Settings Work' explanation card at top of page. Explains Privacy Defaults (PII handling, consent), PII Tags (field classification), Backup & DR (restore drills), and Audit Log (security events).",
     "votes": 0,
     "submitter": {
       "id": "cmizgft3d0001c5h0rjai0mih",
@@ -1523,7 +1527,9 @@
   {
     "id": "43ddb1bb-a4fe-4ee0-9f77-64046391849c",
     "createdAt": "2025-12-11T13:50:46.319Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:05:00.000Z",
+    "agentNotes": "Added 'How Privacy Settings Work' explanation card. Covers DSR Export (GDPR/CCPA compliance), Redaction Dashboard (testing), Privacy Defaults (redaction/consent), Consent Log (tracking), and PII Tags (field classification).",
     "votes": 0,
     "submitter": {
       "id": "cmizgft3d0001c5h0rjai0mih",
@@ -1587,7 +1593,9 @@
   {
     "id": "246ad8c9-fdac-4d3c-89dd-36b5a87476dc",
     "createdAt": "2025-12-11T13:53:48.761Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:05:00.000Z",
+    "agentNotes": "Added 'How Photos Work' explanation card. Explains Media Pool (central photo library), Hero Image selection (radio buttons), Order control (up/down arrows), and how to link photos to Sites & Classes via Setup menus.",
     "votes": 0,
     "submitter": {
       "id": "cmizgft3d0001c5h0rjai0mih",
@@ -1651,7 +1659,9 @@
   {
     "id": "dfdc8f77-c7ec-4f94-8f30-ed27c10f8009",
     "createdAt": "2025-12-11T14:00:18.402Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:05:00.000Z",
+    "agentNotes": "Added 'How Access Control Works' explanation card. Covers supported providers (Kisi, Brivo, CloudKey), credential setup, webhook configuration, and how the gate integration works on guest check-in. Notes that compatible hardware is required.",
     "votes": 0,
     "submitter": {
       "id": "cmizgft3d0001c5h0rjai0mih",
@@ -2331,7 +2341,9 @@
   {
     "id": "46e11b03-bada-44eb-9efb-44341daf121d",
     "createdAt": "2025-12-12T07:31:43.636Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:05:00.000Z",
+    "agentNotes": "Fixed inaccurate marketing claims. Replaced false '500+ campgrounds' with 'Early Access' messaging. Updated SocialProof stats to show 'Early Access', 'USA Nationwide', 'Premium Features', and 'Launching 2025'. Updated HeroSection badge to 'Early access now open — Join the waitlist' and trust indicators to be accurate.",
     "votes": 0,
     "submitter": {
       "id": "cmj2hvk2i000119y3xtzc4c7k",

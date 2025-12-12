@@ -5,27 +5,27 @@ import { MapPin, Star, Users, TrendingUp } from 'lucide-react';
 const stats = [
   {
     icon: Users,
-    value: '500+',
+    value: 'Early Access',
     label: 'Campgrounds',
-    description: 'Trust our platform',
+    description: 'Be among the first',
   },
   {
     icon: MapPin,
-    value: '45',
-    label: 'States',
-    description: 'Nationwide coverage',
+    value: 'USA',
+    label: 'Nationwide',
+    description: 'Available everywhere',
   },
   {
     icon: Star,
-    value: '4.9/5',
-    label: 'Rating',
-    description: 'Customer satisfaction',
+    value: 'Premium',
+    label: 'Features',
+    description: 'Built for hospitality',
   },
   {
     icon: TrendingUp,
-    value: '+32%',
-    label: 'Revenue',
-    description: 'Average increase',
+    value: 'Launching',
+    label: '2025',
+    description: 'Join the waitlist',
   },
 ];
 

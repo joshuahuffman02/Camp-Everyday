@@ -97,6 +97,21 @@ export default function PhotosPage() {
             <CardDescription>Reorder gallery photos and pick a hero image.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* How It Works Section */}
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">📷</div>
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-amber-900">How Photos Work</h4>
+                  <div className="text-sm text-slate-700 space-y-1">
+                    <p><strong>Media Pool:</strong> This is your campground's central photo library. All photos added here can be used across your listing.</p>
+                    <p><strong>Hero Image:</strong> Select one photo (using the radio button) to be your primary display image on the homepage and search results.</p>
+                    <p><strong>Order Matters:</strong> Use the ↑↓ buttons to reorder photos. The order here determines how they appear in your public gallery.</p>
+                    <p><strong>Sites & Classes:</strong> To link photos to specific sites or site classes, edit them in Setup → Sites or Setup → Site Classes. Photos from this pool will be available for selection.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
             {!campgroundId && <div className="text-sm text-slate-500">Select a campground to edit photos.</div>}
             {campgroundQuery.isLoading && <div className="text-sm text-slate-500">Loading…</div>}
 

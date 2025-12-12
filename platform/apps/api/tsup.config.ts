@@ -32,6 +32,6 @@ export default defineConfig([
     tsconfig: "./tsconfig.json",
     skipNodeModulesBundle: true,
     shims: false,
-    noExternal: ["@campreserv/shared"]
+    external: ["@campreserv/shared"]
   }
 ]);

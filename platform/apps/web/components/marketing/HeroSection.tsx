@@ -27,7 +27,7 @@ export function HeroSection() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              Trusted by 500+ campgrounds nationwide
+              🚀 Early access now open — Join the waitlist
             </div>
 
             {/* Headline */}
@@ -74,14 +74,10 @@ export function HeroSection() {
                 ))}
               </div>
               <div className="text-sm text-slate-600">
-                <div className="font-semibold text-slate-900">Join 50,000+ happy campers</div>
+                <div className="font-semibold text-slate-900">Built for campground owners</div>
                 <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="h-4 w-4 text-amber-400 fill-current" viewBox="0 0 20 20">
-                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                    </svg>
-                  ))}
-                  <span className="ml-1 text-slate-600">4.9/5 rating</span>
+                  <span className="text-emerald-600">✦</span>
+                  <span className="text-slate-600">Join early access today</span>
                 </div>
               </div>
             </div>
