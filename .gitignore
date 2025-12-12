@@ -48,4 +48,3 @@ test-results/
 .idea/
 .vscode/
 *.swp
-pnpm-lock.yaml
