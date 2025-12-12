@@ -3,5 +3,6 @@
   "framework": null,
   "buildCommand": "pnpm build:shared && pnpm --dir platform/apps/api prisma:generate && pnpm --dir platform/apps/api build && pnpm --dir platform/apps/web build",
   "devCommand": "cd platform/apps/web && pnpm dev",
+  "installCommand": "pnpm install",
   "outputDirectory": "platform/apps/web/.next"
 }
