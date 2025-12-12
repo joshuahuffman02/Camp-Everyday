@@ -68,7 +68,7 @@ function PhotoGallery({ photos, heroImage, campgroundId }: { photos: string[]; h
     useEffect(() => {
         if (!allPhotos[activeIndex]) return;
         trackEvent("image_viewed", { campgroundId, imageId: allPhotos[activeIndex], page: "campground_detail" });
-  }, [activeIndex, campgroundId, allPhotos]);
+    }, [activeIndex, campgroundId, allPhotos]);
 
     if (allPhotos.length === 0) {
         return (
@@ -552,7 +552,15 @@ export function CampgroundDetailClient({
     const [visibleCount, setVisibleCount] = useState(6);
 
     const filteredReviews = useMemo(() => {
-        const items = reviewsQuery.data || [];
+        // Deduplicate reviews by ID to prevent duplicates from backend
+        const rawItems = reviewsQuery.data || [];
+        const seenIds = new Set<string>();
+        const items = rawItems.filter((r) => {
+            if (seenIds.has(r.id)) return false;
+            seenIds.add(r.id);
+            return true;
+        });
+
         const byRating = ratingFilter === "all"
             ? items
             : items.filter((r) => Math.floor(r.rating) === Number(ratingFilter));
@@ -569,7 +577,7 @@ export function CampgroundDetailClient({
                 (r.title || "").toLowerCase().includes(term) ||
                 (r.body || "").toLowerCase().includes(term) ||
                 (r.tags || []).some((t) => t.toLowerCase().includes(term))
-              )
+            )
             : byTag;
 
         const sorted = [...bySearch].sort((a, b) => {
@@ -595,11 +603,18 @@ export function CampgroundDetailClient({
 
     const ratingBuckets = useMemo(() => {
         const buckets: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-        (reviewsQuery.data || []).forEach((r) => {
+        // Deduplicate by ID
+        const seenIds = new Set<string>();
+        const uniqueReviews = (reviewsQuery.data || []).filter((r) => {
+            if (seenIds.has(r.id)) return false;
+            seenIds.add(r.id);
+            return true;
+        });
+        uniqueReviews.forEach((r) => {
             const key = Math.round(r.rating) as 1 | 2 | 3 | 4 | 5;
             buckets[key] = (buckets[key] || 0) + 1;
         });
-        const total = (reviewsQuery.data || []).length || 1;
+        const total = uniqueReviews.length || 1;
         return { buckets, total };
     }, [reviewsQuery.data]);
 
@@ -854,11 +869,10 @@ export function CampgroundDetailClient({
                                     <button
                                         key={tag}
                                         onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
-                                        className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                                            tagFilter === tag
-                                                ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                                                : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
-                                        }`}
+                                        className={`px-3 py-1 rounded-full text-sm border transition-colors ${tagFilter === tag
+                                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                                            : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
+                                            }`}
                                     >
                                         {tag}
                                     </button>

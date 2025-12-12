@@ -187,12 +187,24 @@ function NewReservationInner() {
   const [selectedUpsells, setSelectedUpsells] = useState<string[]>([]);
   const [showCopilot, setShowCopilot] = useState(false);
 
-  const upsellOptions = [
-    { id: "smores", label: "S'mores Kit", price: 1500, condition: (data: any) => data.children > 0 },
-    { id: "firewood", label: "Firewood Bundle", price: 1000, condition: (data: any) => true },
-    { id: "pet_cleaning", label: "Pet Cleaning Fee", price: 2500, condition: (data: any) => data.pets > 0 },
-    { id: "early_checkin", label: "Early Check-in (1pm)", price: 2000, condition: (data: any) => true },
-  ];
+  const upsellItemsQuery = useQuery({
+    queryKey: ["upsell-items", selectedCampground?.id],
+    queryFn: () => apiClient.getUpsellItems(selectedCampground!.id),
+    enabled: !!selectedCampground?.id
+  });
+
+  const upsellOptions = useMemo(() => {
+    return (upsellItemsQuery.data || [])
+      .filter(item => item.active)
+      .map(item => ({
+        id: item.id,
+        label: item.name,
+        price: item.priceCents,
+        // Simple condition: always show unless it requires pets/children logic which we can't easily map from generic items yet
+        // For now, show all active upsells
+        condition: (data: any) => true
+      }));
+  }, [upsellItemsQuery.data]);
 
   const relevantUpsells = upsellOptions.filter(opt => opt.condition(formData));
 
@@ -451,7 +463,7 @@ function NewReservationInner() {
   const handleProcessPayment = async () => {
     const totalInCents = (nights * ratePerNight) + siteLockFee;
     const paidInCents = Math.round(paymentData.paymentAmount * 100);
-    const balanceInCents = totalInCents - paidInCents;
+    const balanceInCents = Math.max(0, totalInCents - paidInCents);
     const normalizedRigType = formData.rvType || null;
     const normalizedRigLength =
       formData.rvType === "tent" || formData.rvType === "cabin" ? null : (formData.rvLength || null);
@@ -697,7 +709,7 @@ function NewReservationInner() {
                   </div>
 
                   {/* Party Size */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">Adults</label>
                       <input

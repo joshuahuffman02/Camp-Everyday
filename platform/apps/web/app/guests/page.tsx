@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "../../components/breadcrumbs";
 import { apiClient } from "../../lib/api-client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Trophy, Star, Car, Plus, Trash2, Download, Filter } from "lucide-react";
@@ -164,7 +164,7 @@ function GuestEquipmentSection({ guestId, expanded, onToggle }: { guestId: strin
     enabled: expanded
   });
 
-const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [newEq, setNewEq] = useState({
     type: "rv",
@@ -506,6 +506,31 @@ export default function GuestsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["guests"] })
   });
 
+  const [sortBy, setSortBy] = useState<"name" | "email" | "points">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const sortedGuests = useMemo(() => {
+    const data = filteredGuests ? [...filteredGuests] : [];
+    return data.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      switch (sortBy) {
+        case "name":
+          const nameA = `${a.primaryLastName} ${a.primaryFirstName}`.toLowerCase();
+          const nameB = `${b.primaryLastName} ${b.primaryFirstName}`.toLowerCase();
+          return dir * nameA.localeCompare(nameB);
+        case "email":
+          return dir * (a.email || "").localeCompare(b.email || "");
+        // Points sorting is tricky if we don't have it on the guest object directly.
+        // But since we can't easily access points here without fetching, let's skip or fetch.
+        // Actually, let's stick to name and email for now unless we have points.
+        // If we want points, we need to fetch loyalty.
+        // Let's just sort by what we have.
+        default:
+          return 0;
+      }
+    });
+  }, [filteredGuests, sortBy, sortDir]);
+
   return (
     <DashboardShell>
       <div className="space-y-4">
@@ -513,6 +538,23 @@ export default function GuestsPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-slate-900">Guests</h2>
           <div className="flex gap-2">
+            <div className="flex items-center gap-1 border rounded-md px-2 bg-white">
+              <span className="text-xs text-slate-500 font-medium mr-1">Sort by:</span>
+              <select
+                className="text-sm border-none focus:ring-0 py-1 pl-0 pr-6 text-slate-700 font-medium bg-transparent"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+              >
+                <option value="name">Name</option>
+                <option value="email">Email</option>
+              </select>
+              <button
+                onClick={() => setSortDir(prev => prev === "asc" ? "desc" : "asc")}
+                className="p-1 hover:bg-slate-100 rounded"
+              >
+                {sortDir === "asc" ? <span className="text-slate-500">↑</span> : <span className="text-slate-500">↓</span>}
+              </button>
+            </div>
             <Button variant="outline" onClick={handleExportCSV}>
               <Download className="h-4 w-4 mr-2" />
               Export CSV

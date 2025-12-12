@@ -39,7 +39,7 @@ temp/
 prisma/generated/
 
 # Testing outputs
-reports/
+/reports/
 playwright-report/
 test-results/
 

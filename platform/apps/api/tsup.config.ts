@@ -15,7 +15,8 @@ export default defineConfig([
     dts: false,
     tsconfig: "./tsconfig.json",
     skipNodeModulesBundle: true,
-    shims: false
+    shims: false,
+    external: ["@campreserv/shared"]
   },
   // Vercel serverless build (output to api/ folder)
   {

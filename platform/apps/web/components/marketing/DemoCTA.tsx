@@ -89,7 +89,7 @@ export function DemoCTA() {
 
             {/* Trust Badge */}
             <div className="mt-8 pt-8 border-t border-emerald-400/30">
-              <p className="text-emerald-100 text-sm mb-2">Trusted by campgrounds nationwide</p>
+              <p className="text-emerald-100 text-sm mb-2">Built for campground owners</p>
               <div className="flex items-center gap-2">
                 <div className="flex -space-x-2">
                   {[1, 2, 3, 4, 5].map((i) => (
@@ -100,12 +100,8 @@ export function DemoCTA() {
                   ))}
                 </div>
                 <div className="flex items-center gap-1 ml-2">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="h-5 w-5 text-amber-400 fill-current" viewBox="0 0 20 20">
-                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                    </svg>
-                  ))}
-                  <span className="ml-2 text-white font-semibold">4.9/5</span>
+                  <span className="text-emerald-300">✦</span>
+                  <span className="ml-2 text-white font-semibold">Join early access</span>
                 </div>
               </div>
             </div>
@@ -119,9 +115,14 @@ export function DemoCTA() {
                   <CheckCircle2 className="h-8 w-8 text-emerald-600" />
                 </div>
                 <h3 className="text-2xl font-bold text-slate-900 mb-2">Request Received!</h3>
-                <p className="text-slate-600">
+                <p className="text-slate-600 mb-4">
                   We'll be in touch within 24 hours to schedule your personalized demo.
                 </p>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-800">
+                  <strong>📧 What happens next:</strong><br />
+                  Your request has been sent to our sales team at <strong>sales@campeveryday.com</strong>.
+                  You'll receive a confirmation email shortly, followed by a call from our onboarding specialist.
+                </div>
               </div>
             ) : (
               <>

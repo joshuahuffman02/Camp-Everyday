@@ -1561,7 +1561,9 @@
   {
     "id": "0a20f0d9-b568-42ff-92ec-f8f4d2e0a4a1",
     "createdAt": "2025-12-11T13:53:06.767Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:35:00.000Z",
+    "agentNotes": "Added helper text to Tagline, Quiet Hours start/end, and Routing Assignee fields in CampgroundProfileForm to clarify their usage.",
     "votes": 0,
     "submitter": {
       "id": "cmizgft3d0001c5h0rjai0mih",
@@ -1957,7 +1959,9 @@
   {
     "id": "6552c0fb-076f-48b1-918a-6acfe6ba0534",
     "createdAt": "2025-12-12T07:17:37.012Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:35:00.000Z",
+    "agentNotes": "Fixed balanceAmount calculation in booking payment flow by clamping it to 0 to prevent negative values when paid amount >= total.",
     "votes": 0,
     "submitter": {
       "id": "cmj2hvk2i000119y3xtzc4c7k",
@@ -1989,7 +1993,9 @@
   {
     "id": "3aa75f51-4e18-4111-b2c6-2d8b6324da1c",
     "createdAt": "2025-12-12T07:18:21.813Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:35:00.000Z",
+    "agentNotes": "Implemented sorting functionality for guest list interaction (Name, Email) to match reservation page UI patterns.",
     "votes": 0,
     "submitter": {
       "id": "cmj2hvk2i000119y3xtzc4c7k",
@@ -2021,7 +2027,9 @@
   {
     "id": "4599d582-f57c-4744-abde-570973aaa0b1",
     "createdAt": "2025-12-12T07:19:20.810Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:35:00.000Z",
+    "agentNotes": "Updated booking page to fetch dynamic upsell items from API implementation instead of using hardcoded values, ensuring consistency with configured upsells.",
     "votes": 0,
     "submitter": {
       "id": "cmj2hvk2i000119y3xtzc4c7k",
@@ -2149,7 +2157,9 @@
   {
     "id": "083da17d-17e6-4374-b100-632e50c0b458",
     "createdAt": "2025-12-12T07:24:27.526Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:15:00.000Z",
+    "agentNotes": "Added inline tip explaining how to save reports: click 'Save report' to bookmark current view (tab, sub-tab, date range), access via 'Saved reports' button. Also clarified reports are stored locally in browser.",
     "votes": 0,
     "submitter": {
       "id": "cmj2hvk2i000119y3xtzc4c7k",
@@ -2309,7 +2319,9 @@
   {
     "id": "733f9979-086d-46a3-ae59-45620799525d",
     "createdAt": "2025-12-12T07:29:56.645Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:20:00.000Z",
+    "agentNotes": "Added client-side deduplication to reviews processing. Both filteredReviews and ratingBuckets calculations now filter by unique review ID to prevent duplicate reviews from appearing. This is a safeguard against any backend duplicates.",
     "votes": 0,
     "submitter": {
       "id": "cmj2hvk2i000119y3xtzc4c7k",
@@ -2407,7 +2419,9 @@
   {
     "id": "64c4ce01-0aee-47e3-9ff2-6710429d02b0",
     "createdAt": "2025-12-12T07:33:58.348Z",
-    "status": "open",
+    "status": "completed",
+    "completedAt": "2025-12-12T17:15:00.000Z",
+    "agentNotes": "Added clear confirmation message after demo form submission explaining requests go to sales@campeveryday.com. Added 'What happens next' section detailing email confirmation and onboarding specialist follow-up.",
     "votes": 0,
     "submitter": {
       "id": "cmj2hvk2i000119y3xtzc4c7k",

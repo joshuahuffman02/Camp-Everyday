@@ -313,12 +313,15 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              value={form.tagline}
-              onChange={(e) => setForm((s) => ({ ...s, tagline: e.target.value }))}
-              placeholder="Tagline"
-              aria-label="Tagline"
-            />
+            <div className="space-y-1">
+              <Input
+                value={form.tagline}
+                onChange={(e) => setForm((s) => ({ ...s, tagline: e.target.value }))}
+                placeholder="Tagline"
+                aria-label="Tagline"
+              />
+              <p className="text-xs text-slate-500">A short, catchy phrase displayed under your campground name.</p>
+            </div>
             <Input
               value={form.heroImageUrl}
               onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))}
@@ -395,18 +398,23 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
             />
             <p className="text-xs text-slate-500">Minutes before inbound guest messages are marked “Needs reply”.</p>
           </div>
-          <Input
-            value={form.quietHoursStart}
-            onChange={(e) => setForm((s) => ({ ...s, quietHoursStart: e.target.value }))}
-            placeholder="Quiet hours start (HH:mm)"
-            aria-label="Quiet hours start"
-          />
-          <Input
-            value={form.quietHoursEnd}
-            onChange={(e) => setForm((s) => ({ ...s, quietHoursEnd: e.target.value }))}
-            placeholder="Quiet hours end (HH:mm)"
-            aria-label="Quiet hours end"
-          />
+          <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                value={form.quietHoursStart}
+                onChange={(e) => setForm((s) => ({ ...s, quietHoursStart: e.target.value }))}
+                placeholder="Start (HH:mm)"
+                aria-label="Quiet hours start"
+              />
+              <Input
+                value={form.quietHoursEnd}
+                onChange={(e) => setForm((s) => ({ ...s, quietHoursEnd: e.target.value }))}
+                placeholder="End (HH:mm)"
+                aria-label="Quiet hours end"
+              />
+            </div>
+            <p className="text-xs text-slate-500">Automated messages will be queued until the morning during these hours.</p>
+          </div>
         </CardContent>
       </Card>
 
@@ -444,7 +452,7 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
               placeholder="User ID for routing"
               aria-label="Routing assignee"
             />
-            <p className="text-xs text-slate-500">Optional: assign inbound triage to this user by default.</p>
+            <p className="text-xs text-slate-500">Optional: The staff member ID who will be auto-assigned to new unassigned conversations.</p>
           </div>
         </CardContent>
       </Card>
