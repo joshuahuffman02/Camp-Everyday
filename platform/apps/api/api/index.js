@@ -1,27 +1,40 @@
-// Vercel Serverless Function Entry Point
-// This file is executed by Vercel as a serverless function
+// Vercel Serverless Function - Simple test to verify function execution works
+// Once this works, we'll add NestJS back
 
+const fs = require('fs');
 const path = require('path');
 
-// Try to load the compiled serverless handler
-let handler;
+module.exports = async (req, res) => {
+    try {
+        // Check what files exist in the dist folder
+        const distPath = path.join(__dirname, '..', 'dist');
+        let distFiles = [];
 
-try {
-    // In Vercel, the dist folder should be at the project root after build
-    handler = require('../dist/serverless.js').handler || require('../dist/serverless.js').default;
-} catch (e) {
-    console.error('Failed to load serverless handler:', e);
-    // Fallback error handler
-    handler = async (req, res) => {
-        res.status(500).json({
-            error: 'Failed to initialize the API server',
-            details: e.message,
+        try {
+            distFiles = fs.readdirSync(distPath);
+        } catch (e) {
+            distFiles = ['ERROR: ' + e.message];
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Vercel function is working!',
+            path: req.url,
+            method: req.method,
+            dirname: __dirname,
             cwd: process.cwd(),
-            dirname: __dirname
+            distPath: distPath,
+            distFiles: distFiles,
+            env: {
+                NODE_ENV: process.env.NODE_ENV,
+                hasDbUrl: !!process.env.DATABASE_URL,
+                hasPlatformDbUrl: !!process.env.PLATFORM_DATABASE_URL
+            }
         });
-    };
-}
-
-module.exports = handler;
-module.exports.default = handler;
-
+    } catch (error) {
+        res.status(500).json({
+            error: error.message,
+            stack: error.stack
+        });
+    }
+};
