@@ -53,13 +53,15 @@ var import_config2 = require("@nestjs/config");
 
 // src/prisma/prisma.service.ts
 var import_common = require("@nestjs/common");
-var import_client = require("@prisma/client");
+var import_edge = require("@prisma/client/edge");
 var import_adapter_pg = require("@prisma/adapter-pg");
-var PrismaService = class extends import_client.PrismaClient {
+var PrismaService = class extends import_edge.PrismaClient {
   constructor() {
-    const adapter = new import_adapter_pg.PrismaPg({
-      connectionString: process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL
-    });
+    const connectionString = process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL;
+    if (!connectionString) {
+      console.error("No DATABASE_URL or PLATFORM_DATABASE_URL found");
+    }
+    const adapter = new import_adapter_pg.PrismaPg({ connectionString });
     super({ adapter });
   }
   async onModuleInit() {
@@ -442,7 +444,7 @@ var import_common28 = require("@nestjs/common");
 // src/campgrounds/campgrounds.service.ts
 var import_common11 = require("@nestjs/common");
 var bcrypt2 = __toESM(require("bcryptjs"));
-var import_client2 = require("@prisma/client");
+var import_client = require("@prisma/client");
 var import_crypto = require("crypto");
 var import_crypto2 = require("crypto");
 var import_promises = __toESM(require("dns/promises"));
@@ -1116,7 +1118,7 @@ var CampgroundsService = class {
     const ownerCount = await this.prisma.campgroundMembership.count({
       where: {
         campgroundId,
-        role: import_client2.UserRole.owner,
+        role: import_client.UserRole.owner,
         ...excludeMembershipId ? { id: { not: excludeMembershipId } } : {}
       }
     });
@@ -1303,10 +1305,10 @@ var CampgroundsService = class {
     if (!membership) {
       throw new import_common11.NotFoundException("Membership not found");
     }
-    if (actorId && membership.userId === actorId && membership.role === import_client2.UserRole.owner && role !== import_client2.UserRole.owner) {
+    if (actorId && membership.userId === actorId && membership.role === import_client.UserRole.owner && role !== import_client.UserRole.owner) {
       throw new import_common11.ConflictException("You cannot demote yourself as the last owner");
     }
-    if (membership.role === import_client2.UserRole.owner && role !== import_client2.UserRole.owner) {
+    if (membership.role === import_client.UserRole.owner && role !== import_client.UserRole.owner) {
       await this.assertAnotherOwner(campgroundId, membershipId);
     }
     const updated = await this.prisma.campgroundMembership.update({
@@ -1331,10 +1333,10 @@ var CampgroundsService = class {
     if (!membership) {
       throw new import_common11.NotFoundException("Membership not found");
     }
-    if (actorId && membership.userId === actorId && membership.role === import_client2.UserRole.owner) {
+    if (actorId && membership.userId === actorId && membership.role === import_client.UserRole.owner) {
       throw new import_common11.ConflictException("You cannot remove yourself as the last owner");
     }
-    if (membership.role === import_client2.UserRole.owner) {
+    if (membership.role === import_client.UserRole.owner) {
       await this.assertAnotherOwner(campgroundId, membershipId);
     }
     const deleted = await this.prisma.campgroundMembership.delete({ where: { id: membershipId } });
@@ -1355,7 +1357,7 @@ CampgroundsService = __decorateClass([
 
 // src/campgrounds/campgrounds.controller.ts
 var import_common12 = require("@nestjs/common");
-var import_client3 = require("@prisma/client");
+var import_client2 = require("@prisma/client");
 var import_shared = require("@campreserv/shared");
 var CampgroundsController = class {
   constructor(campgrounds) {
@@ -1535,7 +1537,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "updateOrderWebhook", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Patch)("campgrounds/:id/sla"),
   __decorateParam(0, (0, import_common12.Param)("id")),
   __decorateParam(1, (0, import_common12.Body)()),
@@ -1543,7 +1545,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "updateSla", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Patch)("campgrounds/:id/ops"),
   __decorateParam(0, (0, import_common12.Param)("id")),
   __decorateParam(1, (0, import_common12.Body)()),
@@ -1551,7 +1553,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "updateOpsSettings", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Patch)("campgrounds/:id/sender-domain"),
   __decorateParam(0, (0, import_common12.Param)("id")),
   __decorateParam(1, (0, import_common12.Body)()),
@@ -1566,7 +1568,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "updateAnalytics", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Patch)("campgrounds/:id/nps"),
   __decorateParam(0, (0, import_common12.Param)("id")),
   __decorateParam(1, (0, import_common12.Body)()),
@@ -1581,7 +1583,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "updateBranding", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Patch)("campgrounds/:id/photos"),
   __decorateParam(0, (0, import_common12.Param)("id")),
   __decorateParam(1, (0, import_common12.Body)()),
@@ -1633,7 +1635,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "getMembers", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Post)("campgrounds/:id/members"),
   __decorateParam(0, (0, import_common12.Param)("id")),
   __decorateParam(1, (0, import_common12.Body)()),
@@ -1641,7 +1643,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "addMember", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Patch)("campgrounds/:campgroundId/members/:membershipId"),
   __decorateParam(0, (0, import_common12.Param)("campgroundId")),
   __decorateParam(1, (0, import_common12.Param)("membershipId")),
@@ -1650,7 +1652,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "updateMember", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Delete)("campgrounds/:campgroundId/members/:membershipId"),
   __decorateParam(0, (0, import_common12.Param)("campgroundId")),
   __decorateParam(1, (0, import_common12.Param)("membershipId")),
@@ -1658,7 +1660,7 @@ __decorateClass([
 ], CampgroundsController.prototype, "removeMember", 1);
 __decorateClass([
   (0, import_common12.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
+  Roles(import_client2.UserRole.owner, import_client2.UserRole.manager),
   (0, import_common12.Post)("campgrounds/:campgroundId/members/:membershipId/resend-invite"),
   __decorateParam(0, (0, import_common12.Param)("campgroundId")),
   __decorateParam(1, (0, import_common12.Param)("membershipId")),
@@ -2090,7 +2092,7 @@ AuditService = __decorateClass([
 
 // src/audit/audit.controller.ts
 var import_common18 = require("@nestjs/common");
-var import_client4 = require("@prisma/client");
+var import_client3 = require("@prisma/client");
 
 // src/permissions/permission.guard.ts
 var import_common17 = require("@nestjs/common");
@@ -2174,7 +2176,7 @@ var AuditController = class {
   }
 };
 __decorateClass([
-  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
+  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
   RequirePermission({ resource: "audit", action: "read" }),
   (0, import_common18.Get)(),
   __decorateParam(0, (0, import_common18.Param)("campgroundId")),
@@ -2188,13 +2190,13 @@ __decorateClass([
   __decorateParam(8, (0, import_common18.Res)())
 ], AuditController.prototype, "list", 1);
 __decorateClass([
-  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
+  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
   RequirePermission({ resource: "audit", action: "read" }),
   (0, import_common18.Get)("quick"),
   __decorateParam(0, (0, import_common18.Param)("campgroundId"))
 ], AuditController.prototype, "quickAudit", 1);
 __decorateClass([
-  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
+  Roles(import_client3.UserRole.owner, import_client3.UserRole.manager),
   RequirePermission({ resource: "audit", action: "export" }),
   (0, import_common18.Get)("exports"),
   __decorateParam(0, (0, import_common18.Param)("campgroundId"))
@@ -2209,7 +2211,7 @@ var import_common23 = require("@nestjs/common");
 
 // src/permissions/permissions.controller.ts
 var import_common21 = require("@nestjs/common");
-var import_client5 = require("@prisma/client");
+var import_client4 = require("@prisma/client");
 
 // src/permissions/scope.guard.ts
 var import_common20 = require("@nestjs/common");
@@ -2349,20 +2351,20 @@ __decorateClass([
   __decorateParam(0, (0, import_common21.Req)())
 ], PermissionsController.prototype, "whoami", 1);
 __decorateClass([
-  Roles(import_client5.UserRole.owner, import_client5.UserRole.manager),
+  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
   RequireScope({ resource: "permissions", action: "read" }),
   (0, import_common21.Get)("policies"),
   __decorateParam(0, (0, import_common21.Query)("campgroundId")),
   __decorateParam(1, (0, import_common21.Query)("region"))
 ], PermissionsController.prototype, "getPolicies", 1);
 __decorateClass([
-  Roles(import_client5.UserRole.owner, import_client5.UserRole.manager),
+  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
   RequireScope({ resource: "permissions", action: "write" }),
   (0, import_common21.Post)("rules"),
   __decorateParam(0, (0, import_common21.Body)())
 ], PermissionsController.prototype, "upsertRule", 1);
 __decorateClass([
-  Roles(import_client5.UserRole.owner, import_client5.UserRole.manager),
+  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
   RequireScope({ resource: "permissions", action: "write" }),
   (0, import_common21.Delete)("rules"),
   __decorateParam(0, (0, import_common21.Query)("campgroundId")),
@@ -2371,18 +2373,18 @@ __decorateClass([
   __decorateParam(3, (0, import_common21.Query)("action"))
 ], PermissionsController.prototype, "deleteRule", 1);
 __decorateClass([
-  Roles(import_client5.UserRole.owner, import_client5.UserRole.manager),
+  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
   (0, import_common21.Post)("approvals"),
   __decorateParam(0, (0, import_common21.Body)())
 ], PermissionsController.prototype, "submitApproval", 1);
 __decorateClass([
-  Roles(import_client5.UserRole.owner, import_client5.UserRole.manager),
+  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
   (0, import_common21.Post)("approvals/:id/decision"),
   __decorateParam(0, (0, import_common21.Param)("id")),
   __decorateParam(1, (0, import_common21.Body)())
 ], PermissionsController.prototype, "decide", 1);
 __decorateClass([
-  Roles(import_client5.UserRole.owner, import_client5.UserRole.manager),
+  Roles(import_client4.UserRole.owner, import_client4.UserRole.manager),
   (0, import_common21.Get)("approvals"),
   __decorateParam(0, (0, import_common21.Query)("campgroundId"))
 ], PermissionsController.prototype, "listApprovals", 1);
@@ -2393,7 +2395,7 @@ PermissionsController = __decorateClass([
 
 // src/permissions/permissions.service.ts
 var import_common22 = require("@nestjs/common");
-var import_client6 = require("@prisma/client");
+var import_client5 = require("@prisma/client");
 var PLATFORM_RULES = {
   support_agent: [
     { resource: "support", action: "read" },
@@ -2445,7 +2447,7 @@ var PermissionsService = class {
   getRole(user, campgroundId) {
     if (!user) return null;
     if (user.role) return user.role;
-    if (Array.isArray(user.ownershipRoles) && user.ownershipRoles.includes("owner")) return import_client6.UserRole.owner;
+    if (Array.isArray(user.ownershipRoles) && user.ownershipRoles.includes("owner")) return import_client5.UserRole.owner;
     const membership = campgroundId ? user.memberships?.find((m) => m.campgroundId === campgroundId) : null;
     if (membership?.role) return membership.role;
     if (Array.isArray(user.memberships) && user.memberships.length > 0) {
@@ -2458,13 +2460,13 @@ var PermissionsService = class {
   }
   prioritizeRole(roles) {
     const order = [
-      import_client6.UserRole.owner,
-      import_client6.UserRole.manager,
-      import_client6.UserRole.finance,
-      import_client6.UserRole.front_desk,
-      import_client6.UserRole.maintenance,
-      import_client6.UserRole.marketing,
-      import_client6.UserRole.readonly
+      import_client5.UserRole.owner,
+      import_client5.UserRole.manager,
+      import_client5.UserRole.finance,
+      import_client5.UserRole.front_desk,
+      import_client5.UserRole.maintenance,
+      import_client5.UserRole.marketing,
+      import_client5.UserRole.readonly
     ];
     return order.find((r) => roles.includes(r)) ?? roles[0];
   }
@@ -2519,12 +2521,12 @@ var PermissionsService = class {
         resource: params.resource,
         action: params.action,
         fields,
-        effect: params.effect ?? import_client6.PermissionEffect.allow,
+        effect: params.effect ?? import_client5.PermissionEffect.allow,
         createdById: params.createdById ?? null
       },
       update: {
         fields,
-        effect: params.effect ?? import_client6.PermissionEffect.allow
+        effect: params.effect ?? import_client5.PermissionEffect.allow
       }
     });
   }
@@ -2570,10 +2572,10 @@ var PermissionsService = class {
     const role = this.getRole(input.user, input.campgroundId);
     if (!role) return { allowed: false };
     if (!this.isRegionScoped(input.user, input.region)) return { allowed: false };
-    if (!this.isCampgroundScoped(input.user, input.campgroundId) && role !== import_client6.UserRole.owner && role !== import_client6.UserRole.manager) {
+    if (!this.isCampgroundScoped(input.user, input.campgroundId) && role !== import_client5.UserRole.owner && role !== import_client5.UserRole.manager) {
       return { allowed: false };
     }
-    if (role === import_client6.UserRole.owner || role === import_client6.UserRole.manager) return { allowed: true };
+    if (role === import_client5.UserRole.owner || role === import_client5.UserRole.manager) return { allowed: true };
     const rules = await this.prisma.permissionRule.findMany({
       where: {
         role,
@@ -2599,7 +2601,7 @@ var PermissionsService = class {
       const fieldTargeted = cleanFields.length > 0;
       const fieldMatch = !input.field || !fieldTargeted || cleanFields.includes(input.field);
       if (!fieldMatch) continue;
-      if (rule.effect === import_client6.PermissionEffect.deny) {
+      if (rule.effect === import_client5.PermissionEffect.deny) {
         return { allowed: false, deniedFields: cleanFields.length ? cleanFields : void 0 };
       }
       return { allowed: true };
@@ -2618,7 +2620,7 @@ var PermissionsService = class {
     return { allowed: match };
   }
   async requestApproval(params) {
-    const autoApprove = import_client6.ApprovalStatus.approved;
+    const autoApprove = import_client5.ApprovalStatus.approved;
     return this.prisma.approvalRequest.create({
       data: {
         campgroundId: params.campgroundId ?? null,
@@ -2633,11 +2635,11 @@ var PermissionsService = class {
   async decideApproval(id, actorId, approve) {
     const req = await this.prisma.approvalRequest.findUnique({ where: { id } });
     if (!req) throw new import_common22.ForbiddenException("Approval request not found");
-    if (req.status !== import_client6.ApprovalStatus.pending) return req;
+    if (req.status !== import_client5.ApprovalStatus.pending) return req;
     return this.prisma.approvalRequest.update({
       where: { id },
       data: {
-        status: approve ? import_client6.ApprovalStatus.approved : import_client6.ApprovalStatus.rejected,
+        status: approve ? import_client5.ApprovalStatus.approved : import_client5.ApprovalStatus.rejected,
         decidedBy: actorId,
         decidedAt: /* @__PURE__ */ new Date()
       }
@@ -3078,7 +3080,7 @@ var import_common86 = require("@nestjs/common");
 
 // src/reservations/reservations.service.ts
 var import_common35 = require("@nestjs/common");
-var import_client7 = require("@prisma/client");
+var import_client6 = require("@prisma/client");
 
 // src/ledger/ledger-posting.util.ts
 var DEFAULT_GL = "UNASSIGNED";
@@ -3510,7 +3512,7 @@ var ReservationsService = class {
   async enqueueUnpaidSweep() {
     const reservations = await this.prisma.reservation.findMany({
       where: {
-        status: { not: import_client7.ReservationStatus.cancelled },
+        status: { not: import_client6.ReservationStatus.cancelled },
         totalAmount: { gt: 0 }
       },
       select: { id: true, campgroundId: true, guestId: true, totalAmount: true, paidAmount: true }
@@ -3546,7 +3548,7 @@ var ReservationsService = class {
     }
   }
   isOverlapError(err) {
-    return err instanceof import_client7.Prisma.PrismaClientKnownRequestError && err.message.includes("Reservation_no_overlap");
+    return err instanceof import_client6.Prisma.PrismaClientKnownRequestError && err.message.includes("Reservation_no_overlap");
   }
   /**
    * Find an available site in a given site class for the specified date range.
@@ -3607,8 +3609,8 @@ var ReservationsService = class {
    * Fast overlap check using Postgres range operators to avoid Prisma-generated slow queries.
    */
   async assertSiteAvailable(siteId, arrival, departure, ignoreReservationId, ignoreHoldId) {
-    const range = import_client7.Prisma.sql`tstzrange(${arrival}, ${departure}, '[)'::text)`;
-    const ignore = ignoreReservationId ? import_client7.Prisma.sql`AND r."id" <> ${ignoreReservationId}` : import_client7.Prisma.sql``;
+    const range = import_client6.Prisma.sql`tstzrange(${arrival}, ${departure}, '[)'::text)`;
+    const ignore = ignoreReservationId ? import_client6.Prisma.sql`AND r."id" <> ${ignoreReservationId}` : import_client6.Prisma.sql``;
     const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { campgroundId: true } });
     if (!site) {
       throw new import_common35.NotFoundException("Site not found");
@@ -3642,7 +3644,7 @@ var ReservationsService = class {
     const maintenanceCount = await this.prisma.maintenanceTicket.count({
       where: {
         siteId,
-        status: { in: [import_client7.MaintenanceStatus.open, import_client7.MaintenanceStatus.in_progress] },
+        status: { in: [import_client6.MaintenanceStatus.open, import_client6.MaintenanceStatus.in_progress] },
         OR: [
           { isBlocking: true },
           { outOfOrder: true },
@@ -3853,7 +3855,7 @@ var ReservationsService = class {
     const conflictingReservations = await this.prisma.reservation.findMany({
       where: {
         campgroundId,
-        status: { not: import_client7.ReservationStatus.cancelled },
+        status: { not: import_client6.ReservationStatus.cancelled },
         departureDate: { gt: arrival },
         arrivalDate: { lt: departure }
       },
@@ -3939,7 +3941,7 @@ var ReservationsService = class {
     const conflictingReservations = await this.prisma.reservation.findMany({
       where: {
         campgroundId,
-        status: { not: import_client7.ReservationStatus.cancelled },
+        status: { not: import_client6.ReservationStatus.cancelled },
         departureDate: { gt: arrival },
         arrivalDate: { lt: departure }
       },
@@ -3963,7 +3965,7 @@ var ReservationsService = class {
     const maintenanceTickets = await this.prisma.maintenanceTicket.findMany({
       where: {
         campgroundId,
-        status: { in: [import_client7.MaintenanceStatus.open, import_client7.MaintenanceStatus.in_progress] },
+        status: { in: [import_client6.MaintenanceStatus.open, import_client6.MaintenanceStatus.in_progress] },
         siteId: { not: null }
       },
       select: { siteId: true, title: true }
@@ -4186,7 +4188,7 @@ var ReservationsService = class {
           referralIncentiveValue = referralProgram.incentiveValue ?? 0;
           referralSource = referralProgram.source ?? referralSource;
           referralChannel = referralProgram.channel ?? referralChannel;
-          if (referralIncentiveType === import_client7.ReferralIncentiveType.percent_discount) {
+          if (referralIncentiveType === import_client6.ReferralIncentiveType.percent_discount) {
             referralDiscountCents = Math.min(basis, Math.floor(basis * (referralIncentiveValue / 100)));
           } else {
             referralDiscountCents = Math.min(basis, Math.max(0, referralIncentiveValue));
@@ -4224,7 +4226,7 @@ var ReservationsService = class {
             siteId,
             // Use the determined siteId (either from data or found from siteClassId)
             children: data.children ?? 0,
-            status: data.status ?? import_client7.ReservationStatus.pending,
+            status: data.status ?? import_client6.ReservationStatus.pending,
             arrivalDate: arrival,
             departureDate: departure,
             paidAmount,
@@ -4430,7 +4432,7 @@ var ReservationsService = class {
           overrideApprovedBy: _overrideApprovedBy,
           ...reservationData
         } = data;
-        if (reservationData.status === import_client7.ReservationStatus.checked_in) {
+        if (reservationData.status === import_client6.ReservationStatus.checked_in) {
           const pendingForms = await this.prisma.formSubmission?.count?.({
             where: { reservationId: id, status: "pending" }
           }) ?? 0;
@@ -4529,7 +4531,7 @@ var ReservationsService = class {
           await this.accessControl.blockAccessForReservation(id, "reservation_cancelled");
           await this.accessControl.revokeAllForReservation(id, "reservation_cancelled");
         }
-        if (data.status === import_client7.ReservationStatus.checked_out && existing.status !== import_client7.ReservationStatus.checked_out) {
+        if (data.status === import_client6.ReservationStatus.checked_out && existing.status !== import_client6.ReservationStatus.checked_out) {
           const points = Math.floor(updatedReservation.totalAmount / 100);
           if (points > 0) {
             await this.loyaltyService.awardPoints(
@@ -4559,14 +4561,14 @@ var ReservationsService = class {
           await this.accessControl.blockAccessForReservation(id, "checked_out");
           await this.accessControl.revokeAllForReservation(id, "checked_out");
         }
-        if (data.status === import_client7.ReservationStatus.confirmed && existing.status !== import_client7.ReservationStatus.confirmed) {
+        if (data.status === import_client6.ReservationStatus.confirmed && existing.status !== import_client6.ReservationStatus.confirmed) {
           await this.enqueuePlaybooksForReservation("arrival", updatedReservation.id);
         }
-        if (data.status === import_client7.ReservationStatus.checked_in && existing.status !== import_client7.ReservationStatus.checked_in) {
+        if (data.status === import_client6.ReservationStatus.checked_in && existing.status !== import_client6.ReservationStatus.checked_in) {
           await this.enqueuePlaybooksForReservation("upsell", updatedReservation.id);
           await this.accessControl.autoGrantForReservation(id);
         }
-        if (data.status === import_client7.ReservationStatus.checked_in && existing.status !== import_client7.ReservationStatus.checked_in && existing.createdBy) {
+        if (data.status === import_client6.ReservationStatus.checked_in && existing.status !== import_client6.ReservationStatus.checked_in && existing.createdBy) {
           const membership = await this.prisma.campgroundMembership.findFirst({
             where: { userId: existing.createdBy, campgroundId: existing.campgroundId }
           });
@@ -4574,7 +4576,7 @@ var ReservationsService = class {
             campgroundId: existing.campgroundId,
             userId: existing.createdBy,
             membershipId: membership?.id,
-            category: import_client7.GamificationEventCategory.check_in,
+            category: import_client6.GamificationEventCategory.check_in,
             reason: "Smooth check-in",
             sourceType: "reservation",
             sourceId: existing.id,
@@ -4904,7 +4906,7 @@ var ReservationsService = class {
       where: {
         campgroundId,
         balanceAmount: { gt: 0 },
-        NOT: { status: import_client7.ReservationStatus.cancelled }
+        NOT: { status: import_client6.ReservationStatus.cancelled }
       },
       select: { id: true, departureDate: true, balanceAmount: true }
     });
@@ -4962,7 +4964,7 @@ var ReservationsService = class {
       where: {
         campgroundId,
         siteId,
-        status: { not: import_client7.ReservationStatus.cancelled },
+        status: { not: import_client6.ReservationStatus.cancelled },
         departureDate: { gt: arrival },
         arrivalDate: { lt: departure },
         ...ignoreId ? { id: { not: ignoreId } } : {}
@@ -4983,7 +4985,7 @@ var ReservationsService = class {
     const maintenanceCount = await this.prisma.maintenanceTicket.count({
       where: {
         siteId,
-        status: { in: [import_client7.MaintenanceStatus.open, import_client7.MaintenanceStatus.in_progress] },
+        status: { in: [import_client6.MaintenanceStatus.open, import_client6.MaintenanceStatus.in_progress] },
         OR: [
           { isBlocking: true },
           { outOfOrder: true },
@@ -5018,7 +5020,7 @@ var ReservationsService = class {
       throw new import_common35.NotFoundException("Reservation not found");
     }
     console.log(`[Kiosk] Found reservation: ${reservation.status}, Total: ${reservation.totalAmount}, Paid: ${reservation.paidAmount}`);
-    if (reservation.status === import_client7.ReservationStatus.checked_in) {
+    if (reservation.status === import_client6.ReservationStatus.checked_in) {
       console.warn(`[Kiosk] Reservation ${id} already checked in`);
       throw new import_common35.ConflictException("Reservation is already checked in");
     }
@@ -5031,7 +5033,7 @@ var ReservationsService = class {
     const compliance = await this.checkCompliance(reservation);
     const isOverride = Boolean(options?.override);
     if (!compliance.ok && !isOverride) {
-      const checkInStatus = compliance.reason === "waiver_required" ? import_client7.CheckInStatus.pending_waiver : compliance.reason === "id_verification_required" ? import_client7.CheckInStatus.pending_id : compliance.reason === "payment_required" ? import_client7.CheckInStatus.pending_payment : import_client7.CheckInStatus.failed;
+      const checkInStatus = compliance.reason === "waiver_required" ? import_client6.CheckInStatus.pending_waiver : compliance.reason === "id_verification_required" ? import_client6.CheckInStatus.pending_id : compliance.reason === "payment_required" ? import_client6.CheckInStatus.pending_payment : import_client6.CheckInStatus.failed;
       await this.prisma.reservation.update({
         where: { id },
         data: { checkInStatus }
@@ -5067,8 +5069,8 @@ var ReservationsService = class {
       const updated = await this.prisma.reservation.update({
         where: { id },
         data: {
-          status: import_client7.ReservationStatus.checked_in,
-          checkInStatus: import_client7.CheckInStatus.completed,
+          status: import_client6.ReservationStatus.checked_in,
+          checkInStatus: import_client6.CheckInStatus.completed,
           checkInAt: now,
           feesAmount: { increment: upsellTotalCents },
           totalAmount: newTotal,
@@ -5092,7 +5094,7 @@ var ReservationsService = class {
           campgroundId: reservation.campgroundId,
           userId: reservation.createdBy,
           membershipId: membership?.id,
-          category: import_client7.GamificationEventCategory.check_in,
+          category: import_client6.GamificationEventCategory.check_in,
           reason: "Smooth check-in (kiosk)",
           sourceType: "reservation",
           sourceId: reservation.id,
@@ -5698,7 +5700,7 @@ var import_common46 = require("@nestjs/common");
 
 // src/payments/idempotency.service.ts
 var import_common41 = require("@nestjs/common");
-var import_client8 = require("@prisma/client");
+var import_client7 = require("@prisma/client");
 var crypto = __toESM(require("crypto"));
 var IdempotencyService = class {
   constructor(prisma, redis) {
@@ -5811,10 +5813,10 @@ var IdempotencyService = class {
       if (seqExisting && !this.isExpired(seqExisting.expiresAt)) {
         this.ensureHashConsistency(seqExisting, requestHash, opts.checksum);
         this.cacheScope(key, seqExisting.scope);
-        if (seqExisting.status === import_client8.IdempotencyStatus.succeeded && seqExisting.responseJson) {
+        if (seqExisting.status === import_client7.IdempotencyStatus.succeeded && seqExisting.responseJson) {
           return seqExisting;
         }
-        if (seqExisting.status === import_client8.IdempotencyStatus.inflight) {
+        if (seqExisting.status === import_client7.IdempotencyStatus.inflight) {
           throw new import_common41.ConflictException("Request already in progress");
         }
       }
@@ -5831,7 +5833,7 @@ var IdempotencyService = class {
             requestHash,
             checksum,
             requestBody: opts.requestBody ?? body ?? existing.requestBody,
-            status: import_client8.IdempotencyStatus.inflight,
+            status: import_client7.IdempotencyStatus.inflight,
             expiresAt: this.computeExpiry(opts.ttlSeconds),
             lastSeenAt: /* @__PURE__ */ new Date()
           }
@@ -5853,7 +5855,7 @@ var IdempotencyService = class {
         checksum,
         requestBody: opts.requestBody ?? body ?? {},
         responseJson: null,
-        status: import_client8.IdempotencyStatus.inflight,
+        status: import_client7.IdempotencyStatus.inflight,
         sequence: normalizedSequence,
         expiresAt: this.computeExpiry(opts.ttlSeconds),
         lastSeenAt: /* @__PURE__ */ new Date(),
@@ -5868,7 +5870,7 @@ var IdempotencyService = class {
    */
   async complete(key, response) {
     const updated = await this.updateRecord(key, {
-      status: import_client8.IdempotencyStatus.succeeded,
+      status: import_client7.IdempotencyStatus.succeeded,
       responseJson: response,
       lastSeenAt: /* @__PURE__ */ new Date()
     });
@@ -5876,7 +5878,7 @@ var IdempotencyService = class {
     return this.prisma.idempotencyKey.update({
       where: { key },
       data: {
-        status: import_client8.IdempotencyStatus.succeeded,
+        status: import_client7.IdempotencyStatus.succeeded,
         responseJson: response,
         lastSeenAt: /* @__PURE__ */ new Date()
       }
@@ -5887,14 +5889,14 @@ var IdempotencyService = class {
    */
   async fail(key) {
     const updated = await this.updateRecord(key, {
-      status: import_client8.IdempotencyStatus.failed,
+      status: import_client7.IdempotencyStatus.failed,
       lastSeenAt: /* @__PURE__ */ new Date()
     });
     if (updated) return updated;
     return this.prisma.idempotencyKey.update({
       where: { key },
       data: {
-        status: import_client8.IdempotencyStatus.failed,
+        status: import_client7.IdempotencyStatus.failed,
         lastSeenAt: /* @__PURE__ */ new Date()
       }
     });
@@ -6025,7 +6027,7 @@ AccessControlController = __decorateClass([
 
 // src/access-control/access-control.service.ts
 var import_common43 = require("@nestjs/common");
-var import_client9 = require("@prisma/client");
+var import_client8 = require("@prisma/client");
 var crypto2 = __toESM(require("crypto"));
 var AccessControlService = class {
   constructor(prisma, registry, idempotency, audit) {
@@ -6137,10 +6139,10 @@ var AccessControlService = class {
         vehicleId: options.vehicleId ?? null,
         integrationId: options.integrationId ?? null,
         provider: options.provider,
-        type: options.credentialType ?? import_client9.AccessCredentialType.mobile,
+        type: options.credentialType ?? import_client8.AccessCredentialType.mobile,
         maskedValue: this.maskSecret(options.credentialValue),
         secretHash: this.hashSecret(options.credentialValue),
-        status: import_client9.AccessGrantStatus.pending
+        status: import_client8.AccessGrantStatus.pending
       }
     });
   }
@@ -6159,7 +6161,7 @@ var AccessControlService = class {
       requestBody: dto,
       sequence: dto.idempotencyKey ?? null
     });
-    if (idemRecord?.status === import_client9.IdempotencyStatus.succeeded && idemRecord.responseJson) {
+    if (idemRecord?.status === import_client8.IdempotencyStatus.succeeded && idemRecord.responseJson) {
       return idemRecord.responseJson;
     }
     const adapter = this.registry.getAdapter(dto.provider);
@@ -6189,7 +6191,7 @@ var AccessControlService = class {
         provider: dto.provider,
         startsAt: this.toDate(dto.startsAt),
         endsAt: this.toDate(dto.endsAt),
-        status: import_client9.AccessGrantStatus.pending,
+        status: import_client8.AccessGrantStatus.pending,
         idempotencyKey
       },
       update: {
@@ -6219,7 +6221,7 @@ var AccessControlService = class {
         where: { id: grant.id },
         data: {
           providerAccessId: result.providerAccessId ?? grant.providerAccessId,
-          status: result.status ?? import_client9.AccessGrantStatus.active,
+          status: result.status ?? import_client8.AccessGrantStatus.active,
           lastSyncAt: /* @__PURE__ */ new Date()
         }
       });
@@ -6249,7 +6251,7 @@ var AccessControlService = class {
       requestBody: dto,
       sequence: dto.idempotencyKey ?? null
     });
-    if (idemRecord?.status === import_client9.IdempotencyStatus.succeeded && idemRecord.responseJson) {
+    if (idemRecord?.status === import_client8.IdempotencyStatus.succeeded && idemRecord.responseJson) {
       return idemRecord.responseJson;
     }
     const adapter = this.registry.getAdapter(dto.provider);
@@ -6271,7 +6273,7 @@ var AccessControlService = class {
       const updated = await this.grantsRepo().update({
         where: { id: grant.id },
         data: {
-          status: result.status ?? import_client9.AccessGrantStatus.revoked,
+          status: result.status ?? import_client8.AccessGrantStatus.revoked,
           blockedReason: dto.reason ?? grant.blockedReason ?? null,
           lastSyncAt: /* @__PURE__ */ new Date()
         }
@@ -6301,10 +6303,10 @@ var AccessControlService = class {
     const result = await this.grantsRepo().updateMany({
       where: {
         reservationId,
-        status: { in: [import_client9.AccessGrantStatus.active, import_client9.AccessGrantStatus.pending] }
+        status: { in: [import_client8.AccessGrantStatus.active, import_client8.AccessGrantStatus.pending] }
       },
       data: {
-        status: import_client9.AccessGrantStatus.blocked,
+        status: import_client8.AccessGrantStatus.blocked,
         blockedReason: reason,
         lastSyncAt: /* @__PURE__ */ new Date()
       }
@@ -6391,7 +6393,7 @@ var AccessControlService = class {
   }
   async revokeAllForReservation(reservationId, reason, actorId) {
     const grants = await this.grantsRepo().findMany({
-      where: { reservationId, status: { in: [import_client9.AccessGrantStatus.active, import_client9.AccessGrantStatus.pending, import_client9.AccessGrantStatus.blocked] } }
+      where: { reservationId, status: { in: [import_client8.AccessGrantStatus.active, import_client8.AccessGrantStatus.pending, import_client8.AccessGrantStatus.blocked] } }
     });
     for (const grant of grants ?? []) {
       try {
@@ -6521,7 +6523,7 @@ var import_common61 = require("@nestjs/common");
 
 // src/waitlist/waitlist.service.ts
 var import_common47 = require("@nestjs/common");
-var import_client10 = require("@prisma/client");
+var import_client9 = require("@prisma/client");
 var WaitlistService = class {
   constructor(prisma, emailService, idempotency, observability) {
     this.prisma = prisma;
@@ -6590,14 +6592,14 @@ var WaitlistService = class {
       }
     }
     const existing = await this.guardIdempotency(idempotencyKey, dto, scope, "waitlist/create", sequence);
-    if (existing?.status === import_client10.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client10.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client9.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client9.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common47.ConflictException("Request already in progress");
     }
     const result = await this.prisma.waitlistEntry.create({
       data: {
         ...dto,
-        status: import_client10.WaitlistStatus.active
+        status: import_client9.WaitlistStatus.active
       }
     });
     if (idempotencyKey) await this.idempotency.complete(idempotencyKey, result);
@@ -6618,8 +6620,8 @@ var WaitlistService = class {
       }
     }
     const existing = await this.guardIdempotency(idempotencyKey, dto, scope, "waitlist/staff", sequence);
-    if (existing?.status === import_client10.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client10.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client9.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client9.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common47.ConflictException("Request already in progress");
     }
     const result = await this.prisma.waitlistEntry.create({
@@ -6634,7 +6636,7 @@ var WaitlistService = class {
         siteTypeId: dto.siteTypeId || null,
         arrivalDate: dto.arrivalDate ? new Date(dto.arrivalDate) : null,
         departureDate: dto.departureDate ? new Date(dto.departureDate) : null,
-        status: import_client10.WaitlistStatus.active,
+        status: import_client9.WaitlistStatus.active,
         priority: dto.priority ?? 50,
         autoOffer: dto.autoOffer ?? false,
         maxPrice: dto.maxPrice ?? null,
@@ -6669,7 +6671,7 @@ var WaitlistService = class {
   }
   async getStats(campgroundId) {
     const [active, offered, converted, expired] = await Promise.all([
-      this.prisma.waitlistEntry.count({ where: { campgroundId, status: import_client10.WaitlistStatus.active } }),
+      this.prisma.waitlistEntry.count({ where: { campgroundId, status: import_client9.WaitlistStatus.active } }),
       this.prisma.waitlistEntry.count({ where: { campgroundId, status: "offered" } }),
       this.prisma.waitlistEntry.count({ where: { campgroundId, status: "converted" } }),
       this.prisma.waitlistEntry.count({ where: { campgroundId, status: "expired" } })
@@ -6706,8 +6708,8 @@ var WaitlistService = class {
       }
     }
     const existing = await this.guardIdempotency(idempotencyKey, { entryId: id }, scope, "waitlist/accept", sequence);
-    if (existing?.status === import_client10.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client10.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client9.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client9.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common47.ConflictException("Request already in progress");
     }
     const entry = await this.prisma.waitlistEntry.findUnique({ where: { id } });
@@ -6715,17 +6717,17 @@ var WaitlistService = class {
       if (idempotencyKey) await this.idempotency.fail(idempotencyKey);
       throw new import_common47.NotFoundException("Waitlist entry not found");
     }
-    if (entry.status === import_client10.WaitlistStatus.fulfilled) {
+    if (entry.status === import_client9.WaitlistStatus.fulfilled) {
       if (idempotencyKey) await this.idempotency.fail(idempotencyKey);
       throw new import_common47.ConflictException("Waitlist entry already accepted");
     }
-    if (entry.status !== import_client10.WaitlistStatus.active) {
+    if (entry.status !== import_client9.WaitlistStatus.active) {
       if (idempotencyKey) await this.idempotency.fail(idempotencyKey);
       throw new import_common47.ConflictException("Waitlist entry not active");
     }
     const response = await this.prisma.waitlistEntry.update({
       where: { id },
-      data: { status: import_client10.WaitlistStatus.fulfilled }
+      data: { status: import_client9.WaitlistStatus.fulfilled }
     });
     const snapshot = { entryId: id, status: "accepted" };
     if (idempotencyKey) await this.idempotency.complete(idempotencyKey, snapshot);
@@ -6742,7 +6744,7 @@ var WaitlistService = class {
     const entries = await this.prisma.waitlistEntry.findMany({
       where: {
         campgroundId,
-        status: import_client10.WaitlistStatus.active,
+        status: import_client9.WaitlistStatus.active,
         arrivalDate: { lt: departure },
         departureDate: { gt: arrival },
         OR: [
@@ -6823,7 +6825,7 @@ var WaitlistService = class {
           data: {
             lastNotifiedAt: /* @__PURE__ */ new Date(),
             notifiedCount: (entry.notifiedCount ?? 0) + 1,
-            status: isAutoOffer ? "offered" : import_client10.WaitlistStatus.active
+            status: isAutoOffer ? "offered" : import_client9.WaitlistStatus.active
           }
         });
         const createdAt = entry.createdAt ? new Date(entry.createdAt).getTime() : Date.now();
@@ -6863,7 +6865,7 @@ var WaitlistService = class {
     const result = await this.prisma.waitlistEntry.updateMany({
       where: {
         campgroundId,
-        status: import_client10.WaitlistStatus.active,
+        status: import_client9.WaitlistStatus.active,
         createdAt: { lt: threshold }
       },
       data: {
@@ -9016,7 +9018,7 @@ GamificationController = __decorateClass([
 
 // src/gamification/gamification.service.ts
 var import_common72 = require("@nestjs/common");
-var import_client11 = require("@prisma/client");
+var import_client10 = require("@prisma/client");
 var GamificationService = class {
   constructor(prisma) {
     this.prisma = prisma;
@@ -9051,7 +9053,7 @@ var GamificationService = class {
   }
   async assertManager(userId, campgroundId) {
     const membership = await this.getMembership(userId, campgroundId);
-    const allowedRoles = [import_client11.UserRole.owner, import_client11.UserRole.manager];
+    const allowedRoles = [import_client10.UserRole.owner, import_client10.UserRole.manager];
     if (!membership || !allowedRoles.includes(membership.role)) {
       throw new import_common72.ForbiddenException("Manager or owner role required for gamification settings");
     }
@@ -9199,7 +9201,7 @@ var GamificationService = class {
           }
         });
       } catch (err) {
-        const isUniqueKey = err instanceof import_client11.Prisma.PrismaClientKnownRequestError && err.code === "P2002" && params.eventKey;
+        const isUniqueKey = err instanceof import_client10.Prisma.PrismaClientKnownRequestError && err.code === "P2002" && params.eventKey;
         if (isUniqueKey) {
           event = await tx.xpEvent.findUnique({ where: { eventKey: params.eventKey } });
         } else {
@@ -9907,7 +9909,7 @@ MatchScoreService = __decorateClass([
 
 // src/pricing-v2/pricing-v2.service.ts
 var import_common76 = require("@nestjs/common");
-var import_client12 = require("@prisma/client");
+var import_client11 = require("@prisma/client");
 var PricingV2Service = class {
   constructor(prisma, audit) {
     this.prisma = prisma;
@@ -9933,8 +9935,8 @@ var PricingV2Service = class {
       },
       orderBy: [{ priority: "asc" }]
     });
-    const demandRules = rules.filter((r) => r.type === import_client12.PricingRuleType.demand);
-    const standardRules = rules.filter((r) => r.type !== import_client12.PricingRuleType.demand);
+    const demandRules = rules.filter((r) => r.type === import_client11.PricingRuleType.demand);
+    const standardRules = rules.filter((r) => r.type !== import_client11.PricingRuleType.demand);
     let totalCents = 0;
     let baseSubtotalCents = 0;
     let adjustmentsCents = 0;
@@ -9949,19 +9951,19 @@ var PricingV2Service = class {
       for (const rule of standardRules) {
         if (!this.ruleApplies(rule, day, dow, nights)) continue;
         const adj = this.computeAdjustment(rule.adjustmentType, rule.adjustmentValue, nightlyRate);
-        if (rule.stackMode === import_client12.PricingStackMode.override) {
+        if (rule.stackMode === import_client11.PricingStackMode.override) {
           nightlyAdjustment = adj;
           overrideApplied = true;
           if (!appliedRules.find((r) => r.id === rule.id)) {
             appliedRules.push({ id: rule.id, name: rule.name, type: rule.type, adjustmentCents: adj });
           }
           break;
-        } else if (rule.stackMode === import_client12.PricingStackMode.additive) {
+        } else if (rule.stackMode === import_client11.PricingStackMode.additive) {
           nightlyAdjustment += adj;
           if (!appliedRules.find((r) => r.id === rule.id)) {
             appliedRules.push({ id: rule.id, name: rule.name, type: rule.type, adjustmentCents: adj });
           }
-        } else if (rule.stackMode === import_client12.PricingStackMode.max) {
+        } else if (rule.stackMode === import_client11.PricingStackMode.max) {
           if (adj > nightlyAdjustment) {
             nightlyAdjustment = adj;
             if (!appliedRules.find((r) => r.id === rule.id)) {
@@ -10027,7 +10029,7 @@ var PricingV2Service = class {
   }
   computeAdjustment(adjustmentType, value, baseCents) {
     const val = Number(value);
-    if (adjustmentType === import_client12.AdjustmentType.percent) {
+    if (adjustmentType === import_client11.AdjustmentType.percent) {
       return Math.round(baseCents * val);
     }
     return Math.round(val);
@@ -10104,13 +10106,13 @@ var PricingV2Service = class {
     return existing;
   }
   async validateRule(campgroundId, dto) {
-    if (dto.stackMode === import_client12.PricingStackMode.override) {
+    if (dto.stackMode === import_client11.PricingStackMode.override) {
       const overlapping = await this.prisma.pricingRuleV2.count({
         where: {
           campgroundId,
           id: dto.id ? { not: dto.id } : void 0,
           siteClassId: dto.siteClassId ?? null,
-          stackMode: import_client12.PricingStackMode.override,
+          stackMode: import_client11.PricingStackMode.override,
           active: dto.active ?? true,
           // Rough overlap check; refinement can be added later
           OR: [
@@ -10126,7 +10128,7 @@ var PricingV2Service = class {
         throw new import_common76.BadRequestException("Overlapping override pricing rules are not allowed");
       }
     }
-    if (dto.type === import_client12.PricingRuleType.demand && !dto.demandBandId) {
+    if (dto.type === import_client11.PricingRuleType.demand && !dto.demandBandId) {
       throw new import_common76.BadRequestException("Demand rules require a demandBandId");
     }
   }
@@ -10137,7 +10139,7 @@ PricingV2Service = __decorateClass([
 
 // src/deposit-policies/deposit-policies.service.ts
 var import_common77 = require("@nestjs/common");
-var import_client13 = require("@prisma/client");
+var import_client12 = require("@prisma/client");
 var DepositPoliciesService = class {
   constructor(prisma, audit) {
     this.prisma = prisma;
@@ -10243,16 +10245,16 @@ var DepositPoliciesService = class {
     if (!policy) {
       return null;
     }
-    const baseCents = policy.applyTo === import_client13.DepositApplyTo.lodging_only ? lodgingOnlyCents : totalAmountCents;
+    const baseCents = policy.applyTo === import_client12.DepositApplyTo.lodging_only ? lodgingOnlyCents : totalAmountCents;
     let depositAmountCents = 0;
     switch (policy.strategy) {
-      case import_client13.DepositStrategy.first_night:
+      case import_client12.DepositStrategy.first_night:
         depositAmountCents = Math.ceil(baseCents / nights);
         break;
-      case import_client13.DepositStrategy.percent:
+      case import_client12.DepositStrategy.percent:
         depositAmountCents = Math.ceil(baseCents * (policy.value / 100));
         break;
-      case import_client13.DepositStrategy.fixed:
+      case import_client12.DepositStrategy.fixed:
         depositAmountCents = policy.value;
         break;
     }
@@ -10286,7 +10288,7 @@ var import_common82 = require("@nestjs/common");
 
 // src/signatures/signatures.controller.ts
 var import_common78 = require("@nestjs/common");
-var import_client14 = require("@prisma/client");
+var import_client13 = require("@prisma/client");
 var SignaturesController = class {
   constructor(signatures) {
     this.signatures = signatures;
@@ -10315,7 +10317,7 @@ var SignaturesController = class {
 };
 __decorateClass([
   (0, import_common78.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
-  Roles(import_client14.UserRole.owner, import_client14.UserRole.manager, import_client14.UserRole.front_desk, import_client14.UserRole.finance),
+  Roles(import_client13.UserRole.owner, import_client13.UserRole.manager, import_client13.UserRole.front_desk, import_client13.UserRole.finance),
   RequireScope({ resource: "reservations", action: "write" }),
   (0, import_common78.Post)("requests"),
   __decorateParam(0, (0, import_common78.Req)()),
@@ -10323,7 +10325,7 @@ __decorateClass([
 ], SignaturesController.prototype, "create", 1);
 __decorateClass([
   (0, import_common78.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
-  Roles(import_client14.UserRole.owner, import_client14.UserRole.manager, import_client14.UserRole.front_desk, import_client14.UserRole.finance),
+  Roles(import_client13.UserRole.owner, import_client13.UserRole.manager, import_client13.UserRole.front_desk, import_client13.UserRole.finance),
   RequireScope({ resource: "reservations", action: "write" }),
   (0, import_common78.Post)("requests/:id/resend"),
   __decorateParam(0, (0, import_common78.Req)()),
@@ -10331,7 +10333,7 @@ __decorateClass([
 ], SignaturesController.prototype, "resend", 1);
 __decorateClass([
   (0, import_common78.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
-  Roles(import_client14.UserRole.owner, import_client14.UserRole.manager, import_client14.UserRole.front_desk, import_client14.UserRole.finance),
+  Roles(import_client13.UserRole.owner, import_client13.UserRole.manager, import_client13.UserRole.front_desk, import_client13.UserRole.finance),
   RequireScope({ resource: "reservations", action: "write" }),
   (0, import_common78.Post)("requests/:id/void"),
   __decorateParam(0, (0, import_common78.Req)()),
@@ -10339,14 +10341,14 @@ __decorateClass([
 ], SignaturesController.prototype, "voidRequest", 1);
 __decorateClass([
   (0, import_common78.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
-  Roles(import_client14.UserRole.owner, import_client14.UserRole.manager, import_client14.UserRole.front_desk, import_client14.UserRole.finance, import_client14.UserRole.readonly),
+  Roles(import_client13.UserRole.owner, import_client13.UserRole.manager, import_client13.UserRole.front_desk, import_client13.UserRole.finance, import_client13.UserRole.readonly),
   RequireScope({ resource: "reservations", action: "read" }),
   (0, import_common78.Get)("requests/:id"),
   __decorateParam(0, (0, import_common78.Param)("id"))
 ], SignaturesController.prototype, "getRequest", 1);
 __decorateClass([
   (0, import_common78.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
-  Roles(import_client14.UserRole.owner, import_client14.UserRole.manager, import_client14.UserRole.front_desk, import_client14.UserRole.finance, import_client14.UserRole.readonly),
+  Roles(import_client13.UserRole.owner, import_client13.UserRole.manager, import_client13.UserRole.front_desk, import_client13.UserRole.finance, import_client13.UserRole.readonly),
   RequireScope({ resource: "reservations", action: "read" }),
   (0, import_common78.Get)("reservations/:reservationId/requests"),
   __decorateParam(0, (0, import_common78.Param)("reservationId"))
@@ -10358,7 +10360,7 @@ __decorateClass([
 ], SignaturesController.prototype, "handleWebhook", 1);
 __decorateClass([
   (0, import_common78.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
-  Roles(import_client14.UserRole.owner, import_client14.UserRole.manager, import_client14.UserRole.front_desk, import_client14.UserRole.finance),
+  Roles(import_client13.UserRole.owner, import_client13.UserRole.manager, import_client13.UserRole.front_desk, import_client13.UserRole.finance),
   RequireScope({ resource: "reservations", action: "write" }),
   (0, import_common78.Post)("coi"),
   __decorateParam(0, (0, import_common78.Req)()),
@@ -11458,7 +11460,7 @@ MaintenanceController = __decorateClass([
 
 // src/maintenance/maintenance.service.ts
 var import_common95 = require("@nestjs/common");
-var import_client15 = require("@prisma/client");
+var import_client14 = require("@prisma/client");
 var import_crypto10 = require("crypto");
 var MaintenanceService = class {
   constructor(prisma, gamification) {
@@ -11568,7 +11570,7 @@ var MaintenanceService = class {
         campgroundId: updated.campgroundId,
         userId: targetUserId,
         membershipId: void 0,
-        category: import_client15.GamificationEventCategory.maintenance,
+        category: import_client14.GamificationEventCategory.maintenance,
         reason: `Maintenance closed: ${updated.title}`,
         sourceType: "maintenance_ticket",
         sourceId: updated.id,
@@ -11604,7 +11606,7 @@ var import_common98 = require("@nestjs/common");
 
 // src/pricing/pricing.controller.ts
 var import_common97 = require("@nestjs/common");
-var import_client16 = require("@prisma/client");
+var import_client15 = require("@prisma/client");
 var PricingController = class {
   constructor(pricing) {
     this.pricing = pricing;
@@ -11623,24 +11625,24 @@ var PricingController = class {
   }
 };
 __decorateClass([
-  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager),
+  Roles(import_client15.UserRole.owner, import_client15.UserRole.manager),
   (0, import_common97.Get)("campgrounds/:campgroundId/pricing-rules"),
   __decorateParam(0, (0, import_common97.Param)("campgroundId"))
 ], PricingController.prototype, "list", 1);
 __decorateClass([
-  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager),
+  Roles(import_client15.UserRole.owner, import_client15.UserRole.manager),
   (0, import_common97.Post)("campgrounds/:campgroundId/pricing-rules"),
   __decorateParam(0, (0, import_common97.Param)("campgroundId")),
   __decorateParam(1, (0, import_common97.Body)())
 ], PricingController.prototype, "create", 1);
 __decorateClass([
-  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager),
+  Roles(import_client15.UserRole.owner, import_client15.UserRole.manager),
   (0, import_common97.Patch)("pricing-rules/:id"),
   __decorateParam(0, (0, import_common97.Param)("id")),
   __decorateParam(1, (0, import_common97.Body)())
 ], PricingController.prototype, "update", 1);
 __decorateClass([
-  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager),
+  Roles(import_client15.UserRole.owner, import_client15.UserRole.manager),
   (0, import_common97.Delete)("pricing-rules/:id"),
   __decorateParam(0, (0, import_common97.Param)("id"))
 ], PricingController.prototype, "remove", 1);
@@ -11886,7 +11888,7 @@ LedgerService = __decorateClass([
 
 // src/ledger/ledger.controller.ts
 var import_common100 = require("@nestjs/common");
-var import_client17 = require("@prisma/client");
+var import_client16 = require("@prisma/client");
 var LedgerController = class {
   constructor(ledger) {
     this.ledger = ledger;
@@ -11943,7 +11945,7 @@ var LedgerController = class {
   }
 };
 __decorateClass([
-  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
+  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager, import_client16.UserRole.finance),
   (0, import_common100.Get)("campgrounds/:campgroundId/ledger"),
   __decorateParam(0, (0, import_common100.Param)("campgroundId")),
   __decorateParam(1, (0, import_common100.Query)("start")),
@@ -11951,7 +11953,7 @@ __decorateClass([
   __decorateParam(3, (0, import_common100.Query)("glCode"))
 ], LedgerController.prototype, "list", 1);
 __decorateClass([
-  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
+  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager, import_client16.UserRole.finance),
   (0, import_common100.Get)("campgrounds/:campgroundId/ledger/export"),
   __decorateParam(0, (0, import_common100.Param)("campgroundId")),
   __decorateParam(1, (0, import_common100.Query)("start")),
@@ -11970,25 +11972,25 @@ __decorateClass([
   __decorateParam(2, (0, import_common100.Query)("end"))
 ], LedgerController.prototype, "summary", 1);
 __decorateClass([
-  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
+  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager, import_client16.UserRole.finance),
   (0, import_common100.Get)("campgrounds/:campgroundId/gl-periods"),
   __decorateParam(0, (0, import_common100.Param)("campgroundId"))
 ], LedgerController.prototype, "listPeriods", 1);
 __decorateClass([
-  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
+  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager, import_client16.UserRole.finance),
   (0, import_common100.Post)("campgrounds/:campgroundId/gl-periods"),
   __decorateParam(0, (0, import_common100.Param)("campgroundId")),
   __decorateParam(1, (0, import_common100.Body)())
 ], LedgerController.prototype, "createPeriod", 1);
 __decorateClass([
-  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
+  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager, import_client16.UserRole.finance),
   (0, import_common100.Post)("campgrounds/:campgroundId/gl-periods/:id/close"),
   __decorateParam(0, (0, import_common100.Param)("campgroundId")),
   __decorateParam(1, (0, import_common100.Param)("id")),
   __decorateParam(2, (0, import_common100.Req)())
 ], LedgerController.prototype, "closePeriod", 1);
 __decorateClass([
-  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
+  Roles(import_client16.UserRole.owner, import_client16.UserRole.manager, import_client16.UserRole.finance),
   (0, import_common100.Post)("campgrounds/:campgroundId/gl-periods/:id/lock"),
   __decorateParam(0, (0, import_common100.Param)("campgroundId")),
   __decorateParam(1, (0, import_common100.Param)("id")),
@@ -12016,7 +12018,7 @@ var import_common108 = require("@nestjs/common");
 
 // src/payments/payments.controller.ts
 var import_common102 = require("@nestjs/common");
-var import_client18 = require("@prisma/client");
+var import_client17 = require("@prisma/client");
 var import_class_validator = require("class-validator");
 var import_class_transformer = require("class-transformer");
 var UpdatePaymentSettingsDto = class {
@@ -12245,10 +12247,10 @@ var PaymentsController = class {
     const threeDsPolicy = this.buildThreeDsPolicy(currency, gatewayConfig);
     if (idempotencyKey) {
       const existing = await this.idempotency.start(idempotencyKey, body, campgroundId);
-      if (existing.status === import_client18.IdempotencyStatus.succeeded && existing.responseJson) {
+      if (existing.status === import_client17.IdempotencyStatus.succeeded && existing.responseJson) {
         return existing.responseJson;
       }
-      if (existing.status === import_client18.IdempotencyStatus.inflight && existing.createdAt) {
+      if (existing.status === import_client17.IdempotencyStatus.inflight && existing.createdAt) {
         const ageMs = Date.now() - new Date(existing.createdAt).getTime();
         if (ageMs < 6e4) {
           throw new import_common102.ConflictException("Request already in progress");
@@ -12395,10 +12397,10 @@ var PaymentsController = class {
       metadata: { reservationId: body.reservationId, threeDsPolicy },
       rateAction: "apply"
     });
-    if (existing?.status === import_client18.IdempotencyStatus.succeeded && existing.responseJson) {
+    if (existing?.status === import_client17.IdempotencyStatus.succeeded && existing.responseJson) {
       return existing.responseJson;
     }
-    if (existing?.status === import_client18.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client17.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common102.ConflictException({
         message: "Payment intent creation already in progress; retry with backoff",
         retryAfterMs: 500,
@@ -12593,7 +12595,7 @@ var PaymentsController = class {
       this.ensureCampgroundMembership(req?.user, campgroundId);
       if (idempotencyKey) {
         const existing = await this.idempotency.start(idempotencyKey, { id, ...body }, campgroundId);
-        if (existing.status === import_client18.IdempotencyStatus.succeeded && existing.responseJson) {
+        if (existing.status === import_client17.IdempotencyStatus.succeeded && existing.responseJson) {
           return existing.responseJson;
         }
       }
@@ -12653,7 +12655,7 @@ var PaymentsController = class {
       this.ensureCampgroundMembership(req?.user, campgroundId);
       if (idempotencyKey) {
         const existing = await this.idempotency.start(idempotencyKey, { id, ...body }, campgroundId);
-        if (existing.status === import_client18.IdempotencyStatus.succeeded && existing.responseJson) {
+        if (existing.status === import_client17.IdempotencyStatus.succeeded && existing.responseJson) {
           return existing.responseJson;
         }
       }
@@ -12973,7 +12975,7 @@ var PaymentsController = class {
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "write" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Post)("payments/intents"),
   __decorateParam(0, (0, import_common102.Body)()),
   __decorateParam(1, (0, import_common102.Req)()),
@@ -12982,7 +12984,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "write" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Post)("payments/setup-intents"),
   __decorateParam(0, (0, import_common102.Body)()),
   __decorateParam(1, (0, import_common102.Req)())
@@ -12999,7 +13001,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "write" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Post)("campgrounds/:campgroundId/payments/connect"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Req)())
@@ -13007,7 +13009,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "write" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Post)("campgrounds/:campgroundId/payments/settings"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Body)()),
@@ -13016,7 +13018,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "write" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Post)("campgrounds/:campgroundId/payments/capabilities/refresh"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Req)())
@@ -13024,7 +13026,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("payments/intents/:id"),
   __decorateParam(0, (0, import_common102.Param)("id")),
   __decorateParam(1, (0, import_common102.Req)())
@@ -13032,7 +13034,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "write" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Post)("payments/intents/:id/capture"),
   __decorateParam(0, (0, import_common102.Param)("id")),
   __decorateParam(1, (0, import_common102.Body)()),
@@ -13042,7 +13044,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "write" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Post)("payments/intents/:id/refund"),
   __decorateParam(0, (0, import_common102.Param)("id")),
   __decorateParam(1, (0, import_common102.Body)()),
@@ -13057,7 +13059,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/payouts"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Query)("status")),
@@ -13066,7 +13068,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/payouts/:payoutId"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Param)("payoutId")),
@@ -13075,7 +13077,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/payouts/:payoutId/recon"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Param)("payoutId")),
@@ -13084,7 +13086,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/payouts/:payoutId/export"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Param)("payoutId")),
@@ -13094,7 +13096,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/payouts/:payoutId/ledger-export"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Param)("payoutId")),
@@ -13104,7 +13106,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/disputes"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Query)("status")),
@@ -13113,7 +13115,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/disputes/:disputeId"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Param)("disputeId")),
@@ -13122,7 +13124,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/disputes/export"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Query)("status")),
@@ -13132,7 +13134,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common102.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client18.UserRole.owner, import_client18.UserRole.manager, import_client18.UserRole.finance),
+  Roles(import_client17.UserRole.owner, import_client17.UserRole.manager, import_client17.UserRole.finance),
   (0, import_common102.Get)("campgrounds/:campgroundId/disputes/templates"),
   __decorateParam(0, (0, import_common102.Param)("campgroundId")),
   __decorateParam(1, (0, import_common102.Req)())
@@ -13335,7 +13337,7 @@ StripeService = __decorateClass([
 
 // src/payments/reconciliation.service.ts
 var import_common104 = require("@nestjs/common");
-var import_client19 = require("@prisma/client");
+var import_client18 = require("@prisma/client");
 var import_node_fetch3 = __toESM(require("node-fetch"));
 var PaymentsReconciliationService = class {
   constructor(prisma, stripeService, ledger) {
@@ -13554,8 +13556,8 @@ var PaymentsReconciliationService = class {
         const feeLedger = await this.postDoubleEntry({
           campgroundId,
           reservationId,
-          glDebit: { code: "STRIPE_FEES", name: "Stripe Fees", type: import_client19.GlAccountType.expense },
-          glCredit: { code: "CASH", name: "Cash", type: import_client19.GlAccountType.asset },
+          glDebit: { code: "STRIPE_FEES", name: "Stripe Fees", type: import_client18.GlAccountType.expense },
+          glCredit: { code: "CASH", name: "Cash", type: import_client18.GlAccountType.asset },
           amountCents: tx.fee,
           description: `Stripe fee BTX ${tx.id}`,
           sourceTxId: tx.id,
@@ -13569,8 +13571,8 @@ var PaymentsReconciliationService = class {
         const cbLedger = await this.postDoubleEntry({
           campgroundId,
           reservationId,
-          glDebit: { code: "CHARGEBACK", name: "Chargebacks", type: import_client19.GlAccountType.expense },
-          glCredit: { code: "CASH", name: "Cash", type: import_client19.GlAccountType.asset },
+          glDebit: { code: "CHARGEBACK", name: "Chargebacks", type: import_client18.GlAccountType.expense },
+          glCredit: { code: "CASH", name: "Cash", type: import_client18.GlAccountType.asset },
           amountCents: amountAbs,
           description: `Chargeback BTX ${tx.id}`,
           sourceTxId: tx.id,
@@ -13583,8 +13585,8 @@ var PaymentsReconciliationService = class {
         const platformLedger = await this.postDoubleEntry({
           campgroundId,
           reservationId,
-          glDebit: { code: "PLATFORM_FEE", name: "Platform Fees", type: import_client19.GlAccountType.expense },
-          glCredit: { code: "CASH", name: "Cash", type: import_client19.GlAccountType.asset },
+          glDebit: { code: "PLATFORM_FEE", name: "Platform Fees", type: import_client18.GlAccountType.expense },
+          glCredit: { code: "CASH", name: "Cash", type: import_client18.GlAccountType.asset },
           amountCents: amountAbs,
           description: `Platform fee BTX ${tx.id}`,
           sourceTxId: tx.id,
@@ -13670,8 +13672,8 @@ var PaymentsReconciliationService = class {
     if (existing) return;
     await this.postDoubleEntry({
       campgroundId: payoutRecord.campgroundId,
-      glDebit: { code: "BANK", name: "Operating Bank", type: import_client19.GlAccountType.asset },
-      glCredit: { code: "CASH", name: "Cash", type: import_client19.GlAccountType.asset },
+      glDebit: { code: "BANK", name: "Operating Bank", type: import_client18.GlAccountType.asset },
+      glCredit: { code: "CASH", name: "Cash", type: import_client18.GlAccountType.asset },
       amountCents: Math.abs(net),
       description: `Payout ${externalRef} transfer`,
       sourceTxId: externalRef,
@@ -13944,7 +13946,7 @@ GatewayConfigService = __decorateClass([
 
 // src/payments/gateway-config.controller.ts
 var import_common107 = require("@nestjs/common");
-var import_client20 = require("@prisma/client");
+var import_client19 = require("@prisma/client");
 var GatewayConfigController = class {
   constructor(gatewayConfig) {
     this.gatewayConfig = gatewayConfig;
@@ -13971,7 +13973,7 @@ var GatewayConfigController = class {
 __decorateClass([
   (0, import_common107.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "read" }),
-  Roles(import_client20.UserRole.owner, import_client20.UserRole.manager, import_client20.UserRole.finance),
+  Roles(import_client19.UserRole.owner, import_client19.UserRole.manager, import_client19.UserRole.finance),
   (0, import_common107.Get)("campgrounds/:campgroundId/payment-gateway"),
   __decorateParam(0, (0, import_common107.Param)("campgroundId")),
   __decorateParam(1, (0, import_common107.Req)())
@@ -13979,7 +13981,7 @@ __decorateClass([
 __decorateClass([
   (0, import_common107.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "payments", action: "write" }),
-  Roles(import_client20.UserRole.owner, import_client20.UserRole.manager, import_client20.UserRole.finance),
+  Roles(import_client19.UserRole.owner, import_client19.UserRole.manager, import_client19.UserRole.finance),
   (0, import_common107.Put)("campgrounds/:campgroundId/payment-gateway"),
   __decorateParam(0, (0, import_common107.Param)("campgroundId")),
   __decorateParam(1, (0, import_common107.Body)()),
@@ -15333,7 +15335,7 @@ PublicReservationsController = __decorateClass([
 
 // src/public-reservations/public-reservations.service.ts
 var import_common123 = require("@nestjs/common");
-var import_client21 = require("@prisma/client");
+var import_client20 = require("@prisma/client");
 
 // src/pricing-v2/discount-engine.ts
 var DEFAULT_MAX_FRACTION = 0.4;
@@ -15542,7 +15544,7 @@ var PublicReservationsService = class {
     const value = program.incentiveValue ?? 0;
     const basis = Math.max(0, basisCents ?? 0);
     let discountCents = 0;
-    if (type === import_client21.ReferralIncentiveType.percent_discount) {
+    if (type === import_client20.ReferralIncentiveType.percent_discount) {
       discountCents = Math.min(basis, Math.floor(basis * (value / 100)));
     } else {
       discountCents = Math.min(basis, Math.max(0, value));
@@ -15666,7 +15668,7 @@ var PublicReservationsService = class {
     const conflictingReservations = await this.prisma.reservation.findMany({
       where: {
         campgroundId: campground.id,
-        status: { not: import_client21.ReservationStatus.cancelled },
+        status: { not: import_client20.ReservationStatus.cancelled },
         departureDate: { gt: arrival },
         arrivalDate: { lt: departure }
       },
@@ -16037,7 +16039,7 @@ var PublicReservationsService = class {
         const conflictCount = await this.prisma.reservation.count({
           where: {
             siteId,
-            status: { not: import_client21.ReservationStatus.cancelled },
+            status: { not: import_client20.ReservationStatus.cancelled },
             departureDate: { gt: arrival },
             arrivalDate: { lt: departure }
           }
@@ -16118,7 +16120,7 @@ var PublicReservationsService = class {
             departureDate: departure,
             adults: dto.adults,
             children: dto.children ?? 0,
-            status: import_client21.ReservationStatus.pending,
+            status: import_client20.ReservationStatus.pending,
             totalAmount,
             paidAmount: 0,
             balanceAmount: totalAmount,
@@ -16320,7 +16322,7 @@ var PublicReservationsService = class {
       where: {
         campgroundId,
         siteId: { in: sites.map((s) => s.id) },
-        status: { not: import_client21.ReservationStatus.cancelled },
+        status: { not: import_client20.ReservationStatus.cancelled },
         departureDate: { gt: arrival },
         arrivalDate: { lt: departure }
       },
@@ -16365,7 +16367,7 @@ var PublicReservationsService = class {
       throw new import_common123.NotFoundException("Reservation not found");
     }
     console.log(`[Kiosk] Found reservation: ${reservation.status}, Total: ${reservation.totalAmount}, Paid: ${reservation.paidAmount} `);
-    if (reservation.status === import_client21.ReservationStatus.checked_in) {
+    if (reservation.status === import_client20.ReservationStatus.checked_in) {
       console.warn(`[Kiosk] Reservation ${id} already checked in `);
       throw new import_common123.ConflictException("Reservation is already checked in");
     }
@@ -16392,7 +16394,7 @@ var PublicReservationsService = class {
       const updated = await this.prisma.reservation.update({
         where: { id },
         data: {
-          status: import_client21.ReservationStatus.checked_in,
+          status: import_client20.ReservationStatus.checked_in,
           checkInAt: /* @__PURE__ */ new Date(),
           feesAmount: { increment: upsellTotalCents },
           totalAmount: newTotal,
@@ -17391,7 +17393,7 @@ var import_common146 = require("@nestjs/common");
 
 // src/repeat-charges/repeat-charges.service.ts
 var import_common144 = require("@nestjs/common");
-var import_client22 = require("@prisma/client");
+var import_client21 = require("@prisma/client");
 var import_date_fns2 = require("date-fns");
 var RepeatChargesService = class {
   constructor(prisma) {
@@ -17415,7 +17417,7 @@ var RepeatChargesService = class {
     }
     const charges = [];
     let currentDate = new Date(arrival);
-    if (paymentSchedule === import_client22.PaymentSchedule.monthly) {
+    if (paymentSchedule === import_client21.PaymentSchedule.monthly) {
       while (currentDate < departure) {
         charges.push({
           dueDate: new Date(currentDate),
@@ -17424,7 +17426,7 @@ var RepeatChargesService = class {
         });
         currentDate = (0, import_date_fns2.addMonths)(currentDate, 1);
       }
-    } else if (paymentSchedule === import_client22.PaymentSchedule.weekly) {
+    } else if (paymentSchedule === import_client21.PaymentSchedule.weekly) {
       while (currentDate < departure) {
         charges.push({
           dueDate: new Date(currentDate),
@@ -17433,7 +17435,7 @@ var RepeatChargesService = class {
         });
         currentDate = (0, import_date_fns2.addWeeks)(currentDate, 1);
       }
-    } else if (paymentSchedule === import_client22.PaymentSchedule.offseason_installments) {
+    } else if (paymentSchedule === import_client21.PaymentSchedule.offseason_installments) {
       const interval = offseasonInterval || 1;
       const installmentAmount = offseasonAmount || amount;
       while (currentDate < departure) {
@@ -17451,7 +17453,7 @@ var RepeatChargesService = class {
           reservationId,
           dueDate: charge.dueDate,
           amount: charge.amount,
-          status: import_client22.ChargeStatus.pending
+          status: import_client21.ChargeStatus.pending
         }
       });
       createdCharges.push(created);
@@ -17488,11 +17490,11 @@ var RepeatChargesService = class {
       include: { reservation: true }
     });
     if (!charge) throw new import_common144.NotFoundException("Charge not found");
-    if (charge.status === import_client22.ChargeStatus.paid) throw new import_common144.BadRequestException("Charge already paid");
+    if (charge.status === import_client21.ChargeStatus.paid) throw new import_common144.BadRequestException("Charge already paid");
     const updated = await this.prisma.repeatCharge.update({
       where: { id: chargeId },
       data: {
-        status: import_client22.ChargeStatus.paid,
+        status: import_client21.ChargeStatus.paid,
         paidAt: /* @__PURE__ */ new Date()
       }
     });
@@ -17886,7 +17888,7 @@ var import_common152 = require("@nestjs/common");
 
 // src/operations/operations.service.ts
 var import_common150 = require("@nestjs/common");
-var import_client23 = require("@prisma/client");
+var import_client22 = require("@prisma/client");
 var OperationsService = class {
   constructor(prisma, gamification) {
     this.prisma = prisma;
@@ -17930,7 +17932,7 @@ var OperationsService = class {
         campgroundId: updated.campgroundId,
         userId: updated.assignedTo,
         membershipId: void 0,
-        category: import_client23.GamificationEventCategory.task,
+        category: import_client22.GamificationEventCategory.task,
         reason: `Task completed: ${updated.title}`,
         sourceType: "operational_task",
         sourceId: updated.id,
@@ -17941,7 +17943,7 @@ var OperationsService = class {
           campgroundId: updated.campgroundId,
           userId: updated.assignedTo,
           membershipId: void 0,
-          category: import_client23.GamificationEventCategory.on_time_assignment,
+          category: import_client22.GamificationEventCategory.on_time_assignment,
           reason: `On-time: ${updated.title}`,
           sourceType: "operational_task",
           sourceId: updated.id,
@@ -18326,7 +18328,7 @@ var import_common155 = require("@nestjs/common");
 
 // src/incidents/incidents.service.ts
 var import_common153 = require("@nestjs/common");
-var import_client24 = require("@prisma/client");
+var import_client23 = require("@prisma/client");
 var IncidentsService = class {
   constructor(prisma) {
     this.prisma = prisma;
@@ -18355,7 +18357,7 @@ var IncidentsService = class {
   }
   async update(id, dto) {
     await this.ensureIncident(id);
-    const closedAt = dto.status && [import_client24.IncidentStatus.closed, import_client24.IncidentStatus.resolved].includes(dto.status) ? /* @__PURE__ */ new Date() : void 0;
+    const closedAt = dto.status && [import_client23.IncidentStatus.closed, import_client23.IncidentStatus.resolved].includes(dto.status) ? /* @__PURE__ */ new Date() : void 0;
     return this.prisma.incident.update({
       where: { id },
       data: {
@@ -18373,7 +18375,7 @@ var IncidentsService = class {
     return this.prisma.incident.update({
       where: { id },
       data: {
-        status: import_client24.IncidentStatus.closed,
+        status: import_client23.IncidentStatus.closed,
         closedAt: /* @__PURE__ */ new Date(),
         claimId: dto.claimId ?? incident.claimId,
         notes: updatedNotes ?? void 0
@@ -18385,7 +18387,7 @@ var IncidentsService = class {
     return this.prisma.incidentEvidence.create({
       data: {
         incidentId,
-        type: dto.type ?? import_client24.EvidenceType.photo,
+        type: dto.type ?? import_client23.EvidenceType.photo,
         url: dto.url,
         storageKey: dto.storageKey,
         description: dto.description,
@@ -18441,7 +18443,7 @@ var IncidentsService = class {
       data: {
         incidentId,
         title: dto.title,
-        status: import_client24.IncidentTaskStatus.pending,
+        status: import_client23.IncidentTaskStatus.pending,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
         reminderAt: dto.reminderAt ? new Date(dto.reminderAt) : null,
         assignedTo: dto.assignedTo ?? null
@@ -18459,7 +18461,7 @@ var IncidentsService = class {
         ...dto,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : void 0,
         reminderAt: dto.reminderAt ? new Date(dto.reminderAt) : void 0,
-        completedAt: dto.status === import_client24.IncidentTaskStatus.done ? /* @__PURE__ */ new Date() : dto.status && dto.status !== import_client24.IncidentTaskStatus.done ? null : void 0
+        completedAt: dto.status === import_client23.IncidentTaskStatus.done ? /* @__PURE__ */ new Date() : dto.status && dto.status !== import_client23.IncidentTaskStatus.done ? null : void 0
       }
     });
   }
@@ -18477,7 +18479,7 @@ var IncidentsService = class {
       orderBy: { type: "asc" }
     });
     const openTasks = await this.prisma.incidentTask.count({
-      where: { status: { not: import_client24.IncidentTaskStatus.done }, incident: { campgroundId } }
+      where: { status: { not: import_client23.IncidentTaskStatus.done }, incident: { campgroundId } }
     });
     const summary = {
       byStatus,
@@ -18769,7 +18771,7 @@ var import_common161 = require("@nestjs/common");
 
 // src/holds/holds.service.ts
 var import_common159 = require("@nestjs/common");
-var import_client25 = require("@prisma/client");
+var import_client24 = require("@prisma/client");
 var HoldsService = class {
   constructor(prisma, waitlistService) {
     this.prisma = prisma;
@@ -18822,7 +18824,7 @@ var HoldsService = class {
     const reservationOverlap = await this.prisma.reservation.count({
       where: {
         siteId,
-        status: { not: import_client25.ReservationStatus.cancelled },
+        status: { not: import_client24.ReservationStatus.cancelled },
         departureDate: { gt: arrival },
         arrivalDate: { lt: departure }
       }
@@ -18965,7 +18967,7 @@ var import_common169 = require("@nestjs/common");
 // src/communications/communications.controller.ts
 var import_common162 = require("@nestjs/common");
 var import_schedule7 = require("@nestjs/schedule");
-var import_client26 = require("@prisma/client");
+var import_client25 = require("@prisma/client");
 var CommunicationsController = class {
   constructor(prisma, emailService, smsService, npsService, observability, alerting) {
     this.prisma = prisma;
@@ -19875,28 +19877,28 @@ var CommunicationsController = class {
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "communications", action: "write" }),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.front_desk, import_client26.UserRole.finance, import_client26.UserRole.marketing, import_client26.UserRole.readonly),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.front_desk, import_client25.UserRole.finance, import_client25.UserRole.marketing, import_client25.UserRole.readonly),
   (0, import_common162.Post)("communications"),
   __decorateParam(0, (0, import_common162.Body)())
 ], CommunicationsController.prototype, "create", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "communications", action: "read" }),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.front_desk, import_client26.UserRole.finance, import_client26.UserRole.marketing, import_client26.UserRole.readonly),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.front_desk, import_client25.UserRole.finance, import_client25.UserRole.marketing, import_client25.UserRole.readonly),
   (0, import_common162.Get)("communications"),
   __decorateParam(0, (0, import_common162.Query)())
 ], CommunicationsController.prototype, "list", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "communications", action: "write" }),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.front_desk, import_client26.UserRole.finance, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.front_desk, import_client25.UserRole.finance, import_client25.UserRole.marketing),
   (0, import_common162.Post)("communications/send"),
   __decorateParam(0, (0, import_common162.Body)())
 ], CommunicationsController.prototype, "send", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard, ScopeGuard),
   RequireScope({ resource: "communications", action: "read" }),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.front_desk, import_client26.UserRole.finance, import_client26.UserRole.marketing, import_client26.UserRole.readonly),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.front_desk, import_client25.UserRole.finance, import_client25.UserRole.marketing, import_client25.UserRole.readonly),
   (0, import_common162.Get)("communications/sender-status")
 ], CommunicationsController.prototype, "senderStatus", 1);
 __decorateClass([
@@ -19922,20 +19924,20 @@ __decorateClass([
 ], CommunicationsController.prototype, "postmarkStatus", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Get)("communications/templates"),
   __decorateParam(0, (0, import_common162.Query)("campgroundId")),
   __decorateParam(1, (0, import_common162.Query)("status"))
 ], CommunicationsController.prototype, "listTemplates", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Post)("communications/templates"),
   __decorateParam(0, (0, import_common162.Body)())
 ], CommunicationsController.prototype, "createTemplate", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Patch)("communications/templates/:id"),
   __decorateParam(0, (0, import_common162.Param)("id")),
   __decorateParam(1, (0, import_common162.Body)()),
@@ -19943,14 +19945,14 @@ __decorateClass([
 ], CommunicationsController.prototype, "updateTemplate", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Get)("communications/playbooks/jobs"),
   __decorateParam(0, (0, import_common162.Query)("campgroundId")),
   __decorateParam(1, (0, import_common162.Query)("status"))
 ], CommunicationsController.prototype, "listJobs", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Post)("communications/playbooks/run"),
   __decorateParam(0, (0, import_common162.Query)("campgroundId"))
 ], CommunicationsController.prototype, "runPlaybookJobs", 1);
@@ -19959,20 +19961,20 @@ __decorateClass([
 ], CommunicationsController.prototype, "cronRunPlaybookJobs", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Post)("communications/playbooks/jobs/:id/retry"),
   __decorateParam(0, (0, import_common162.Param)("id")),
   __decorateParam(1, (0, import_common162.Query)("campgroundId"))
 ], CommunicationsController.prototype, "retryPlaybookJob", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.finance),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.finance),
   (0, import_common162.Post)("communications/playbooks/enqueue-unpaid"),
   __decorateParam(0, (0, import_common162.Query)("campgroundId"))
 ], CommunicationsController.prototype, "enqueueUnpaidPlaybooks", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager),
   (0, import_common162.Post)("communications/templates/:id/approve"),
   __decorateParam(0, (0, import_common162.Param)("id")),
   __decorateParam(1, (0, import_common162.Body)()),
@@ -19981,7 +19983,7 @@ __decorateClass([
 ], CommunicationsController.prototype, "approveTemplate", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager),
   (0, import_common162.Post)("communications/templates/:id/reject"),
   __decorateParam(0, (0, import_common162.Param)("id")),
   __decorateParam(1, (0, import_common162.Body)()),
@@ -19990,19 +19992,19 @@ __decorateClass([
 ], CommunicationsController.prototype, "rejectTemplate", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Get)("communications/playbooks"),
   __decorateParam(0, (0, import_common162.Query)("campgroundId"))
 ], CommunicationsController.prototype, "listPlaybooks", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Post)("communications/playbooks"),
   __decorateParam(0, (0, import_common162.Body)())
 ], CommunicationsController.prototype, "createPlaybook", 1);
 __decorateClass([
   (0, import_common162.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
+  Roles(import_client25.UserRole.owner, import_client25.UserRole.manager, import_client25.UserRole.marketing),
   (0, import_common162.Patch)("communications/playbooks/:id"),
   __decorateParam(0, (0, import_common162.Param)("id")),
   __decorateParam(1, (0, import_common162.Body)()),
@@ -20017,7 +20019,7 @@ var import_common168 = require("@nestjs/common");
 
 // src/nps/nps.controller.ts
 var import_common163 = require("@nestjs/common");
-var import_client27 = require("@prisma/client");
+var import_client26 = require("@prisma/client");
 var NpsController = class {
   constructor(npsService) {
     this.npsService = npsService;
@@ -20046,25 +20048,25 @@ var NpsController = class {
 };
 __decorateClass([
   (0, import_common163.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client27.UserRole.owner, import_client27.UserRole.manager, import_client27.UserRole.marketing, import_client27.UserRole.front_desk),
+  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing, import_client26.UserRole.front_desk),
   (0, import_common163.Post)("nps/surveys"),
   __decorateParam(0, (0, import_common163.Body)())
 ], NpsController.prototype, "createSurvey", 1);
 __decorateClass([
   (0, import_common163.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client27.UserRole.owner, import_client27.UserRole.manager, import_client27.UserRole.marketing, import_client27.UserRole.front_desk, import_client27.UserRole.readonly),
+  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing, import_client26.UserRole.front_desk, import_client26.UserRole.readonly),
   (0, import_common163.Get)("nps/surveys"),
   __decorateParam(0, (0, import_common163.Query)("campgroundId"))
 ], NpsController.prototype, "listSurveys", 1);
 __decorateClass([
   (0, import_common163.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client27.UserRole.owner, import_client27.UserRole.manager, import_client27.UserRole.marketing),
+  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing),
   (0, import_common163.Post)("nps/rules"),
   __decorateParam(0, (0, import_common163.Body)())
 ], NpsController.prototype, "addRule", 1);
 __decorateClass([
   (0, import_common163.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client27.UserRole.owner, import_client27.UserRole.manager, import_client27.UserRole.marketing, import_client27.UserRole.front_desk),
+  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing, import_client26.UserRole.front_desk),
   (0, import_common163.Post)("nps/invites"),
   __decorateParam(0, (0, import_common163.Body)())
 ], NpsController.prototype, "createInvite", 1);
@@ -20078,7 +20080,7 @@ __decorateClass([
 ], NpsController.prototype, "recordOpen", 1);
 __decorateClass([
   (0, import_common163.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client27.UserRole.owner, import_client27.UserRole.manager, import_client27.UserRole.marketing, import_client27.UserRole.front_desk, import_client27.UserRole.readonly),
+  Roles(import_client26.UserRole.owner, import_client26.UserRole.manager, import_client26.UserRole.marketing, import_client26.UserRole.front_desk, import_client26.UserRole.readonly),
   (0, import_common163.Get)("nps/metrics"),
   __decorateParam(0, (0, import_common163.Query)("campgroundId"))
 ], NpsController.prototype, "metrics", 1);
@@ -20960,7 +20962,7 @@ var import_common173 = require("@nestjs/common");
 
 // src/campaigns/campaigns.service.ts
 var import_common170 = require("@nestjs/common");
-var import_client28 = require("@prisma/client");
+var import_client27 = require("@prisma/client");
 var ChannelTypeValues = { email: "email", sms: "sms", both: "both" };
 var CampaignStatusValues = { draft: "draft", scheduled: "scheduled", sending: "sending", sent: "sent", cancelled: "cancelled" };
 var CampaignsService = class {
@@ -21275,7 +21277,7 @@ var CampaignsService = class {
             email: targetEmail,
             phone: "",
             channel: ChannelTypeValues.email,
-            status: import_client28.CampaignSendStatus.queued
+            status: import_client27.CampaignSendStatus.queued
           }
         });
         try {
@@ -21288,7 +21290,7 @@ var CampaignsService = class {
           await this.prisma.campaignSend.update({
             where: { id: send.id },
             data: {
-              status: import_client28.CampaignSendStatus.sent,
+              status: import_client27.CampaignSendStatus.sent,
               providerMessageId: result.providerMessageId || null,
               sentAt: /* @__PURE__ */ new Date()
             }
@@ -21298,7 +21300,7 @@ var CampaignsService = class {
           await this.prisma.campaignSend.update({
             where: { id: send.id },
             data: {
-              status: import_client28.CampaignSendStatus.failed,
+              status: import_client27.CampaignSendStatus.failed,
               error: err instanceof Error ? err.message : "Failed to send"
             }
           });
@@ -21313,7 +21315,7 @@ var CampaignsService = class {
             phone: targetPhone,
             email: "",
             channel: ChannelTypeValues.sms,
-            status: import_client28.CampaignSendStatus.queued
+            status: import_client27.CampaignSendStatus.queued
           }
         });
         try {
@@ -21325,7 +21327,7 @@ var CampaignsService = class {
           await this.prisma.campaignSend.update({
             where: { id: send.id },
             data: {
-              status: import_client28.CampaignSendStatus.sent,
+              status: import_client27.CampaignSendStatus.sent,
               providerMessageId: result.providerMessageId || null,
               sentAt: /* @__PURE__ */ new Date()
             }
@@ -21335,7 +21337,7 @@ var CampaignsService = class {
           await this.prisma.campaignSend.update({
             where: { id: send.id },
             data: {
-              status: import_client28.CampaignSendStatus.failed,
+              status: import_client27.CampaignSendStatus.failed,
               error: err instanceof Error ? err.message : "Failed to send SMS"
             }
           });
@@ -21463,7 +21465,7 @@ CampaignsController = __decorateClass([
 // src/campaigns/campaigns.scheduler.ts
 var import_common172 = require("@nestjs/common");
 var import_schedule9 = require("@nestjs/schedule");
-var import_client29 = require("@prisma/client");
+var import_client28 = require("@prisma/client");
 var CampaignsScheduler = class {
   constructor(prisma, campaigns, queue) {
     this.prisma = prisma;
@@ -21475,7 +21477,7 @@ var CampaignsScheduler = class {
     const now = /* @__PURE__ */ new Date();
     const due = await this.prisma.campaign.findMany({
       where: {
-        status: import_client29.CampaignStatus.scheduled,
+        status: import_client28.CampaignStatus.scheduled,
         scheduledAt: { lte: now }
       },
       select: { id: true }
@@ -21517,7 +21519,7 @@ var import_common176 = require("@nestjs/common");
 
 // src/site-map/site-map.service.ts
 var import_common174 = require("@nestjs/common");
-var import_client30 = require("@prisma/client");
+var import_client29 = require("@prisma/client");
 var SiteMapService = class {
   constructor(prisma) {
     this.prisma = prisma;
@@ -21697,7 +21699,7 @@ var SiteMapService = class {
         where: {
           campgroundId,
           ...siteFilter ? { siteId: siteFilter } : {},
-          status: { not: import_client30.ReservationStatus.cancelled },
+          status: { not: import_client29.ReservationStatus.cancelled },
           arrivalDate: { lt: end },
           departureDate: { gt: start }
         },
@@ -21840,7 +21842,7 @@ var import_common179 = require("@nestjs/common");
 
 // src/reviews/reviews.controller.ts
 var import_common177 = require("@nestjs/common");
-var import_client31 = require("@prisma/client");
+var import_client30 = require("@prisma/client");
 var ReviewsController = class {
   constructor(reviewsService) {
     this.reviewsService = reviewsService;
@@ -21871,7 +21873,7 @@ var ReviewsController = class {
 };
 __decorateClass([
   (0, import_common177.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client31.UserRole.owner, import_client31.UserRole.manager, import_client31.UserRole.marketing, import_client31.UserRole.front_desk),
+  Roles(import_client30.UserRole.owner, import_client30.UserRole.manager, import_client30.UserRole.marketing, import_client30.UserRole.front_desk),
   (0, import_common177.Post)("reviews/requests"),
   __decorateParam(0, (0, import_common177.Body)())
 ], ReviewsController.prototype, "createRequest", 1);
@@ -21886,14 +21888,14 @@ __decorateClass([
 ], ReviewsController.prototype, "listPublic", 1);
 __decorateClass([
   (0, import_common177.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client31.UserRole.owner, import_client31.UserRole.manager, import_client31.UserRole.marketing, import_client31.UserRole.front_desk, import_client31.UserRole.readonly),
+  Roles(import_client30.UserRole.owner, import_client30.UserRole.manager, import_client30.UserRole.marketing, import_client30.UserRole.front_desk, import_client30.UserRole.readonly),
   (0, import_common177.Get)("reviews"),
   __decorateParam(0, (0, import_common177.Query)("campgroundId")),
   __decorateParam(1, (0, import_common177.Query)("status"))
 ], ReviewsController.prototype, "listAdmin", 1);
 __decorateClass([
   (0, import_common177.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client31.UserRole.owner, import_client31.UserRole.manager, import_client31.UserRole.marketing),
+  Roles(import_client30.UserRole.owner, import_client30.UserRole.manager, import_client30.UserRole.marketing),
   (0, import_common177.Post)("reviews/moderate"),
   __decorateParam(0, (0, import_common177.Body)()),
   __decorateParam(1, (0, import_common177.Req)())
@@ -21905,7 +21907,7 @@ __decorateClass([
 ], ReviewsController.prototype, "vote", 1);
 __decorateClass([
   (0, import_common177.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client31.UserRole.owner, import_client31.UserRole.manager, import_client31.UserRole.front_desk),
+  Roles(import_client30.UserRole.owner, import_client30.UserRole.manager, import_client30.UserRole.front_desk),
   (0, import_common177.Post)("reviews/reply"),
   __decorateParam(0, (0, import_common177.Body)())
 ], ReviewsController.prototype, "reply", 1);
@@ -21916,7 +21918,7 @@ ReviewsController = __decorateClass([
 // src/reviews/reviews.service.ts
 var import_common178 = require("@nestjs/common");
 var import_crypto16 = require("crypto");
-var import_client32 = require("@prisma/client");
+var import_client31 = require("@prisma/client");
 function baseAppUrl2() {
   const url = process.env.PUBLIC_WEB_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.campreserv.com";
   return url.endsWith("/") ? url.slice(0, -1) : url;
@@ -22070,7 +22072,7 @@ var ReviewsService = class {
           campgroundId: reservation.campgroundId,
           userId: reservation.createdBy,
           membershipId: membership?.id,
-          category: import_client32.GamificationEventCategory.review_mention,
+          category: import_client31.GamificationEventCategory.review_mention,
           reason: "Positive guest review",
           sourceType: "review",
           sourceId: review.id,
@@ -22198,7 +22200,7 @@ var import_common182 = require("@nestjs/common");
 
 // src/forms/forms.service.ts
 var import_common180 = require("@nestjs/common");
-var import_client33 = require("@prisma/client");
+var import_client32 = require("@prisma/client");
 var FormsService = class {
   constructor(prisma) {
     this.prisma = prisma;
@@ -22216,7 +22218,7 @@ var FormsService = class {
         title: data.title,
         type: data.type,
         description: data.description ?? null,
-        fields: data.fields ?? import_client33.Prisma.DbNull,
+        fields: data.fields ?? import_client32.Prisma.DbNull,
         isActive: data.isActive ?? true
       }
     });
@@ -22262,7 +22264,7 @@ var FormsService = class {
         formTemplateId: data.formTemplateId,
         reservationId: data.reservationId ?? null,
         guestId: data.guestId ?? null,
-        responses: data.responses ?? import_client33.Prisma.DbNull
+        responses: data.responses ?? import_client32.Prisma.DbNull
       },
       include: { formTemplate: { select: { id: true, title: true, type: true } } }
     });
@@ -22575,7 +22577,7 @@ SocialPlannerController = __decorateClass([
 
 // src/social-planner/social-planner.service.ts
 var import_common184 = require("@nestjs/common");
-var import_client34 = require("@prisma/client");
+var import_client33 = require("@prisma/client");
 var addDays3 = (date, days) => {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -22606,7 +22608,7 @@ var SocialPlannerService = class {
       campground: { connect: { id: dto.campgroundId } },
       title: dto.title,
       platform: dto.platform,
-      status: dto.status || import_client34.SocialPostStatus.draft,
+      status: dto.status || import_client33.SocialPostStatus.draft,
       category: dto.category,
       scheduledFor: toDate(dto.scheduledFor) ?? null,
       publishedFor: toDate(dto.publishedFor) ?? null,
@@ -22722,7 +22724,7 @@ var SocialPlannerService = class {
     const data = {
       campground: { connect: { id: dto.campgroundId } },
       type: dto.type,
-      status: dto.status || import_client34.SocialSuggestionStatus.new,
+      status: dto.status || import_client33.SocialSuggestionStatus.new,
       message: dto.message,
       reason: dto.reason,
       category: dto.category,
@@ -22741,7 +22743,7 @@ var SocialPlannerService = class {
   }
   async refreshSuggestions(campgroundId) {
     await this.prisma.socialSuggestion.deleteMany({
-      where: { campgroundId, status: import_client34.SocialSuggestionStatus.new }
+      where: { campgroundId, status: import_client33.SocialSuggestionStatus.new }
     });
     const now = /* @__PURE__ */ new Date();
     const recentExisting = await this.prisma.socialSuggestion.findMany({
@@ -22789,8 +22791,8 @@ var SocialPlannerService = class {
       suggestions.push({
         id: void 0,
         campgroundId,
-        type: import_client34.SocialSuggestionType.occupancy,
-        status: import_client34.SocialSuggestionStatus.new,
+        type: import_client33.SocialSuggestionType.occupancy,
+        status: import_client33.SocialSuggestionStatus.new,
         message: "Cabins and premium sites are nearly full next weekend. Post a countdown and encourage early bookings.",
         category: "occupancy",
         platform: "facebook",
@@ -22804,8 +22806,8 @@ var SocialPlannerService = class {
       suggestions.push({
         id: void 0,
         campgroundId,
-        type: import_client34.SocialSuggestionType.occupancy,
-        status: import_client34.SocialSuggestionStatus.new,
+        type: import_client33.SocialSuggestionType.occupancy,
+        status: import_client33.SocialSuggestionStatus.new,
         message: "Tent and RV sites are under 40% for the upcoming holiday window. Spotlight availability and a simple bundle.",
         category: "occupancy",
         platform: "instagram",
@@ -22827,8 +22829,8 @@ var SocialPlannerService = class {
         suggestions.push({
           id: void 0,
           campgroundId,
-          type: import_client34.SocialSuggestionType.event,
-          status: import_client34.SocialSuggestionStatus.new,
+          type: import_client33.SocialSuggestionType.event,
+          status: import_client33.SocialSuggestionStatus.new,
           message: `${event.title} sign-ups are light. Post a reminder and add a quick RSVP link.`,
           category: "events",
           platform: "facebook",
@@ -22842,8 +22844,8 @@ var SocialPlannerService = class {
         suggestions.push({
           id: void 0,
           campgroundId,
-          type: import_client34.SocialSuggestionType.event,
-          status: import_client34.SocialSuggestionStatus.new,
+          type: import_client33.SocialSuggestionType.event,
+          status: import_client33.SocialSuggestionStatus.new,
           message: `${event.title} is coming up. Run a teaser and behind-the-scenes post this week.`,
           category: "events",
           platform: "instagram",
@@ -22870,8 +22872,8 @@ var SocialPlannerService = class {
       suggestions.push({
         id: void 0,
         campgroundId,
-        type: import_client34.SocialSuggestionType.deal,
-        status: import_client34.SocialSuggestionStatus.new,
+        type: import_client33.SocialSuggestionType.deal,
+        status: import_client33.SocialSuggestionStatus.new,
         message: `Promote ${promo.code} \u2014 it has ${promo.usageCount} uses. Share how it works in a carousel.`,
         category: "deals",
         platform: "instagram",
@@ -22887,8 +22889,8 @@ var SocialPlannerService = class {
       suggestions.push({
         id: void 0,
         campgroundId,
-        type: import_client34.SocialSuggestionType.seasonal,
-        status: import_client34.SocialSuggestionStatus.new,
+        type: import_client33.SocialSuggestionType.seasonal,
+        status: import_client33.SocialSuggestionStatus.new,
         message: "Halloween build-up: tease decorations, costume contests, and pumpkin carving.",
         category: "holiday",
         platform: "facebook",
@@ -22902,8 +22904,8 @@ var SocialPlannerService = class {
       suggestions.push({
         id: void 0,
         campgroundId,
-        type: import_client34.SocialSuggestionType.seasonal,
-        status: import_client34.SocialSuggestionStatus.new,
+        type: import_client33.SocialSuggestionType.seasonal,
+        status: import_client33.SocialSuggestionStatus.new,
         message: "Pool opening season \u2014 share a countdown and first swim weekend.",
         category: "pool",
         platform: "instagram",
@@ -23007,7 +23009,7 @@ var SocialPlannerService = class {
     const [posts, templates, suggestions, performance] = await Promise.all([
       this.prisma.socialPost.count({ where: { campgroundId } }),
       this.prisma.socialTemplate.count({ where: { campgroundId } }),
-      this.prisma.socialSuggestion.count({ where: { campgroundId, status: import_client34.SocialSuggestionStatus.new } }),
+      this.prisma.socialSuggestion.count({ where: { campgroundId, status: import_client33.SocialSuggestionStatus.new } }),
       this.prisma.socialPerformanceInput.findMany({
         where: { campgroundId },
         select: { likes: true, reach: true, comments: true, shares: true, saves: true }
@@ -23084,7 +23086,7 @@ var import_common189 = require("@nestjs/common");
 // src/analytics/analytics.service.ts
 var import_common187 = require("@nestjs/common");
 var import_schedule12 = require("@nestjs/schedule");
-var import_client35 = require("@prisma/client");
+var import_client34 = require("@prisma/client");
 var import_crypto17 = require("crypto");
 var MOCK_MODE = process.env.ANALYTICS_MOCK_MODE === "true";
 var mockStore = {
@@ -23296,14 +23298,14 @@ var AnalyticsService = class {
       where: { campgroundId, date: { gte: since } }
     });
     const sum = (event) => aggregates.filter((a) => a.eventName === event).reduce((acc, cur) => acc + (cur.count || 0), 0);
-    const addToStay = sum(import_client35.AnalyticsEventName.add_to_stay);
-    const completes = sum(import_client35.AnalyticsEventName.reservation_completed);
-    const abandons = sum(import_client35.AnalyticsEventName.reservation_abandoned);
-    const imageViews = sum(import_client35.AnalyticsEventName.image_viewed);
-    const imageClicks = sum(import_client35.AnalyticsEventName.image_clicked);
-    const availabilityChecks = sum(import_client35.AnalyticsEventName.availability_check);
-    const dealViews = sum(import_client35.AnalyticsEventName.deal_viewed);
-    const dealApplies = sum(import_client35.AnalyticsEventName.deal_applied);
+    const addToStay = sum(import_client34.AnalyticsEventName.add_to_stay);
+    const completes = sum(import_client34.AnalyticsEventName.reservation_completed);
+    const abandons = sum(import_client34.AnalyticsEventName.reservation_abandoned);
+    const imageViews = sum(import_client34.AnalyticsEventName.image_viewed);
+    const imageClicks = sum(import_client34.AnalyticsEventName.image_clicked);
+    const availabilityChecks = sum(import_client34.AnalyticsEventName.availability_check);
+    const dealViews = sum(import_client34.AnalyticsEventName.deal_viewed);
+    const dealApplies = sum(import_client34.AnalyticsEventName.deal_applied);
     const recommendations = [];
     const funnelBase = Math.max(addToStay, 1);
     const abandonmentRate = abandons / funnelBase;
@@ -23472,11 +23474,11 @@ var AnalyticsService = class {
       where: { campgroundId, date: { gte: since } }
     });
     const sum = (event) => aggregates.filter((a) => a.eventName === event).reduce((acc, cur) => acc + (cur.count || 0), 0);
-    const views = sum(import_client35.AnalyticsEventName.page_view);
-    const addToStay = sum(import_client35.AnalyticsEventName.add_to_stay);
-    const starts = sum(import_client35.AnalyticsEventName.reservation_start);
-    const abandoned = sum(import_client35.AnalyticsEventName.reservation_abandoned);
-    const completed = sum(import_client35.AnalyticsEventName.reservation_completed);
+    const views = sum(import_client34.AnalyticsEventName.page_view);
+    const addToStay = sum(import_client34.AnalyticsEventName.add_to_stay);
+    const starts = sum(import_client34.AnalyticsEventName.reservation_start);
+    const abandoned = sum(import_client34.AnalyticsEventName.reservation_abandoned);
+    const completed = sum(import_client34.AnalyticsEventName.reservation_completed);
     return {
       windowDays: days,
       steps: { views, addToStay, starts, abandoned, completed },
@@ -23494,8 +23496,8 @@ var AnalyticsService = class {
       for (const e of events) {
         if (!e.imageId) continue;
         const entry = map.get(e.imageId) ?? { views: 0, clicks: 0 };
-        if (e.eventName === import_client35.AnalyticsEventName.image_viewed) entry.views += 1;
-        if (e.eventName === import_client35.AnalyticsEventName.image_clicked) entry.clicks += 1;
+        if (e.eventName === import_client34.AnalyticsEventName.image_viewed) entry.views += 1;
+        if (e.eventName === import_client34.AnalyticsEventName.image_clicked) entry.clicks += 1;
         map.set(e.imageId, entry);
       }
       return Array.from(map.entries()).map(([imageId, stats]) => ({
@@ -23534,8 +23536,8 @@ var AnalyticsService = class {
       for (const e of events) {
         if (!e.promotionId) continue;
         const entry = map.get(e.promotionId) ?? { views: 0, applies: 0 };
-        if (e.eventName === import_client35.AnalyticsEventName.deal_viewed) entry.views += 1;
-        if (e.eventName === import_client35.AnalyticsEventName.deal_applied) entry.applies += 1;
+        if (e.eventName === import_client34.AnalyticsEventName.deal_viewed) entry.views += 1;
+        if (e.eventName === import_client34.AnalyticsEventName.deal_applied) entry.applies += 1;
         map.set(e.promotionId, entry);
       }
       return Array.from(map.entries()).map(([promotionId, stats]) => ({
@@ -23605,9 +23607,9 @@ var AnalyticsService = class {
       where: { campgroundId, date: { gte: since } }
     });
     const sum = (event) => aggregates.filter((a) => a.eventName === event).reduce((acc, cur) => acc + (cur.count || 0), 0);
-    const availabilityChecks = sum(import_client35.AnalyticsEventName.availability_check);
-    const addToStay = sum(import_client35.AnalyticsEventName.add_to_stay);
-    const completes = sum(import_client35.AnalyticsEventName.reservation_completed);
+    const availabilityChecks = sum(import_client34.AnalyticsEventName.availability_check);
+    const addToStay = sum(import_client34.AnalyticsEventName.add_to_stay);
+    const completes = sum(import_client34.AnalyticsEventName.reservation_completed);
     return {
       windowDays: days,
       availabilityChecks,
@@ -23633,14 +23635,14 @@ var AnalyticsService = class {
         byEvent.set(e.eventName, (byEvent.get(e.eventName) ?? 0) + 1);
         if (e.promotionId) {
           const entry = dealMap.get(e.promotionId) ?? { views: 0, applies: 0 };
-          if (e.eventName === import_client35.AnalyticsEventName.deal_viewed) entry.views += 1;
-          if (e.eventName === import_client35.AnalyticsEventName.deal_applied) entry.applies += 1;
+          if (e.eventName === import_client34.AnalyticsEventName.deal_viewed) entry.views += 1;
+          if (e.eventName === import_client34.AnalyticsEventName.deal_applied) entry.applies += 1;
           dealMap.set(e.promotionId, entry);
         }
         if (e.imageId) {
           const entry = imgMap.get(e.imageId) ?? { views: 0, clicks: 0 };
-          if (e.eventName === import_client35.AnalyticsEventName.image_viewed) entry.views += 1;
-          if (e.eventName === import_client35.AnalyticsEventName.image_clicked) entry.clicks += 1;
+          if (e.eventName === import_client34.AnalyticsEventName.image_viewed) entry.views += 1;
+          if (e.eventName === import_client34.AnalyticsEventName.image_clicked) entry.clicks += 1;
           imgMap.set(e.imageId, entry);
         }
       }
@@ -23737,7 +23739,7 @@ AnalyticsService = __decorateClass([
 
 // src/analytics/analytics.controller.ts
 var import_common188 = require("@nestjs/common");
-var import_client36 = require("@prisma/client");
+var import_client35 = require("@prisma/client");
 var AnalyticsController = class {
   constructor(analyticsService) {
     this.analyticsService = analyticsService;
@@ -23811,14 +23813,14 @@ __decorateClass([
 ], AnalyticsController.prototype, "listRecommendations", 1);
 __decorateClass([
   (0, import_common188.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client36.UserRole.owner, import_client36.UserRole.manager),
+  Roles(import_client35.UserRole.owner, import_client35.UserRole.manager),
   (0, import_common188.Post)("recommendations/apply"),
   __decorateParam(0, (0, import_common188.Body)()),
   __decorateParam(1, (0, import_common188.Req)())
 ], AnalyticsController.prototype, "applyRecommendation", 1);
 __decorateClass([
   (0, import_common188.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client36.UserRole.owner, import_client36.UserRole.manager, import_client36.UserRole.marketing, import_client36.UserRole.front_desk),
+  Roles(import_client35.UserRole.owner, import_client35.UserRole.manager, import_client35.UserRole.marketing, import_client35.UserRole.front_desk),
   (0, import_common188.Post)("recommendations/propose"),
   __decorateParam(0, (0, import_common188.Body)()),
   __decorateParam(1, (0, import_common188.Req)())
@@ -23886,7 +23888,7 @@ var import_common192 = require("@nestjs/common");
 
 // src/ai/ai.service.ts
 var import_common190 = require("@nestjs/common");
-var import_client37 = require("@prisma/client");
+var import_client36 = require("@prisma/client");
 var import_node_fetch4 = __toESM(require("node-fetch"));
 var AiService = class {
   constructor(prisma) {
@@ -24218,16 +24220,16 @@ Return:
       return found && found._sum && typeof found._sum.count === "number" ? found._sum.count : 0;
     };
     return {
-      page_view: pick(import_client37.AnalyticsEventName.page_view),
-      availability_check: pick(import_client37.AnalyticsEventName.availability_check),
-      add_to_stay: pick(import_client37.AnalyticsEventName.add_to_stay),
-      reservation_start: pick(import_client37.AnalyticsEventName.reservation_start),
-      reservation_abandoned: pick(import_client37.AnalyticsEventName.reservation_abandoned),
-      reservation_completed: pick(import_client37.AnalyticsEventName.reservation_completed),
-      image_viewed: pick(import_client37.AnalyticsEventName.image_viewed),
-      image_clicked: pick(import_client37.AnalyticsEventName.image_clicked),
-      deal_viewed: pick(import_client37.AnalyticsEventName.deal_viewed),
-      deal_applied: pick(import_client37.AnalyticsEventName.deal_applied)
+      page_view: pick(import_client36.AnalyticsEventName.page_view),
+      availability_check: pick(import_client36.AnalyticsEventName.availability_check),
+      add_to_stay: pick(import_client36.AnalyticsEventName.add_to_stay),
+      reservation_start: pick(import_client36.AnalyticsEventName.reservation_start),
+      reservation_abandoned: pick(import_client36.AnalyticsEventName.reservation_abandoned),
+      reservation_completed: pick(import_client36.AnalyticsEventName.reservation_completed),
+      image_viewed: pick(import_client36.AnalyticsEventName.image_viewed),
+      image_clicked: pick(import_client36.AnalyticsEventName.image_clicked),
+      deal_viewed: pick(import_client36.AnalyticsEventName.deal_viewed),
+      deal_applied: pick(import_client36.AnalyticsEventName.deal_applied)
     };
   }
   async getCabinRollup(campgroundId, days) {
@@ -24257,7 +24259,7 @@ AiService = __decorateClass([
 
 // src/ai/ai.controller.ts
 var import_common191 = require("@nestjs/common");
-var import_client38 = require("@prisma/client");
+var import_client37 = require("@prisma/client");
 var AiController = class {
   constructor(ai) {
     this.ai = ai;
@@ -24285,40 +24287,40 @@ var AiController = class {
   }
 };
 __decorateClass([
-  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager),
+  Roles(import_client37.UserRole.owner, import_client37.UserRole.manager),
   (0, import_common191.Post)("settings"),
   __decorateParam(0, (0, import_common191.Body)())
 ], AiController.prototype, "updateSettings", 1);
 __decorateClass([
-  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.marketing),
+  Roles(import_client37.UserRole.owner, import_client37.UserRole.manager, import_client37.UserRole.marketing),
   (0, import_common191.Post)("suggestions"),
   __decorateParam(0, (0, import_common191.Body)())
 ], AiController.prototype, "generate", 1);
 __decorateClass([
-  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.marketing, import_client38.UserRole.front_desk, import_client38.UserRole.finance),
+  Roles(import_client37.UserRole.owner, import_client37.UserRole.manager, import_client37.UserRole.marketing, import_client37.UserRole.front_desk, import_client37.UserRole.finance),
   (0, import_common191.Post)("ask"),
   __decorateParam(0, (0, import_common191.Body)())
 ], AiController.prototype, "ask", 1);
 __decorateClass([
-  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.marketing, import_client38.UserRole.front_desk, import_client38.UserRole.finance),
+  Roles(import_client37.UserRole.owner, import_client37.UserRole.manager, import_client37.UserRole.marketing, import_client37.UserRole.front_desk, import_client37.UserRole.finance),
   (0, import_common191.Post)("recommendations"),
   __decorateParam(0, (0, import_common191.Body)()),
   __decorateParam(1, (0, import_common191.Query)("mock"))
 ], AiController.prototype, "recommendations", 1);
 __decorateClass([
-  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.finance),
+  Roles(import_client37.UserRole.owner, import_client37.UserRole.manager, import_client37.UserRole.finance),
   (0, import_common191.Post)("pricing-suggestions"),
   __decorateParam(0, (0, import_common191.Body)()),
   __decorateParam(1, (0, import_common191.Query)("mock"))
 ], AiController.prototype, "pricing", 1);
 __decorateClass([
-  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.front_desk, import_client38.UserRole.marketing),
+  Roles(import_client37.UserRole.owner, import_client37.UserRole.manager, import_client37.UserRole.front_desk, import_client37.UserRole.marketing),
   (0, import_common191.Post)("semantic-search"),
   __decorateParam(0, (0, import_common191.Body)()),
   __decorateParam(1, (0, import_common191.Query)("mock"))
 ], AiController.prototype, "semanticSearch", 1);
 __decorateClass([
-  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.front_desk, import_client38.UserRole.finance, import_client38.UserRole.marketing),
+  Roles(import_client37.UserRole.owner, import_client37.UserRole.manager, import_client37.UserRole.front_desk, import_client37.UserRole.finance, import_client37.UserRole.marketing),
   (0, import_common191.Post)("copilot"),
   __decorateParam(0, (0, import_common191.Body)()),
   __decorateParam(1, (0, import_common191.Query)("mock"))
@@ -24568,7 +24570,7 @@ var import_common202 = require("@nestjs/common");
 
 // src/integrations/integrations.controller.ts
 var import_common200 = require("@nestjs/common");
-var import_client39 = require("@prisma/client");
+var import_client38 = require("@prisma/client");
 var IntegrationsController = class {
   constructor(integrations) {
     this.integrations = integrations;
@@ -24604,47 +24606,47 @@ var IntegrationsController = class {
 };
 __decorateClass([
   (0, import_common200.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.finance),
+  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.finance),
   (0, import_common200.Post)("connections"),
   __decorateParam(0, (0, import_common200.Body)())
 ], IntegrationsController.prototype, "upsertConnection", 1);
 __decorateClass([
   (0, import_common200.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.finance),
+  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.finance),
   (0, import_common200.Patch)("connections/:id"),
   __decorateParam(0, (0, import_common200.Param)("id")),
   __decorateParam(1, (0, import_common200.Body)())
 ], IntegrationsController.prototype, "updateConnection", 1);
 __decorateClass([
   (0, import_common200.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.finance, import_client39.UserRole.readonly),
+  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.finance, import_client38.UserRole.readonly),
   (0, import_common200.Get)("connections"),
   __decorateParam(0, (0, import_common200.Query)("campgroundId"))
 ], IntegrationsController.prototype, "listConnections", 1);
 __decorateClass([
   (0, import_common200.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.finance),
+  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.finance),
   (0, import_common200.Post)("connections/:id/sync"),
   __decorateParam(0, (0, import_common200.Param)("id")),
   __decorateParam(1, (0, import_common200.Body)())
 ], IntegrationsController.prototype, "triggerSync", 1);
 __decorateClass([
   (0, import_common200.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.finance, import_client39.UserRole.readonly),
+  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.finance, import_client38.UserRole.readonly),
   (0, import_common200.Get)("connections/:id/logs"),
   __decorateParam(0, (0, import_common200.Param)("id")),
   __decorateParam(1, (0, import_common200.Query)())
 ], IntegrationsController.prototype, "listLogs", 1);
 __decorateClass([
   (0, import_common200.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.finance, import_client39.UserRole.readonly),
+  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.finance, import_client38.UserRole.readonly),
   (0, import_common200.Get)("connections/:id/webhooks"),
   __decorateParam(0, (0, import_common200.Param)("id")),
   __decorateParam(1, (0, import_common200.Query)())
 ], IntegrationsController.prototype, "listWebhooks", 1);
 __decorateClass([
   (0, import_common200.UseGuards)(JwtAuthGuard, RolesGuard),
-  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.finance),
+  Roles(import_client38.UserRole.owner, import_client38.UserRole.manager, import_client38.UserRole.finance),
   (0, import_common200.Post)("exports"),
   __decorateParam(0, (0, import_common200.Body)())
 ], IntegrationsController.prototype, "queueExport", 1);
@@ -26077,7 +26079,7 @@ var import_common218 = require("@nestjs/common");
 
 // src/privacy/privacy.controller.ts
 var import_common216 = require("@nestjs/common");
-var import_client40 = require("@prisma/client");
+var import_client39 = require("@prisma/client");
 var PrivacyController = class {
   constructor(privacy) {
     this.privacy = privacy;
@@ -26129,49 +26131,49 @@ var PrivacyController = class {
   }
 };
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager),
   (0, import_common216.Get)(),
   __decorateParam(0, (0, import_common216.Param)("campgroundId"))
 ], PrivacyController.prototype, "getSettings", 1);
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager),
   (0, import_common216.Post)(),
   __decorateParam(0, (0, import_common216.Param)("campgroundId")),
   __decorateParam(1, (0, import_common216.Body)())
 ], PrivacyController.prototype, "updateSettings", 1);
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager),
   (0, import_common216.Post)("consents"),
   __decorateParam(0, (0, import_common216.Param)("campgroundId")),
   __decorateParam(1, (0, import_common216.Body)())
 ], PrivacyController.prototype, "recordConsent", 1);
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager, import_client40.UserRole.readonly),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.readonly),
   (0, import_common216.Get)("consents"),
   __decorateParam(0, (0, import_common216.Param)("campgroundId"))
 ], PrivacyController.prototype, "listConsents", 1);
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager),
   (0, import_common216.Get)("pii-tags")
 ], PrivacyController.prototype, "listTags", 1);
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager),
   (0, import_common216.Post)("pii-tags"),
   __decorateParam(0, (0, import_common216.Body)())
 ], PrivacyController.prototype, "upsertTag", 1);
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager, import_client40.UserRole.readonly),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.readonly),
   (0, import_common216.Get)("redactions/recent"),
   __decorateParam(0, (0, import_common216.Param)("campgroundId"))
 ], PrivacyController.prototype, "recentRedactions", 1);
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager, import_client40.UserRole.readonly),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager, import_client39.UserRole.readonly),
   (0, import_common216.Post)("preview"),
   __decorateParam(0, (0, import_common216.Param)("campgroundId")),
   __decorateParam(1, (0, import_common216.Body)())
 ], PrivacyController.prototype, "preview", 1);
 __decorateClass([
-  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager),
+  Roles(import_client39.UserRole.owner, import_client39.UserRole.manager),
   (0, import_common216.Get)("export"),
   __decorateParam(0, (0, import_common216.Param)("campgroundId")),
   __decorateParam(1, (0, import_common216.Query)("format")),
@@ -27143,7 +27145,7 @@ var import_common230 = require("@nestjs/common");
 // src/gift-cards/gift-cards.controller.ts
 var import_common228 = require("@nestjs/common");
 var import_http_code = require("@nestjs/common/decorators/http/http-code.decorator");
-var import_client41 = require("@prisma/client");
+var import_client40 = require("@prisma/client");
 var import_class_validator8 = require("class-validator");
 var import_class_transformer2 = require("class-transformer");
 var RedeemGiftCardDto = class {
@@ -27168,14 +27170,14 @@ var GiftCardsController = class {
   }
 };
 __decorateClass([
-  Roles(import_client41.UserRole.owner, import_client41.UserRole.manager, import_client41.UserRole.finance),
+  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager, import_client40.UserRole.finance),
   (0, import_common228.Post)("bookings/:bookingId/gift-cards/redeem"),
   (0, import_http_code.HttpCode)(200),
   __decorateParam(0, (0, import_common228.Param)("bookingId")),
   __decorateParam(1, (0, import_common228.Body)())
 ], GiftCardsController.prototype, "redeemBooking", 1);
 __decorateClass([
-  Roles(import_client41.UserRole.owner, import_client41.UserRole.manager, import_client41.UserRole.finance),
+  Roles(import_client40.UserRole.owner, import_client40.UserRole.manager, import_client40.UserRole.finance),
   (0, import_common228.Post)("pos/orders/:orderId/gift-cards/redeem"),
   (0, import_http_code.HttpCode)(200),
   __decorateParam(0, (0, import_common228.Param)("orderId")),
@@ -27284,7 +27286,7 @@ var import_common233 = require("@nestjs/common");
 
 // src/backup/backup.controller.ts
 var import_common231 = require("@nestjs/common");
-var import_client42 = require("@prisma/client");
+var import_client41 = require("@prisma/client");
 var BackupController = class {
   constructor(backup) {
     this.backup = backup;
@@ -27297,13 +27299,13 @@ var BackupController = class {
   }
 };
 __decorateClass([
-  Roles(import_client42.UserRole.owner, import_client42.UserRole.manager, import_client42.UserRole.readonly),
+  Roles(import_client41.UserRole.owner, import_client41.UserRole.manager, import_client41.UserRole.readonly),
   RequireScope({ resource: "backup", action: "read" }),
   (0, import_common231.Get)("status"),
   __decorateParam(0, (0, import_common231.Param)("campgroundId"))
 ], BackupController.prototype, "status", 1);
 __decorateClass([
-  Roles(import_client42.UserRole.owner, import_client42.UserRole.manager),
+  Roles(import_client41.UserRole.owner, import_client41.UserRole.manager),
   RequireScope({ resource: "backup", action: "write" }),
   (0, import_common231.Post)("restore-sim"),
   __decorateParam(0, (0, import_common231.Param)("campgroundId"))
@@ -27518,7 +27520,7 @@ var import_common235 = require("@nestjs/common");
 
 // src/pricing-v2/pricing-v2.controller.ts
 var import_common234 = require("@nestjs/common");
-var import_client43 = require("@prisma/client");
+var import_client42 = require("@prisma/client");
 var PricingV2Controller = class {
   constructor(pricing) {
     this.pricing = pricing;
@@ -27537,24 +27539,24 @@ var PricingV2Controller = class {
   }
 };
 __decorateClass([
-  Roles(import_client43.UserRole.owner, import_client43.UserRole.manager),
+  Roles(import_client42.UserRole.owner, import_client42.UserRole.manager),
   (0, import_common234.Get)("campgrounds/:campgroundId/pricing-rules/v2"),
   __decorateParam(0, (0, import_common234.Param)("campgroundId"))
 ], PricingV2Controller.prototype, "list", 1);
 __decorateClass([
-  Roles(import_client43.UserRole.owner, import_client43.UserRole.manager),
+  Roles(import_client42.UserRole.owner, import_client42.UserRole.manager),
   (0, import_common234.Post)("campgrounds/:campgroundId/pricing-rules/v2"),
   __decorateParam(0, (0, import_common234.Param)("campgroundId")),
   __decorateParam(1, (0, import_common234.Body)())
 ], PricingV2Controller.prototype, "create", 1);
 __decorateClass([
-  Roles(import_client43.UserRole.owner, import_client43.UserRole.manager),
+  Roles(import_client42.UserRole.owner, import_client42.UserRole.manager),
   (0, import_common234.Patch)("pricing-rules/v2/:id"),
   __decorateParam(0, (0, import_common234.Param)("id")),
   __decorateParam(1, (0, import_common234.Body)())
 ], PricingV2Controller.prototype, "update", 1);
 __decorateClass([
-  Roles(import_client43.UserRole.owner, import_client43.UserRole.manager),
+  Roles(import_client42.UserRole.owner, import_client42.UserRole.manager),
   (0, import_common234.Delete)("pricing-rules/v2/:id"),
   __decorateParam(0, (0, import_common234.Param)("id"))
 ], PricingV2Controller.prototype, "remove", 1);
@@ -27580,7 +27582,7 @@ var import_common237 = require("@nestjs/common");
 
 // src/deposit-policies/deposit-policies.controller.ts
 var import_common236 = require("@nestjs/common");
-var import_client44 = require("@prisma/client");
+var import_client43 = require("@prisma/client");
 var DepositPoliciesController = class {
   constructor(depositPolicies) {
     this.depositPolicies = depositPolicies;
@@ -27599,24 +27601,24 @@ var DepositPoliciesController = class {
   }
 };
 __decorateClass([
-  Roles(import_client44.UserRole.owner, import_client44.UserRole.manager, import_client44.UserRole.finance),
+  Roles(import_client43.UserRole.owner, import_client43.UserRole.manager, import_client43.UserRole.finance),
   (0, import_common236.Get)("campgrounds/:campgroundId/deposit-policies"),
   __decorateParam(0, (0, import_common236.Param)("campgroundId"))
 ], DepositPoliciesController.prototype, "list", 1);
 __decorateClass([
-  Roles(import_client44.UserRole.owner, import_client44.UserRole.manager, import_client44.UserRole.finance),
+  Roles(import_client43.UserRole.owner, import_client43.UserRole.manager, import_client43.UserRole.finance),
   (0, import_common236.Post)("campgrounds/:campgroundId/deposit-policies"),
   __decorateParam(0, (0, import_common236.Param)("campgroundId")),
   __decorateParam(1, (0, import_common236.Body)())
 ], DepositPoliciesController.prototype, "create", 1);
 __decorateClass([
-  Roles(import_client44.UserRole.owner, import_client44.UserRole.manager, import_client44.UserRole.finance),
+  Roles(import_client43.UserRole.owner, import_client43.UserRole.manager, import_client43.UserRole.finance),
   (0, import_common236.Patch)("deposit-policies/:id"),
   __decorateParam(0, (0, import_common236.Param)("id")),
   __decorateParam(1, (0, import_common236.Body)())
 ], DepositPoliciesController.prototype, "update", 1);
 __decorateClass([
-  Roles(import_client44.UserRole.owner, import_client44.UserRole.manager, import_client44.UserRole.finance),
+  Roles(import_client43.UserRole.owner, import_client43.UserRole.manager, import_client43.UserRole.finance),
   (0, import_common236.Delete)("deposit-policies/:id"),
   __decorateParam(0, (0, import_common236.Param)("id"))
 ], DepositPoliciesController.prototype, "remove", 1);
@@ -27642,7 +27644,7 @@ var import_common240 = require("@nestjs/common");
 
 // src/upsells/upsells.controller.ts
 var import_common238 = require("@nestjs/common");
-var import_client45 = require("@prisma/client");
+var import_client44 = require("@prisma/client");
 var UpsellsController = class {
   constructor(upsells) {
     this.upsells = upsells;
@@ -27661,24 +27663,24 @@ var UpsellsController = class {
   }
 };
 __decorateClass([
-  Roles(import_client45.UserRole.owner, import_client45.UserRole.manager),
+  Roles(import_client44.UserRole.owner, import_client44.UserRole.manager),
   (0, import_common238.Get)("campgrounds/:campgroundId/upsells"),
   __decorateParam(0, (0, import_common238.Param)("campgroundId"))
 ], UpsellsController.prototype, "list", 1);
 __decorateClass([
-  Roles(import_client45.UserRole.owner, import_client45.UserRole.manager),
+  Roles(import_client44.UserRole.owner, import_client44.UserRole.manager),
   (0, import_common238.Post)("campgrounds/:campgroundId/upsells"),
   __decorateParam(0, (0, import_common238.Param)("campgroundId")),
   __decorateParam(1, (0, import_common238.Body)())
 ], UpsellsController.prototype, "create", 1);
 __decorateClass([
-  Roles(import_client45.UserRole.owner, import_client45.UserRole.manager),
+  Roles(import_client44.UserRole.owner, import_client44.UserRole.manager),
   (0, import_common238.Patch)("upsells/:id"),
   __decorateParam(0, (0, import_common238.Param)("id")),
   __decorateParam(1, (0, import_common238.Body)())
 ], UpsellsController.prototype, "update", 1);
 __decorateClass([
-  Roles(import_client45.UserRole.owner, import_client45.UserRole.manager),
+  Roles(import_client44.UserRole.owner, import_client44.UserRole.manager),
   (0, import_common238.Delete)("upsells/:id"),
   __decorateParam(0, (0, import_common238.Param)("id"))
 ], UpsellsController.prototype, "remove", 1);
@@ -27784,7 +27786,7 @@ var import_common242 = require("@nestjs/common");
 // src/auto-collect/auto-collect.service.ts
 var import_common241 = require("@nestjs/common");
 var import_schedule13 = require("@nestjs/schedule");
-var import_client46 = require("@prisma/client");
+var import_client45 = require("@prisma/client");
 var AutoCollectService = class {
   constructor(prisma, idempotency, stripeService) {
     this.prisma = prisma;
@@ -27797,7 +27799,7 @@ var AutoCollectService = class {
     this.logger.log(`[AutoCollect] Starting sweep at ${now.toISOString()}`);
     const dueReservations = await this.prisma.reservation.findMany({
       where: {
-        status: { in: [import_client46.ReservationStatus.pending, import_client46.ReservationStatus.confirmed] },
+        status: { in: [import_client45.ReservationStatus.pending, import_client45.ReservationStatus.confirmed] },
         balanceAmount: { gt: 0 },
         nextAutoCollectAttemptAt: { lte: now }
       },
@@ -27948,7 +27950,7 @@ var AutoCollectService = class {
   }
   async scheduleNextAttempt(reservation, reason, retryPlan) {
     const maxAttempts = retryPlan?.maxAttempts ?? 3;
-    const backoffStrategy = retryPlan?.backoffStrategy ?? import_client46.BackoffStrategy.exponential;
+    const backoffStrategy = retryPlan?.backoffStrategy ?? import_client45.BackoffStrategy.exponential;
     const baseDelayHours = retryPlan?.retryDelayHours ?? 24;
     const attemptCount = 1;
     if (attemptCount >= maxAttempts) {
@@ -27958,13 +27960,13 @@ var AutoCollectService = class {
     }
     let delayHours;
     switch (backoffStrategy) {
-      case import_client46.BackoffStrategy.exponential:
+      case import_client45.BackoffStrategy.exponential:
         delayHours = baseDelayHours * Math.pow(2, attemptCount - 1);
         break;
-      case import_client46.BackoffStrategy.linear:
+      case import_client45.BackoffStrategy.linear:
         delayHours = baseDelayHours * attemptCount;
         break;
-      case import_client46.BackoffStrategy.fixed:
+      case import_client45.BackoffStrategy.fixed:
       default:
         delayHours = baseDelayHours;
     }
@@ -28277,7 +28279,7 @@ SelfCheckinController = __decorateClass([
 
 // src/self-checkin/self-checkin.service.ts
 var import_common247 = require("@nestjs/common");
-var import_client47 = require("@prisma/client");
+var import_client46 = require("@prisma/client");
 var SelfCheckinService = class {
   constructor(prisma, signatures, audit, accessControl) {
     this.prisma = prisma;
@@ -28450,7 +28452,7 @@ var SelfCheckinService = class {
         where: { id: reservationId },
         include: { campground: true, guest: true }
       });
-      const checkInStatus = validation.reason === "waiver_required" ? import_client47.CheckInStatus.pending_waiver : validation.reason === "id_verification_required" ? import_client47.CheckInStatus.pending_id : validation.reason === "payment_required" ? import_client47.CheckInStatus.pending_payment : import_client47.CheckInStatus.failed;
+      const checkInStatus = validation.reason === "waiver_required" ? import_client46.CheckInStatus.pending_waiver : validation.reason === "id_verification_required" ? import_client46.CheckInStatus.pending_id : validation.reason === "payment_required" ? import_client46.CheckInStatus.pending_payment : import_client46.CheckInStatus.failed;
       const updatedReservation = reservation2 ? await this.prisma.reservation.update({
         where: { id: reservationId },
         data: { checkInStatus },
@@ -28500,7 +28502,7 @@ var SelfCheckinService = class {
     const reservation = await this.prisma.reservation.update({
       where: { id: reservationId },
       data: {
-        checkInStatus: import_client47.CheckInStatus.completed,
+        checkInStatus: import_client46.CheckInStatus.completed,
         selfCheckInAt: now,
         lateArrivalFlag: options?.lateArrival ?? false,
         status: "checked_in"
@@ -29027,7 +29029,7 @@ var import_common256 = require("@nestjs/common");
 
 // src/notification-triggers/notification-triggers.controller.ts
 var import_common254 = require("@nestjs/common");
-var import_client48 = require("@prisma/client");
+var import_client47 = require("@prisma/client");
 var NotificationTriggersController = class {
   constructor(service) {
     this.service = service;
@@ -29046,24 +29048,24 @@ var NotificationTriggersController = class {
   }
 };
 __decorateClass([
-  Roles(import_client48.UserRole.owner, import_client48.UserRole.manager),
+  Roles(import_client47.UserRole.owner, import_client47.UserRole.manager),
   (0, import_common254.Get)(),
   __decorateParam(0, (0, import_common254.Param)("campgroundId"))
 ], NotificationTriggersController.prototype, "list", 1);
 __decorateClass([
-  Roles(import_client48.UserRole.owner, import_client48.UserRole.manager),
+  Roles(import_client47.UserRole.owner, import_client47.UserRole.manager),
   (0, import_common254.Post)(),
   __decorateParam(0, (0, import_common254.Param)("campgroundId")),
   __decorateParam(1, (0, import_common254.Body)())
 ], NotificationTriggersController.prototype, "create", 1);
 __decorateClass([
-  Roles(import_client48.UserRole.owner, import_client48.UserRole.manager),
+  Roles(import_client47.UserRole.owner, import_client47.UserRole.manager),
   (0, import_common254.Patch)(":id"),
   __decorateParam(0, (0, import_common254.Param)("id")),
   __decorateParam(1, (0, import_common254.Body)())
 ], NotificationTriggersController.prototype, "update", 1);
 __decorateClass([
-  Roles(import_client48.UserRole.owner, import_client48.UserRole.manager),
+  Roles(import_client47.UserRole.owner, import_client47.UserRole.manager),
   (0, import_common254.Delete)(":id"),
   __decorateParam(0, (0, import_common254.Param)("id"))
 ], NotificationTriggersController.prototype, "delete", 1);
@@ -29475,7 +29477,7 @@ StoredValueController = __decorateClass([
 
 // src/stored-value/stored-value.service.ts
 var import_common258 = require("@nestjs/common");
-var import_client49 = require("@prisma/client");
+var import_client48 = require("@prisma/client");
 var import_crypto21 = __toESM(require("crypto"));
 var StoredValueService = class {
   constructor(prisma, idempotency, observability) {
@@ -29492,8 +29494,8 @@ var StoredValueService = class {
       "stored-value/issue",
       dto.referenceId ?? dto.code ?? dto.customerId ?? null
     );
-    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client48.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client48.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common258.ConflictException("Request already in progress");
     }
     const campgroundId = scope.campgroundId ?? null;
@@ -29514,7 +29516,7 @@ var StoredValueService = class {
             campgroundId: campgroundId ?? dto.tenantId,
             type: dto.type,
             currency: dto.currency.toLowerCase(),
-            status: import_client49.StoredValueStatus.active,
+            status: import_client48.StoredValueStatus.active,
             issuedAt: now,
             expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
             createdBy: actor?.id,
@@ -29538,7 +29540,7 @@ var StoredValueService = class {
           data: {
             campgroundId: account.campgroundId,
             accountId: account.id,
-            direction: import_client49.StoredValueDirection.issue,
+            direction: import_client48.StoredValueDirection.issue,
             amountCents: dto.amountCents,
             currency: dto.currency.toLowerCase(),
             beforeBalanceCents: before,
@@ -29581,8 +29583,8 @@ var StoredValueService = class {
       "stored-value/reload",
       dto.referenceId ?? dto.accountId
     );
-    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client48.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client48.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common258.ConflictException("Request already in progress");
     }
     const account = await this.prisma.storedValueAccount.findUnique({ where: { id: dto.accountId } });
@@ -29600,7 +29602,7 @@ var StoredValueService = class {
           data: {
             campgroundId: account.campgroundId,
             accountId: account.id,
-            direction: import_client49.StoredValueDirection.issue,
+            direction: import_client48.StoredValueDirection.issue,
             amountCents: dto.amountCents,
             currency: account.currency,
             beforeBalanceCents: balanceCents,
@@ -29630,8 +29632,8 @@ var StoredValueService = class {
     const started = Date.now();
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, dto, scope, "stored-value/redeem", `${dto.referenceType}:${dto.referenceId}`);
-    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client48.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client48.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common258.ConflictException("Request already in progress");
     }
     const account = await this.getAccount(dto);
@@ -29649,7 +29651,7 @@ var StoredValueService = class {
               accountId: account.id,
               referenceType: dto.referenceType,
               referenceId: dto.referenceId,
-              direction: import_client49.StoredValueDirection.redeem
+              direction: import_client48.StoredValueDirection.redeem
             }
           });
           if (alreadyRedeemed) {
@@ -29677,7 +29679,7 @@ var StoredValueService = class {
           data: {
             campgroundId: account.campgroundId,
             accountId: account.id,
-            direction: import_client49.StoredValueDirection.redeem,
+            direction: import_client48.StoredValueDirection.redeem,
             amountCents: dto.amountCents,
             currency: account.currency,
             beforeBalanceCents: before,
@@ -29710,8 +29712,8 @@ var StoredValueService = class {
   async captureHold(holdId, idempotencyKey, actor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, { holdId }, scope, "stored-value/hold-capture");
-    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client48.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client48.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common258.ConflictException("Request already in progress");
     }
     const hold = await this.prisma.storedValueHold.findUnique({ where: { id: holdId } });
@@ -29731,7 +29733,7 @@ var StoredValueService = class {
           data: {
             campgroundId: account.campgroundId,
             accountId: account.id,
-            direction: import_client49.StoredValueDirection.hold_capture,
+            direction: import_client48.StoredValueDirection.hold_capture,
             amountCents: hold.amountCents,
             currency: account.currency,
             beforeBalanceCents: before,
@@ -29765,8 +29767,8 @@ var StoredValueService = class {
       "stored-value/refund",
       dto.referenceId ?? `${dto.accountId}:${dto.amountCents}`
     );
-    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client48.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client48.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common258.ConflictException("Request already in progress");
     }
     const account = await this.prisma.storedValueAccount.findUnique({ where: { id: dto.accountId } });
@@ -29781,7 +29783,7 @@ var StoredValueService = class {
           data: {
             campgroundId: account.campgroundId,
             accountId: account.id,
-            direction: import_client49.StoredValueDirection.refund,
+            direction: import_client48.StoredValueDirection.refund,
             amountCents: dto.amountCents,
             currency: account.currency,
             beforeBalanceCents: balanceCents,
@@ -29806,8 +29808,8 @@ var StoredValueService = class {
   async voidOrChargeback(dto, idempotencyKey, actor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, dto, scope, "stored-value/void", dto.referenceId ?? dto.accountId);
-    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client48.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client48.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common258.ConflictException("Request already in progress");
     }
     const account = await this.prisma.storedValueAccount.findUnique({ where: { id: dto.accountId } });
@@ -29816,14 +29818,14 @@ var StoredValueService = class {
       const result = await this.prisma.$transaction(async (tx) => {
         const { balanceCents } = await this.getBalances(tx, account.id);
         if (balanceCents <= 0) {
-          await tx.storedValueAccount.update({ where: { id: account.id }, data: { status: import_client49.StoredValueStatus.frozen } });
+          await tx.storedValueAccount.update({ where: { id: account.id }, data: { status: import_client48.StoredValueStatus.frozen } });
           return { accountId: account.id, balanceCents };
         }
         await tx.storedValueLedger.create({
           data: {
             campgroundId: account.campgroundId,
             accountId: account.id,
-            direction: import_client49.StoredValueDirection.expire,
+            direction: import_client48.StoredValueDirection.expire,
             amountCents: balanceCents,
             currency: account.currency,
             beforeBalanceCents: balanceCents,
@@ -29838,7 +29840,7 @@ var StoredValueService = class {
         });
         await tx.storedValueAccount.update({
           where: { id: account.id },
-          data: { status: import_client49.StoredValueStatus.frozen }
+          data: { status: import_client48.StoredValueStatus.frozen }
         });
         return { accountId: account.id, balanceCents: 0, status: "frozen" };
       });
@@ -29852,8 +29854,8 @@ var StoredValueService = class {
   async releaseHold(holdId, idempotencyKey, actor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, { holdId }, scope, "stored-value/hold-release");
-    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client48.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client48.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common258.ConflictException("Request already in progress");
     }
     const hold = await this.prisma.storedValueHold.findUnique({ where: { id: holdId } });
@@ -29896,7 +29898,7 @@ var StoredValueService = class {
   async expireBalances(cutoff) {
     const now = cutoff ?? /* @__PURE__ */ new Date();
     const accounts = await this.prisma.storedValueAccount.findMany({
-      where: { status: import_client49.StoredValueStatus.active, expiresAt: { not: null, lt: now } },
+      where: { status: import_client48.StoredValueStatus.active, expiresAt: { not: null, lt: now } },
       select: { id: true, campgroundId: true, currency: true, expiresAt: true }
     });
     if (!accounts.length) return { expired: 0, zeroed: 0 };
@@ -29908,7 +29910,7 @@ var StoredValueService = class {
         if (balanceCents <= 0) {
           await tx.storedValueAccount.update({
             where: { id: acc.id },
-            data: { status: import_client49.StoredValueStatus.expired }
+            data: { status: import_client48.StoredValueStatus.expired }
           });
           zeroedCount += 1;
           return;
@@ -29917,7 +29919,7 @@ var StoredValueService = class {
           data: {
             campgroundId: acc.campgroundId,
             accountId: acc.id,
-            direction: import_client49.StoredValueDirection.expire,
+            direction: import_client48.StoredValueDirection.expire,
             amountCents: balanceCents,
             currency: acc.currency,
             beforeBalanceCents: balanceCents,
@@ -29929,7 +29931,7 @@ var StoredValueService = class {
         });
         await tx.storedValueAccount.update({
           where: { id: acc.id },
-          data: { status: import_client49.StoredValueStatus.expired }
+          data: { status: import_client48.StoredValueStatus.expired }
         });
         expiredCount += 1;
       });
@@ -29939,8 +29941,8 @@ var StoredValueService = class {
   async adjust(dto, idempotencyKey, actor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, dto, scope, "stored-value/adjust");
-    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client48.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client48.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common258.ConflictException("Request already in progress");
     }
     const account = await this.prisma.storedValueAccount.findUnique({ where: { id: dto.accountId } });
@@ -29955,7 +29957,7 @@ var StoredValueService = class {
           data: {
             campgroundId: account.campgroundId,
             accountId: account.id,
-            direction: import_client49.StoredValueDirection.adjust,
+            direction: import_client48.StoredValueDirection.adjust,
             amountCents: dto.deltaCents,
             currency: account.currency,
             beforeBalanceCents: balanceCents,
@@ -30036,8 +30038,8 @@ var StoredValueService = class {
     return { campgroundId, taxableCents, nonTaxableCents, totalCents, rollForwardCents, driftCents, rollForwardOk };
   }
   directionToSigned(direction, amount) {
-    if ([import_client49.StoredValueDirection.issue, import_client49.StoredValueDirection.refund, import_client49.StoredValueDirection.adjust].includes(direction)) return amount;
-    if ([import_client49.StoredValueDirection.redeem, import_client49.StoredValueDirection.expire, import_client49.StoredValueDirection.hold_capture].includes(direction)) return -Math.abs(amount);
+    if ([import_client48.StoredValueDirection.issue, import_client48.StoredValueDirection.refund, import_client48.StoredValueDirection.adjust].includes(direction)) return amount;
+    if ([import_client48.StoredValueDirection.redeem, import_client48.StoredValueDirection.expire, import_client48.StoredValueDirection.hold_capture].includes(direction)) return -Math.abs(amount);
     return 0;
   }
   async getBalances(tx, accountId) {
@@ -30066,7 +30068,7 @@ var StoredValueService = class {
     });
   }
   ensureActive(account) {
-    if (account.status !== import_client49.StoredValueStatus.active) {
+    if (account.status !== import_client48.StoredValueStatus.active) {
       throw new import_common258.ForbiddenException("Stored value account not active");
     }
     if (account.expiresAt && account.expiresAt < /* @__PURE__ */ new Date()) {
@@ -30091,7 +30093,7 @@ var StoredValueService = class {
       throw new import_common258.BadRequestException("taxable_load requires campground context");
     }
     const activeRate = await this.prisma.taxRule.findFirst({
-      where: { campgroundId, type: import_client49.TaxRuleType.rate, isActive: true }
+      where: { campgroundId, type: import_client48.TaxRuleType.rate, isActive: true }
     });
     if (!activeRate) {
       throw new import_common258.BadRequestException("Taxable load requires an active tax rule");
@@ -30244,7 +30246,7 @@ PosController = __decorateClass([
 
 // src/pos/pos.service.ts
 var import_common261 = require("@nestjs/common");
-var import_client50 = require("@prisma/client");
+var import_client49 = require("@prisma/client");
 var import_crypto22 = __toESM(require("crypto"));
 var PosService = class {
   constructor(prisma, idempotency, storedValue, stripe, till, observability, providerIntegrations, audit, email) {
@@ -30311,8 +30313,8 @@ var PosService = class {
   }
   async checkout(cartId, dto, idempotencyKey, actor) {
     const existing = await this.guardIdempotency(idempotencyKey, { cartId, dto }, actor, "pos/checkout");
-    if (existing?.status === import_client50.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client50.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common261.ConflictException("Request already in progress");
     }
     const cart = await this.prisma.posCart.findUnique({
@@ -30320,7 +30322,7 @@ var PosService = class {
       include: { items: { include: { product: true } }, payments: true }
     });
     if (!cart) throw new import_common261.NotFoundException("Cart not found");
-    if (cart.status !== import_client50.PosCartStatus.open) throw new import_common261.ConflictException("Cart not open");
+    if (cart.status !== import_client49.PosCartStatus.open) throw new import_common261.ConflictException("Cart not open");
     const expected = this.reprice(cart);
     const expectedTotal = expected.totalCents;
     const tenderTotal = dto.payments.reduce((sum, p) => sum + p.amountCents, 0);
@@ -30373,7 +30375,7 @@ var PosService = class {
                 method: p.method,
                 amountCents: p.amountCents,
                 currency: p.currency.toLowerCase(),
-                status: import_client50.PosPaymentStatus.pending,
+                status: import_client49.PosPaymentStatus.pending,
                 idempotencyKey: p.idempotencyKey,
                 referenceType: p.referenceType,
                 referenceId: p.referenceId
@@ -30394,7 +30396,7 @@ var PosService = class {
               }
             );
             if (providerPayment) {
-              const status = providerPayment.status === "succeeded" ? import_client50.PosPaymentStatus.succeeded : providerPayment.status === "failed" ? import_client50.PosPaymentStatus.failed : import_client50.PosPaymentStatus.pending;
+              const status = providerPayment.status === "succeeded" ? import_client49.PosPaymentStatus.succeeded : providerPayment.status === "failed" ? import_client49.PosPaymentStatus.failed : import_client49.PosPaymentStatus.pending;
               await tx.posPayment.create({
                 data: {
                   cartId,
@@ -30438,7 +30440,7 @@ var PosService = class {
                 method: p.method,
                 amountCents: p.amountCents,
                 currency: p.currency.toLowerCase(),
-                status: import_client50.PosPaymentStatus.succeeded,
+                status: import_client49.PosPaymentStatus.succeeded,
                 idempotencyKey: p.idempotencyKey,
                 referenceType: p.referenceType,
                 referenceId: p.referenceId,
@@ -30453,7 +30455,7 @@ var PosService = class {
               method: p.method,
               amountCents: p.amountCents,
               currency: p.currency.toLowerCase(),
-              status: import_client50.PosPaymentStatus.succeeded,
+              status: import_client49.PosPaymentStatus.succeeded,
               idempotencyKey: p.idempotencyKey,
               referenceType: p.referenceType,
               referenceId: p.referenceId
@@ -30463,7 +30465,7 @@ var PosService = class {
             await tx.tillMovement.create({
               data: {
                 sessionId: cashTillSession.id,
-                type: import_client50.TillMovementType.cash_sale,
+                type: import_client49.TillMovementType.cash_sale,
                 amountCents: p.amountCents,
                 currency: payment.currency,
                 actorUserId: actor?.id,
@@ -30476,7 +30478,7 @@ var PosService = class {
         await tx.posCart.update({
           where: { id: cartId },
           data: {
-            status: import_client50.PosCartStatus.checked_out,
+            status: import_client49.PosCartStatus.checked_out,
             netCents: expected.netCents,
             taxCents: expected.taxCents,
             feeCents: expected.feeCents,
@@ -30531,7 +30533,7 @@ var PosService = class {
         this.logger.warn(`Duplicate offline replay detected for seq ${dto.clientTxId} scope ${scope}`);
         return seqExisting.responseJson;
       }
-      if (seqExisting?.status === import_client50.IdempotencyStatus.inflight) {
+      if (seqExisting?.status === import_client49.IdempotencyStatus.inflight) {
         throw new import_common261.ConflictException("Replay already in progress");
       }
       if (seqExisting) {
@@ -30539,8 +30541,8 @@ var PosService = class {
       }
     }
     const existing = await this.guardIdempotency(idempotencyKey, dto, actor, "pos/offline/replay", dto.clientTxId, dto.recordedTotalsHash);
-    if (existing?.status === import_client50.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client50.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common261.ConflictException("Request already in progress");
     }
     const cartId = dto.payload?.cartId;
@@ -30664,8 +30666,8 @@ var PosService = class {
   }
   async createReturn(dto, idempotencyKey, actor) {
     const existing = await this.guardIdempotency(idempotencyKey, dto, actor, "pos/returns");
-    if (existing?.status === import_client50.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
-    if (existing?.status === import_client50.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client49.IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
+    if (existing?.status === import_client49.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common261.ConflictException("Request already in progress");
     }
     const cart = await this.prisma.posCart.findUnique({
@@ -30673,7 +30675,7 @@ var PosService = class {
       include: { items: true }
     });
     if (!cart) throw new import_common261.NotFoundException("Original cart not found");
-    if (cart.status !== import_client50.PosCartStatus.checked_out) throw new import_common261.ConflictException("Only checked out carts can be returned");
+    if (cart.status !== import_client49.PosCartStatus.checked_out) throw new import_common261.ConflictException("Only checked out carts can be returned");
     const itemsToReverse = dto.items?.length ? cart.items.filter((i) => dto.items?.some((sel) => sel.cartItemId === i.id)) : cart.items;
     if (!itemsToReverse.length) {
       throw new import_common261.BadRequestException("No items to return");
@@ -31332,7 +31334,7 @@ PosProviderController = __decorateClass([
 
 // src/pos/pos-provider.service.ts
 var import_common265 = require("@nestjs/common");
-var import_client51 = require("@prisma/client");
+var import_client50 = require("@prisma/client");
 var PosProviderService = class {
   constructor(prisma, registry, audit, idempotency, clover, square, toast) {
     this.prisma = prisma;
@@ -31344,14 +31346,14 @@ var PosProviderService = class {
   }
   normalizeProvider(provider) {
     const normalized = provider.toLowerCase();
-    if (!Object.values(import_client51.PosProviderType).includes(normalized)) {
+    if (!Object.values(import_client50.PosProviderType).includes(normalized)) {
       throw new import_common265.BadRequestException("Unsupported provider");
     }
     return normalized;
   }
   normalizeCapabilities(capabilities) {
-    if (!capabilities?.length) return [import_client51.PosProviderCapability.payments];
-    return capabilities.map((c) => c.toLowerCase()).filter((c) => Object.values(import_client51.PosProviderCapability).includes(c));
+    if (!capabilities?.length) return [import_client50.PosProviderCapability.payments];
+    return capabilities.map((c) => c.toLowerCase()).filter((c) => Object.values(import_client50.PosProviderCapability).includes(c));
   }
   mapIntegration(record) {
     return {
@@ -31379,7 +31381,7 @@ var PosProviderService = class {
   async upsertIntegration(campgroundId, providerInput, dto, actor) {
     const provider = this.normalizeProvider(providerInput);
     const capabilities = this.normalizeCapabilities(dto.capabilities);
-    const status = dto.enabled === false ? import_client51.PosIntegrationStatus.disabled : dto.enabled === true ? import_client51.PosIntegrationStatus.enabled : void 0;
+    const status = dto.enabled === false ? import_client50.PosIntegrationStatus.disabled : dto.enabled === true ? import_client50.PosIntegrationStatus.enabled : void 0;
     const integration = await this.prisma.posProviderIntegration.upsert({
       where: { campgroundId_provider: { campgroundId, provider } },
       create: {
@@ -31391,7 +31393,7 @@ var PosProviderService = class {
         locations: dto.locations ?? {},
         devices: dto.devices ?? {},
         webhookSecret: dto.webhookSecret ?? null,
-        status: status ?? import_client51.PosIntegrationStatus.enabled,
+        status: status ?? import_client50.PosIntegrationStatus.enabled,
         lastValidatedAt: /* @__PURE__ */ new Date()
       },
       update: {
@@ -31434,7 +31436,7 @@ var PosProviderService = class {
       where: { campgroundId, provider },
       data: {
         lastValidatedAt: /* @__PURE__ */ new Date(),
-        status: result.ok ? import_client51.PosIntegrationStatus.enabled : import_client51.PosIntegrationStatus.error
+        status: result.ok ? import_client50.PosIntegrationStatus.enabled : import_client50.PosIntegrationStatus.error
       }
     });
     return result;
@@ -31447,12 +31449,12 @@ var PosProviderService = class {
     if (!integration) throw new import_common265.NotFoundException("Integration not configured");
     const adapter = this.getAdapter(provider);
     const record = this.mapIntegration(integration);
-    const result = target === import_client51.PosSyncTarget.catalog ? await adapter.syncCatalog(record) : await adapter.syncTenders(record);
-    const syncStatus = result.status ?? import_client51.PosSyncStatus.running;
+    const result = target === import_client50.PosSyncTarget.catalog ? await adapter.syncCatalog(record) : await adapter.syncTenders(record);
+    const syncStatus = result.status ?? import_client50.PosSyncStatus.running;
     const syncPayload = {
       status: syncStatus,
       lastRunAt: /* @__PURE__ */ new Date(),
-      lastError: syncStatus === import_client51.PosSyncStatus.failed ? result.message ?? "sync_failed" : null,
+      lastError: syncStatus === import_client50.PosSyncStatus.failed ? result.message ?? "sync_failed" : null,
       metadata: result.metadata ?? null
     };
     await this.prisma.posProviderSync.upsert({
@@ -31485,8 +31487,8 @@ var PosProviderService = class {
     const integration = await this.prisma.posProviderIntegration.findFirst({
       where: {
         campgroundId,
-        status: import_client51.PosIntegrationStatus.enabled,
-        capabilities: { has: import_client51.PosProviderCapability.payments }
+        status: import_client50.PosIntegrationStatus.enabled,
+        capabilities: { has: import_client50.PosProviderCapability.payments }
       }
     });
     if (!integration) return null;
@@ -31533,10 +31535,10 @@ var PosProviderService = class {
         this.logger.warn(`Idempotency start failed: ${err?.message ?? err}`);
         return null;
       });
-      if (existing?.status === import_client51.IdempotencyStatus.succeeded && existing.responseJson) {
+      if (existing?.status === import_client50.IdempotencyStatus.succeeded && existing.responseJson) {
         return { ...existing.responseJson, deduped: true };
       }
-      if (existing?.status === import_client51.IdempotencyStatus.inflight) {
+      if (existing?.status === import_client50.IdempotencyStatus.inflight) {
         return { acknowledged: false, deduped: true, message: "webhook_inflight" };
       }
     }
@@ -33950,7 +33952,7 @@ var import_common292 = require("@nestjs/common");
 
 // src/onboarding/onboarding.service.ts
 var import_common290 = require("@nestjs/common");
-var import_client52 = require("@prisma/client");
+var import_client51 = require("@prisma/client");
 var import_class_transformer4 = require("class-transformer");
 var import_class_validator10 = require("class-validator");
 var import_crypto25 = __toESM(require("crypto"));
@@ -34214,7 +34216,7 @@ var OnboardingService = class {
         inviteId: invite.id,
         organizationId: invite.organizationId ?? null,
         campgroundId: invite.campgroundId ?? null,
-        status: import_client52.OnboardingStatus.in_progress,
+        status: import_client51.OnboardingStatus.in_progress,
         currentStep: OnboardingStep.account_profile,
         completedSteps: [],
         expiresAt: invite.expiresAt
@@ -34238,10 +34240,10 @@ var OnboardingService = class {
     const session = await this.requireSession(sessionId, token);
     const scope = { campgroundId: session.campgroundId ?? null, tenantId: session.organizationId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, { step, payload }, scope, `onboarding/${step}`, sequence);
-    if (existing?.status === import_client52.IdempotencyStatus.succeeded && existing.responseJson) {
+    if (existing?.status === import_client51.IdempotencyStatus.succeeded && existing.responseJson) {
       return existing.responseJson;
     }
-    if (existing?.status === import_client52.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
+    if (existing?.status === import_client51.IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 6e4) {
       throw new import_common290.ConflictException("Onboarding step already in progress");
     }
     const sanitized = this.validatePayload(step, payload);
@@ -34253,7 +34255,7 @@ var OnboardingService = class {
       completedSteps: Array.from(completed),
       data: { ...session.data ?? {}, [step]: sanitized }
     });
-    const nextStatus = progress.remainingSteps.length === 0 ? import_client52.OnboardingStatus.completed : import_client52.OnboardingStatus.in_progress;
+    const nextStatus = progress.remainingSteps.length === 0 ? import_client51.OnboardingStatus.completed : import_client51.OnboardingStatus.in_progress;
     const updated = await this.prisma.onboardingSession.update({
       where: { id: sessionId },
       data: {
@@ -34429,7 +34431,7 @@ var import_common296 = require("@nestjs/common");
 
 // src/billing/billing.controller.ts
 var import_common293 = require("@nestjs/common");
-var import_client53 = require("@prisma/client");
+var import_client52 = require("@prisma/client");
 var BillingController = class {
   constructor(billing) {
     this.billing = billing;
@@ -34494,91 +34496,91 @@ var BillingController = class {
   }
 };
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("campgrounds/:campgroundId/meters"),
   __decorateParam(0, (0, import_common293.Param)("campgroundId")),
   __decorateParam(1, (0, import_common293.Body)())
 ], BillingController.prototype, "createMeter", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Get)("campgrounds/:campgroundId/utility-rate-plans"),
   __decorateParam(0, (0, import_common293.Param)("campgroundId"))
 ], BillingController.prototype, "listRatePlans", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Get)("campgrounds/:campgroundId/meters"),
   __decorateParam(0, (0, import_common293.Param)("campgroundId"))
 ], BillingController.prototype, "listMeters", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("meters/:meterId/reads"),
   __decorateParam(0, (0, import_common293.Param)("meterId")),
   __decorateParam(1, (0, import_common293.Body)())
 ], BillingController.prototype, "addRead", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("meters/import"),
   __decorateParam(0, (0, import_common293.Body)())
 ], BillingController.prototype, "importReads", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Get)("meters/:meterId/reads"),
   __decorateParam(0, (0, import_common293.Param)("meterId")),
   __decorateParam(1, (0, import_common293.Query)("start")),
   __decorateParam(2, (0, import_common293.Query)("end"))
 ], BillingController.prototype, "listReads", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Patch)("meters/:meterId"),
   __decorateParam(0, (0, import_common293.Param)("meterId")),
   __decorateParam(1, (0, import_common293.Body)())
 ], BillingController.prototype, "updateMeter", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("meters/:meterId/bill"),
   __decorateParam(0, (0, import_common293.Param)("meterId"))
 ], BillingController.prototype, "billMeter", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("site-classes/:siteClassId/meters/seed"),
   __decorateParam(0, (0, import_common293.Param)("siteClassId"))
 ], BillingController.prototype, "seedMeters", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("reservations/:reservationId/billing-cycles"),
   __decorateParam(0, (0, import_common293.Param)("reservationId")),
   __decorateParam(1, (0, import_common293.Body)())
 ], BillingController.prototype, "createCycle", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("billing/cycles/:cycleId/generate"),
   __decorateParam(0, (0, import_common293.Param)("cycleId"))
 ], BillingController.prototype, "generateInvoice", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Get)("reservations/:reservationId/invoices"),
   __decorateParam(0, (0, import_common293.Param)("reservationId"))
 ], BillingController.prototype, "listInvoices", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Get)("invoices/:invoiceId"),
   __decorateParam(0, (0, import_common293.Param)("invoiceId"))
 ], BillingController.prototype, "getInvoice", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("invoices/:invoiceId/writeoff"),
   __decorateParam(0, (0, import_common293.Param)("invoiceId")),
   __decorateParam(1, (0, import_common293.Body)())
 ], BillingController.prototype, "writeOff", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("invoices/:invoiceId/override-line/:lineId"),
   __decorateParam(0, (0, import_common293.Param)("invoiceId")),
   __decorateParam(1, (0, import_common293.Param)("lineId")),
   __decorateParam(2, (0, import_common293.Body)())
 ], BillingController.prototype, "overrideLine", 1);
 __decorateClass([
-  Roles(import_client53.UserRole.owner, import_client53.UserRole.manager, import_client53.UserRole.finance),
+  Roles(import_client52.UserRole.owner, import_client52.UserRole.manager, import_client52.UserRole.finance),
   (0, import_common293.Post)("billing/late-fees/run")
 ], BillingController.prototype, "runLateFees", 1);
 BillingController = __decorateClass([
