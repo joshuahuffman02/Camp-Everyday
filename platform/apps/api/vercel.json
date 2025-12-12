@@ -1,13 +1,14 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "version": 2,
-    "buildCommand": "cd ../../packages/shared && pnpm run build && cd ../../apps/api && pnpm run build && pnpm prisma generate",
+    "buildCommand": "pnpm build:shared && pnpm --dir platform/apps/api build && pnpm --dir platform/apps/api prisma generate",
     "installCommand": "pnpm install",
-    "outputDirectory": ".",
+    "framework": null,
     "functions": {
-        "api/**/*.js": {
+        "api/index.js": {
             "maxDuration": 30,
-            "memory": 1024
+            "memory": 1024,
+            "includeFiles": "node_modules/.prisma/**"
         }
     },
     "rewrites": [
