@@ -1,4 +1,5 @@
 FROM node:20-alpine AS base
+ENV CACHE_BUST=2025-12-12-v2
 RUN corepack enable && corepack prepare pnpm@7.33.6 --activate
 WORKDIR /app
 
