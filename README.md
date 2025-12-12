@@ -43,3 +43,15 @@ pnpm prisma:reset-seed
 - Seeds are manual in Prisma 7 (they do not auto-run after migrations).
 - Shared types live in `platform/packages/shared`.
 - SDK lives in `platform/packages/sdk`.
+
+## Vercel Deployment
+
+**Required Vercel Project Settings:**
+- **Root Directory**: Leave blank (or `.`) - must be repo root, not a subdirectory
+- **Node.js Version**: `20.x` (Prisma 7 requires Node 20+)
+- **Framework Preset**: Other (auto-detected as `null` in vercel.json)
+
+The root `vercel.json` handles:
+- `/api/*` routes → NestJS serverless function (`platform/apps/api/dist/serverless.js`)
+- All other routes → Next.js web app (`platform/apps/web`)
+
