@@ -1,7 +1,18 @@
 import { defineConfig } from "tsup";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const prismaAlias = {
+  "@prisma/client": resolve(__dirname, "api/generated/prisma"),
+  "@prisma/client/edge": resolve(__dirname, "api/generated/prisma/edge.js"),
+  "@prisma/client/default": resolve(__dirname, "api/generated/prisma/default.js"),
+};
 
 export default defineConfig([
-  // Main server build (for local dev)
+  // Main server build (for local dev) - NO alias, uses node_modules
   {
     entry: ["src/main.ts", "src/serverless.ts"],
     format: ["cjs"],
@@ -17,7 +28,7 @@ export default defineConfig([
     skipNodeModulesBundle: true,
     shims: false
   },
-  // Vercel serverless build (output to api/ folder)
+  // Vercel serverless build (output to api/ folder) - WITH alias to use generated prisma
   {
     entry: { "app.bootstrap": "src/app.bootstrap.ts" },
     format: ["cjs"],
@@ -31,6 +42,11 @@ export default defineConfig([
     dts: false,
     tsconfig: "./tsconfig.json",
     skipNodeModulesBundle: true,
-    shims: false
+    shims: false,
+    noExternal: ["@prisma/client"],
+    esbuildOptions(options) {
+      options.alias = prismaAlias;
+    }
   }
 ]);
+
