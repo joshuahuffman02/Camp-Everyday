@@ -548,8 +548,6 @@ export default function CalendarPage() {
   const [payAmount, setPayAmount] = useState<number>(0);
 
   // Keyboard shortcuts for quick actions
-  // eslint-disable-next-line @typescript-eslint/no-use-before-define
-  // @ts-ignore
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!quickActionsEnabled || !qaRes) return;
