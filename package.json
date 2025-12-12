@@ -2,9 +2,10 @@
   "name": "campreserv",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@7.33.6",
+  "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": "24.x"
+    "node": ">=18.0.0",
+    "pnpm": "9.15.9"
   },
   "scripts": {
     "api": "pnpm --dir platform/apps/api dev",
@@ -34,6 +35,11 @@
   "dependencies": {
     "@prisma/client-runtime-utils": "^7.1.0",
     "maplibre-gl": "^4.7.1",
-    "zod": "^4.0.0"
+    "zod": "3.23.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "zod": "3.23.8"
+    }
   }
 }
