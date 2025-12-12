@@ -8,12 +8,60 @@
 - Signed waiver/IDV artifacts auto-attach to the reservation/guest (signature request, artifact, digital waiver, ID verification) so subsequent compliance checks recognize completion.
 - Kiosk check-in writes pending check-in status codes on compliance failures, marks check-in completed on success, auto-grants access control on check-in, and cancellations/checkout paths already auto-revoke access.
 
+## Working Notes & Next Steps (Dec 11 2025)
+- Sequencing: Fix-Reports + Fix-Payments-POS + Fix-StaffBooking first; run Fix-Comms-Observability and Fix-Compliance-Ops in parallel; Fix-Accounting last because GL/rev-rec depend on reports and payments/POS.
+- Guardrails: Prisma 7 stays; do not switch generator or `@prisma/client` imports; any new `PrismaClient()` must use the PrismaPg adapter; no GitHub/deploy changes.
+- Accounting scope: Use the Accounting & FinOps section in this file as the checklist; it is the largest surface and should start only after the upstream fixes above land. Update this file and `audit-findings-dev.md` as items close.
+- Next steps: Wait for Fix-Reports, Fix-Payments-POS, and Fix-StaffBooking to merge; keep Comms/Observability and Compliance/Ops in-flight; then begin Fix-Accounting with the checklist below.
+- Deployment/build status (Dec 11): API build is unblocked on Vercel via `tsup.config.ts` (entries `src/main.ts`, `src/serverless.ts`), missing `ReportsModule` import removed from `AppModule`, duplicate `ensureAccount`/`postEntries` removed from `ledger.service.ts`. `pnpm --filter @campreserv/api build` now emits `dist/main.js` for `start`.
+- Deployment/build follow-ups: confirm Vercel stays green on `main`; add a small ledger unit test to lock in `postEntries`/`ensureAccount`; keep reports module removed until implementation lands.
+
 ## Reporting & Exports
 - Export queue enforces a capacity guard with 503 + `retryAfter`, emits observability and alerts, and caps rows via `REPORT_EXPORT_MAX_ROWS` with resumable tokens; job run telemetry is recorded when exports finish or fail.
 - Export processor generates CSV/XLSX, uploads and persists the download URL plus recordCount/summary on the job, emails `emailTo` recipients, and writes an audit trail; queued and recurring jobs flow through cron/job queue instead of stubbed status flips.
 - Export summaries pull ADR/RevPAR/occupancy/revenue/liability, channel mix, and attach rate using period-aware `getDashboardMetrics` + booking sources derived from the same filters used in the analytics UI.
 - Report query capacity guard now records observability + alerting when heavy/standard limits are hit, matching export guard behavior.
 - Analytics page surfaces the export trigger (CSV/XLSX + optional email) and polls job status so exports are reachable from the dashboard.
+
+### Next steps
+- Seed report/reservation data to exercise CSV/XLSX export end-to-end (download URL + email + summary) from the analytics dashboard.
+- Resolve TypeScript lints in `reports.service.ts` (implicit any parameters, ServiceUnavailableException import).
+- Run the reports export smoke tests once data and prisma/queue deps are available.
+- Re-test dashboard export UX to confirm download link and emailed summary render correctly.
+
+## Fix‑StaffBooking add‑on (notes)
+- UI now surfaces per-reservation conflicts (overlaps, holds, maintenance, blackouts) and blocks save when present; deposit shortfalls and missing override approvals are also blocked client-side.
+- UI pipes rig/ADA/amenity/occupancy validation via availability + conflict checks and shows ranked site recommendations using match scorer for the open reservation.
+- Payments UI collects tender type and enforces collecting at least the required deposit before saving.
+- Server create/update now uses baseline price + deposit policy, re-validates site availability (including holds/maintenance/blackouts), and requires overrideReason/overrideApprovedBy whenever totals/discounts are manually changed; writes audit log and approval request for overrides.
+- Approvals/Audit modules are invoked (config_change) when overrides occur; pricing delta and discounts captured in audit payload.
+
+## Fix‑GuestBooking (notes)
+- Public booking now advances through Site → Details → Payment with quote fetching inside the review step (promo/tax state-safe) and loading/error guards to prevent script crashes on site/CTA clicks.
+- Public availability/quote Zod schemas coerce Decimal/string fields to numbers to avoid client-side parse failures on Prisma decimals (similar to meteredMultiplier fix).
+- Arrival/departure, guest counts, and site type persist in the URL to keep defaults/shareability and survive refresh.
+
+## Fix‑Payments-POS (notes)
+- Public payment intents require `Idempotency-Key`, return retry/backoff hints, and pass explicit 3DS policy/idempotency metadata to Stripe; failover remains stubbed.
+- Staff/public capture/refund/POS flows issue itemized receipts (line items/tax/fees/tenders) via `EmailService`; webhook refunds reuse the same receipt lines.
+- POS offline replay persists payload/tender/items, flags carts `needsReview` on mismatches, and stores records in `PosOfflineReplay` (Prisma migration required).
+- Stored-value taxable_load issue/reload enforces an active tax rule and liability roll-forward drift checks via `liabilitySnapshot({ enforce: true })`.
+
+## Fix‑Compliance‑Ops (notes)
+- Self/kiosk check-in blocks until waiver + ID verification are signed; overrides must be explicitly requested and are audited with unmet prerequisites and reason/actor, while pending statuses are recorded when blocked.
+- Signed waiver artifacts, digital waivers, and ID verifications auto-attach to the reservation/guest so subsequent compliance checks recognize completion; kiosk paths mark check-in completed and auto-grant access, with revoke on cancel/checkout already in place.
+- Kiosk override payloads now accept actor/reason to log approvals and still issue access grants on success.
+
+## Next steps
+- Payments/POS: run Prisma migrate/generate for `PosOfflineReplay`; add tests for capture/refund/webhook receipts, POS offline replay persistence, and taxable_load liability enforcement; re-test public guest payment + abandoned-cart flows with required idempotency keys; verify kiosk overrides and access-control grants.
+- Add automated tests for override-required paths (create/update) and conflict reasons returned by overlapCheck.
+- Wire match-score recommendations into booking flow (public) and enforce server-side selection from ranked list where required.
+- Consider blocking payment recording when tender mix is missing/invalid; expand UI to capture multiple tenders.
+- Guest booking: validate waitlist submission/confirmation when availability is empty, and exercise public payment + abandoned-cart flows now that quoting is unblocked.
+- Guest booking: add lightweight trust/urgency block (ratings/limited sites/cancellation/secure payment) if conversion lift is still needed.
+- Add regression tests for self/kiosk check-in waiver/IDV blocks, signingUrl surfacing, and pending status transitions.
+- Backfill orphaned waiver/signature/IDV artifacts to attach missing reservation/guest links for legacy records.
+- Add audit/reporting view for check-in overrides (who/why, unmet prerequisites, grants executed).
 
 ### Evidence
 ```343:375:platform/apps/api/src/reports/reports.service.ts
