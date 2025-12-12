@@ -10,6 +10,8 @@ export default defineConfig({
   },
   datasource: {
     // Prefer DATABASE_URL, fallback to PLATFORM_DATABASE_URL for local dev parity
-    url: process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL
+    url: process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL,
+    // Required for prisma migrate diff against migrations directory in Prisma 7+
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL
   }
 });

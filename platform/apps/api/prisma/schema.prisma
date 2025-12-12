@@ -1,7 +1,7 @@
 generator client {
   provider = "prisma-client-js"
-  // Generate into workspace root .prisma/client so hoisted @prisma/client resolves.
-  output   = "../../../../node_modules/.prisma/client"
+  // For Vercel serverless: generate to local node_modules
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
