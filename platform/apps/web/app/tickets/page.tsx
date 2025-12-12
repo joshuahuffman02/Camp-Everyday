@@ -19,10 +19,28 @@ type Ticket = {
   pageTitle?: string;
   userAgent?: string;
   selection?: string;
+  extra?: Record<string, unknown>;
   status: "open" | "completed";
   agentNotes?: string;
+  votes?: number;
   voteCount?: number; // compat
   area?: string;
+  submitter?: {
+    id?: string | null;
+    name?: string | null;
+    email?: string | null;
+  };
+  upvoters?: Array<{
+    id?: string | null;
+    name?: string | null;
+    email?: string | null;
+  }>;
+  client?: {
+    userAgent?: string | null;
+    platform?: string | null;
+    language?: string | null;
+    deviceType?: "mobile" | "desktop" | "tablet" | "unknown";
+  };
 };
 
 export default function TicketsPage() {
