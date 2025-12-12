@@ -22,6 +22,11 @@ const nextConfig = {
 
   // Ensure external workspace packages are bundled correctly
   transpilePackages: ["@campreserv/shared"],
+
+  // Ensure proper module resolution in monorepo
+  experimental: {
+    outputFileTracingRoot: path.join(__dirname, '../../'),
+  },
 };
 
 module.exports = nextConfig;
