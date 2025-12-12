@@ -51,7 +51,7 @@ export default function GroupsPage() {
 
   const groupsQuery = useQuery({
     queryKey: ["groups", campgroundId],
-    queryFn: () => apiClient.listGroups(campgroundId),
+    queryFn: () => apiClient.getGroups(campgroundId),
     enabled: !!campgroundId,
   });
 
@@ -100,10 +100,9 @@ export default function GroupsPage() {
 
   const createGroupMutation = useMutation({
     mutationFn: (payload: {
-      tenantId: string;
       sharedPayment?: boolean;
       sharedComm?: boolean;
-    }) => apiClient.createGroup(payload),
+    }) => apiClient.createGroup(campgroundId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groups", campgroundId] });
       setShowGroupModal(false);
@@ -167,9 +166,8 @@ export default function GroupsPage() {
               groups.map((group: any) => (
                 <Card
                   key={group.id}
-                  className={`p-3 cursor-pointer hover:shadow-md transition-shadow ${
-                    selectedGroupId === group.id ? "ring-2 ring-blue-500" : ""
-                  }`}
+                  className={`p-3 cursor-pointer hover:shadow-md transition-shadow ${selectedGroupId === group.id ? "ring-2 ring-blue-500" : ""
+                    }`}
                   onClick={() => setSelectedGroupId(group.id)}
                 >
                   <div className="flex items-center justify-between">
@@ -566,7 +564,6 @@ export default function GroupsPage() {
                     disabled={createGroupMutation.isPending}
                     onClick={() =>
                       createGroupMutation.mutate({
-                        tenantId: campgroundId,
                         sharedPayment: newGroup.sharedPayment,
                         sharedComm: newGroup.sharedComm,
                       })

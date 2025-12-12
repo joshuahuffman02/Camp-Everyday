@@ -68,7 +68,7 @@ export function CreateTicketDialog({ open, onOpenChange, onSuccess }: CreateTick
                 status: "open",
                 outOfOrder: formData.outOfOrder,
                 outOfOrderReason: formData.outOfOrder ? formData.outOfOrderReason : undefined,
-            });
+            } as any);
 
             toast({
                 title: "Ticket created",

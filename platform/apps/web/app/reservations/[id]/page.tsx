@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { Reservation } from "@campreserv/shared";
+import { cn } from "@/lib/utils";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { ReservationHeader } from "@/components/reservations/ReservationHeader";
 import { GuestCard } from "@/components/reservations/GuestCard";
@@ -50,8 +51,8 @@ export default function ReservationDetailPage() {
         try {
             const data = await apiClient.getReservation(id);
             setReservation(data);
-            setSelectedGroupId(data.groupId ?? "");
-            setGroupRole((data.groupRole as "primary" | "member" | null) === "primary" ? "primary" : "member");
+            setSelectedGroupId((data as any).groupId ?? "");
+            setGroupRole(((data as any).groupRole as "primary" | "member" | null) === "primary" ? "primary" : "member");
         } catch (error) {
             toast({
                 title: "Error",
@@ -193,8 +194,8 @@ export default function ReservationDetailPage() {
         },
         onSuccess: (updated) => {
             setReservation(updated);
-            setSelectedGroupId(updated.groupId ?? "");
-            setGroupRole((updated.groupRole as "primary" | "member" | null) === "primary" ? "primary" : "member");
+            setSelectedGroupId((updated as any).groupId ?? "");
+            setGroupRole(((updated as any).groupRole as "primary" | "member" | null) === "primary" ? "primary" : "member");
             groupsQuery.refetch();
             toast({ title: "Saved", description: "Group assignment updated" });
         },
@@ -204,9 +205,9 @@ export default function ReservationDetailPage() {
     });
 
     useEffect(() => {
-        setSelectedGroupId(reservation?.groupId ?? "");
-        setGroupRole((reservation?.groupRole as "primary" | "member" | null) === "primary" ? "primary" : "member");
-    }, [reservation?.groupId, reservation?.groupRole]);
+        setSelectedGroupId((reservation as any)?.groupId ?? "");
+        setGroupRole(((reservation as any)?.groupRole as "primary" | "member" | null) === "primary" ? "primary" : "member");
+    }, [(reservation as any)?.groupId, (reservation as any)?.groupRole]);
 
     useEffect(() => {
         if (!selectedGroupId) {
@@ -307,8 +308,8 @@ export default function ReservationDetailPage() {
                             <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
                                 <div className="flex items-center justify-between gap-2">
                                     <h2 className="text-lg font-semibold text-slate-900">Group assignment</h2>
-                                    <Badge variant={reservation.groupId ? "secondary" : "outline"} className="text-xs">
-                                        {reservation.groupId ? `Group #${reservation.groupId.slice(0, 8)}` : "Not assigned"}
+                                    <Badge variant={(reservation as any).groupId ? "secondary" : "outline"} className="text-xs">
+                                        {(reservation as any).groupId ? `Group #${(reservation as any).groupId.slice(0, 8)}` : "Not assigned"}
                                     </Badge>
                                 </div>
 
@@ -327,7 +328,7 @@ export default function ReservationDetailPage() {
                                                 Go to Groups
                                             </Link>
                                         </div>
-                                        {reservation.groupId && (
+                                        {(reservation as any).groupId && (
                                             <div className="flex">
                                                 <Button
                                                     variant="ghost"
@@ -578,11 +579,10 @@ export default function ReservationDetailPage() {
                                                             <span>{createdDate ? formatDistanceToNow(createdDate, { addSuffix: true }) : ""}</span>
                                                             {item.kind === "communication" && (
                                                                 <span
-                                                                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                                                        item.direction === "outbound"
-                                                                            ? "bg-blue-100 text-blue-700 border border-blue-200"
-                                                                            : "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                                                                    }`}
+                                                                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${item.direction === "outbound"
+                                                                        ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                                                        : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                                                        }`}
                                                                 >
                                                                     {item.direction}
                                                                 </span>

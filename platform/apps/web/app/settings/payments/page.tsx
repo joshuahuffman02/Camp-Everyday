@@ -89,6 +89,29 @@ export default function PaymentsSettingsPage() {
     setWebhookSecretId(gatewayConfig.credentials.webhookSecretId ?? "");
   }, [gatewayConfig]);
 
+  const gatewayPresetOptions = useMemo(() => {
+    const base = [
+      { id: "preset_stripe_test", gateway: "stripe" as const, mode: "test" as const, label: "Stripe test (no fees)", percentBasisPoints: 0, flatFeeCents: 0 },
+      { id: "preset_stripe_prod", gateway: "stripe" as const, mode: "prod" as const, label: "Stripe default (2.9% + 30¢)", percentBasisPoints: 290, flatFeeCents: 30 },
+      { id: "preset_adyen_test", gateway: "adyen" as const, mode: "test" as const, label: "Adyen test (no fees)", percentBasisPoints: 0, flatFeeCents: 0 },
+      { id: "preset_adyen_prod", gateway: "adyen" as const, mode: "prod" as const, label: "Adyen default (2.5% + 12¢)", percentBasisPoints: 250, flatFeeCents: 12 },
+      { id: "preset_authorize_test", gateway: "authorize_net" as const, mode: "test" as const, label: "Authorize.Net test", percentBasisPoints: 0, flatFeeCents: 0 },
+      { id: "preset_authorize_prod", gateway: "authorize_net" as const, mode: "prod" as const, label: "Authorize.Net default (2.9% + 30¢)", percentBasisPoints: 290, flatFeeCents: 30 },
+      { id: "preset_other_prod", gateway: "other" as const, mode: "prod" as const, label: "Other gateway baseline (3% + 30¢)", percentBasisPoints: 300, flatFeeCents: 30 }
+    ];
+    if (gatewayConfig?.feePresetId && !base.find((p) => p.id === gatewayConfig.feePresetId)) {
+      base.push({
+        id: gatewayConfig.feePresetId,
+        gateway: gatewayConfig.gateway,
+        mode: gatewayConfig.mode,
+        label: gatewayConfig.feePresetLabel || gatewayConfig.feePresetId,
+        percentBasisPoints: gatewayConfig.effectiveFee.percentBasisPoints,
+        flatFeeCents: gatewayConfig.effectiveFee.flatFeeCents
+      } as any);
+    }
+    return base.filter((p) => p.gateway === gateway && p.mode === gatewayMode);
+  }, [gateway, gatewayMode, gatewayConfig]);
+
   useEffect(() => {
     if (gatewayPresetId && !gatewayPresetOptions.find((p) => p.id === gatewayPresetId)) {
       const fallback = gatewayPresetOptions[0];
@@ -166,29 +189,6 @@ export default function PaymentsSettingsPage() {
     if (Number.isNaN(num)) return `$${planDefaultFee.toFixed(2)} (plan default)`;
     return `$${num.toFixed(2)} per booking`;
   }, [fee, planDefaultFee]);
-
-  const gatewayPresetOptions = useMemo(() => {
-    const base = [
-      { id: "preset_stripe_test", gateway: "stripe" as const, mode: "test" as const, label: "Stripe test (no fees)", percentBasisPoints: 0, flatFeeCents: 0 },
-      { id: "preset_stripe_prod", gateway: "stripe" as const, mode: "prod" as const, label: "Stripe default (2.9% + 30¢)", percentBasisPoints: 290, flatFeeCents: 30 },
-      { id: "preset_adyen_test", gateway: "adyen" as const, mode: "test" as const, label: "Adyen test (no fees)", percentBasisPoints: 0, flatFeeCents: 0 },
-      { id: "preset_adyen_prod", gateway: "adyen" as const, mode: "prod" as const, label: "Adyen default (2.5% + 12¢)", percentBasisPoints: 250, flatFeeCents: 12 },
-      { id: "preset_authorize_test", gateway: "authorize_net" as const, mode: "test" as const, label: "Authorize.Net test", percentBasisPoints: 0, flatFeeCents: 0 },
-      { id: "preset_authorize_prod", gateway: "authorize_net" as const, mode: "prod" as const, label: "Authorize.Net default (2.9% + 30¢)", percentBasisPoints: 290, flatFeeCents: 30 },
-      { id: "preset_other_prod", gateway: "other" as const, mode: "prod" as const, label: "Other gateway baseline (3% + 30¢)", percentBasisPoints: 300, flatFeeCents: 30 }
-    ];
-    if (gatewayConfig?.feePresetId && !base.find((p) => p.id === gatewayConfig.feePresetId)) {
-      base.push({
-        id: gatewayConfig.feePresetId,
-        gateway: gatewayConfig.gateway,
-        mode: gatewayConfig.mode,
-        label: gatewayConfig.feePresetLabel || gatewayConfig.feePresetId,
-        percentBasisPoints: gatewayConfig.effectiveFee.percentBasisPoints,
-        flatFeeCents: gatewayConfig.effectiveFee.flatFeeCents
-      });
-    }
-    return base.filter((p) => p.gateway === gateway && p.mode === gatewayMode);
-  }, [gateway, gatewayMode, gatewayConfig]);
 
   const effectiveGatewayFeeLabel = useMemo(() => {
     if (!gatewayConfig) return "—";

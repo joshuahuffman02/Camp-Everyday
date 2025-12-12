@@ -52,6 +52,11 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
     isPublished: campground.isPublished ?? true
   });
 
+  const photoList = form.photos
+    ?.split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
   const mutation = useMutation({
     mutationFn: async () => {
       const profile = await apiClient.updateCampgroundProfile(campground.id, {
@@ -80,7 +85,7 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
         checkOutTime: form.checkOutTime || null,
         timezone: form.timezone || null,
         isPublished: form.isPublished
-      });
+      } as any);
       const sla = form.slaMinutes ? Number(form.slaMinutes) : null;
       if (sla && Number.isFinite(sla)) {
         await apiClient.updateCampgroundSla(campground.id, sla);
@@ -101,10 +106,6 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
   });
 
   const heroPreview = form.heroImageUrl?.trim();
-  const photoList = form.photos
-    ?.split(",")
-    .map((p) => p.trim())
-    .filter(Boolean);
 
   return (
     <div className="grid gap-6">

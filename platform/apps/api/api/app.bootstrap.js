@@ -304,9 +304,11 @@ var require_dist = __commonJS({
       // Public listing
       description: zod_1.z.string().nullish(),
       tagline: zod_1.z.string().nullish(),
+      pricePerNight: numberish(zod_1.z.number().optional()),
       amenities: zod_1.z.array(zod_1.z.string()).optional(),
       photos: zod_1.z.array(zod_1.z.string()).optional(),
       photosMeta: zod_1.z.any().optional().nullable(),
+      reviews: zod_1.z.array(zod_1.z.lazy(() => exports2.ReviewSchema)).optional(),
       heroImageUrl: zod_1.z.string().url().nullish(),
       isPublished: zod_1.z.boolean().optional(),
       amenitySummary: zod_1.z.record(zod_1.z.any()).optional().nullable(),

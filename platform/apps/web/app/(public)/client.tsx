@@ -258,24 +258,28 @@ export function HomeClient() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {allCampgrounds.map((campground) => (
-                            <CampgroundCard
-                                key={campground.id}
-                                id={campground.id}
-                                name={campground.name}
-                                slug={"slug" in campground ? campground.slug : undefined}
-                                city={campground.city || undefined}
-                                state={campground.state || undefined}
-                                country={"country" in campground ? (campground.country || undefined) : undefined}
-                                imageUrl={"heroImageUrl" in campground ? (campground.heroImageUrl || undefined) : undefined}
-                                isInternal={campground.isInternal}
-                                rating={campground.rating}
-                                reviewCount={campground.reviewCount}
-                                pricePerNight={campground.pricePerNight}
-                                amenities={"amenities" in campground ? campground.amenities : []}
-                                onExplore={() => trackEvent("site_card_view", { campgroundId: campground.id, page: "/" })}
-                            />
-                        ))}
+                        {allCampgrounds.map((campground) => {
+                            const pricePerNight = "pricePerNight" in campground ? campground.pricePerNight : undefined;
+
+                            return (
+                                <CampgroundCard
+                                    key={campground.id}
+                                    id={campground.id}
+                                    name={campground.name}
+                                    slug={"slug" in campground ? campground.slug : undefined}
+                                    city={campground.city || undefined}
+                                    state={campground.state || undefined}
+                                    country={"country" in campground ? (campground.country || undefined) : undefined}
+                                    imageUrl={"heroImageUrl" in campground ? (campground.heroImageUrl || undefined) : undefined}
+                                    isInternal={campground.isInternal}
+                                    rating={campground.rating}
+                                    reviewCount={campground.reviewCount}
+                                    pricePerNight={pricePerNight}
+                                    amenities={"amenities" in campground ? campground.amenities : []}
+                                    onExplore={() => trackEvent("site_card_view", { campgroundId: campground.id, page: "/" })}
+                                />
+                            );
+                        })}
                     </div>
                 )}
 

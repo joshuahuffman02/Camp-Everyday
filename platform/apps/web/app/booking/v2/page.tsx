@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -60,7 +60,15 @@ type ReservationPayload = {
   notes?: string;
 };
 
-export default function BookingV2() {
+export default function BookingV2Page() {
+  return (
+    <Suspense fallback={<DashboardShell><div className="p-8 text-center text-slate-500">Loading...</div></DashboardShell>}>
+      <BookingV2Content />
+    </Suspense>
+  );
+}
+
+function BookingV2Content() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
@@ -149,8 +157,8 @@ export default function BookingV2() {
 
   const availableSites: Site[] = useMemo(() => {
     return (siteStatusQuery.data ?? [])
-        .map((s: any) => ({ ...s, siteClassId: s.siteClassId ?? undefined }))
-        .filter((s: any) => s.status === "available");
+      .map((s: any) => ({ ...s, siteClassId: s.siteClassId ?? undefined }))
+      .filter((s: any) => s.status === "available");
   }, [siteStatusQuery.data]);
 
   const filteredGuests = useMemo(() => {
@@ -165,8 +173,8 @@ export default function BookingV2() {
     });
   }, [guestsQuery.data, guestSearch]);
 
-    const createReservation = useMutation({
-        mutationFn: (data: ReservationPayload) => apiClient.createReservation(data as unknown as any),
+  const createReservation = useMutation({
+    mutationFn: (data: ReservationPayload) => apiClient.createReservation(data as unknown as any),
     onSuccess: (res) => {
       toast({ title: "Reservation created", description: "Guest has been booked." });
       queryClient.invalidateQueries({ queryKey: ["reservations"] });
@@ -197,7 +205,7 @@ export default function BookingV2() {
   const nights =
     arrivalDate && departureDate ? Math.max(1, Math.round((departureDate.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
-    const selectedGuest: Guest | undefined = ((guestsQuery.data ?? []) as Guest[]).find((g) => g.id === form.guestId);
+  const selectedGuest: Guest | undefined = ((guestsQuery.data ?? []) as Guest[]).find((g) => g.id === form.guestId);
   const selectedSite: Site | undefined = availableSites.find((s) => s.id === form.siteId);
   const selectedClass: SiteClass | undefined = siteClassesQuery.data?.find((sc: SiteClass) => sc.id === form.siteClassId);
   const selectedGuestName = selectedGuest ? `${selectedGuest.primaryFirstName} ${selectedGuest.primaryLastName}` : "";
@@ -383,7 +391,7 @@ export default function BookingV2() {
 
             {/* Site selection */}
             <Card className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs uppercase font-semibold text-slate-500">Step 3</div>
                   <h3 className="text-lg font-semibold text-slate-900">Site</h3>
@@ -392,12 +400,12 @@ export default function BookingV2() {
                   </p>
                 </div>
                 <div className="w-48">
-                <Select value={form.siteClassId || "all"} onValueChange={(v) => setForm((p) => ({ ...p, siteClassId: v === "all" ? "" : v }))}>
+                  <Select value={form.siteClassId || "all"} onValueChange={(v) => setForm((p) => ({ ...p, siteClassId: v === "all" ? "" : v }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="All classes" />
                     </SelectTrigger>
                     <SelectContent>
-                    <SelectItem value="all">All classes</SelectItem>
+                      <SelectItem value="all">All classes</SelectItem>
                       {siteClassesQuery.data?.map((sc: SiteClass) => (
                         <SelectItem key={sc.id} value={sc.id}>
                           {sc.name}
@@ -430,9 +438,8 @@ export default function BookingV2() {
                       key={s.id}
                       type="button"
                       onClick={() => setForm((p) => ({ ...p, siteId: s.id }))}
-                      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition hover:border-emerald-300 ${
-                        form.siteId === s.id ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700"
-                      }`}
+                      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition hover:border-emerald-300 ${form.siteId === s.id ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700"
+                        }`}
                     >
                       <span className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-slate-400" />

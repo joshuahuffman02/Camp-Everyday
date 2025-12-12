@@ -543,9 +543,9 @@ export default function ReservationDetailPage() {
                     size="sm"
                     className="w-full md:w-auto"
                     onClick={() => createSignatureMutation.mutate()}
-                    disabled={createSignatureMutation.status === "loading"}
+                    disabled={createSignatureMutation.status === "pending"}
                   >
-                    {createSignatureMutation.status === "loading" ? "Sending…" : "Send signature request"}
+                    {createSignatureMutation.status === "pending" ? "Sending…" : "Send signature request"}
                   </Button>
                 </div>
                 <p className="text-xs text-slate-500">
@@ -571,7 +571,7 @@ export default function ReservationDetailPage() {
                         size="sm"
                         variant="secondary"
                         onClick={() => resendSignatureMutation.mutate(req.id)}
-                        disabled={resendSignatureMutation.isLoading || ["signed", "declined", "voided"].includes(req.status)}
+                        disabled={resendSignatureMutation.status === "pending" || ["signed", "declined", "voided"].includes(req.status)}
                       >
                         Resend
                       </Button>

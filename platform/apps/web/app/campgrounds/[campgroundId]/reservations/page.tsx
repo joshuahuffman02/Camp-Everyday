@@ -598,7 +598,7 @@ export default function ReservationsPage() {
   const selectedSiteUnavailable = hasAvailabilityWindow && formState.siteId ? !availableSiteIds.has(formState.siteId) : false;
   const overlapConflict = overlapCheckQuery.data?.conflict ?? false;
   const openDetailIds = useMemo(() => Object.keys(openDetails).filter((id) => openDetails[id]), [openDetails]);
-  const overlapChecks = useQueries<{ conflict: boolean; reasons?: string[] }>({
+  const overlapChecks = useQueries({
     queries: openDetailIds.map((id) => {
       const res = reservationsQuery.data?.find((r) => r.id === id);
       const targetSiteId = editing[id]?.siteId ?? res?.siteId;

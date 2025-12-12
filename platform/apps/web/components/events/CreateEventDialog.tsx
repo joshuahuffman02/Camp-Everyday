@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { FormEvent, useEffect, useState } from "react";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,7 @@ export function CreateEventDialog({ open, onOpenChange, onSuccess, campgroundId 
     });
     const [uploading, setUploading] = useState(false);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setLoading(true);
 

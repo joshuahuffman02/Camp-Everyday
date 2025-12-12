@@ -94,7 +94,7 @@ export default function WaitlistPage() {
     },
   });
 
-  const entries = (entriesQuery.data ?? []).filter((e: WaitlistEntry) => 
+  const entries = ((entriesQuery.data ?? []) as any[]).filter((e: WaitlistEntry) =>
     statusFilter === "all" || e.status === statusFilter
   );
   const stats = statsQuery.data as WaitlistStats | undefined;
@@ -197,7 +197,7 @@ export default function WaitlistPage() {
                       <tr key={entry.id} className="hover:bg-slate-50" data-testid="waitlist-row">
                         <td className="px-4 py-3">
                           <div className="font-medium text-slate-900">
-                            {entry.guest 
+                            {entry.guest
                               ? `${entry.guest.primaryFirstName || ""} ${entry.guest.primaryLastName || ""}`.trim() || "Guest"
                               : entry.contactName || "Unknown"}
                           </div>
@@ -326,9 +326,8 @@ function StatCard({
   return (
     <button
       onClick={onClick}
-      className={`rounded-xl border p-4 text-left transition-all ${colors[color]} ${
-        active ? "ring-2 ring-offset-2 ring-slate-400" : "hover:shadow-sm"
-      }`}
+      className={`rounded-xl border p-4 text-left transition-all ${colors[color]} ${active ? "ring-2 ring-offset-2 ring-slate-400" : "hover:shadow-sm"
+        }`}
     >
       <div className="text-2xl font-bold">{value}</div>
       <div className="text-sm opacity-80">{label}</div>
@@ -465,22 +464,20 @@ function WaitlistModal({
               <button
                 type="button"
                 onClick={() => setType("regular")}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  type === "regular"
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${type === "regular"
                     ? "bg-emerald-100 text-emerald-700 border-2 border-emerald-300"
                     : "bg-slate-50 text-slate-600 border border-slate-200"
-                }`}
+                  }`}
               >
                 Regular
               </button>
               <button
                 type="button"
                 onClick={() => setType("seasonal")}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  type === "seasonal"
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${type === "seasonal"
                     ? "bg-amber-100 text-amber-700 border-2 border-amber-300"
                     : "bg-slate-50 text-slate-600 border border-slate-200"
-                }`}
+                  }`}
               >
                 Seasonal
               </button>

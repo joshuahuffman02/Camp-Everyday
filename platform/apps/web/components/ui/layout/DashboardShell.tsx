@@ -240,7 +240,7 @@ const Icon = ({ name, active }: { name: IconName; active?: boolean }) => {
   }
 };
 
-export function DashboardShell({ children, className }: { children: ReactNode; className?: string }) {
+export function DashboardShell({ children, className, title, subtitle }: { children: ReactNode; className?: string; title?: string; subtitle?: string }) {
   const { data: session } = useSession();
   const { data: whoami } = useWhoami();
   const [campgrounds, setCampgrounds] = useState<{ id: string; name: string; organizationId?: string }[]>([]);
@@ -780,7 +780,7 @@ export function DashboardShell({ children, className }: { children: ReactNode; c
                       <Link
                         key={`m-fav-${item.href}`}
                         href={item.href}
-                          title={"tooltip" in item ? item.tooltip : item.label}
+                        title={"tooltip" in item ? item.tooltip : item.label}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
                           "flex items-center gap-3 rounded-lg px-3 py-3 text-base",
@@ -807,7 +807,7 @@ export function DashboardShell({ children, className }: { children: ReactNode; c
                       <Link
                         key={`m-mv-${item.href}`}
                         href={item.href}
-                            title={"tooltip" in item && item.tooltip ? item.tooltip : item.label}
+                        title={"tooltip" in item && item.tooltip ? item.tooltip : item.label}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
                           "flex items-center gap-3 rounded-lg px-3 py-3 text-base",
@@ -987,7 +987,7 @@ export function DashboardShell({ children, className }: { children: ReactNode; c
                         )}
                         href={item.href}
                         aria-current={isActive ? "page" : undefined}
-                      title={item.tooltip ?? item.label}
+                        title={item.tooltip ?? item.label}
                       >
                         <span className={cn("flex items-center gap-2", collapsed && "justify-center w-full")}>
                           <Icon name={(item.icon as IconName) ?? "sparkles"} active={isActive} />
@@ -1138,7 +1138,15 @@ export function DashboardShell({ children, className }: { children: ReactNode; c
           </nav>
         </aside>
         <main className={cn("flex-1", className)}>
-          <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">{children}</div>
+          <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">
+            {(title || subtitle) && (
+              <div className="mb-6">
+                {title && <h1 className="text-2xl font-bold text-slate-900">{title}</h1>}
+                {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+              </div>
+            )}
+            {children}
+          </div>
         </main>
       </div>
       <StaffChat />

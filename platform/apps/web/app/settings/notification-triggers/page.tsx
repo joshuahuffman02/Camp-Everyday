@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { apiClient } from "@/lib/api-client";
 
-type TriggerEvent = 
+type TriggerEvent =
   | "reservation_created"
   | "reservation_confirmed"
   | "reservation_cancelled"
@@ -150,7 +150,7 @@ export default function NotificationTriggersPage() {
                     {eventTriggers.length} trigger{eventTriggers.length !== 1 ? "s" : ""}
                   </span>
                 </div>
-                
+
                 {eventTriggers.length > 0 ? (
                   <div className="divide-y divide-slate-100">
                     {eventTriggers.map(trigger => (
@@ -158,14 +158,12 @@ export default function NotificationTriggersPage() {
                         <div className="flex items-center gap-4">
                           <button
                             onClick={() => toggleMutation.mutate({ id: trigger.id, enabled: !trigger.enabled })}
-                            className={`w-12 h-6 rounded-full transition-colors relative ${
-                              trigger.enabled ? "bg-emerald-500" : "bg-slate-300"
-                            }`}
+                            className={`w-12 h-6 rounded-full transition-colors relative ${trigger.enabled ? "bg-emerald-500" : "bg-slate-300"
+                              }`}
                           >
                             <span
-                              className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                                trigger.enabled ? "translate-x-6" : ""
-                              }`}
+                              className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${trigger.enabled ? "translate-x-6" : ""
+                                }`}
                             />
                           </button>
                           <div>
@@ -188,7 +186,7 @@ export default function NotificationTriggersPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => setEditingTrigger(trigger)}
+                            onClick={() => setEditingTrigger(trigger as any)}
                             className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded"
                           >
                             Edit
@@ -314,11 +312,10 @@ function TriggerModal({
                   key={opt.value}
                   type="button"
                   onClick={() => setChannel(opt.value as "email" | "sms" | "both")}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    channel === opt.value
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${channel === opt.value
                       ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
                       : "bg-slate-50 text-slate-600 border border-slate-200"
-                  }`}
+                    }`}
                 >
                   {opt.label}
                 </button>

@@ -9,7 +9,7 @@ interface Template {
   id: string;
   campgroundId: string;
   name: string;
-  channel: "email" | "sms";
+  channel: "email" | "sms" | "both";
   category: string | null;
   subject: string | null;
   html: string | null;
@@ -133,9 +133,8 @@ export default function TemplatesPage() {
                         <button
                           key={template.id}
                           onClick={() => setSelectedTemplate(template)}
-                          className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors ${
-                            selectedTemplate?.id === template.id ? "bg-violet-50 border-l-2 border-violet-500" : ""
-                          }`}
+                          className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors ${selectedTemplate?.id === template.id ? "bg-violet-50 border-l-2 border-violet-500" : ""
+                            }`}
                         >
                           <div className="flex items-center justify-between">
                             <div>
@@ -286,9 +285,8 @@ function TemplateEditor({
         <div className="flex items-center gap-2">
           <button
             onClick={onTogglePreview}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-              previewMode ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${previewMode ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600"
+              }`}
           >
             {previewMode ? "Edit" : "Preview"}
           </button>
@@ -439,22 +437,20 @@ function CreateTemplateModal({
               <button
                 type="button"
                 onClick={() => setChannel("email")}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  channel === "email"
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${channel === "email"
                     ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
                     : "bg-slate-50 text-slate-600 border border-slate-200"
-                }`}
+                  }`}
               >
                 📧 Email
               </button>
               <button
                 type="button"
                 onClick={() => setChannel("sms")}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  channel === "sms"
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${channel === "sms"
                     ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
                     : "bg-slate-50 text-slate-600 border border-slate-200"
-                }`}
+                  }`}
               >
                 📱 SMS
               </button>

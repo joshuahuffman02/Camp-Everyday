@@ -766,8 +766,8 @@ export default function CampgroundSettingsPage() {
                                     />
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <Button onClick={handlePreviewEligibility} disabled={previewMutation.isLoading}>
-                                        {previewMutation.isLoading ? "Checking..." : "Preview eligibility"}
+                                    <Button onClick={handlePreviewEligibility} disabled={previewMutation.isPending}>
+                                        {previewMutation.isPending ? "Checking..." : "Preview eligibility"}
                                     </Button>
                                     {previewMessage && <span className="text-sm text-amber-700">{previewMessage}</span>}
                                 </div>
@@ -797,8 +797,8 @@ export default function CampgroundSettingsPage() {
                             <div className="space-y-3">
                                 <div className="grid gap-2">
                                     <Label>Eligibility preview</Label>
-                                    {previewMutation.isLoading && <p className="text-sm text-slate-600">Checking...</p>}
-                                    {!previewMutation.data && !previewMutation.isLoading && (
+                                    {previewMutation.isPending && <p className="text-sm text-slate-600">Checking...</p>}
+                                    {!previewMutation.data && !previewMutation.isPending && (
                                         <p className="text-sm text-slate-600">Set dates and run preview to see eligible sites.</p>
                                     )}
                                     {previewMutation.data && (

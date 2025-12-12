@@ -81,7 +81,7 @@ export default function OperationsBoardPage() {
     try {
       setLoading(true);
       const data = await apiClient.getTasks(selectedCampgroundId, filter);
-      setTasks(data);
+      setTasks(data as any);
     } catch (err) {
       console.error("Failed to load tasks:", err);
     } finally {
@@ -128,20 +128,20 @@ export default function OperationsBoardPage() {
         </div>
         <div className={`w-2 h-2 rounded-full ${SLA_COLORS[task.slaStatus]}`} title={`SLA: ${task.slaStatus.replace("_", " ")}`} />
       </div>
-      
+
       <div className="space-y-2 text-sm">
         <div className="flex items-center gap-2 text-slate-600">
           <span>📍</span>
           <span>Site {task.siteId.slice(0, 8)}...</span>
         </div>
-        
+
         {task.slaDueAt && (
           <div className="flex items-center gap-2 text-slate-600">
             <span>⏰</span>
             <span>Due: {formatDate(task.slaDueAt)}</span>
           </div>
         )}
-        
+
         {task.notes && (
           <p className="text-slate-500 line-clamp-2 text-xs mt-2">{task.notes}</p>
         )}
@@ -305,7 +305,7 @@ export default function OperationsBoardPage() {
         {/* Create Task Modal */}
         {showCreateModal && (
           <CreateTaskModal
-            campgroundId={selectedCampground.id}
+            campgroundId={selectedCampgroundId}
             onClose={() => setShowCreateModal(false)}
             onCreated={() => {
               setShowCreateModal(false);
@@ -350,7 +350,7 @@ function CreateTaskModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!siteId) return;
-    
+
     setSaving(true);
     try {
       await apiClient.createTask(campgroundId, {

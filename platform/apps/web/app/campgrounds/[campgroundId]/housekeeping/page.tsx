@@ -100,13 +100,13 @@ export default function HousekeepingPage() {
         state: stateFilter === "all" ? undefined : stateFilter,
         slaStatus: slaFilter === "all" ? undefined : slaFilter,
         type: typeFilter === "all" ? undefined : typeFilter,
-      }),
+      } as any),
     enabled: !!campgroundId,
   });
 
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, state }: { id: string; state: TaskState }) =>
-      apiClient.updateTask(id, { state }),
+      apiClient.updateTask(id, { state } as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks", campgroundId] });
     },
@@ -114,13 +114,12 @@ export default function HousekeepingPage() {
 
   const createTaskMutation = useMutation({
     mutationFn: (payload: {
-      tenantId: string;
       type: string;
       siteId: string;
       priority?: string;
       notes?: string;
       createdBy: string;
-    }) => apiClient.createTask(payload),
+    }) => apiClient.createTask(campgroundId, payload as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks", campgroundId] });
       setShowCreateModal(false);
@@ -390,7 +389,6 @@ export default function HousekeepingPage() {
                     disabled={!newTask.siteId || createTaskMutation.isPending}
                     onClick={() =>
                       createTaskMutation.mutate({
-                        tenantId: campgroundId,
                         type: newTask.type,
                         siteId: newTask.siteId,
                         priority: newTask.priority,

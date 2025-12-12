@@ -10,6 +10,7 @@ import { Badge } from "../../components/ui/badge";
 import { Trophy, Star, Car, Plus, Trash2, Download, Filter } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { TableEmpty } from "../../components/ui/table";
+import { useToast } from "../../components/ui/use-toast";
 
 const TIER_COLORS: Record<string, string> = {
   Bronze: "bg-amber-600",
@@ -163,7 +164,7 @@ function GuestEquipmentSection({ guestId, expanded, onToggle }: { guestId: strin
     enabled: expanded
   });
 
-  const queryClient = useQueryClient();
+const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [newEq, setNewEq] = useState({
     type: "rv",
@@ -321,6 +322,7 @@ export default function GuestsPage() {
     queryFn: () => apiClient.getGuests()
   });
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [form, setForm] = useState({
     primaryFirstName: "",
     primaryLastName: "",

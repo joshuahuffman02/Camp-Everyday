@@ -75,9 +75,11 @@ export const CampgroundSchema = z.object({
   // Public listing
   description: z.string().nullish(),
   tagline: z.string().nullish(),
+  pricePerNight: numberish(z.number().optional()),
   amenities: z.array(z.string()).optional(),
   photos: z.array(z.string()).optional(),
   photosMeta: z.any().optional().nullable(),
+  reviews: z.array(z.lazy(() => ReviewSchema)).optional(),
   heroImageUrl: z.string().url().nullish(),
   isPublished: z.boolean().optional(),
   amenitySummary: z.record(z.any()).optional().nullable(),

@@ -396,7 +396,11 @@ export default function UtilitiesBillingPage() {
                 disabled={!selectedClassId}
               >
                 <option value="">No plan</option>
-                {(classDraft.meteredType ? ratePlansByType.get(classDraft.meteredType) : ratePlans).map((rp) => (
+                {(
+                  classDraft.meteredType
+                    ? ratePlansByType.get(classDraft.meteredType) ?? []
+                    : ratePlans ?? []
+                ).map((rp) => (
                   <option key={rp.id} value={rp.id}>
                     {rp.type} @ {(rp.baseRateCents / 100).toFixed(2)} (from {new Date(rp.effectiveFrom).toLocaleDateString()})
                   </option>

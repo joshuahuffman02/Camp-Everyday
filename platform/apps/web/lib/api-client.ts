@@ -5139,47 +5139,6 @@ export const apiClient = {
     return AbandonedCartSchema.parse(data);
   },
 
-  // Operations
-  async getTasks(campgroundId: string, filters?: { type?: string; status?: string }) {
-    const params = new URLSearchParams({ campgroundId });
-    if (filters?.type) params.append("type", filters.type);
-    if (filters?.status) params.append("status", filters.status);
-
-    const data = await fetchJSON<unknown>(`/operations/tasks?${params.toString()}`);
-    return z.array(z.object({
-      id: z.string(),
-      title: z.string(),
-      description: z.string().nullable(),
-      type: z.string(),
-      status: z.string(),
-      priority: z.string(),
-      dueDate: z.string().nullable(),
-      site: z.object({
-        id: z.string(),
-        name: z.string(),
-        siteNumber: z.string()
-      }).nullable()
-    })).parse(data);
-  },
-
-  async createTask(campgroundId: string, payload: any) {
-    const res = await fetch(`${API_BASE}/operations/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify({ ...payload, campgroundId })
-    });
-    return parseResponse<unknown>(res);
-  },
-
-  async updateTask(id: string, payload: any) {
-    const res = await fetch(`${API_BASE}/operations/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify(payload)
-    });
-    return parseResponse<unknown>(res);
-  },
-
   async updateSiteHousekeeping(siteId: string, status: string) {
     const res = await fetch(`${API_BASE}/operations/sites/${siteId}/housekeeping`, {
       method: "PATCH",
@@ -5976,132 +5935,6 @@ export const apiClient = {
     const suffix = days ? `&days=${days}` : "";
     const data = await fetchJSON<unknown>(`/gamification/stats?campgroundId=${campgroundId}${suffix}`);
     return GamificationStatsSchema.parse(data);
-  },
-
-  // ---------------------------------------------------------------------------
-  // Phase 2: Tasks (Housekeeping/Turnover)
-  // ---------------------------------------------------------------------------
-  async listTasks(tenantId: string, filters?: { siteId?: string; state?: string; slaStatus?: string; type?: string }) {
-    const qs = new URLSearchParams({ tenantId, ...filters } as Record<string, string>);
-    const data = await fetchJSON<unknown>(`/tasks?${qs.toString()}`);
-    return z.array(z.any()).parse(data);
-  },
-  async getTask(id: string) {
-    const data = await fetchJSON<unknown>(`/tasks/${id}`);
-    return z.any().parse(data);
-  },
-  async createTask(payload: {
-    tenantId: string;
-    type: string;
-    siteId: string;
-    reservationId?: string;
-    priority?: string;
-    slaDueAt?: string;
-    checklist?: any;
-    assignedToUserId?: string;
-    notes?: string;
-    createdBy: string;
-  }) {
-    const res = await fetch(`${API_BASE}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify(payload),
-    });
-    return parseResponse<unknown>(res);
-  },
-  async updateTask(id: string, payload: {
-    state?: string;
-    priority?: string;
-    slaDueAt?: string;
-    assignedToUserId?: string;
-    checklist?: any;
-    photos?: any;
-    notes?: string;
-  }) {
-    const res = await fetch(`${API_BASE}/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify(payload),
-    });
-    return parseResponse<unknown>(res);
-  },
-  async deleteTask(id: string) {
-    const res = await fetch(`${API_BASE}/tasks/${id}`, {
-      method: "DELETE",
-      headers: scopedHeaders(),
-    });
-    return parseResponse<unknown>(res);
-  },
-
-  // ---------------------------------------------------------------------------
-  // Phase 2: Self Check-in/Checkout
-  // ---------------------------------------------------------------------------
-  async getCheckinStatus(reservationId: string) {
-    const data = await fetchJSON<unknown>(`/reservations/${reservationId}/checkin-status`);
-    return z.any().parse(data);
-  },
-  async selfCheckin(reservationId: string, payload?: { lateArrival?: boolean; override?: boolean }) {
-    const res = await fetch(`${API_BASE}/reservations/${reservationId}/self-checkin`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify(payload ?? {}),
-    });
-    return parseResponse<unknown>(res);
-  },
-  async selfCheckout(reservationId: string, payload?: { damageNotes?: string; damagePhotos?: string[]; override?: boolean }) {
-    const res = await fetch(`${API_BASE}/reservations/${reservationId}/self-checkout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify(payload ?? {}),
-    });
-    return parseResponse<unknown>(res);
-  },
-
-  // ---------------------------------------------------------------------------
-  // Phase 2: Groups & Inventory Blocks
-  // ---------------------------------------------------------------------------
-  async listGroups(tenantId: string) {
-    const data = await fetchJSON<unknown>(`/groups?tenantId=${tenantId}`);
-    return z.array(z.any()).parse(data);
-  },
-  async getGroup(id: string) {
-    const data = await fetchJSON<unknown>(`/groups/${id}`);
-    return z.any().parse(data);
-  },
-  async createGroup(payload: {
-    tenantId: string;
-    name?: string;
-    sharedPayment?: boolean;
-    sharedComm?: boolean;
-    reservationIds?: string[];
-    primaryReservationId?: string;
-  }) {
-    const res = await fetch(`${API_BASE}/groups`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify(payload),
-    });
-    return parseResponse<unknown>(res);
-  },
-  async updateGroup(id: string, payload: {
-    sharedPayment?: boolean;
-    sharedComm?: boolean;
-    addReservationIds?: string[];
-    removeReservationIds?: string[];
-  }) {
-    const res = await fetch(`${API_BASE}/groups/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify(payload),
-    });
-    return parseResponse<unknown>(res);
-  },
-  async deleteGroup(id: string) {
-    const res = await fetch(`${API_BASE}/groups/${id}`, {
-      method: "DELETE",
-      headers: scopedHeaders(),
-    });
-    return parseResponse<unknown>(res);
   },
 
   async updateReservationGroup(
@@ -6999,6 +6832,15 @@ export const apiClient = {
       headers: scopedHeaders(),
     });
     return parseResponse<unknown>(res);
+  },
+  async uploadCampgroundMap(campgroundId: string, formData: FormData) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/map`, {
+      method: "POST",
+      headers: scopedHeaders(),
+      body: formData,
+    });
+    const data = await parseResponse<{ url: string }>(res);
+    return data;
   },
 };
 
