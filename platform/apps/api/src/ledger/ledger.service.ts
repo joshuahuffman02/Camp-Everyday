@@ -263,35 +263,4 @@ export class LedgerService {
     });
   }
 
-  /**
-   * Ensure a GL account exists; currently just returns the glCode as identifier.
-   * Placeholder until a full chart-of-accounts model is added.
-   */
-  async ensureAccount(_campgroundId: string, glCode: string, _name: string, _type: GlAccountType): Promise<string> {
-    return glCode;
-  }
-
-  /**
-   * Post balanced ledger entries using the lightweight helper. Supports the newer LedgerPostRequest shape.
-   */
-  async postEntries(request: LedgerPostRequest) {
-    const occurredAt = request.occurredAt ?? new Date();
-    const entries = request.lines.map((line, idx) => ({
-      campgroundId: request.campgroundId,
-      reservationId: request.reservationId ?? null,
-      glCode: line.glCode ?? line.glAccountId,
-      account: line.accountName ?? line.glAccountId ?? null,
-      description: request.description ?? line.memo ?? undefined,
-      amountCents: line.amountCents,
-      direction: line.side,
-      occurredAt,
-      externalRef: request.externalRef ?? request.sourceTxId ?? undefined,
-      dedupeKey:
-        request.dedupeKey ??
-        (line.reconciliationKey ? `recon:${line.reconciliationKey}:${line.side}:${line.amountCents}` : undefined) ??
-        `post:${request.sourceType ?? "ledger"}:${request.sourceTxId ?? ""}:${idx}`
-    }));
-
-    return postBalancedLedgerEntries(this.prisma, entries, { requireGlCode: true });
-  }
 }
