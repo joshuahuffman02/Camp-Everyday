@@ -10,14 +10,7 @@
     "platform/apps/api/dist/serverless.js": {
       "runtime": "nodejs20.x",
       "maxDuration": 30,
-      "memory": 1024,
-      "includeFiles": [
-        "platform/apps/api/dist/**",
-        "platform/apps/api/prisma/**",
-        "platform/packages/shared/dist/**",
-        "node_modules/.prisma/**",
-        "node_modules/@prisma/**"
-      ]
+      "memory": 1024
     }
   },
   "routes": [
