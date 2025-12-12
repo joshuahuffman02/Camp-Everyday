@@ -13,6 +13,7 @@ type Ticket = {
   completedAt?: string;
   title: string;
   notes?: string;
+  category?: "issue" | "question" | "feature" | "other";
   url?: string;
   path?: string;
   pageTitle?: string;
