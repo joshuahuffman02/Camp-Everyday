@@ -7,7 +7,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
   constructor() {
     const connectionString = process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL;
     if (!connectionString) {
-      console.error('No DATABASE_URL or PLATFORM_DATABASE_URL found');
+      throw new Error('DATABASE_URL or PLATFORM_DATABASE_URL must be set');
     }
     const adapter = new PrismaPg({ connectionString });
     // @ts-ignore Prisma 7 adapter signature
