@@ -12,4 +12,4 @@ async function bootstrap() {
 
 bootstrap();
 
-// cache bust 1765602218
+// cache bust 1765602220 - tsc fix for decorator metadata
