@@ -106,6 +106,12 @@ export class TicketsService {
         const results = [];
         for (const ticket of tickets) {
             try {
+                // Map old status values to new TicketState enum
+                let mappedStatus = ticket.status || "open";
+                if (mappedStatus === "completed") {
+                    mappedStatus = "resolved"; // Map old 'completed' to new 'resolved'
+                }
+
                 const created = await this.prisma.ticket.create({
                     data: {
                         id: ticket.id || undefined,
@@ -120,7 +126,7 @@ export class TicketsService {
                         submitter: ticket.submitter || null,
                         client: ticket.client || null,
                         extra: ticket.extra || null,
-                        status: (ticket.status as any) || "open",
+                        status: mappedStatus as any,
                         agentNotes: ticket.agentNotes?.trim() || null,
                         votes: ticket.votes || 0,
                         upvoters: ticket.upvoters || [],
