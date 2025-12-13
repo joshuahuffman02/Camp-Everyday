@@ -77,17 +77,17 @@ export async function createApp(): Promise<INestApplication> {
         next();
     });
 
-    // Body parser with raw body for webhooks
-    const bodyParser = await import("body-parser");
+    // Body parser with raw body for webhooks (using Express 5 built-in)
+    const express = await import("express");
     app.use(
-        bodyParser.json({
+        express.json({
             verify: (req: any, _res: any, buf: Buffer) => {
                 req.rawBody = buf;
             }
         })
     );
     app.use(
-        bodyParser.urlencoded({
+        express.urlencoded({
             extended: true,
             verify: (req: any, _res: any, buf: Buffer) => {
                 req.rawBody = buf;
