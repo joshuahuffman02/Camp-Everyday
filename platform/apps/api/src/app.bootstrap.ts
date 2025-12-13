@@ -95,14 +95,15 @@ export async function createApp(): Promise<INestApplication> {
         })
     );
 
-    // Global interceptors
-    const perfService = app.get(PerfService);
-    const rateLimitService = app.get(RateLimitService);
-    const observabilityService = app.get(ObservabilityService);
-    app.useGlobalInterceptors(
-        new RateLimitInterceptor(rateLimitService, perfService),
-        new PerfInterceptor(perfService, observabilityService)
-    );
+    // Global interceptors - TEMPORARILY DISABLED for Railway deployment
+    // TODO: Re-enable after fixing ObservabilityService initialization
+    // const perfService = app.get(PerfService);
+    // const rateLimitService = app.get(RateLimitService);
+    // const observabilityService = app.get(ObservabilityService);
+    // app.useGlobalInterceptors(
+    //     new RateLimitInterceptor(rateLimitService, perfService),
+    //     new PerfInterceptor(perfService, observabilityService)
+    // );
 
     return app;
 }
