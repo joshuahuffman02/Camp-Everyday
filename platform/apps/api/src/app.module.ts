@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { PrismaService } from "./prisma/prisma.service";
+import { PrismaModule } from "./prisma/prisma.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { AuthModule } from "./auth/auth.module";
 import { OrganizationsModule } from "./organizations/organizations.module";
@@ -92,6 +92,7 @@ import { SignaturesModule } from "./signatures/signatures.module";
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    PrismaModule,
     AuthModule,
     GuestAuthModule,
     RedisModule,
@@ -178,6 +179,6 @@ import { SignaturesModule } from "./signatures/signatures.module";
     OnboardingModule,
     ReferralsModule,
   ],
-  providers: [PrismaService]
+  providers: []
 })
 export class AppModule { }
