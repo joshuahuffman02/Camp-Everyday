@@ -1,90 +1,29 @@
 import { NextResponse } from "next/server";
-import fs from "node:fs/promises";
-import path from "node:path";
-import crypto from "node:crypto";
 
-type Ticket = {
-  id: string;
-  createdAt: string;
-  completedAt?: string;
-  title: string;
-  notes?: string;
-  category?: "issue" | "question" | "feature" | "other";
-  url?: string;
-  path?: string;
-  pageTitle?: string;
-  userAgent?: string;
-  selection?: string;
-  extra?: Record<string, unknown>;
-  status: "open" | "completed";
-  agentNotes?: string;
-  votes?: number;
-  submitter?: {
-    id?: string | null;
-    name?: string | null;
-    email?: string | null;
-  };
-  upvoters?: Array<{
-    id?: string | null;
-    name?: string | null;
-    email?: string | null;
-  }>;
-  client?: {
-    userAgent?: string | null;
-    platform?: string | null;
-    language?: string | null;
-    deviceType?: "mobile" | "desktop" | "tablet" | "unknown";
-  };
-};
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const TICKETS_PATH = path.join(DATA_DIR, "tickets.json");
-
-async function ensureStore() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  try {
-    await fs.access(TICKETS_PATH);
-  } catch {
-    await fs.writeFile(TICKETS_PATH, "[]", "utf8");
-  }
-}
-
-async function readTickets(): Promise<Ticket[]> {
-  await ensureStore();
-  const raw = await fs.readFile(TICKETS_PATH, "utf8");
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((t) => ({
-      ...t,
-      votes: typeof t.votes === "number" ? t.votes : 0,
-      upvoters: Array.isArray(t.upvoters) ? t.upvoters : [],
-      category: (t as any).category ?? "issue",
-      client: t.client ?? {
-        userAgent: t.userAgent ?? null,
-        platform: null,
-        language: null,
-        deviceType: "unknown",
-      },
-    })) as Ticket[];
-  } catch {
-    return [];
-  }
-}
-
-async function writeTickets(tickets: Ticket[]) {
-  await fs.writeFile(TICKETS_PATH, JSON.stringify(tickets, null, 2), "utf8");
-}
+/**
+ * Tickets API Route - Proxies to backend NestJS API
+ * All ticket data is now stored in the PostgreSQL database
+ */
 
 export async function GET() {
   try {
-    const tickets = await readTickets();
-    const sorted = [...tickets].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    return NextResponse.json({ tickets: sorted });
+    const res = await fetch(`${API_BASE}/tickets`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      console.error("[tickets][GET] Backend error:", res.status, await res.text());
+      return new NextResponse("Failed to load tickets", { status: res.status });
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data);
   } catch (err) {
-    console.error("[tickets][GET]", err);
+    console.error("[tickets][GET] Network error:", err);
     return new NextResponse("Failed to load tickets", { status: 500 });
   }
 }
@@ -92,61 +31,37 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const {
-      title,
-      notes,
-      url,
-      path: pathname,
-      pageTitle,
-      userAgent: userAgentInput,
-      selection,
-      extra,
-      submitter,
-      client,
-      category,
-    } = body ?? {};
 
-    const resolvedUserAgent = userAgentInput ?? req.headers.get("user-agent") ?? undefined;
+    // Add client info from request headers if not provided
+    const userAgent = req.headers.get("user-agent") ?? undefined;
+    const referer = req.headers.get("referer") ?? undefined;
 
-    const deriveDeviceType = (ua?: string | null) => {
-      if (!ua) return "unknown" as const;
-      const lower = ua.toLowerCase();
-      if (/(ipad|tablet)/.test(lower)) return "tablet" as const;
-      if (/(mobi|android|iphone)/.test(lower)) return "mobile" as const;
-      return "desktop" as const;
-    };
-
-    const ticket: Ticket = {
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      status: "open",
-      votes: 0,
-      submitter: submitter ?? undefined,
-      upvoters: [],
-      title: (title ?? "").trim() || "Untitled ticket",
-      notes: (notes ?? "").trim() || undefined,
-      url: url ?? req.headers.get("referer") ?? undefined,
-      path: pathname ?? undefined,
-      pageTitle: pageTitle ?? undefined,
-      userAgent: resolvedUserAgent,
-      selection: selection ?? undefined,
-      extra: extra ?? undefined,
-      category: category ?? "issue",
-      client: client ?? {
-        userAgent: resolvedUserAgent,
+    const enrichedBody = {
+      ...body,
+      url: body.url ?? referer,
+      client: body.client ?? {
+        userAgent,
         platform: null,
         language: null,
-        deviceType: deriveDeviceType(resolvedUserAgent),
+        deviceType: deriveDeviceType(userAgent),
       },
     };
 
-    const tickets = await readTickets();
-    tickets.push(ticket);
-    await writeTickets(tickets);
+    const res = await fetch(`${API_BASE}/tickets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(enrichedBody),
+    });
 
-    return NextResponse.json({ ok: true, ticket });
+    if (!res.ok) {
+      console.error("[tickets][POST] Backend error:", res.status, await res.text());
+      return new NextResponse("Failed to save ticket", { status: res.status });
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data);
   } catch (err) {
-    console.error("[tickets][POST]", err);
+    console.error("[tickets][POST] Network error:", err);
     return new NextResponse("Failed to save ticket", { status: 500 });
   }
 }
@@ -154,55 +69,39 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { id, status, agentNotes, action, actor } = body ?? {};
+    const { id, ...rest } = body ?? {};
 
     if (!id) {
       return new NextResponse("Missing ticket id", { status: 400 });
     }
 
-    const tickets = await readTickets();
-    const idx = tickets.findIndex((t) => t.id === id);
-    if (idx === -1) {
-      return new NextResponse("Ticket not found", { status: 404 });
+    const res = await fetch(`${API_BASE}/tickets/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rest),
+    });
+
+    if (!res.ok) {
+      const status = res.status;
+      if (status === 404) {
+        return new NextResponse("Ticket not found", { status: 404 });
+      }
+      console.error("[tickets][PATCH] Backend error:", status, await res.text());
+      return new NextResponse("Failed to update ticket", { status });
     }
 
-    const ticket = tickets[idx];
-    const now = new Date().toISOString();
-
-    if (action === "upvote") {
-      const actorKey = actor?.id || actor?.email || undefined;
-      const alreadyUpvoted = actorKey
-        ? ticket.upvoters?.some((u) => (u.id && u.id === actorKey) || (u.email && u.email === actorKey))
-        : false;
-      if (!alreadyUpvoted) {
-        ticket.votes = (ticket.votes ?? 0) + 1;
-        if (!ticket.upvoters) ticket.upvoters = [];
-        ticket.upvoters.push({
-          id: actor?.id ?? null,
-          name: actor?.name ?? null,
-          email: actor?.email ?? null,
-        });
-      }
-    } else {
-      if (status === "completed") {
-        ticket.status = "completed";
-        ticket.completedAt = now;
-      } else if (status === "open") {
-        ticket.status = "open";
-        ticket.completedAt = undefined;
-      }
-
-      if (typeof agentNotes === "string") {
-        ticket.agentNotes = agentNotes.trim() || undefined;
-      }
-    }
-
-    tickets[idx] = ticket;
-    await writeTickets(tickets);
-
-    return NextResponse.json({ ok: true, ticket });
+    const data = await res.json();
+    return NextResponse.json(data);
   } catch (err) {
-    console.error("[tickets][PATCH]", err);
+    console.error("[tickets][PATCH] Network error:", err);
     return new NextResponse("Failed to update ticket", { status: 500 });
   }
+}
+
+function deriveDeviceType(ua?: string | null): "mobile" | "desktop" | "tablet" | "unknown" {
+  if (!ua) return "unknown";
+  const lower = ua.toLowerCase();
+  if (/(ipad|tablet)/.test(lower)) return "tablet";
+  if (/(mobi|android|iphone)/.test(lower)) return "mobile";
+  return "desktop";
 }

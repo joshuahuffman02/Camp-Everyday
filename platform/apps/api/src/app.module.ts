@@ -87,6 +87,7 @@ import { AccessControlModule } from "./access-control/access-control.module";
 import { BillingModule } from "./billing/billing.module";
 import { ReferralsModule } from "./referrals/referrals.module";
 import { SignaturesModule } from "./signatures/signatures.module";
+import { TicketsModule } from "./tickets/tickets.module";
 
 @Module({
   imports: [
@@ -178,6 +179,7 @@ import { SignaturesModule } from "./signatures/signatures.module";
     SignaturesModule,
     OnboardingModule,
     ReferralsModule,
+    TicketsModule,
   ],
   providers: []
 })

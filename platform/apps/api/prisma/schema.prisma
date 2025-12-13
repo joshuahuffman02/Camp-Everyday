@@ -167,6 +167,13 @@ enum TicketState {
   closed
 }
 
+enum TicketCategory {
+  issue
+  question
+  feature
+  other
+}
+
 enum Severity {
   low
   med
@@ -5464,4 +5471,34 @@ model FactStoredValueDaily {
 
   @@unique([campgroundId, metricDate])
   @@index([campgroundId, metricDate])
+}
+
+// =============================================================================
+// User Feedback / Support Tickets
+// =============================================================================
+
+model Ticket {
+  id           String          @id @default(uuid())
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @default(now()) @updatedAt
+  completedAt  DateTime?
+  title        String
+  notes        String?
+  category     TicketCategory  @default(issue)
+  area         String?
+  url          String?
+  path         String?
+  pageTitle    String?
+  selection    String?
+  status       TicketState     @default(open)
+  agentNotes   String?
+  votes        Int             @default(0)
+  submitter    Json?           // { id, name, email }
+  upvoters     Json?           // [{ id, name, email }]
+  client       Json?           // { userAgent, platform, language, deviceType }
+  extra        Json?
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([category])
 }
