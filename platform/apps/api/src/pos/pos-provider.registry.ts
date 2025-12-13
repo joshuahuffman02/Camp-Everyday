@@ -8,11 +8,10 @@ export class PosProviderRegistry {
   private readonly adapters: Map<PosProviderType, PosProviderAdapter>;
 
   constructor(clover: CloverAdapter, square: SquareAdapter, toast: ToastAdapter) {
-    this.adapters = new Map([
-      [clover.provider, clover],
-      [square.provider, square],
-      [toast.provider, toast]
-    ]);
+    this.adapters = new Map();
+    if (clover?.provider) this.adapters.set(clover.provider, clover);
+    if (square?.provider) this.adapters.set(square.provider, square);
+    if (toast?.provider) this.adapters.set(toast.provider, toast);
   }
 
   getAdapter(provider: PosProviderType): PosProviderAdapter | null {
