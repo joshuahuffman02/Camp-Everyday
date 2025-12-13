@@ -37,7 +37,7 @@ export function WaitlistDialog({
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
     const form = useForm<CreateWaitlistEntryDto>({
-        resolver: zodResolver(CreateWaitlistEntrySchema) as any,
+        resolver: zodResolver(CreateWaitlistEntrySchema as any) as any,
         defaultValues: {
             campgroundId,
             type: "regular",
