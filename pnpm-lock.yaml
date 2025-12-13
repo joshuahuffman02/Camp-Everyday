@@ -70,7 +70,7 @@ importers:
       tsup: ^8.5.1
       typescript: ^5.9.3
       xlsx: ^0.18.5
-      zod: ^4.0.0
+      zod: ^3.23.8
     dependencies:
       '@aws-sdk/client-s3': 3.948.0
       '@aws-sdk/s3-request-presigner': 3.948.0
@@ -104,7 +104,7 @@ importers:
       rxjs: 7.8.2
       stripe: 20.0.0_@types+node@22.19.2
       xlsx: 0.18.5
-      zod: 4.1.13
+      zod: 3.23.8
     devDependencies:
       '@jest/test-sequencer': 29.7.0
       '@nestjs/testing': 10.4.20_c4rqn6ecrsand7dqymw7vhfquq
