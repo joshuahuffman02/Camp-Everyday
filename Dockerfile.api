@@ -31,8 +31,8 @@ COPY --from=shared /app/platform/packages/shared/dist ./platform/packages/shared
 COPY --from=api-builder /app/platform/apps/api/dist ./platform/apps/api/dist
 COPY --from=api-builder /app/platform/apps/api/prisma ./platform/apps/api/prisma
 COPY --from=api-builder /app/platform/apps/api/package.json ./platform/apps/api/
-COPY package.json pnpm-workspace.yaml ./
+COPY --from=api-builder /app/platform/apps/api/prisma.config.ts ./platform/apps/api/
 
 WORKDIR /app/platform/apps/api
 EXPOSE 3001
-CMD ["node", "dist/main.js"]
+CMD ["npm", "start"]
