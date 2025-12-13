@@ -6,4 +6,3 @@ dist
 *.log
 .vercel
 .railway
-pnpm-lock.yaml
