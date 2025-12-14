@@ -13,8 +13,9 @@ import {
   reservationImportSchemaSummary,
 } from "./dto/reservation-import.dto";
 import { ReservationStatus } from "@prisma/client";
+import { parseNewbookCsv, mapNewbookToInternal, NewbookImportResult } from "./integrations/newbook.adapter";
 
-type ImportFormat = "csv" | "json";
+type ImportFormat = "csv" | "json" | "newbook";
 
 type ImportRequest = {
   campgroundId: string;
@@ -57,10 +58,30 @@ export class ReservationImportExportService {
 
   importSchema() {
     return {
-      formats: ["csv", "json"],
+      formats: ["csv", "json", "newbook"],
       csvColumns: reservationImportCsvColumns,
       jsonSchema: reservationImportRecordSchema.describe(),
       summary: reservationImportSchemaSummary,
+      newbookFormat: {
+        description: "NewBook PMS CSV export format",
+        columns: [
+          "Booking Name",
+          "Site",
+          "Arrival",
+          "Departure",
+          "Calculated Stay Cost",
+          "Default Client Account",
+          "Booking Client Account Balance",
+          "Booking Duration",
+          "Category Name",
+        ],
+        notes: [
+          "Site class is extracted from 'Category Name'",
+          "Site number is extracted from 'Site' field suffix",
+          "Guests are created with placeholder emails",
+          "Amounts are converted from dollars to cents",
+        ],
+      },
     };
   }
 
@@ -163,8 +184,8 @@ export class ReservationImportExportService {
   }
 
   async startImport(request: ImportRequest) {
-    if (!["csv", "json"].includes(request.format)) {
-      throw new BadRequestException("format must be csv or json");
+    if (!["csv", "json", "newbook"].includes(request.format)) {
+      throw new BadRequestException("format must be csv, json, or newbook");
     }
     const key = this.normalizeIdempotencyKey(request.idempotencyKey);
     await this.idempotency.throttleScope(request.campgroundId, null, "apply");
@@ -182,10 +203,34 @@ export class ReservationImportExportService {
 
     await this.enforceCapacityGuard();
 
-    const { records, errors: parseErrors } =
-      request.format === "csv"
-        ? this.parseCsv(typeof request.payload === "string" ? request.payload : "")
-        : { records: Array.isArray(request.payload) ? request.payload : [], errors: [] as string[] };
+    // Parse based on format
+    let records: Record<string, any>[] = [];
+    let parseErrors: string[] = [];
+    let newbookResults: NewbookImportResult[] = [];
+
+    if (request.format === "newbook") {
+      // NewBook format: parse CSV and transform through adapter
+      const csvContent = typeof request.payload === "string" ? request.payload : "";
+      const newbookRows = parseNewbookCsv(csvContent);
+      if (!newbookRows.length) {
+        parseErrors.push("No valid NewBook rows found in CSV");
+      } else {
+        newbookResults = newbookRows.map(row => mapNewbookToInternal(row));
+        // For now, collect warnings as parse errors and extract records
+        newbookResults.forEach((r, idx) => {
+          r.warnings.forEach(w => parseErrors.push(`Row ${idx + 2}: ${w}`));
+        });
+        // Note: NewBook records are partial - they need site/guest resolution
+        // For full import, we'd need to resolve these first
+        records = newbookResults.map(r => r.record);
+      }
+    } else if (request.format === "csv") {
+      const parsed = this.parseCsv(typeof request.payload === "string" ? request.payload : "");
+      records = parsed.records;
+      parseErrors = parsed.errors;
+    } else {
+      records = Array.isArray(request.payload) ? request.payload : [];
+    }
 
     if (!records.length) {
       await this.idempotency.fail(key);
