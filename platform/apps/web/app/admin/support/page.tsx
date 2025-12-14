@@ -13,6 +13,12 @@ import { useSession } from "next-auth/react";
 import { useWhoami } from "@/hooks/use-whoami";
 import { MobileQuickActionsBar } from "@/components/staff/MobileQuickActionsBar";
 
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("campreserv:authToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 type Member = {
   id: string;
   role: string;
@@ -93,7 +99,10 @@ export default function SupportAdminPage() {
       setMembersError(null);
       try {
         const base = process.env.NEXT_PUBLIC_API_BASE || "";
-        const res = await fetch(`${base}/campgrounds/${campgroundId}/members`, { credentials: "include" });
+        const res = await fetch(`${base}/campgrounds/${campgroundId}/members`, {
+          credentials: "include",
+          headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error(`Failed to load members (${res.status})`);
         const data = await res.json();
         setMembers(data as Member[]);
@@ -131,7 +140,10 @@ export default function SupportAdminPage() {
         if (regionFilter !== "all") parts.push(`region=${encodeURIComponent(regionFilter)}`);
         if (campgroundId) parts.push(`campgroundId=${encodeURIComponent(campgroundId)}`);
         const qs = parts.length ? `?${parts.join("&")}` : "";
-        const res = await fetch(`${base}/support/reports${qs}`, { credentials: "include" });
+        const res = await fetch(`${base}/support/reports${qs}`, {
+          credentials: "include",
+          headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error(`Failed to load reports (${res.status})`);
         const data = await res.json();
         setReports(data);
@@ -165,7 +177,10 @@ export default function SupportAdminPage() {
         if (regionFilter !== "all") parts.push(`region=${encodeURIComponent(regionFilter)}`);
         if (campgroundId) parts.push(`campgroundId=${encodeURIComponent(campgroundId)}`);
         const qs = parts.length ? `?${parts.join("&")}` : "";
-        const res = await fetch(`${base}/support/reports/staff/directory${qs}`, { credentials: "include" });
+        const res = await fetch(`${base}/support/reports/staff/directory${qs}`, {
+          credentials: "include",
+          headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error(`Failed to load staff (${res.status})`);
         const data = await res.json();
         setStaff(data);
@@ -212,7 +227,7 @@ export default function SupportAdminPage() {
       const base = process.env.NEXT_PUBLIC_API_BASE || "";
       const res = await fetch(`${base}/support/reports/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         credentials: "include",
         body: JSON.stringify({ status })
       });
@@ -233,7 +248,7 @@ export default function SupportAdminPage() {
       const base = process.env.NEXT_PUBLIC_API_BASE || "";
       const res = await fetch(`${base}/support/reports/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         credentials: "include",
         body: JSON.stringify({ assigneeId })
       });
@@ -243,16 +258,16 @@ export default function SupportAdminPage() {
         prev.map((r) =>
           r.id === id
             ? {
-                ...r,
-                assignee: assigneeId
-                  ? {
-                      id: assigneeId,
-                      email: member?.email || session?.user?.email || r.assignee?.email || "",
-                      firstName: member?.firstName ?? r.assignee?.firstName,
-                      lastName: member?.lastName ?? r.assignee?.lastName
-                    }
-                  : undefined
-              }
+              ...r,
+              assignee: assigneeId
+                ? {
+                  id: assigneeId,
+                  email: member?.email || session?.user?.email || r.assignee?.email || "",
+                  firstName: member?.firstName ?? r.assignee?.firstName,
+                  lastName: member?.lastName ?? r.assignee?.lastName
+                }
+                : undefined
+            }
             : r
         )
       );
@@ -324,83 +339,83 @@ export default function SupportAdminPage() {
         {canReadSupport && (
           <div className="grid gap-3">
             {filtered.map((r) => (
-            <Card key={r.id} className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge className={`border ${statusColor[r.status] || "bg-slate-100 text-slate-600 border-slate-200"}`}>
-                    {r.status}
-                  </Badge>
-                  {r.campground?.name && <span className="text-xs text-slate-600">Campground: {r.campground.name}</span>}
-                  {regionFilter !== "all" && <span className="text-xs text-slate-600">Region: {regionFilter}</span>}
-                  {r.path && <span className="text-xs text-slate-600">Path: {r.path}</span>}
+              <Card key={r.id} className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className={`border ${statusColor[r.status] || "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                      {r.status}
+                    </Badge>
+                    {r.campground?.name && <span className="text-xs text-slate-600">Campground: {r.campground.name}</span>}
+                    {regionFilter !== "all" && <span className="text-xs text-slate-600">Region: {regionFilter}</span>}
+                    {r.path && <span className="text-xs text-slate-600">Path: {r.path}</span>}
+                  </div>
+                  <span className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleString()}</span>
                 </div>
-                <span className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleString()}</span>
-              </div>
-              <div className="text-sm text-slate-900 font-semibold line-clamp-2">{r.description}</div>
-              {r.author?.email && <div className="text-xs text-slate-500">Author: {r.author.email}</div>}
-              {r.contactEmail && <div className="text-xs text-slate-500">Contact: {r.contactEmail}</div>}
-              {r.steps && <div className="text-xs text-slate-600">Steps: {r.steps}</div>}
-              <div className="flex flex-col gap-2 text-xs text-slate-600">
-                <div className="flex items-center gap-2">
-                  <span>Status:</span>
-                  <Select value={r.status} onValueChange={(v) => updateStatus(r.id, v)} disabled={!canMutate}>
-                    <SelectTrigger className="h-8 w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="triage">Triage</SelectItem>
-                      <SelectItem value="in_progress">In progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setSelectedId(r.id)}>
-                    View details
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => updateAssignee(r.id, session?.user?.id || null)}
-                    disabled={!session?.user?.id || !canMutate}
-                  >
-                    Assign to me
-                  </Button>
-                  {staff.length > 0 && (
-                    <Select
-                      value={r.assignee?.id || ""}
-                      onValueChange={(v) => updateAssignee(r.id, v || null)}
-                      disabled={!canMutate}
-                    >
-                      <SelectTrigger className="h-8 w-44">
-                        <SelectValue placeholder="Assign user" />
+                <div className="text-sm text-slate-900 font-semibold line-clamp-2">{r.description}</div>
+                {r.author?.email && <div className="text-xs text-slate-500">Author: {r.author.email}</div>}
+                {r.contactEmail && <div className="text-xs text-slate-500">Contact: {r.contactEmail}</div>}
+                {r.steps && <div className="text-xs text-slate-600">Steps: {r.steps}</div>}
+                <div className="flex flex-col gap-2 text-xs text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span>Status:</span>
+                    <Select value={r.status} onValueChange={(v) => updateStatus(r.id, v)} disabled={!canMutate}>
+                      <SelectTrigger className="h-8 w-36">
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Unassigned</SelectItem>
-                        {staff.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {(s.firstName || s.lastName)
-                              ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim()
-                              : s.email}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="triage">Triage</SelectItem>
+                        <SelectItem value="in_progress">In progress</SelectItem>
+                        <SelectItem value="resolved">Resolved</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
                       </SelectContent>
                     </Select>
-                  )}
-                  {r.assignee && (
-                    <Button size="sm" variant="ghost" onClick={() => updateAssignee(r.id, null)} disabled={!canMutate}>
-                      Unassign
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setSelectedId(r.id)}>
+                      View details
                     </Button>
-                  )}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => updateAssignee(r.id, session?.user?.id || null)}
+                      disabled={!session?.user?.id || !canMutate}
+                    >
+                      Assign to me
+                    </Button>
+                    {staff.length > 0 && (
+                      <Select
+                        value={r.assignee?.id || ""}
+                        onValueChange={(v) => updateAssignee(r.id, v || null)}
+                        disabled={!canMutate}
+                      >
+                        <SelectTrigger className="h-8 w-44">
+                          <SelectValue placeholder="Assign user" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Unassigned</SelectItem>
+                          {staff.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {(s.firstName || s.lastName)
+                                ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim()
+                                : s.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {r.assignee && (
+                      <Button size="sm" variant="ghost" onClick={() => updateAssignee(r.id, null)} disabled={!canMutate}>
+                        Unassign
+                      </Button>
+                    )}
+                  </div>
+                  {staffLoading && <div className="text-slate-400">Loading assignees…</div>}
+                  {membersError && <div className="text-rose-500">Assignee list unavailable: {membersError}</div>}
+                  {!campgroundId && <div className="text-slate-400">Select a campground (top bar) to apply scoping.</div>}
                 </div>
-                {staffLoading && <div className="text-slate-400">Loading assignees…</div>}
-                {membersError && <div className="text-rose-500">Assignee list unavailable: {membersError}</div>}
-                {!campgroundId && <div className="text-slate-400">Select a campground (top bar) to apply scoping.</div>}
-              </div>
-            </Card>
-          ))}
+              </Card>
+            ))}
             {!loading && !error && reports.length === 0 && (
               <div className="overflow-hidden rounded-lg border bg-white">
                 <table className="w-full text-sm">
@@ -415,34 +430,34 @@ export default function SupportAdminPage() {
 
         {canReadSupport && (
           <Card className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs uppercase font-semibold text-slate-500">Staff directory</div>
-              <p className="text-sm text-slate-600">Assign/notify staff by region.</p>
-            </div>
-            {staffLoading && <div className="text-xs text-slate-500">Loading…</div>}
-          </div>
-          <div className="grid gap-2">
-            {staff.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded border border-slate-200 px-3 py-2">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">{s.email}</div>
-                  <div className="text-xs text-slate-600">
-                    {(s.firstName || s.lastName) ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() : "—"} • Region {s.region ?? "n/a"}
-                  </div>
-                  {s.memberships?.length ? (
-                    <div className="text-[11px] text-slate-500">
-                      Campgrounds: {s.memberships.map((m) => m.campgroundId).join(", ")}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => toast({ title: "Notify (stub)", description: `Sent to ${s.email}` })} disabled={!canMutate}>
-                    Notify
-                  </Button>
-                </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase font-semibold text-slate-500">Staff directory</div>
+                <p className="text-sm text-slate-600">Assign/notify staff by region.</p>
               </div>
-            ))}
+              {staffLoading && <div className="text-xs text-slate-500">Loading…</div>}
+            </div>
+            <div className="grid gap-2">
+              {staff.map((s) => (
+                <div key={s.id} className="flex items-center justify-between rounded border border-slate-200 px-3 py-2">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{s.email}</div>
+                    <div className="text-xs text-slate-600">
+                      {(s.firstName || s.lastName) ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() : "—"} • Region {s.region ?? "n/a"}
+                    </div>
+                    {s.memberships?.length ? (
+                      <div className="text-[11px] text-slate-500">
+                        Campgrounds: {s.memberships.map((m) => m.campgroundId).join(", ")}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => toast({ title: "Notify (stub)", description: `Sent to ${s.email}` })} disabled={!canMutate}>
+                      Notify
+                    </Button>
+                  </div>
+                </div>
+              ))}
               {staff.length === 0 && !staffLoading && (
                 <div className="overflow-hidden rounded border">
                   <table className="w-full text-sm">
@@ -452,8 +467,8 @@ export default function SupportAdminPage() {
                   </table>
                 </div>
               )}
-          </div>
-        </Card>
+            </div>
+          </Card>
         )}
 
         {selected && (

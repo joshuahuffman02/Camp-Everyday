@@ -9,6 +9,12 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { useWhoami } from "@/hooks/use-whoami";
 
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("campreserv:authToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 type Staff = {
   id: string;
   email: string;
@@ -53,7 +59,10 @@ export default function SupportStaffDirectoryPage() {
       if (regionFilter !== "all") parts.push(`region=${encodeURIComponent(regionFilter)}`);
       if (campgroundId) parts.push(`campgroundId=${encodeURIComponent(campgroundId)}`);
       const qs = parts.length ? `?${parts.join("&")}` : "";
-      const res = await fetch(`${base}/support/reports/staff/directory${qs}`, { credentials: "include" });
+      const res = await fetch(`${base}/support/reports/staff/directory${qs}`, {
+        credentials: "include",
+        headers: getAuthHeaders()
+      });
       if (!res.ok) throw new Error(`Failed to load staff (${res.status})`);
       const data = (await res.json()) as Staff[];
       setStaff(data);
@@ -97,7 +106,7 @@ export default function SupportStaffDirectoryPage() {
       const base = process.env.NEXT_PUBLIC_API_BASE || "";
       const res = await fetch(`${base}/support/reports/staff/${staffId}/scope`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         credentials: "include",
         body: JSON.stringify({ region: draft.region || null, ownershipRoles: roles })
       });
@@ -204,8 +213,8 @@ export default function SupportStaffDirectoryPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                    onClick={() => toast({ title: "Notify (stub)", description: `Sent to ${s.email}` })}
-                    disabled={whoamiLoading}
+                        onClick={() => toast({ title: "Notify (stub)", description: `Sent to ${s.email}` })}
+                        disabled={whoamiLoading}
                       >
                         Notify
                       </Button>
