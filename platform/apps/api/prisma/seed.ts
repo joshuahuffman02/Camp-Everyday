@@ -148,8 +148,8 @@ async function seedUsers() {
   const password = await bcrypt.hash("password123", 12);
 
   const userDefs: Array<{ email: string; firstName: string; lastName: string; platformRole?: PlatformRole }> = [
-    { email: "admin@campeveryday.com", firstName: "Admin", lastName: "User" },
-    { email: "josh@campeveryday.com", firstName: "Josh", lastName: "Owner" },
+    { email: "admin@campeveryday.com", firstName: "Admin", lastName: "User", platformRole: PlatformRole.platform_admin },
+    { email: "josh@campeveryday.com", firstName: "Josh", lastName: "Owner", platformRole: PlatformRole.platform_admin },
     { email: "manager@campeveryday.com", firstName: "Sarah", lastName: "Manager" },
     { email: "frontdesk@campeveryday.com", firstName: "Mike", lastName: "Reception" },
     { email: "maintenance@campeveryday.com", firstName: "Bob", lastName: "Fixit" },
