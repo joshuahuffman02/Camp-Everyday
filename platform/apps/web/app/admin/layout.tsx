@@ -28,6 +28,7 @@ const adminNavItems = [
         title: "Campgrounds",
         icon: Building2,
         children: [
+            { title: "View All", href: "/admin/campgrounds" },
             { title: "Create New", href: "/admin/campgrounds/new" },
         ],
     },
@@ -79,8 +80,8 @@ function NavItem({ item, pathname }: { item: typeof adminNavItems[0]; pathname: 
                             key={child.href}
                             href={child.href}
                             className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${pathname === child.href
-                                    ? "bg-slate-700 text-white"
-                                    : "text-slate-400 hover:text-white hover:bg-slate-800"
+                                ? "bg-slate-700 text-white"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800"
                                 }`}
                         >
                             <ChevronRight className="h-3 w-3" />
@@ -96,8 +97,8 @@ function NavItem({ item, pathname }: { item: typeof adminNavItems[0]; pathname: 
         <Link
             href={item.href!}
             className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${pathname === item.href
-                    ? "bg-slate-700 text-white"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-slate-700 text-white"
+                : "text-slate-400 hover:text-white hover:bg-slate-800"
                 }`}
         >
             <Icon className="h-5 w-5" />
