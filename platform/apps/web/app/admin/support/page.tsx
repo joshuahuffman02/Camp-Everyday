@@ -198,6 +198,15 @@ export default function SupportAdminPage() {
   const inProgressCount = reports.filter((r) => r.status === "in_progress").length;
   const resolvedCount = reports.filter((r) => r.status === "resolved" || r.status === "closed").length;
 
+  // Permission checks
+  const regionAllowed = regionFilter === "all" || !whoami?.user?.region || whoami?.user?.region === regionFilter;
+  const campgroundAllowed =
+    !campgroundId || platformRole || whoami?.user?.memberships?.some((m: any) => m.campgroundId === campgroundId);
+  const canMutate = !!whoami && regionAllowed && campgroundAllowed && allowSupport;
+  const canReadSupport = !!whoami && allowSupport && regionAllowed && campgroundAllowed;
+  const openReports = reports.filter((r) => r.status !== "closed").length;
+  const triagePending = reports.filter((r) => r.status === "new" || r.status === "triage").length;
+
   const filtered = reports
     .filter((r) => statusFilter === "all" || r.status === statusFilter)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
