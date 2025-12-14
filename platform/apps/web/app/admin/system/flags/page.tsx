@@ -1,98 +1,70 @@
 "use client";
 
-import { useState } from "react";
-import { Flag, ToggleLeft, ToggleRight, Search, Building2, Globe } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Flag, ToggleLeft, ToggleRight, Search, Building2, Globe, Plus, RefreshCw } from "lucide-react";
 
 type FeatureFlag = {
     id: string;
-    name: string;
     key: string;
-    description: string;
+    name: string;
+    description: string | null;
     enabled: boolean;
     scope: "global" | "campground";
-    campgrounds?: string[]; // Enabled for specific campgrounds
+    campgrounds: string[];
 };
 
-// Stub data
-const stubFlags: FeatureFlag[] = [
-    {
-        id: "1",
-        name: "AI Suggestions",
-        key: "ai_suggestions",
-        description: "Enable AI-powered recommendations for guests and staff",
-        enabled: true,
-        scope: "campground",
-        campgrounds: ["Camp Everyday - Riverbend"],
-    },
-    {
-        id: "2",
-        name: "Beta Booking Flow",
-        key: "beta_booking_v2",
-        description: "New streamlined booking experience with fewer steps",
-        enabled: false,
-        scope: "global",
-    },
-    {
-        id: "3",
-        name: "Guest Portal",
-        key: "guest_portal",
-        description: "Allow guests to view/manage their reservations online",
-        enabled: true,
-        scope: "global",
-    },
-    {
-        id: "4",
-        name: "POS Integration",
-        key: "pos_integration",
-        description: "Enable point-of-sale system for camp stores",
-        enabled: true,
-        scope: "campground",
-        campgrounds: ["Camp Everyday - Riverbend", "Pine Lake"],
-    },
-    {
-        id: "5",
-        name: "Kiosk Mode",
-        key: "kiosk_mode",
-        description: "Self-service check-in kiosk for guests",
-        enabled: false,
-        scope: "campground",
-    },
-    {
-        id: "6",
-        name: "Dark Mode",
-        key: "dark_mode",
-        description: "Dark theme for staff dashboard",
-        enabled: true,
-        scope: "global",
-    },
-    {
-        id: "7",
-        name: "Analytics Dashboard",
-        key: "analytics_v2",
-        description: "Enhanced analytics with custom date ranges",
-        enabled: false,
-        scope: "global",
-    },
-    {
-        id: "8",
-        name: "SMS Notifications",
-        key: "sms_notifications",
-        description: "Send SMS updates to guests",
-        enabled: true,
-        scope: "campground",
-        campgrounds: ["Camp Everyday - Riverbend"],
-    },
-];
+function getAuthHeaders(): Record<string, string> {
+    if (typeof window === "undefined") return {};
+    const token = localStorage.getItem("campreserv:authToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export default function FeatureFlagsPage() {
-    const [flags, setFlags] = useState<FeatureFlag[]>(stubFlags);
+    const [flags, setFlags] = useState<FeatureFlag[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [scopeFilter, setScopeFilter] = useState<string>("all");
 
-    const toggleFlag = (id: string) => {
-        setFlags((prev) =>
-            prev.map((f) => (f.id === id ? { ...f, enabled: !f.enabled } : f))
-        );
+    const loadFlags = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const base = process.env.NEXT_PUBLIC_API_BASE || "";
+            const res = await fetch(`${base}/admin/flags`, {
+                credentials: "include",
+                headers: getAuthHeaders(),
+            });
+            if (!res.ok) throw new Error(`Failed to load flags (${res.status})`);
+            const data = await res.json();
+            setFlags(Array.isArray(data) ? data : []);
+        } catch (err: any) {
+            setError(err.message || "Failed to load feature flags");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadFlags();
+    }, []);
+
+    const toggleFlag = async (id: string) => {
+        try {
+            const base = process.env.NEXT_PUBLIC_API_BASE || "";
+            const res = await fetch(`${base}/admin/flags/${id}/toggle`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: getAuthHeaders(),
+            });
+            if (!res.ok) throw new Error(`Failed to toggle flag`);
+            const updated = await res.json();
+            setFlags((prev) =>
+                prev.map((f) => (f.id === id ? updated : f))
+            );
+        } catch (err: any) {
+            setError(err.message);
+        }
     };
 
     const filtered = flags.filter((flag) => {
@@ -102,7 +74,7 @@ export default function FeatureFlagsPage() {
             return (
                 flag.name.toLowerCase().includes(q) ||
                 flag.key.toLowerCase().includes(q) ||
-                flag.description.toLowerCase().includes(q)
+                flag.description?.toLowerCase().includes(q)
             );
         }
         return true;
@@ -119,9 +91,18 @@ export default function FeatureFlagsPage() {
                         Enable or disable features across the platform
                     </p>
                 </div>
-                <div className="text-right">
-                    <div className="text-2xl font-bold text-white">{enabledCount}/{flags.length}</div>
-                    <div className="text-sm text-slate-400">Features enabled</div>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={loadFlags}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-300 border border-slate-700 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                    </button>
+                    <div className="text-right">
+                        <div className="text-2xl font-bold text-white">{enabledCount}/{flags.length}</div>
+                        <div className="text-sm text-slate-400">Features enabled</div>
+                    </div>
                 </div>
             </div>
 
@@ -148,8 +129,24 @@ export default function FeatureFlagsPage() {
                 </select>
             </div>
 
+            {error && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
+                    {error}
+                </div>
+            )}
+
             {/* Flags Grid */}
             <div className="grid gap-4 md:grid-cols-2">
+                {loading && flags.length === 0 && (
+                    <div className="col-span-2 p-8 text-center text-slate-400">
+                        Loading feature flags...
+                    </div>
+                )}
+                {!loading && filtered.length === 0 && (
+                    <div className="col-span-2 p-8 text-center text-slate-400">
+                        No feature flags found. Create one to get started.
+                    </div>
+                )}
                 {filtered.map((flag) => (
                     <div
                         key={flag.id}
@@ -166,7 +163,7 @@ export default function FeatureFlagsPage() {
                                         <span className="font-medium text-white">{flag.name}</span>
                                         <span className="text-xs font-mono text-slate-500">{flag.key}</span>
                                     </div>
-                                    <p className="text-sm text-slate-400 mt-1">{flag.description}</p>
+                                    <p className="text-sm text-slate-400 mt-1">{flag.description || "No description"}</p>
                                     <div className="flex items-center gap-2 mt-2">
                                         {flag.scope === "global" ? (
                                             <span className="inline-flex items-center gap-1 text-xs text-slate-500">
@@ -201,7 +198,7 @@ export default function FeatureFlagsPage() {
             </div>
 
             <div className="text-sm text-slate-500 text-center">
-                Changes are saved automatically • Data is stubbed for demo
+                Changes are saved automatically
             </div>
         </div>
     );

@@ -5502,3 +5502,97 @@ model Ticket {
   @@index([createdAt])
   @@index([category])
 }
+
+// =============================================================================
+// Platform Admin Features
+// =============================================================================
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  SYNC
+  EXPORT
+  IMPORT
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  createdAt   DateTime    @default(now())
+  userId      String?
+  userEmail   String?
+  action      AuditAction
+  resource    String      // e.g., "Campground", "User", "Reservation"
+  resourceId  String?
+  details     String?     // Human-readable description
+  metadata    Json?       // Additional structured data
+  ipAddress   String?
+  userAgent   String?
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+}
+
+enum FeatureFlagScope {
+  global
+  campground
+}
+
+model FeatureFlag {
+  id          String            @id @default(cuid())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  key         String            @unique
+  name        String
+  description String?
+  enabled     Boolean           @default(false)
+  scope       FeatureFlagScope  @default(global)
+  campgrounds String[]          // Array of campground IDs if scope is "campground"
+  metadata    Json?             // Additional config
+
+  @@index([key])
+  @@index([enabled])
+}
+
+enum AnnouncementType {
+  info
+  warning
+  success
+}
+
+enum AnnouncementTarget {
+  all
+  admins
+  campground
+}
+
+enum AnnouncementStatus {
+  draft
+  scheduled
+  sent
+}
+
+model Announcement {
+  id           String              @id @default(cuid())
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  title        String
+  message      String
+  type         AnnouncementType    @default(info)
+  target       AnnouncementTarget  @default(all)
+  campgroundId String?             // If target is "campground"
+  status       AnnouncementStatus  @default(draft)
+  scheduledAt  DateTime?
+  sentAt       DateTime?
+  createdById  String
+  createdByEmail String?
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([target])
+}
+

@@ -1,93 +1,35 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { History, User, Settings, Database, Search, Filter } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { History, User, Settings, Database, Search, Filter, RefreshCw } from "lucide-react";
 
 type AuditEntry = {
     id: string;
-    timestamp: Date;
-    user: string;
-    userId: string;
+    createdAt: string;
+    userEmail: string | null;
+    userId: string | null;
     action: string;
     resource: string;
-    resourceId?: string;
-    details?: string;
-    ip?: string;
+    resourceId: string | null;
+    details: string | null;
+    ipAddress: string | null;
 };
 
-// Stub data for demonstration
-const stubAuditLog: AuditEntry[] = [
-    {
-        id: "1",
-        timestamp: new Date(Date.now() - 1000 * 60 * 5),
-        user: "admin@campeveryday.com",
-        userId: "user-1",
-        action: "CREATE",
-        resource: "Campground",
-        resourceId: "cg-123",
-        details: "Created 'Pine Valley RV Resort'",
-        ip: "192.168.1.1",
-    },
-    {
-        id: "2",
-        timestamp: new Date(Date.now() - 1000 * 60 * 15),
-        user: "josh@campeveryday.com",
-        userId: "user-2",
-        action: "UPDATE",
-        resource: "User",
-        resourceId: "user-5",
-        details: "Changed platformRole to 'platform_admin'",
-        ip: "192.168.1.2",
-    },
-    {
-        id: "3",
-        timestamp: new Date(Date.now() - 1000 * 60 * 30),
-        user: "admin@campeveryday.com",
-        userId: "user-1",
-        action: "DELETE",
-        resource: "Reservation",
-        resourceId: "res-456",
-        details: "Cancelled reservation #456",
-        ip: "192.168.1.1",
-    },
-    {
-        id: "4",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60),
-        user: "system",
-        userId: "system",
-        action: "SYNC",
-        resource: "OTA",
-        details: "Synced 15 reservations from Hipcamp",
-        ip: "internal",
-    },
-    {
-        id: "5",
-        timestamp: new Date(Date.now() - 1000 * 60 * 90),
-        user: "josh@campeveryday.com",
-        userId: "user-2",
-        action: "LOGIN",
-        resource: "Auth",
-        details: "Successful login",
-        ip: "192.168.1.2",
-    },
-    {
-        id: "6",
-        timestamp: new Date(Date.now() - 1000 * 60 * 120),
-        user: "admin@campeveryday.com",
-        userId: "user-1",
-        action: "UPDATE",
-        resource: "Settings",
-        details: "Changed timezone to America/Chicago",
-        ip: "192.168.1.1",
-    },
-];
+function getAuthHeaders(): Record<string, string> {
+    if (typeof window === "undefined") return {};
+    const token = localStorage.getItem("campreserv:authToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 const actionColors: Record<string, string> = {
     CREATE: "bg-emerald-500/20 text-emerald-400",
     UPDATE: "bg-blue-500/20 text-blue-400",
     DELETE: "bg-red-500/20 text-red-400",
     LOGIN: "bg-purple-500/20 text-purple-400",
+    LOGOUT: "bg-slate-500/20 text-slate-400",
     SYNC: "bg-cyan-500/20 text-cyan-400",
+    EXPORT: "bg-amber-500/20 text-amber-400",
+    IMPORT: "bg-teal-500/20 text-teal-400",
 };
 
 const resourceIcons: Record<string, typeof User> = {
@@ -95,41 +37,77 @@ const resourceIcons: Record<string, typeof User> = {
     User: User,
     Reservation: History,
     Settings: Settings,
-    Auth: User,
-    OTA: Database,
 };
 
 export default function AuditLogPage() {
+    const [entries, setEntries] = useState<AuditEntry[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [actionFilter, setActionFilter] = useState<string>("all");
     const [resourceFilter, setResourceFilter] = useState<string>("all");
 
+    const loadAuditLog = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const base = process.env.NEXT_PUBLIC_API_BASE || "";
+            const params = new URLSearchParams({ limit: "100" });
+            if (actionFilter !== "all") params.set("action", actionFilter);
+            if (resourceFilter !== "all") params.set("resource", resourceFilter);
+
+            const res = await fetch(`${base}/admin/audit?${params}`, {
+                credentials: "include",
+                headers: getAuthHeaders(),
+            });
+            if (!res.ok) throw new Error(`Failed to load audit log (${res.status})`);
+            const data = await res.json();
+            setEntries(Array.isArray(data.items) ? data.items : []);
+        } catch (err: any) {
+            setError(err.message || "Failed to load audit log");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadAuditLog();
+    }, [actionFilter, resourceFilter]);
+
     const filtered = useMemo(() => {
-        return stubAuditLog.filter((entry) => {
-            if (actionFilter !== "all" && entry.action !== actionFilter) return false;
-            if (resourceFilter !== "all" && entry.resource !== resourceFilter) return false;
+        return entries.filter((entry) => {
             if (search) {
                 const q = search.toLowerCase();
                 return (
-                    entry.user.toLowerCase().includes(q) ||
+                    entry.userEmail?.toLowerCase().includes(q) ||
                     entry.details?.toLowerCase().includes(q) ||
                     entry.resource.toLowerCase().includes(q)
                 );
             }
             return true;
         });
-    }, [search, actionFilter, resourceFilter]);
+    }, [search, entries]);
 
-    const actions = [...new Set(stubAuditLog.map((e) => e.action))];
-    const resources = [...new Set(stubAuditLog.map((e) => e.resource))];
+    const actions = ["CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT", "SYNC", "EXPORT", "IMPORT"];
+    const resources = [...new Set(entries.map((e) => e.resource))];
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-white">Audit Log</h1>
-                <p className="text-slate-400 mt-1">
-                    Track all admin actions and system events
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-white">Audit Log</h1>
+                    <p className="text-slate-400 mt-1">
+                        Track all admin actions and system events
+                    </p>
+                </div>
+                <button
+                    onClick={loadAuditLog}
+                    disabled={loading}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-300 border border-slate-700 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                >
+                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                    {loading ? "Loading..." : "Refresh"}
+                </button>
             </div>
 
             {/* Filters */}
@@ -169,10 +147,21 @@ export default function AuditLogPage() {
                 </div>
             </div>
 
+            {error && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
+                    {error}
+                </div>
+            )}
+
             {/* Log Entries */}
             <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
                 <div className="divide-y divide-slate-700">
-                    {filtered.length === 0 && (
+                    {loading && entries.length === 0 && (
+                        <div className="p-8 text-center text-slate-400">
+                            Loading audit log...
+                        </div>
+                    )}
+                    {!loading && filtered.length === 0 && (
                         <div className="p-8 text-center text-slate-400">
                             No audit entries found
                         </div>
@@ -195,11 +184,11 @@ export default function AuditLogPage() {
                                                 <span className="text-slate-500 text-sm font-mono">{entry.resourceId}</span>
                                             )}
                                         </div>
-                                        <div className="text-sm text-slate-300 mt-1">{entry.details}</div>
+                                        <div className="text-sm text-slate-300 mt-1">{entry.details || "No details"}</div>
                                         <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
-                                            <span>by {entry.user}</span>
-                                            <span>{entry.timestamp.toLocaleString()}</span>
-                                            {entry.ip && <span>IP: {entry.ip}</span>}
+                                            <span>by {entry.userEmail || entry.userId || "system"}</span>
+                                            <span>{new Date(entry.createdAt).toLocaleString()}</span>
+                                            {entry.ipAddress && <span>IP: {entry.ipAddress}</span>}
                                         </div>
                                     </div>
                                 </div>
@@ -210,7 +199,7 @@ export default function AuditLogPage() {
             </div>
 
             <div className="text-sm text-slate-500 text-center">
-                Showing {filtered.length} of {stubAuditLog.length} entries • Data is stubbed for demo
+                Showing {filtered.length} entries
             </div>
         </div>
     );

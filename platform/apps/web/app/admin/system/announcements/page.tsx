@@ -1,56 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { Megaphone, Send, Clock, CheckCircle, Users, Plus, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Megaphone, Send, Clock, CheckCircle, Users, Plus, X, RefreshCw } from "lucide-react";
 
 type Announcement = {
     id: string;
+    createdAt: string;
+    updatedAt: string;
     title: string;
     message: string;
     type: "info" | "warning" | "success";
     target: "all" | "admins" | "campground";
-    campgroundId?: string;
+    campgroundId: string | null;
     status: "draft" | "scheduled" | "sent";
-    scheduledAt?: Date;
-    sentAt?: Date;
-    createdBy: string;
-    createdAt: Date;
+    scheduledAt: string | null;
+    sentAt: string | null;
+    createdByEmail: string | null;
 };
 
-const stubAnnouncements: Announcement[] = [
-    {
-        id: "1",
-        title: "System Maintenance",
-        message: "Scheduled maintenance on Dec 15th from 2-4 AM CST. Brief outages expected.",
-        type: "warning",
-        target: "all",
-        status: "sent",
-        sentAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
-        createdBy: "admin@campeveryday.com",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    },
-    {
-        id: "2",
-        title: "New Booking Feature",
-        message: "We've launched a new streamlined booking flow! Check it out in Settings > Features.",
-        type: "success",
-        target: "all",
-        status: "scheduled",
-        scheduledAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        createdBy: "admin@campeveryday.com",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60),
-    },
-    {
-        id: "3",
-        title: "Holiday Hours",
-        message: "Support hours will be reduced Dec 24-26. Emergency support available.",
-        type: "info",
-        target: "all",
-        status: "draft",
-        createdBy: "admin@campeveryday.com",
-        createdAt: new Date(),
-    },
-];
+function getAuthHeaders(): Record<string, string> {
+    if (typeof window === "undefined") return {};
+    const token = localStorage.getItem("campreserv:authToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 const typeColors = {
     info: "bg-blue-500/20 text-blue-400 border-blue-500/30",
@@ -58,15 +30,12 @@ const typeColors = {
     success: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
 };
 
-const statusIcons = {
-    draft: Clock,
-    scheduled: Clock,
-    sent: CheckCircle,
-};
-
 export default function AnnouncementsPage() {
-    const [announcements, setAnnouncements] = useState<Announcement[]>(stubAnnouncements);
+    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [showNew, setShowNew] = useState(false);
+    const [creating, setCreating] = useState(false);
     const [newAnnouncement, setNewAnnouncement] = useState({
         title: "",
         message: "",
@@ -74,25 +43,71 @@ export default function AnnouncementsPage() {
         target: "all" as const,
     });
 
-    const handleCreate = () => {
-        const announcement: Announcement = {
-            id: Date.now().toString(),
-            ...newAnnouncement,
-            status: "draft",
-            createdBy: "admin@campeveryday.com",
-            createdAt: new Date(),
-        };
-        setAnnouncements([announcement, ...announcements]);
-        setNewAnnouncement({ title: "", message: "", type: "info", target: "all" });
-        setShowNew(false);
+    const loadAnnouncements = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const base = process.env.NEXT_PUBLIC_API_BASE || "";
+            const res = await fetch(`${base}/admin/announcements`, {
+                credentials: "include",
+                headers: getAuthHeaders(),
+            });
+            if (!res.ok) throw new Error(`Failed to load announcements (${res.status})`);
+            const data = await res.json();
+            setAnnouncements(Array.isArray(data) ? data : []);
+        } catch (err: any) {
+            setError(err.message || "Failed to load announcements");
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const sendNow = (id: string) => {
-        setAnnouncements((prev) =>
-            prev.map((a) =>
-                a.id === id ? { ...a, status: "sent" as const, sentAt: new Date() } : a
-            )
-        );
+    useEffect(() => {
+        loadAnnouncements();
+    }, []);
+
+    const handleCreate = async () => {
+        if (!newAnnouncement.title || !newAnnouncement.message) return;
+        setCreating(true);
+        try {
+            const base = process.env.NEXT_PUBLIC_API_BASE || "";
+            const res = await fetch(`${base}/admin/announcements`, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    ...getAuthHeaders(),
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(newAnnouncement),
+            });
+            if (!res.ok) throw new Error(`Failed to create announcement`);
+            const created = await res.json();
+            setAnnouncements([created, ...announcements]);
+            setNewAnnouncement({ title: "", message: "", type: "info", target: "all" });
+            setShowNew(false);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const sendNow = async (id: string) => {
+        try {
+            const base = process.env.NEXT_PUBLIC_API_BASE || "";
+            const res = await fetch(`${base}/admin/announcements/${id}/send`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: getAuthHeaders(),
+            });
+            if (!res.ok) throw new Error(`Failed to send announcement`);
+            const updated = await res.json();
+            setAnnouncements((prev) =>
+                prev.map((a) => (a.id === id ? updated : a))
+            );
+        } catch (err: any) {
+            setError(err.message);
+        }
     };
 
     return (
@@ -104,14 +119,29 @@ export default function AnnouncementsPage() {
                         Broadcast messages to staff across all campgrounds
                     </p>
                 </div>
-                <button
-                    onClick={() => setShowNew(!showNew)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                    <Plus className="h-4 w-4" />
-                    New Announcement
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={loadAnnouncements}
+                        disabled={loading}
+                        className="p-2 bg-slate-800 text-slate-300 border border-slate-700 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                    </button>
+                    <button
+                        onClick={() => setShowNew(!showNew)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        <Plus className="h-4 w-4" />
+                        New Announcement
+                    </button>
+                </div>
             </div>
+
+            {error && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
+                    {error}
+                </div>
+            )}
 
             {/* New Announcement Form */}
             {showNew && (
@@ -178,10 +208,10 @@ export default function AnnouncementsPage() {
                         </button>
                         <button
                             onClick={handleCreate}
-                            disabled={!newAnnouncement.title || !newAnnouncement.message}
+                            disabled={!newAnnouncement.title || !newAnnouncement.message || creating}
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
-                            Create Draft
+                            {creating ? "Creating..." : "Create Draft"}
                         </button>
                     </div>
                 </div>
@@ -189,58 +219,65 @@ export default function AnnouncementsPage() {
 
             {/* Announcements List */}
             <div className="space-y-4">
-                {announcements.map((announcement) => {
-                    const StatusIcon = statusIcons[announcement.status];
-                    return (
-                        <div
-                            key={announcement.id}
-                            className={`rounded-lg border p-4 ${typeColors[announcement.type]}`}
-                        >
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="flex items-start gap-3">
-                                    <Megaphone className="h-5 w-5 mt-0.5" />
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-semibold">{announcement.title}</span>
-                                            <span className={`px-2 py-0.5 text-xs rounded ${announcement.status === "sent" ? "bg-emerald-500/30" :
-                                                    announcement.status === "scheduled" ? "bg-blue-500/30" : "bg-slate-500/30"
-                                                }`}>
-                                                {announcement.status}
-                                            </span>
-                                        </div>
-                                        <p className="text-sm mt-1 opacity-90">{announcement.message}</p>
-                                        <div className="flex items-center gap-4 text-xs mt-2 opacity-70">
-                                            <span className="flex items-center gap-1">
-                                                <Users className="h-3 w-3" />
-                                                {announcement.target === "all" ? "All Staff" : "Admins Only"}
-                                            </span>
-                                            <span>by {announcement.createdBy}</span>
-                                            {announcement.sentAt && (
-                                                <span>Sent {announcement.sentAt.toLocaleDateString()}</span>
-                                            )}
-                                            {announcement.scheduledAt && announcement.status === "scheduled" && (
-                                                <span>Scheduled for {announcement.scheduledAt.toLocaleDateString()}</span>
-                                            )}
-                                        </div>
+                {loading && announcements.length === 0 && (
+                    <div className="p-8 text-center text-slate-400">
+                        Loading announcements...
+                    </div>
+                )}
+                {!loading && announcements.length === 0 && (
+                    <div className="p-8 text-center text-slate-400">
+                        No announcements yet. Create one to get started.
+                    </div>
+                )}
+                {announcements.map((announcement) => (
+                    <div
+                        key={announcement.id}
+                        className={`rounded-lg border p-4 ${typeColors[announcement.type]}`}
+                    >
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                                <Megaphone className="h-5 w-5 mt-0.5" />
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold">{announcement.title}</span>
+                                        <span className={`px-2 py-0.5 text-xs rounded ${announcement.status === "sent" ? "bg-emerald-500/30" :
+                                                announcement.status === "scheduled" ? "bg-blue-500/30" : "bg-slate-500/30"
+                                            }`}>
+                                            {announcement.status}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm mt-1 opacity-90">{announcement.message}</p>
+                                    <div className="flex items-center gap-4 text-xs mt-2 opacity-70">
+                                        <span className="flex items-center gap-1">
+                                            <Users className="h-3 w-3" />
+                                            {announcement.target === "all" ? "All Staff" : "Admins Only"}
+                                        </span>
+                                        <span>by {announcement.createdByEmail || "unknown"}</span>
+                                        {announcement.sentAt && (
+                                            <span>Sent {new Date(announcement.sentAt).toLocaleDateString()}</span>
+                                        )}
+                                        {announcement.scheduledAt && announcement.status === "scheduled" && (
+                                            <span>Scheduled for {new Date(announcement.scheduledAt).toLocaleDateString()}</span>
+                                        )}
                                     </div>
                                 </div>
-                                {announcement.status === "draft" && (
-                                    <button
-                                        onClick={() => sendNow(announcement.id)}
-                                        className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"
-                                    >
-                                        <Send className="h-4 w-4" />
-                                        Send Now
-                                    </button>
-                                )}
                             </div>
+                            {announcement.status === "draft" && (
+                                <button
+                                    onClick={() => sendNow(announcement.id)}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"
+                                >
+                                    <Send className="h-4 w-4" />
+                                    Send Now
+                                </button>
+                            )}
                         </div>
-                    );
-                })}
+                    </div>
+                ))}
             </div>
 
             <div className="text-sm text-slate-500 text-center">
-                Announcements are stored locally • Data is stubbed for demo
+                Showing {announcements.length} announcements
             </div>
         </div>
     );
