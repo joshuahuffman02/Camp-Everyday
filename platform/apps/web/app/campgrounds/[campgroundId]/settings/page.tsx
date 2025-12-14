@@ -59,6 +59,10 @@ export default function CampgroundSettingsPage() {
     const [amenitiesInput, setAmenitiesInput] = useState("");
     const [previewMessage, setPreviewMessage] = useState<string | null>(null);
 
+    // Tab navigation
+    type SettingsTab = "general" | "data" | "marketing" | "billing" | "advanced";
+    const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+
     const queryClient = useQueryClient();
 
     const campgroundQuery = useQuery({
@@ -206,8 +210,7 @@ export default function CampgroundSettingsPage() {
             });
             if (dryRun) {
                 setImportMessage(
-                    `Dry run: ${res.validCount ?? 0} valid, ${res.errorCount ?? 0} errors${
-                        res.validationErrors?.length ? " (check errors in response)" : ""
+                    `Dry run: ${res.validCount ?? 0} valid, ${res.errorCount ?? 0} errors${res.validationErrors?.length ? " (check errors in response)" : ""
                     }`
                 );
             } else if (res.jobId) {
@@ -413,703 +416,728 @@ export default function CampgroundSettingsPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
                 </div>
 
+                {/* Horizontal Tab Bar */}
+                <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm overflow-x-auto">
+                    {([{ key: "general", label: "General" }, { key: "data", label: "Data" }, { key: "marketing", label: "Marketing" }, { key: "billing", label: "Billing" }, { key: "advanced", label: "Advanced" }] as const).map((tab) => (
+                        <Button key={tab.key} size="sm" variant={activeTab === tab.key ? "default" : "ghost"} className="whitespace-nowrap" onClick={() => setActiveTab(tab.key)}>{tab.label}</Button>
+                    ))}
+                </div>
+
                 <div className="grid gap-6">
-                    <CampgroundProfileForm campground={cg} />
-                    <DepositSettings campground={cg} />
-                    <Card id="utilities-billing" className="p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Referral programs</h2>
-                                <p className="text-sm text-slate-600">Create codes/links, set incentives, and manage status.</p>
+                    {/* General Tab */}
+                    {activeTab === "general" && (<>
+                        <CampgroundProfileForm campground={cg} />
+                        <DepositSettings campground={cg} />
+                    </>)}
+
+                    {/* Marketing Tab */}
+                    {activeTab === "marketing" && (<>
+                        <Card id="utilities-billing" className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Referral programs</h2>
+                                    <p className="text-sm text-slate-600">Create codes/links, set incentives, and manage status.</p>
+                                </div>
+                                {referralProgramsQuery.isFetching && <span className="text-xs text-slate-500">Refreshing…</span>}
                             </div>
-                            {referralProgramsQuery.isFetching && <span className="text-xs text-slate-500">Refreshing…</span>}
-                        </div>
-                        <div className="grid md:grid-cols-2 gap-4">
-                            <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <Label className="text-sm">Code</Label>
-                                        <input
-                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                            value={referralForm.code}
-                                            onChange={(e) => setReferralForm({ ...referralForm, code: e.target.value })}
-                                            placeholder="FRIEND10"
-                                        />
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <Label className="text-sm">Code</Label>
+                                            <input
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                                value={referralForm.code}
+                                                onChange={(e) => setReferralForm({ ...referralForm, code: e.target.value })}
+                                                placeholder="FRIEND10"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-sm">Link slug (optional)</Label>
+                                            <input
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                                value={referralForm.linkSlug}
+                                                onChange={(e) => setReferralForm({ ...referralForm, linkSlug: e.target.value })}
+                                                placeholder="camp-crew"
+                                            />
+                                            {referralForm.linkSlug && (
+                                                <p className="text-[11px] text-slate-500 mt-1">{`${referralBaseUrl}/r/${referralForm.linkSlug}`}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <Label className="text-sm">Source</Label>
+                                            <input
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                                value={referralForm.source}
+                                                onChange={(e) => setReferralForm({ ...referralForm, source: e.target.value })}
+                                                placeholder="friend, influencer, partner"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-sm">Channel</Label>
+                                            <input
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                                value={referralForm.channel}
+                                                onChange={(e) => setReferralForm({ ...referralForm, channel: e.target.value })}
+                                                placeholder="email, social, sms"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <Label className="text-sm">Incentive type</Label>
+                                            <select
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                                value={referralForm.incentiveType}
+                                                onChange={(e) => setReferralForm({ ...referralForm, incentiveType: e.target.value })}
+                                            >
+                                                <option value="percent_discount">Percent discount</option>
+                                                <option value="amount_discount">Amount discount (cents)</option>
+                                                <option value="credit">Credit (cents)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <Label className="text-sm">
+                                                Value {referralForm.incentiveType === "percent_discount" ? "(%)" : "(cents)"}
+                                            </Label>
+                                            <input
+                                                type="number"
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                                value={referralForm.incentiveValue}
+                                                onChange={(e) => setReferralForm({ ...referralForm, incentiveValue: Number(e.target.value) })}
+                                                min={0}
+                                            />
+                                        </div>
                                     </div>
                                     <div>
-                                        <Label className="text-sm">Link slug (optional)</Label>
-                                        <input
+                                        <Label className="text-sm">Notes (internal)</Label>
+                                        <textarea
                                             className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                            value={referralForm.linkSlug}
-                                            onChange={(e) => setReferralForm({ ...referralForm, linkSlug: e.target.value })}
-                                            placeholder="camp-crew"
+                                            value={referralForm.notes}
+                                            onChange={(e) => setReferralForm({ ...referralForm, notes: e.target.value })}
+                                            rows={2}
+                                            placeholder="e.g., Fall promo affiliates only"
                                         />
-                                        {referralForm.linkSlug && (
-                                            <p className="text-[11px] text-slate-500 mt-1">{`${referralBaseUrl}/r/${referralForm.linkSlug}`}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Switch checked={referralForm.isActive} onCheckedChange={(val) => setReferralForm({ ...referralForm, isActive: val })} />
+                                        <Label className="text-sm">Active</Label>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            onClick={() => createReferralMutation.mutate()}
+                                            disabled={createReferralMutation.isPending || !referralForm.code.trim()}
+                                        >
+                                            {createReferralMutation.isPending ? "Saving..." : "Save referral program"}
+                                        </Button>
+                                        {referralMessage && <span className="text-sm text-slate-600">{referralMessage}</span>}
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-sm font-semibold text-slate-800">Existing programs</h3>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => queryClient.invalidateQueries({ queryKey: ["referral-programs", campgroundId] })}
+                                        >
+                                            Refresh
+                                        </Button>
+                                    </div>
+                                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-slate-50 text-slate-600">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left">Code</th>
+                                                    <th className="px-3 py-2 text-left">Incentive</th>
+                                                    <th className="px-3 py-2 text-left">Source</th>
+                                                    <th className="px-3 py-2 text-left">Status</th>
+                                                    <th className="px-3 py-2 text-left">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(referralProgramsQuery.data ?? []).map((p) => (
+                                                    <tr key={p.id} className="border-t border-slate-200">
+                                                        <td className="px-3 py-2">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-semibold text-slate-900">{p.code}</span>
+                                                                {p.linkSlug && (
+                                                                    <span className="text-[11px] text-slate-500">{`${referralBaseUrl}/r/${p.linkSlug}`}</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            {p.incentiveType === "percent_discount"
+                                                                ? `${p.incentiveValue}% off`
+                                                                : `${formatMoney(p.incentiveValue)} ${p.incentiveType === "credit" ? "credit" : "off"}`
+                                                            }
+                                                        </td>
+                                                        <td className="px-3 py-2 text-slate-700">
+                                                            {(p.source || "–")}{p.channel ? ` / ${p.channel}` : ""}
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <Badge variant={p.isActive ? "default" : "outline"}>{p.isActive ? "Active" : "Paused"}</Badge>
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => updateReferralMutation.mutate({ id: p.id, data: { isActive: !p.isActive } })}
+                                                                disabled={updateReferralMutation.isPending}
+                                                            >
+                                                                {p.isActive ? "Pause" : "Activate"}
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {(referralProgramsQuery.data ?? []).length === 0 && (
+                                                    <tr>
+                                                        <td className="px-3 py-3 text-slate-500 text-sm" colSpan={5}>No referral programs yet.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Referral performance</h2>
+                                    <p className="text-sm text-slate-600">Bookings, revenue, and discounts attributed to referrals.</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="rounded-lg border border-slate-200 p-4">
+                                    <div className="text-xs text-slate-500 uppercase">Bookings</div>
+                                    <div className="text-xl font-bold text-slate-900">
+                                        {referralPerformanceQuery.data?.totalBookings ?? 0}
+                                    </div>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 p-4">
+                                    <div className="text-xs text-slate-500 uppercase">Revenue</div>
+                                    <div className="text-xl font-bold text-slate-900">
+                                        {formatMoney(referralPerformanceQuery.data?.totalRevenueCents ?? 0)}
+                                    </div>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 p-4">
+                                    <div className="text-xs text-slate-500 uppercase">Referral discounts</div>
+                                    <div className="text-xl font-bold text-slate-900">
+                                        {formatMoney(referralPerformanceQuery.data?.totalReferralDiscountCents ?? 0)}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50 text-slate-600">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left">Program / Code</th>
+                                            <th className="px-3 py-2 text-left">Bookings</th>
+                                            <th className="px-3 py-2 text-left">Revenue</th>
+                                            <th className="px-3 py-2 text-left">Discounts</th>
+                                            <th className="px-3 py-2 text-left">Source</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(referralPerformanceQuery.data?.programs ?? []).map((p: any) => (
+                                            <tr key={`${p.programId}-${p.code}`} className="border-t border-slate-200">
+                                                <td className="px-3 py-2">
+                                                    <div className="font-semibold text-slate-900">{p.code || "Unknown"}</div>
+                                                </td>
+                                                <td className="px-3 py-2">{p.bookings}</td>
+                                                <td className="px-3 py-2">{formatMoney(p.revenueCents)}</td>
+                                                <td className="px-3 py-2">{formatMoney(p.referralDiscountCents)}</td>
+                                                <td className="px-3 py-2 text-slate-700">
+                                                    {(p.source || "–")}{p.channel ? ` / ${p.channel}` : ""}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {(referralPerformanceQuery.data?.programs ?? []).length === 0 && (
+                                            <tr>
+                                                <td className="px-3 py-3 text-slate-500 text-sm" colSpan={5}>No referral data yet.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                        <Card className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Stay reasons</h2>
+                                    <p className="text-sm text-slate-600">Breakdown of guest-selected reasons for their stay.</p>
+                                </div>
+                            </div>
+                            <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50 text-slate-600">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left">Reason</th>
+                                            <th className="px-3 py-2 text-left">Count</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(stayReasonQuery.data?.breakdown ?? []).map((r: any) => (
+                                            <tr key={r.reason} className="border-t border-slate-200">
+                                                <td className="px-3 py-2 text-slate-900">{r.reason}</td>
+                                                <td className="px-3 py-2">{r.count}</td>
+                                            </tr>
+                                        ))}
+                                        {(stayReasonQuery.data?.breakdown ?? []).length === 0 && (
+                                            <tr>
+                                                <td className="px-3 py-3 text-slate-500 text-sm" colSpan={2}>No stay reason responses yet.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {(stayReasonQuery.data?.otherReasons?.length ?? 0) > 0 && (
+                                <div className="space-y-1">
+                                    <h4 className="text-sm font-semibold text-slate-800">“Other” notes</h4>
+                                    <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
+                                        {stayReasonQuery.data?.otherReasons?.map((note: string, idx: number) => (
+                                            <li key={idx}>{note}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </Card>
+                    </>)}
+
+                    {/* Advanced Tab */}
+                    {activeTab === "advanced" && (
+                        <Card className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Map & assignment</h2>
+                                    <p className="text-sm text-slate-600">
+                                        Load the campground map, inspect ADA/amenities, and preview eligibility with conflicts.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-6 md:grid-cols-2">
+                                <div className="space-y-3">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="start-date">Arrival date</Label>
+                                        <input
+                                            id="start-date"
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="end-date">Departure date</Label>
+                                        <input
+                                            id="end-date"
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Rig size (ft/in)</Label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                placeholder="Length"
+                                                value={rigLength}
+                                                onChange={(e) => setRigLength(e.target.value)}
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                            />
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                placeholder="Width"
+                                                value={rigWidth}
+                                                onChange={(e) => setRigWidth(e.target.value)}
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                            />
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                placeholder="Height"
+                                                value={rigHeight}
+                                                onChange={(e) => setRigHeight(e.target.value)}
+                                                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Switch id="needs-ada" checked={needsAda} onCheckedChange={setNeedsAda} />
+                                        <Label htmlFor="needs-ada">ADA required</Label>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="amenities">Required amenities (comma separated)</Label>
+                                        <input
+                                            id="amenities"
+                                            type="text"
+                                            placeholder="power,sewer,water"
+                                            value={amenitiesInput}
+                                            onChange={(e) => setAmenitiesInput(e.target.value)}
+                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                                        />
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Button onClick={handlePreviewEligibility} disabled={previewMutation.isPending}>
+                                            {previewMutation.isPending ? "Checking..." : "Preview eligibility"}
+                                        </Button>
+                                        {previewMessage && <span className="text-sm text-amber-700">{previewMessage}</span>}
+                                    </div>
+                                    <div className="text-sm text-slate-700">
+                                        {mapQuery.isLoading && <p>Loading map...</p>}
+                                        {mapQuery.isError && <p className="text-red-600">Failed to load map.</p>}
+                                        {mapQuery.data && (
+                                            <div className="space-y-1">
+                                                <p>
+                                                    Sites loaded: <strong>{sites.length}</strong>{" "}
+                                                    {adaCount ? `• ADA: ${adaCount}` : ""}{" "}
+                                                    {conflictSites ? `• Conflicts: ${conflictSites}` : ""}
+                                                </p>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {sites.slice(0, 12).map((s) => (
+                                                        <Badge key={s.siteId} variant={s.ada ? "default" : "secondary"}>
+                                                            {s.label || s.name}
+                                                        </Badge>
+                                                    ))}
+                                                    {sites.length > 12 && <span className="text-xs text-slate-500">+ more</span>}
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <Label className="text-sm">Source</Label>
-                                        <input
-                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                            value={referralForm.source}
-                                            onChange={(e) => setReferralForm({ ...referralForm, source: e.target.value })}
-                                            placeholder="friend, influencer, partner"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm">Channel</Label>
-                                        <input
-                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                            value={referralForm.channel}
-                                            onChange={(e) => setReferralForm({ ...referralForm, channel: e.target.value })}
-                                            placeholder="email, social, sms"
-                                        />
+
+                                <div className="space-y-3">
+                                    <div className="grid gap-2">
+                                        <Label>Eligibility preview</Label>
+                                        {previewMutation.isPending && <p className="text-sm text-slate-600">Checking...</p>}
+                                        {!previewMutation.data && !previewMutation.isPending && (
+                                            <p className="text-sm text-slate-600">Set dates and run preview to see eligible sites.</p>
+                                        )}
+                                        {previewMutation.data && (
+                                            <div className="space-y-3">
+                                                <div className="space-y-1">
+                                                    <p className="text-sm font-semibold text-green-700">
+                                                        Eligible ({previewMutation.data.eligible.length})
+                                                    </p>
+                                                    <div className="space-y-1 max-h-48 overflow-auto pr-1">
+                                                        {previewMutation.data.eligible.map((row) => (
+                                                            <div key={row.siteId} className="rounded border border-green-100 bg-green-50 px-3 py-2">
+                                                                <div className="flex items-center justify-between text-sm font-medium text-green-800">
+                                                                    <span>{siteLabelById.get(row.siteId) ?? row.siteId}</span>
+                                                                    <span>{row.reasons?.length ? "With notes" : "Clear"}</span>
+                                                                </div>
+                                                                {row.conflicts?.length ? (
+                                                                    <p className="text-xs text-amber-700">
+                                                                        Conflicts present: {row.conflicts.map((c) => c.type).join(", ")}
+                                                                    </p>
+                                                                ) : null}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-sm font-semibold text-red-700">
+                                                        Ineligible ({previewMutation.data.ineligible.length})
+                                                    </p>
+                                                    <div className="space-y-1 max-h-48 overflow-auto pr-1">
+                                                        {previewMutation.data.ineligible.map((row) => (
+                                                            <div key={row.siteId} className="rounded border border-red-100 bg-red-50 px-3 py-2">
+                                                                <div className="flex items-center justify-between text-sm font-medium text-red-800">
+                                                                    <span>{siteLabelById.get(row.siteId) ?? row.siteId}</span>
+                                                                    <span>{row.reasons.join(", ")}</span>
+                                                                </div>
+                                                                {row.conflicts?.length ? (
+                                                                    <p className="text-xs text-amber-700">
+                                                                        Conflicts: {row.conflicts.map((c) => c.type).join(", ")}
+                                                                    </p>
+                                                                ) : null}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <Label className="text-sm">Incentive type</Label>
+                            </div>
+                        </Card>
+                    )}
+
+                    {/* Data Tab */}
+                    {activeTab === "data" && (
+                        <Card className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Reservation import/export</h2>
+                                    <p className="text-sm text-slate-600">
+                                        Import from CSV/JSON or export reservations with pagination and PII controls.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-6 md:grid-cols-2">
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="import-format">Import format</Label>
                                         <select
-                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                            value={referralForm.incentiveType}
-                                            onChange={(e) => setReferralForm({ ...referralForm, incentiveType: e.target.value })}
+                                            id="import-format"
+                                            className="rounded border border-slate-200 px-2 py-1 text-sm"
+                                            value={importFormat}
+                                            onChange={(e) => setImportFormat(e.target.value as "csv" | "json")}
                                         >
-                                            <option value="percent_discount">Percent discount</option>
-                                            <option value="amount_discount">Amount discount (cents)</option>
-                                            <option value="credit">Credit (cents)</option>
+                                            <option value="csv">CSV</option>
+                                            <option value="json">JSON</option>
                                         </select>
                                     </div>
-                                    <div>
-                                        <Label className="text-sm">
-                                            Value {referralForm.incentiveType === "percent_discount" ? "(%)" : "(cents)"}
-                                        </Label>
-                                        <input
-                                            type="number"
-                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                            value={referralForm.incentiveValue}
-                                            onChange={(e) => setReferralForm({ ...referralForm, incentiveValue: Number(e.target.value) })}
-                                            min={0}
-                                        />
+                                    <div className="flex items-center gap-2">
+                                        <Switch id="dry-run" checked={dryRun} onCheckedChange={setDryRun} />
+                                        <Label htmlFor="dry-run">Dry run (validate only)</Label>
                                     </div>
-                                </div>
-                                <div>
-                                    <Label className="text-sm">Notes (internal)</Label>
-                                    <textarea
-                                        className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                        value={referralForm.notes}
-                                        onChange={(e) => setReferralForm({ ...referralForm, notes: e.target.value })}
-                                        rows={2}
-                                        placeholder="e.g., Fall promo affiliates only"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Switch checked={referralForm.isActive} onCheckedChange={(val) => setReferralForm({ ...referralForm, isActive: val })} />
-                                    <Label className="text-sm">Active</Label>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        onClick={() => createReferralMutation.mutate()}
-                                        disabled={createReferralMutation.isPending || !referralForm.code.trim()}
-                                    >
-                                        {createReferralMutation.isPending ? "Saving..." : "Save referral program"}
-                                    </Button>
-                                    {referralMessage && <span className="text-sm text-slate-600">{referralMessage}</span>}
-                                </div>
-                            </div>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-semibold text-slate-800">Existing programs</h3>
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => queryClient.invalidateQueries({ queryKey: ["referral-programs", campgroundId] })}
-                                    >
-                                        Refresh
-                                    </Button>
-                                </div>
-                                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-slate-50 text-slate-600">
-                                            <tr>
-                                                <th className="px-3 py-2 text-left">Code</th>
-                                                <th className="px-3 py-2 text-left">Incentive</th>
-                                                <th className="px-3 py-2 text-left">Source</th>
-                                                <th className="px-3 py-2 text-left">Status</th>
-                                                <th className="px-3 py-2 text-left">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {(referralProgramsQuery.data ?? []).map((p) => (
-                                                <tr key={p.id} className="border-t border-slate-200">
-                                                    <td className="px-3 py-2">
-                                                        <div className="flex flex-col">
-                                                            <span className="font-semibold text-slate-900">{p.code}</span>
-                                                            {p.linkSlug && (
-                                                                <span className="text-[11px] text-slate-500">{`${referralBaseUrl}/r/${p.linkSlug}`}</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-3 py-2">
-                                                        {p.incentiveType === "percent_discount"
-                                                            ? `${p.incentiveValue}% off`
-                                                            : `${formatMoney(p.incentiveValue)} ${p.incentiveType === "credit" ? "credit" : "off"}`
-                                                        }
-                                                    </td>
-                                                    <td className="px-3 py-2 text-slate-700">
-                                                        {(p.source || "–")}{p.channel ? ` / ${p.channel}` : ""}
-                                                    </td>
-                                                    <td className="px-3 py-2">
-                                                        <Badge variant={p.isActive ? "default" : "outline"}>{p.isActive ? "Active" : "Paused"}</Badge>
-                                                    </td>
-                                                    <td className="px-3 py-2">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => updateReferralMutation.mutate({ id: p.id, data: { isActive: !p.isActive } })}
-                                                            disabled={updateReferralMutation.isPending}
-                                                        >
-                                                            {p.isActive ? "Pause" : "Activate"}
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {(referralProgramsQuery.data ?? []).length === 0 && (
-                                                <tr>
-                                                    <td className="px-3 py-3 text-slate-500 text-sm" colSpan={5}>No referral programs yet.</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-                    <Card className="p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Referral performance</h2>
-                                <p className="text-sm text-slate-600">Bookings, revenue, and discounts attributed to referrals.</p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div className="rounded-lg border border-slate-200 p-4">
-                                <div className="text-xs text-slate-500 uppercase">Bookings</div>
-                                <div className="text-xl font-bold text-slate-900">
-                                    {referralPerformanceQuery.data?.totalBookings ?? 0}
-                                </div>
-                            </div>
-                            <div className="rounded-lg border border-slate-200 p-4">
-                                <div className="text-xs text-slate-500 uppercase">Revenue</div>
-                                <div className="text-xl font-bold text-slate-900">
-                                    {formatMoney(referralPerformanceQuery.data?.totalRevenueCents ?? 0)}
-                                </div>
-                            </div>
-                            <div className="rounded-lg border border-slate-200 p-4">
-                                <div className="text-xs text-slate-500 uppercase">Referral discounts</div>
-                                <div className="text-xl font-bold text-slate-900">
-                                    {formatMoney(referralPerformanceQuery.data?.totalReferralDiscountCents ?? 0)}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="border border-slate-200 rounded-lg overflow-hidden">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th className="px-3 py-2 text-left">Program / Code</th>
-                                        <th className="px-3 py-2 text-left">Bookings</th>
-                                        <th className="px-3 py-2 text-left">Revenue</th>
-                                        <th className="px-3 py-2 text-left">Discounts</th>
-                                        <th className="px-3 py-2 text-left">Source</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {(referralPerformanceQuery.data?.programs ?? []).map((p: any) => (
-                                        <tr key={`${p.programId}-${p.code}`} className="border-t border-slate-200">
-                                            <td className="px-3 py-2">
-                                                <div className="font-semibold text-slate-900">{p.code || "Unknown"}</div>
-                                            </td>
-                                            <td className="px-3 py-2">{p.bookings}</td>
-                                            <td className="px-3 py-2">{formatMoney(p.revenueCents)}</td>
-                                            <td className="px-3 py-2">{formatMoney(p.referralDiscountCents)}</td>
-                                            <td className="px-3 py-2 text-slate-700">
-                                                {(p.source || "–")}{p.channel ? ` / ${p.channel}` : ""}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {(referralPerformanceQuery.data?.programs ?? []).length === 0 && (
-                                        <tr>
-                                            <td className="px-3 py-3 text-slate-500 text-sm" colSpan={5}>No referral data yet.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-                    <Card className="p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Stay reasons</h2>
-                                <p className="text-sm text-slate-600">Breakdown of guest-selected reasons for their stay.</p>
-                            </div>
-                        </div>
-                        <div className="border border-slate-200 rounded-lg overflow-hidden">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th className="px-3 py-2 text-left">Reason</th>
-                                        <th className="px-3 py-2 text-left">Count</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {(stayReasonQuery.data?.breakdown ?? []).map((r: any) => (
-                                        <tr key={r.reason} className="border-t border-slate-200">
-                                            <td className="px-3 py-2 text-slate-900">{r.reason}</td>
-                                            <td className="px-3 py-2">{r.count}</td>
-                                        </tr>
-                                    ))}
-                                    {(stayReasonQuery.data?.breakdown ?? []).length === 0 && (
-                                        <tr>
-                                            <td className="px-3 py-3 text-slate-500 text-sm" colSpan={2}>No stay reason responses yet.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                        {(stayReasonQuery.data?.otherReasons?.length ?? 0) > 0 && (
-                            <div className="space-y-1">
-                                <h4 className="text-sm font-semibold text-slate-800">“Other” notes</h4>
-                                <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
-                                    {stayReasonQuery.data?.otherReasons?.map((note: string, idx: number) => (
-                                        <li key={idx}>{note}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </Card>
-                    <Card className="p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Map & assignment</h2>
-                                <p className="text-sm text-slate-600">
-                                    Load the campground map, inspect ADA/amenities, and preview eligibility with conflicts.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="grid gap-6 md:grid-cols-2">
-                            <div className="space-y-3">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="start-date">Arrival date</Label>
                                     <input
-                                        id="start-date"
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(e) => setStartDate(e.target.value)}
-                                        className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="end-date">Departure date</Label>
-                                    <input
-                                        id="end-date"
-                                        type="date"
-                                        value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
-                                        className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Rig size (ft/in)</Label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <input
-                                            type="number"
-                                            min={0}
-                                            placeholder="Length"
-                                            value={rigLength}
-                                            onChange={(e) => setRigLength(e.target.value)}
-                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                        />
-                                        <input
-                                            type="number"
-                                            min={0}
-                                            placeholder="Width"
-                                            value={rigWidth}
-                                            onChange={(e) => setRigWidth(e.target.value)}
-                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                        />
-                                        <input
-                                            type="number"
-                                            min={0}
-                                            placeholder="Height"
-                                            value={rigHeight}
-                                            onChange={(e) => setRigHeight(e.target.value)}
-                                            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Switch id="needs-ada" checked={needsAda} onCheckedChange={setNeedsAda} />
-                                    <Label htmlFor="needs-ada">ADA required</Label>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="amenities">Required amenities (comma separated)</Label>
-                                    <input
-                                        id="amenities"
-                                        type="text"
-                                        placeholder="power,sewer,water"
-                                        value={amenitiesInput}
-                                        onChange={(e) => setAmenitiesInput(e.target.value)}
-                                        className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                                    />
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Button onClick={handlePreviewEligibility} disabled={previewMutation.isPending}>
-                                        {previewMutation.isPending ? "Checking..." : "Preview eligibility"}
-                                    </Button>
-                                    {previewMessage && <span className="text-sm text-amber-700">{previewMessage}</span>}
-                                </div>
-                                <div className="text-sm text-slate-700">
-                                    {mapQuery.isLoading && <p>Loading map...</p>}
-                                    {mapQuery.isError && <p className="text-red-600">Failed to load map.</p>}
-                                    {mapQuery.data && (
-                                        <div className="space-y-1">
-                                            <p>
-                                                Sites loaded: <strong>{sites.length}</strong>{" "}
-                                                {adaCount ? `• ADA: ${adaCount}` : ""}{" "}
-                                                {conflictSites ? `• Conflicts: ${conflictSites}` : ""}
-                                            </p>
-                                            <div className="flex flex-wrap gap-1">
-                                                {sites.slice(0, 12).map((s) => (
-                                                    <Badge key={s.siteId} variant={s.ada ? "default" : "secondary"}>
-                                                        {s.label || s.name}
-                                                    </Badge>
-                                                ))}
-                                                {sites.length > 12 && <span className="text-xs text-slate-500">+ more</span>}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="grid gap-2">
-                                    <Label>Eligibility preview</Label>
-                                    {previewMutation.isPending && <p className="text-sm text-slate-600">Checking...</p>}
-                                    {!previewMutation.data && !previewMutation.isPending && (
-                                        <p className="text-sm text-slate-600">Set dates and run preview to see eligible sites.</p>
-                                    )}
-                                    {previewMutation.data && (
-                                        <div className="space-y-3">
-                                            <div className="space-y-1">
-                                                <p className="text-sm font-semibold text-green-700">
-                                                    Eligible ({previewMutation.data.eligible.length})
-                                                </p>
-                                                <div className="space-y-1 max-h-48 overflow-auto pr-1">
-                                                    {previewMutation.data.eligible.map((row) => (
-                                                        <div key={row.siteId} className="rounded border border-green-100 bg-green-50 px-3 py-2">
-                                                            <div className="flex items-center justify-between text-sm font-medium text-green-800">
-                                                                <span>{siteLabelById.get(row.siteId) ?? row.siteId}</span>
-                                                                <span>{row.reasons?.length ? "With notes" : "Clear"}</span>
-                                                            </div>
-                                                            {row.conflicts?.length ? (
-                                                                <p className="text-xs text-amber-700">
-                                                                    Conflicts present: {row.conflicts.map((c) => c.type).join(", ")}
-                                                                </p>
-                                                            ) : null}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-sm font-semibold text-red-700">
-                                                    Ineligible ({previewMutation.data.ineligible.length})
-                                                </p>
-                                                <div className="space-y-1 max-h-48 overflow-auto pr-1">
-                                                    {previewMutation.data.ineligible.map((row) => (
-                                                        <div key={row.siteId} className="rounded border border-red-100 bg-red-50 px-3 py-2">
-                                                            <div className="flex items-center justify-between text-sm font-medium text-red-800">
-                                                                <span>{siteLabelById.get(row.siteId) ?? row.siteId}</span>
-                                                                <span>{row.reasons.join(", ")}</span>
-                                                            </div>
-                                                            {row.conflicts?.length ? (
-                                                                <p className="text-xs text-amber-700">
-                                                                    Conflicts: {row.conflicts.map((c) => c.type).join(", ")}
-                                                                </p>
-                                                            ) : null}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-                    <Card className="p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Reservation import/export</h2>
-                                <p className="text-sm text-slate-600">
-                                    Import from CSV/JSON or export reservations with pagination and PII controls.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="grid gap-6 md:grid-cols-2">
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <Label htmlFor="import-format">Import format</Label>
-                                    <select
-                                        id="import-format"
-                                        className="rounded border border-slate-200 px-2 py-1 text-sm"
-                                        value={importFormat}
-                                        onChange={(e) => setImportFormat(e.target.value as "csv" | "json")}
-                                    >
-                                        <option value="csv">CSV</option>
-                                        <option value="json">JSON</option>
-                                    </select>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Switch id="dry-run" checked={dryRun} onCheckedChange={setDryRun} />
-                                    <Label htmlFor="dry-run">Dry run (validate only)</Label>
-                                </div>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept={importFormat === "csv" ? ".csv,text/csv" : ".json,application/json"}
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) handleImportFile(file);
-                                    }}
-                                />
-                                <div className="flex items-center gap-2">
-                                    <Button variant="default" onClick={triggerFilePicker} disabled={importing}>
-                                        {importing ? "Importing..." : "Select file to import"}
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={async () => {
-                                            if (!campgroundId) return;
-                                            const schema = await apiClient.getReservationImportSchema(campgroundId);
-                                            downloadBlob(
-                                                JSON.stringify(schema, null, 2),
-                                                "reservation-import-schema.json",
-                                                "application/json"
-                                            );
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept={importFormat === "csv" ? ".csv,text/csv" : ".json,application/json"}
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) handleImportFile(file);
                                         }}
-                                    >
-                                        View schema
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleDownloadTemplate}
-                                        disabled={importSchemaLoading}
-                                    >
-                                        {importSchemaLoading ? "Preparing..." : "Download CSV template"}
-                                    </Button>
-                                </div>
-                                {importMessage && <p className="text-sm text-slate-700">{importMessage}</p>}
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <Label htmlFor="export-format">Export format</Label>
-                                    <select
-                                        id="export-format"
-                                        className="rounded border border-slate-200 px-2 py-1 text-sm"
-                                        value={exportFormat}
-                                        onChange={(e) => setExportFormat(e.target.value as "csv" | "json")}
-                                    >
-                                        <option value="csv">CSV</option>
-                                        <option value="json">JSON</option>
-                                    </select>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Switch id="include-pii" checked={includePii} onCheckedChange={setIncludePii} />
-                                    <Label htmlFor="include-pii">Include PII</Label>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Button onClick={handleExportQuick} disabled={exporting}>
-                                        {exporting ? "Exporting..." : "Quick download"}
-                                    </Button>
-                                    <Button variant="outline" onClick={handleQueueExportJob} disabled={exporting}>
-                                        Queue export job
-                                    </Button>
-                                </div>
-                                {exportMessage && <p className="text-sm text-slate-700">{exportMessage}</p>}
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Utility meters</h2>
-                                <p className="text-sm text-slate-600">Manage meters and capture reads for long-stay billing.</p>
-                            </div>
-                        </div>
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <div className="space-y-2">
-                                <Label>Site ID</Label>
-                                <input
-                                    className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                                    value={meterForm.siteId}
-                                    onChange={(e) => setMeterForm({ ...meterForm, siteId: e.target.value })}
-                                    placeholder="site id"
-                                />
-                                <Label>Type</Label>
-                                <select
-                                    className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                                    value={meterForm.type}
-                                    onChange={(e) => setMeterForm({ ...meterForm, type: e.target.value })}
-                                >
-                                    <option value="power">Power</option>
-                                    <option value="water">Water</option>
-                                    <option value="sewer">Sewer</option>
-                                </select>
-                                <Label>Serial (optional)</Label>
-                                <input
-                                    className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                                    value={meterForm.serialNumber}
-                                    onChange={(e) => setMeterForm({ ...meterForm, serialNumber: e.target.value })}
-                                    placeholder="123-ABC"
-                                />
-                                <Button onClick={handleCreateMeter}>Create meter</Button>
-                                {meterMessage && <p className="text-sm text-slate-700">{meterMessage}</p>}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Meter ID</Label>
-                                <input
-                                    className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                                    value={meterReadForm.meterId}
-                                    onChange={(e) => setMeterReadForm({ ...meterReadForm, meterId: e.target.value })}
-                                    placeholder="meter id"
-                                />
-                                <Label>Reading value</Label>
-                                <input
-                                    className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                                    value={meterReadForm.readingValue}
-                                    onChange={(e) => setMeterReadForm({ ...meterReadForm, readingValue: e.target.value })}
-                                    placeholder="e.g. 1234.5"
-                                />
-                                <Label>Read at</Label>
-                                <input
-                                    className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                                    type="datetime-local"
-                                    value={meterReadForm.readAt}
-                                    onChange={(e) => setMeterReadForm({ ...meterReadForm, readAt: e.target.value })}
-                                />
-                                <Label>Note (optional)</Label>
-                                <input
-                                    className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                                    value={meterReadForm.note}
-                                    onChange={(e) => setMeterReadForm({ ...meterReadForm, note: e.target.value })}
-                                    placeholder="Tech initials, etc."
-                                />
-                                <Button onClick={handleAddRead}>Save read</Button>
-                                {readMessage && <p className="text-sm text-slate-700">{readMessage}</p>}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Import reads (JSON array)</Label>
-                                <textarea
-                                    className="min-h-[160px] w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                                    placeholder='[{"meterId":"...","readingValue":123,"readAt":"2025-01-15T00:00:00Z"}]'
-                                    value={importReadsText}
-                                    onChange={(e) => setImportReadsText(e.target.value)}
-                                />
-                                <Button onClick={handleImportReads}>Import reads</Button>
-                            </div>
-                        </div>
-
-                        <div className="rounded border">
-                            <div className="grid grid-cols-4 bg-slate-50 px-3 py-2 text-sm font-semibold">
-                                <div>Meter</div>
-                                <div>Site</div>
-                                <div>Type</div>
-                                <div>Serial</div>
-                            </div>
-                            <div className="divide-y">
-                                {metersQuery.isLoading && <div className="px-3 py-3 text-sm text-slate-600">Loading meters...</div>}
-                                {metersQuery.data?.map((m) => (
-                                    <div key={m.id} className="grid grid-cols-4 px-3 py-2 text-sm">
-                                        <div className="truncate">{m.id}</div>
-                                        <div>{m.siteId}</div>
-                                        <div className="capitalize">{m.type}</div>
-                                        <div>{m.serialNumber || "—"}</div>
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <Button variant="default" onClick={triggerFilePicker} disabled={importing}>
+                                            {importing ? "Importing..." : "Select file to import"}
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={async () => {
+                                                if (!campgroundId) return;
+                                                const schema = await apiClient.getReservationImportSchema(campgroundId);
+                                                downloadBlob(
+                                                    JSON.stringify(schema, null, 2),
+                                                    "reservation-import-schema.json",
+                                                    "application/json"
+                                                );
+                                            }}
+                                        >
+                                            View schema
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleDownloadTemplate}
+                                            disabled={importSchemaLoading}
+                                        >
+                                            {importSchemaLoading ? "Preparing..." : "Download CSV template"}
+                                        </Button>
                                     </div>
-                                ))}
-                                {(metersQuery.data ?? []).length === 0 && !metersQuery.isLoading && (
-                                    <div className="px-3 py-3 text-sm text-slate-600">No meters yet.</div>
-                                )}
-                            </div>
-                        </div>
-                    </Card>
+                                    {importMessage && <p className="text-sm text-slate-700">{importMessage}</p>}
+                                </div>
 
-                    <Card className="p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Invoices & late fees</h2>
-                                <p className="text-sm text-slate-600">View invoices by reservation and trigger late-fee run.</p>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="export-format">Export format</Label>
+                                        <select
+                                            id="export-format"
+                                            className="rounded border border-slate-200 px-2 py-1 text-sm"
+                                            value={exportFormat}
+                                            onChange={(e) => setExportFormat(e.target.value as "csv" | "json")}
+                                        >
+                                            <option value="csv">CSV</option>
+                                            <option value="json">JSON</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Switch id="include-pii" checked={includePii} onCheckedChange={setIncludePii} />
+                                        <Label htmlFor="include-pii">Include PII</Label>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Button onClick={handleExportQuick} disabled={exporting}>
+                                            {exporting ? "Exporting..." : "Quick download"}
+                                        </Button>
+                                        <Button variant="outline" onClick={handleQueueExportJob} disabled={exporting}>
+                                            Queue export job
+                                        </Button>
+                                    </div>
+                                    {exportMessage && <p className="text-sm text-slate-700">{exportMessage}</p>}
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" onClick={handleRunLateFees}>
-                                    Run late fees
-                                </Button>
-                            </div>
-                        </div>
-                        {lateFeeMessage && <p className="text-sm text-slate-700">{lateFeeMessage}</p>}
+                        </Card>
+                    )}
 
-                        <div className="flex flex-wrap items-end gap-2">
-                            <div className="flex flex-col gap-1">
-                                <Label>Reservation ID</Label>
-                                <input
-                                    className="rounded border border-slate-200 px-2 py-1 text-sm"
-                                    value={invoiceReservationInput}
-                                    onChange={(e) => setInvoiceReservationInput(e.target.value)}
-                                    placeholder="reservation id"
-                                />
+                    {/* Billing Tab */}
+                    {activeTab === "billing" && (<>
+                        <Card className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Utility meters</h2>
+                                    <p className="text-sm text-slate-600">Manage meters and capture reads for long-stay billing.</p>
+                                </div>
                             </div>
-                            <Button onClick={triggerInvoiceFetch}>Load invoices</Button>
-                        </div>
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <div className="space-y-2">
+                                    <Label>Site ID</Label>
+                                    <input
+                                        className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                                        value={meterForm.siteId}
+                                        onChange={(e) => setMeterForm({ ...meterForm, siteId: e.target.value })}
+                                        placeholder="site id"
+                                    />
+                                    <Label>Type</Label>
+                                    <select
+                                        className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                                        value={meterForm.type}
+                                        onChange={(e) => setMeterForm({ ...meterForm, type: e.target.value })}
+                                    >
+                                        <option value="power">Power</option>
+                                        <option value="water">Water</option>
+                                        <option value="sewer">Sewer</option>
+                                    </select>
+                                    <Label>Serial (optional)</Label>
+                                    <input
+                                        className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                                        value={meterForm.serialNumber}
+                                        onChange={(e) => setMeterForm({ ...meterForm, serialNumber: e.target.value })}
+                                        placeholder="123-ABC"
+                                    />
+                                    <Button onClick={handleCreateMeter}>Create meter</Button>
+                                    {meterMessage && <p className="text-sm text-slate-700">{meterMessage}</p>}
+                                </div>
 
-                        {invoicesQuery.isFetching && <p className="text-sm text-slate-600">Loading invoices...</p>}
-                        {invoicesQuery.data && invoicesQuery.data.length === 0 && (
-                            <p className="text-sm text-slate-600">No invoices found for this reservation.</p>
-                        )}
-                        {invoicesQuery.data && invoicesQuery.data.length > 0 && (
+                                <div className="space-y-2">
+                                    <Label>Meter ID</Label>
+                                    <input
+                                        className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                                        value={meterReadForm.meterId}
+                                        onChange={(e) => setMeterReadForm({ ...meterReadForm, meterId: e.target.value })}
+                                        placeholder="meter id"
+                                    />
+                                    <Label>Reading value</Label>
+                                    <input
+                                        className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                                        value={meterReadForm.readingValue}
+                                        onChange={(e) => setMeterReadForm({ ...meterReadForm, readingValue: e.target.value })}
+                                        placeholder="e.g. 1234.5"
+                                    />
+                                    <Label>Read at</Label>
+                                    <input
+                                        className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                                        type="datetime-local"
+                                        value={meterReadForm.readAt}
+                                        onChange={(e) => setMeterReadForm({ ...meterReadForm, readAt: e.target.value })}
+                                    />
+                                    <Label>Note (optional)</Label>
+                                    <input
+                                        className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                                        value={meterReadForm.note}
+                                        onChange={(e) => setMeterReadForm({ ...meterReadForm, note: e.target.value })}
+                                        placeholder="Tech initials, etc."
+                                    />
+                                    <Button onClick={handleAddRead}>Save read</Button>
+                                    {readMessage && <p className="text-sm text-slate-700">{readMessage}</p>}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Import reads (JSON array)</Label>
+                                    <textarea
+                                        className="min-h-[160px] w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                                        placeholder='[{"meterId":"...","readingValue":123,"readAt":"2025-01-15T00:00:00Z"}]'
+                                        value={importReadsText}
+                                        onChange={(e) => setImportReadsText(e.target.value)}
+                                    />
+                                    <Button onClick={handleImportReads}>Import reads</Button>
+                                </div>
+                            </div>
+
                             <div className="rounded border">
-                                <div className="grid grid-cols-5 bg-slate-50 px-3 py-2 text-sm font-semibold">
-                                    <div>Invoice</div>
-                                    <div>Status</div>
-                                    <div>Due</div>
-                                    <div>Total</div>
-                                    <div>Balance</div>
+                                <div className="grid grid-cols-4 bg-slate-50 px-3 py-2 text-sm font-semibold">
+                                    <div>Meter</div>
+                                    <div>Site</div>
+                                    <div>Type</div>
+                                    <div>Serial</div>
                                 </div>
                                 <div className="divide-y">
-                                    {invoicesQuery.data.map((inv) => (
-                                        <div key={inv.id} className="grid grid-cols-5 px-3 py-2 text-sm">
-                                            <div className="truncate">{inv.number}</div>
-                                            <div className="capitalize">{inv.status}</div>
-                                            <div>{new Date(inv.dueDate).toLocaleDateString()}</div>
-                                            <div>${(inv.totalCents / 100).toFixed(2)}</div>
-                                            <div>${(inv.balanceCents / 100).toFixed(2)}</div>
+                                    {metersQuery.isLoading && <div className="px-3 py-3 text-sm text-slate-600">Loading meters...</div>}
+                                    {metersQuery.data?.map((m) => (
+                                        <div key={m.id} className="grid grid-cols-4 px-3 py-2 text-sm">
+                                            <div className="truncate">{m.id}</div>
+                                            <div>{m.siteId}</div>
+                                            <div className="capitalize">{m.type}</div>
+                                            <div>{m.serialNumber || "—"}</div>
                                         </div>
                                     ))}
+                                    {(metersQuery.data ?? []).length === 0 && !metersQuery.isLoading && (
+                                        <div className="px-3 py-3 text-sm text-slate-600">No meters yet.</div>
+                                    )}
                                 </div>
                             </div>
-                        )}
-                    </Card>
+                        </Card>
+
+                        <Card className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Invoices & late fees</h2>
+                                    <p className="text-sm text-slate-600">View invoices by reservation and trigger late-fee run.</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" onClick={handleRunLateFees}>
+                                        Run late fees
+                                    </Button>
+                                </div>
+                            </div>
+                            {lateFeeMessage && <p className="text-sm text-slate-700">{lateFeeMessage}</p>}
+
+                            <div className="flex flex-wrap items-end gap-2">
+                                <div className="flex flex-col gap-1">
+                                    <Label>Reservation ID</Label>
+                                    <input
+                                        className="rounded border border-slate-200 px-2 py-1 text-sm"
+                                        value={invoiceReservationInput}
+                                        onChange={(e) => setInvoiceReservationInput(e.target.value)}
+                                        placeholder="reservation id"
+                                    />
+                                </div>
+                                <Button onClick={triggerInvoiceFetch}>Load invoices</Button>
+                            </div>
+
+                            {invoicesQuery.isFetching && <p className="text-sm text-slate-600">Loading invoices...</p>}
+                            {invoicesQuery.data && invoicesQuery.data.length === 0 && (
+                                <p className="text-sm text-slate-600">No invoices found for this reservation.</p>
+                            )}
+                            {invoicesQuery.data && invoicesQuery.data.length > 0 && (
+                                <div className="rounded border">
+                                    <div className="grid grid-cols-5 bg-slate-50 px-3 py-2 text-sm font-semibold">
+                                        <div>Invoice</div>
+                                        <div>Status</div>
+                                        <div>Due</div>
+                                        <div>Total</div>
+                                        <div>Balance</div>
+                                    </div>
+                                    <div className="divide-y">
+                                        {invoicesQuery.data.map((inv) => (
+                                            <div key={inv.id} className="grid grid-cols-5 px-3 py-2 text-sm">
+                                                <div className="truncate">{inv.number}</div>
+                                                <div className="capitalize">{inv.status}</div>
+                                                <div>{new Date(inv.dueDate).toLocaleDateString()}</div>
+                                                <div>${(inv.totalCents / 100).toFixed(2)}</div>
+                                                <div>${(inv.balanceCents / 100).toFixed(2)}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </Card>
+                    </>)}
                 </div>
             </div>
-        </DashboardShell>
+        </DashboardShell >
     );
 }
