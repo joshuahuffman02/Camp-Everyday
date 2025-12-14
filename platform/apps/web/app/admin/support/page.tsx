@@ -384,15 +384,15 @@ export default function SupportAdminPage() {
                     </Button>
                     {staff.length > 0 && (
                       <Select
-                        value={r.assignee?.id || ""}
-                        onValueChange={(v) => updateAssignee(r.id, v || null)}
+                        value={r.assignee?.id || "unassigned"}
+                        onValueChange={(v) => updateAssignee(r.id, v === "unassigned" ? null : v)}
                         disabled={!canMutate}
                       >
                         <SelectTrigger className="h-8 w-44">
                           <SelectValue placeholder="Assign user" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Unassigned</SelectItem>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
                           {staff.map((s) => (
                             <SelectItem key={s.id} value={s.id}>
                               {(s.firstName || s.lastName)
@@ -523,15 +523,15 @@ export default function SupportAdminPage() {
                   </Button>
                   {staff.length > 0 && (
                     <Select
-                      value={selected.assignee?.id || ""}
-                      onValueChange={(v) => updateAssignee(selected.id, v || null)}
+                      value={selected.assignee?.id || "unassigned"}
+                      onValueChange={(v) => updateAssignee(selected.id, v === "unassigned" ? null : v)}
                       disabled={!canMutate}
                     >
                       <SelectTrigger className="h-8 w-44">
                         <SelectValue placeholder="Assign user" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Unassigned</SelectItem>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
                         {staff.map((s) => (
                           <SelectItem key={s.id} value={s.id}>
                             {(s.firstName || s.lastName)
