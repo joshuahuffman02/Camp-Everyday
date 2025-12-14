@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ClipboardCheck, ClipboardList, HeartPulse, MessageSquare } from "lucide-react";
-import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -206,15 +205,15 @@ export default function SupportAdminPage() {
 
   if (!whoamiLoading && !allowSupport) {
     return (
-      <DashboardShell>
+      <div>
         <div className="space-y-3">
           <div className="text-xs uppercase font-semibold text-slate-500">Support</div>
-          <h1 className="text-2xl font-bold text-slate-900">Support reports</h1>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 p-4">
+          <h1 className="text-2xl font-bold text-white">Support reports</h1>
+          <div className="rounded-lg border border-amber-200/20 bg-amber-500/10 text-amber-400 p-4">
             You do not have permission to view or assign support reports.
           </div>
         </div>
-      </DashboardShell>
+      </div>
     );
   }
 
@@ -278,7 +277,7 @@ export default function SupportAdminPage() {
   };
 
   return (
-    <DashboardShell>
+    <div>
       <div className="space-y-4 pb-24 md:pb-10" id="support-queue">
         <div className="flex items-center justify-between">
           <div>
@@ -587,7 +586,7 @@ export default function SupportAdminPage() {
           { key: "ops-health", label: "Ops health", href: "/operations#ops-health", icon: <HeartPulse className="h-4 w-4" />, badge: triagePending },
         ]}
       />
-    </DashboardShell>
+    </div>
   );
 }
 

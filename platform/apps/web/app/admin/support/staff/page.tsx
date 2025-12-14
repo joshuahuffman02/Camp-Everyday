@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -134,19 +133,19 @@ export default function SupportStaffDirectoryPage() {
 
   if (!whoamiLoading && !allowSupport) {
     return (
-      <DashboardShell>
+      <div>
         <div className="space-y-3">
-          <div className="text-xl font-semibold text-slate-900">Support staff</div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 p-4">
+          <div className="text-xl font-semibold text-white">Support staff</div>
+          <div className="rounded-lg border border-amber-200/20 bg-amber-500/10 text-amber-400 p-4">
             You do not have permission to view or edit support staff scope.
           </div>
         </div>
-      </DashboardShell>
+      </div>
     );
   }
 
   return (
-    <DashboardShell>
+    <div>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -270,7 +269,7 @@ export default function SupportStaffDirectoryPage() {
           </div>
         </Card>
       </div>
-    </DashboardShell>
+    </div>
   );
 }
 
