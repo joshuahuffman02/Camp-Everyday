@@ -260,5 +260,121 @@ ${options.html}
             html
         });
     }
+
+    /**
+     * Send ticket resolution notification to the submitter
+     */
+    async sendTicketResolved(options: {
+        to: string;
+        ticketId: string;
+        ticketTitle: string;
+        resolution: string;
+        agentNotes?: string;
+    }): Promise<void> {
+        const html = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <div style="background: #10b981; width: 60px; height: 60px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                        <span style="color: white; font-size: 28px;">✓</span>
+                    </div>
+                    <h1 style="color: #0f172a; margin: 0;">Your Ticket Has Been Resolved</h1>
+                    <p style="color: #64748b; margin-top: 8px;">Thank you for your feedback!</p>
+                </div>
+                
+                <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                    <h2 style="margin: 0 0 8px 0; color: #0f172a; font-size: 16px;">${options.ticketTitle}</h2>
+                    <p style="margin: 0; color: #64748b; font-size: 12px;">Ticket ID: ${options.ticketId}</p>
+                </div>
+
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;">
+                    <h3 style="margin: 0 0 12px 0; color: #0f172a; font-size: 14px;">Resolution</h3>
+                    <p style="margin: 0; color: #334155; line-height: 1.6;">${options.resolution || 'Your ticket has been resolved.'}</p>
+                    
+                    ${options.agentNotes ? `
+                        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+                            <h4 style="margin: 0 0 8px 0; color: #64748b; font-size: 12px; text-transform: uppercase;">Agent Notes</h4>
+                            <p style="margin: 0; color: #334155; line-height: 1.6;">${options.agentNotes}</p>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #64748b; font-size: 12px; margin: 0;">
+                        If you have any follow-up questions, please submit a new ticket.
+                    </p>
+                    <p style="color: #94a3b8; font-size: 11px; margin-top: 8px;">
+                        Camp Everyday Support
+                    </p>
+                </div>
+            </div>
+        `;
+
+        await this.sendEmail({
+            to: options.to,
+            subject: `Ticket Resolved: ${options.ticketTitle}`,
+            html
+        });
+    }
+
+    /**
+     * Send a scheduled report email
+     */
+    async sendScheduledReport(options: {
+        to: string;
+        reportName: string;
+        campgroundName?: string;
+        period: string;
+        summary: string;
+        metrics?: { label: string; value: string }[];
+        reportUrl?: string;
+    }): Promise<void> {
+        const metricsHtml = options.metrics?.length ? `
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                ${options.metrics.map((m, i) => `
+                    <tr style="background: ${i % 2 === 0 ? '#f8fafc' : '#ffffff'};">
+                        <td style="padding: 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">${m.label}</td>
+                        <td style="padding: 12px; color: #0f172a; font-weight: 600; text-align: right; border-bottom: 1px solid #e2e8f0;">${m.value}</td>
+                    </tr>
+                `).join('')}
+            </table>
+        ` : '';
+
+        const html = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #0f172a; margin: 0;">${options.reportName}</h1>
+                    <p style="color: #64748b; margin-top: 8px;">
+                        ${options.campgroundName ? `${options.campgroundName} • ` : ''}${options.period}
+                    </p>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border-radius: 12px; padding: 24px; color: white; margin-bottom: 24px;">
+                    <p style="margin: 0; font-size: 16px; line-height: 1.6;">${options.summary}</p>
+                </div>
+
+                ${metricsHtml}
+
+                ${options.reportUrl ? `
+                    <div style="text-align: center; margin-top: 24px;">
+                        <a href="${options.reportUrl}" style="display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500;">
+                            View Full Report
+                        </a>
+                    </div>
+                ` : ''}
+
+                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #94a3b8; font-size: 11px; margin: 0;">
+                        This is an automated report. Manage your email preferences in Settings.
+                    </p>
+                </div>
+            </div>
+        `;
+
+        await this.sendEmail({
+            to: options.to,
+            subject: `${options.reportName} - ${options.period}`,
+            html
+        });
+    }
 }
 

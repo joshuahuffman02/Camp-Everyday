@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { EmailService } from "../email/email.service";
 import { CreateTicketDto, UpdateTicketDto } from "./dto";
 
 type TicketData = CreateTicketDto & {
@@ -16,7 +17,10 @@ type TicketData = CreateTicketDto & {
 export class TicketsService {
     private readonly logger = new Logger(TicketsService.name);
 
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly emailService: EmailService,
+    ) { }
 
     async findAll() {
         return this.prisma.ticket.findMany({
@@ -83,6 +87,7 @@ export class TicketsService {
 
         // Handle status/notes update
         const updateData: any = {};
+        const wasResolved = ticket.status === "resolved" || ticket.status === "closed";
 
         if (dto.status) {
             updateData.status = dto.status;
@@ -95,10 +100,34 @@ export class TicketsService {
             updateData.agentNotes = dto.agentNotes.trim() || null;
         }
 
-        return this.prisma.ticket.update({
+        const updated = await this.prisma.ticket.update({
             where: { id },
             data: updateData,
         });
+
+        // Send email notification when ticket is resolved/closed
+        const isNowResolved = updated.status === "resolved" || updated.status === "closed";
+        if (isNowResolved && !wasResolved) {
+            const submitter = ticket.submitter as any;
+            const submitterEmail = submitter?.email;
+
+            if (submitterEmail) {
+                try {
+                    await this.emailService.sendTicketResolved({
+                        to: submitterEmail,
+                        ticketId: ticket.id,
+                        ticketTitle: ticket.title,
+                        resolution: dto.agentNotes || "Your ticket has been resolved. Thank you for your feedback!",
+                        agentNotes: updated.agentNotes || undefined,
+                    });
+                    this.logger.log(`Sent resolution email for ticket ${id} to ${submitterEmail}`);
+                } catch (err) {
+                    this.logger.warn(`Failed to send resolution email for ticket ${id}: ${err}`);
+                }
+            }
+        }
+
+        return updated;
     }
 
     // Migration helper: bulk insert tickets from JSON

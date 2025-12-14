@@ -5596,3 +5596,44 @@ model Announcement {
   @@index([target])
 }
 
+// =============================================================================
+// Report Subscriptions
+// =============================================================================
+
+enum ReportFrequency {
+  daily
+  weekly
+  monthly
+}
+
+enum ReportType {
+  occupancy_summary
+  revenue_summary
+  arrivals_departures
+  maintenance_summary
+  reservation_activity
+  guest_activity
+  financial_summary
+}
+
+model ReportSubscription {
+  id           String           @id @default(cuid())
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  userId       String
+  userEmail    String
+  campgroundId String?          // null for platform-wide reports (admin only)
+  reportType   ReportType
+  frequency    ReportFrequency
+  enabled      Boolean          @default(true)
+  lastSentAt   DateTime?
+  nextSendAt   DateTime?
+  deliveryTime String           @default("08:00") // HH:MM in campground timezone
+  dayOfWeek    Int?             // 0-6 for weekly (0=Sunday)
+  dayOfMonth   Int?             // 1-31 for monthly
+
+  @@unique([userId, campgroundId, reportType])
+  @@index([userId])
+  @@index([campgroundId])
+  @@index([enabled, nextSendAt])
+}
