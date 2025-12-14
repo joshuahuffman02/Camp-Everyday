@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { OfflineTelemetryPanel } from "@/components/pwa/OfflineTelemetryPanel";
@@ -55,14 +54,14 @@ export default function SyncSummaryPage() {
   }, []);
 
   return (
-    <DashboardShell>
+    <div>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Sync Summary</h1>
-            <p className="text-slate-600 text-sm">Queue health across offline flows.</p>
+            <h1 className="text-2xl font-semibold text-white">Sync Summary</h1>
+            <p className="text-slate-400 text-sm">Queue health across offline flows.</p>
           </div>
-          <Link href="/pwa/sync-log" className="text-sm text-blue-600 hover:underline">
+          <Link href="/pwa/sync-log" className="text-sm text-blue-400 hover:underline">
             View detailed sync log
           </Link>
         </div>
@@ -87,7 +86,7 @@ export default function SyncSummaryPage() {
           ))}
         </div>
       </div>
-    </DashboardShell>
+    </div>
   );
 }
 

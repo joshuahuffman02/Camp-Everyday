@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -100,7 +99,7 @@ export default function AdminMarketingLeadsPage() {
   const qualifiedCount = leads.filter((lead) => lead.status === "qualified").length;
 
   return (
-    <DashboardShell>
+    <div>
       <div className="space-y-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
@@ -233,7 +232,7 @@ export default function AdminMarketingLeadsPage() {
           )}
         </div>
       </div>
-    </DashboardShell>
+    </div>
   );
 }
 

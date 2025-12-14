@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,28 +145,28 @@ export default function SupportAnalyticsPage() {
 
   if (!ready) {
     return (
-      <DashboardShell>
-        <div className="p-4 text-sm text-slate-500">Loading…</div>
-      </DashboardShell>
+      <div>
+        <div className="p-4 text-sm text-slate-400">Loading…</div>
+      </div>
     );
   }
 
   if (!allowSupport) {
     return (
-      <DashboardShell>
+      <div>
         <div className="space-y-3">
           <div className="text-xs uppercase font-semibold text-slate-500">Support</div>
-          <h1 className="text-2xl font-bold text-slate-900">Support analytics</h1>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 p-4">
+          <h1 className="text-2xl font-bold text-white">Support analytics</h1>
+          <div className="rounded-lg border border-amber-200/20 bg-amber-500/10 text-amber-400 p-4">
             You do not have permission to view support analytics.
           </div>
         </div>
-      </DashboardShell>
+      </div>
     );
   }
 
   return (
-    <DashboardShell>
+    <div>
       <div className="space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -352,7 +351,7 @@ export default function SupportAnalyticsPage() {
           </div>
         )}
       </div>
-    </DashboardShell>
+    </div>
   );
 }
 
