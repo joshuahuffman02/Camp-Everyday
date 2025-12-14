@@ -434,9 +434,30 @@ export function DashboardShell({ children, className, title, subtitle }: { child
       { label: "POS", href: "/pos", icon: "payments" }
     ];
 
+    const staffOpsItems: NavItem[] = [
+      { label: "Staff Gamification", href: "/gamification", icon: "sparkles" }
+    ];
+
     if (allowOps) {
-      inventoryItems.splice(1, 0, { label: "Operations Board", href: "/operations", icon: "wrench" });
-      inventoryItems.splice(2, 0, { label: "Equipment Rentals", href: "/operations/rentals", icon: "ticket" });
+      staffOpsItems.push(
+        { label: "Operations Board", href: "/operations", icon: "wrench" },
+        { label: "Equipment Rentals", href: "/operations/rentals", icon: "ticket" },
+        {
+          label: "Staff Timeclock",
+          href: selected ? `/campgrounds/${selected}/staff/timeclock` : "/campgrounds",
+          icon: "clock"
+        },
+        {
+          label: "Shift Approvals",
+          href: selected ? `/campgrounds/${selected}/staff/approvals` : "/campgrounds",
+          icon: "users"
+        },
+        {
+          label: "Override Requests",
+          href: selected ? `/campgrounds/${selected}/staff/overrides` : "/campgrounds",
+          icon: "alert"
+        }
+      );
     }
 
     const pricingItems: NavItem[] = [
@@ -507,28 +528,6 @@ export function DashboardShell({ children, className, title, subtitle }: { child
       { label: "Roadmap", href: "/roadmap", icon: "sparkles" }
     ];
 
-    if (allowOps) {
-      settingsItems.splice(
-        settingsItems.length - 1,
-        0,
-        {
-          label: "Staff Timeclock",
-          href: selected ? `/campgrounds/${selected}/staff/timeclock` : "/campgrounds",
-          icon: "clock"
-        },
-        {
-          label: "Shift Approvals",
-          href: selected ? `/campgrounds/${selected}/staff/approvals` : "/campgrounds",
-          icon: "users"
-        },
-        {
-          label: "Override Requests",
-          href: selected ? `/campgrounds/${selected}/staff/overrides` : "/campgrounds",
-          icon: "alert"
-        }
-      );
-    }
-
     return [
       {
         heading: "Today",
@@ -551,6 +550,12 @@ export function DashboardShell({ children, className, title, subtitle }: { child
       {
         heading: "Inventory",
         items: inventoryItems,
+        collapsible: true,
+        defaultOpen: false
+      },
+      {
+        heading: "Staff & Operations",
+        items: staffOpsItems,
         collapsible: true,
         defaultOpen: false
       },
