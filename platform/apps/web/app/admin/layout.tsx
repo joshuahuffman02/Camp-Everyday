@@ -56,9 +56,15 @@ const adminNavItems = [
         ],
     },
     {
-        title: "Sync Summary",
-        href: "/admin/sync-summary",
+        title: "System",
         icon: RefreshCw,
+        children: [
+            { title: "Health", href: "/admin/system/health" },
+            { title: "Audit Log", href: "/admin/system/audit" },
+            { title: "Feature Flags", href: "/admin/system/flags" },
+            { title: "Announcements", href: "/admin/system/announcements" },
+            { title: "Sync Summary", href: "/admin/sync-summary" },
+        ],
     },
 ];
 
