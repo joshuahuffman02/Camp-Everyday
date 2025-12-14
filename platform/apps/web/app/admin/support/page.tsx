@@ -583,8 +583,8 @@ export default function SupportAdminPage() {
                     {session?.user?.id && (
                       <Button
                         variant="secondary"
-                        onClick={() => updateAssignee(selected.id, session.user!.id)}
-                        disabled={!canMutate || selected.assignee?.id === session.user.id}
+                        onClick={() => updateAssignee(selected.id, session.user!.id ?? null)}
+                        disabled={!canMutate || selected.assignee?.id === session.user?.id}
                       >
                         Me
                       </Button>
