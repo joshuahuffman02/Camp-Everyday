@@ -7,6 +7,7 @@ import { Breadcrumbs } from "../../../../components/breadcrumbs";
 import { useState } from "react";
 import { Button } from "../../../../components/ui/button";
 import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
+import { ImageUpload } from "../../../../components/ui/image-upload";
 
 type SiteFormState = {
   name: string;
@@ -254,8 +255,19 @@ export default function SitesPage() {
             />
             <div className="md:col-span-2 space-y-1">
               <label className="text-xs font-semibold text-slate-700">Photos (comma-separated URLs)</label>
+              <div className="bg-slate-50 p-2 rounded border border-slate-100 mb-2">
+                <div className="text-xs text-slate-500 mb-2">Upload photo:</div>
+                <ImageUpload
+                  onChange={(url) => {
+                    if (!url) return;
+                    const current = formState.photos ? formState.photos.split(",").map(p => p.trim()).filter(Boolean) : [];
+                    setFormState(s => ({ ...s, photos: [...current, url].join(", ") }));
+                  }}
+                  placeholder="Upload site photo"
+                />
+              </div>
               <textarea
-                className="rounded-md border border-slate-200 px-3 py-2 w-full"
+                className="rounded-md border border-slate-200 px-3 py-2 w-full text-xs"
                 placeholder="https://img1.jpg, https://img2.jpg"
                 value={formState.photos}
                 onChange={(e) => setFormState((s) => ({ ...s, photos: e.target.value }))}
@@ -327,14 +339,14 @@ export default function SitesPage() {
                       </div>
                     )}
                   </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => router.push(`/campgrounds/${campgroundId}/sites/${site.id}`)}
-                  >
-                    View details
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/campgrounds/${campgroundId}/sites/${site.id}`)}
+                    >
+                      View details
+                    </Button>
                     {!isEditing && (
                       <Button
                         size="sm"
@@ -489,8 +501,19 @@ export default function SitesPage() {
                       />
                       <div className="md:col-span-2 space-y-1">
                         <label className="text-xs font-semibold text-slate-700">Photos (comma-separated URLs)</label>
+                        <div className="bg-slate-50 p-2 rounded border border-slate-100 mb-2">
+                          <div className="text-xs text-slate-500 mb-2">Upload photo:</div>
+                          <ImageUpload
+                            onChange={(url) => {
+                              if (!url) return;
+                              const current = editForm.photos ? editForm.photos.split(",").map(p => p.trim()).filter(Boolean) : [];
+                              setEditForm(s => (s ? { ...s, photos: [...current, url].join(", ") } : s));
+                            }}
+                            placeholder="Upload site photo"
+                          />
+                        </div>
                         <textarea
-                          className="rounded-md border border-slate-200 px-3 py-2 w-full"
+                          className="rounded-md border border-slate-200 px-3 py-2 w-full text-xs"
                           placeholder="https://img1.jpg, https://img2.jpg"
                           value={editForm.photos}
                           onChange={(e) => setEditForm((s) => (s ? { ...s, photos: e.target.value } : s))}

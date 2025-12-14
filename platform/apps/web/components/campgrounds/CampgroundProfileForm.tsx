@@ -12,6 +12,7 @@ import { Switch } from "../ui/switch";
 import { Badge } from "../ui/badge";
 import { Label } from "../ui/label";
 import Image from "next/image";
+import { ImageUpload } from "../ui/image-upload";
 
 interface CampgroundProfileFormProps {
   campground: Campground;
@@ -273,21 +274,41 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700">Hero image URL</label>
-            <Input
-              value={form.heroImageUrl}
-              onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))}
-              placeholder="https://..."
-              aria-label="Hero image URL"
-            />
-            {heroPreview && (
-              <div className="relative mt-2 h-40 w-full overflow-hidden rounded-lg border border-slate-200">
-                <Image src={heroPreview} alt="Hero preview" fill className="object-cover" />
+            <div className="space-y-2">
+              <ImageUpload
+                value={form.heroImageUrl}
+                onChange={(url) => setForm((s) => ({ ...s, heroImageUrl: url }))}
+                placeholder="Upload hero image"
+              />
+              <div className="flex items-center gap-2">
+                <div className="h-px bg-slate-100 flex-1"></div>
+                <span className="text-[10px] text-slate-400 uppercase">OR enter URL</span>
+                <div className="h-px bg-slate-100 flex-1"></div>
               </div>
-            )}
+              <Input
+                value={form.heroImageUrl}
+                onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))}
+                placeholder="https://..."
+                aria-label="Hero image URL"
+                className="text-xs font-mono"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-700">Gallery photos (comma-separated URLs)</label>
+            <label className="text-xs font-semibold text-slate-700">Gallery photos</label>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-3">
+              <div className="text-xs text-slate-500">Add new photo:</div>
+              <ImageUpload
+                onChange={(url) => {
+                  if (!url) return;
+                  const current = form.photos ? form.photos.split(",").map(p => p.trim()).filter(Boolean) : [];
+                  setForm(s => ({ ...s, photos: [...current, url].join(", ") }));
+                }}
+                placeholder="Upload gallery photo"
+              />
+            </div>
+            <label className="text-xs font-semibold text-slate-700 block pt-2">Manage URLs (comma-separated)</label>
             <Textarea
               value={form.photos}
               onChange={(e) => setForm((s) => ({ ...s, photos: e.target.value }))}

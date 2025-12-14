@@ -7,6 +7,7 @@ import { Breadcrumbs } from "../../../../components/breadcrumbs";
 import { apiClient } from "../../../../lib/api-client";
 import { useState } from "react";
 import { Button } from "../../../../components/ui/button";
+import { ImageUpload } from "../../../../components/ui/image-upload";
 
 type SiteClassFormState = {
   name: string;
@@ -173,8 +174,19 @@ export default function SiteClassesPage() {
             />
             <div className="md:col-span-2 space-y-1">
               <label className="text-xs font-semibold text-slate-700">Photos (comma-separated URLs)</label>
+              <div className="bg-slate-50 p-2 rounded border border-slate-100 mb-2">
+                <div className="text-xs text-slate-500 mb-2">Upload photo:</div>
+                <ImageUpload
+                  onChange={(url) => {
+                    if (!url) return;
+                    const current = form.photos ? form.photos.split(",").map(p => p.trim()).filter(Boolean) : [];
+                    setForm(s => ({ ...s, photos: [...current, url].join(", ") }));
+                  }}
+                  placeholder="Upload class photo"
+                />
+              </div>
               <textarea
-                className="rounded-md border border-slate-200 px-3 py-2 w-full"
+                className="rounded-md border border-slate-200 px-3 py-2 w-full text-xs"
                 placeholder="https://img1.jpg, https://img2.jpg"
                 value={form.photos}
                 onChange={(e) => setForm((s) => ({ ...s, photos: e.target.value }))}
@@ -304,18 +316,18 @@ export default function SiteClassesPage() {
                       </div>
                     )}
                   </div>
-                <div className="text-right text-xs text-slate-500 space-y-2 min-w-[150px]">
+                  <div className="text-right text-xs text-slate-500 space-y-2 min-w-[150px]">
                     {cls.glCode && <div>GL {cls.glCode}</div>}
                     {cls.clientAccount && <div>Acct {cls.clientAccount}</div>}
                     {cls.policyVersion && <div>Policy {cls.policyVersion}</div>}
                     <div className={cls.isActive ? "text-emerald-700 font-semibold" : "text-slate-500"}>{cls.isActive ? "Active" : "Inactive"}</div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => router.push(`/campgrounds/${campgroundId}/classes/${cls.id}`)}
-                  >
-                    View details
-                  </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/campgrounds/${campgroundId}/classes/${cls.id}`)}
+                    >
+                      View details
+                    </Button>
                     {!isEditing && (
                       <Button
                         size="sm"
@@ -467,8 +479,19 @@ export default function SiteClassesPage() {
                       />
                       <div className="md:col-span-2 space-y-1">
                         <label className="text-xs font-semibold text-slate-700">Photos (comma-separated URLs)</label>
+                        <div className="bg-slate-50 p-2 rounded border border-slate-100 mb-2">
+                          <div className="text-xs text-slate-500 mb-2">Upload photo:</div>
+                          <ImageUpload
+                            onChange={(url) => {
+                              if (!url) return;
+                              const current = editForm.photos ? editForm.photos.split(",").map(p => p.trim()).filter(Boolean) : [];
+                              setEditForm(s => (s ? { ...s, photos: [...current, url].join(", ") } : s));
+                            }}
+                            placeholder="Upload class photo"
+                          />
+                        </div>
                         <textarea
-                          className="rounded-md border border-slate-200 px-3 py-2 w-full"
+                          className="rounded-md border border-slate-200 px-3 py-2 w-full text-xs"
                           placeholder="https://img1.jpg, https://img2.jpg"
                           value={editForm.photos}
                           onChange={(e) => setEditForm((s) => (s ? { ...s, photos: e.target.value } : s))}
