@@ -135,7 +135,7 @@ export default function CampgroundSettingsPage() {
     });
 
     const cg = campgroundQuery.data;
-    const referralBaseUrl = useMemo(() => (typeof window !== "undefined" ? window.location.origin : "https://campreserv.com"), []);
+    const referralBaseUrl = useMemo(() => (typeof window !== "undefined" ? window.location.origin : "https://campeveryday.com"), []);
     const formatMoney = (cents: number | null | undefined) => `$${(((cents ?? 0) as number) / 100).toFixed(2)}`;
 
     const sites = mapQuery.data?.sites ?? [];

@@ -50,7 +50,7 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
     private readonly idempotency: IdempotencyService,
-  ) {}
+  ) { }
 
   async createInvite(dto: CreateOnboardingInviteDto, actor?: any) {
     const token = crypto.randomBytes(24).toString("hex");
@@ -235,7 +235,7 @@ export class OnboardingService {
           <p style="color: #0f172a; font-weight: 600; font-size: 18px; margin: 0 0 12px 0;">Complete onboarding for ${campgroundName}</p>
           <p style="color: #475569; margin: 0 0 16px 0;">We saved your progress so you can finish anytime in the next few days.</p>
           <a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; padding: 12px 18px; border-radius: 10px; font-weight: 700;">Start onboarding</a>
-          <p style="color: #64748b; margin: 16px 0 0 0; font-size: 12px;">This link expires on ${inviteExpiryString(expiresAt)}. If it stops working, request a new invite from your Campreserv contact.</p>
+          <p style="color: #64748b; margin: 16px 0 0 0; font-size: 12px;">This link expires on ${inviteExpiryString(expiresAt)}. If it stops working, request a new invite from your Camp Everyday Host contact.</p>
         </div>
       </div>
     `;

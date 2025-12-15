@@ -114,7 +114,7 @@ const defaultReferrals: ReferralRow[] = [
   },
 ];
 
-const defaultBaseUrl = "https://campreserv.com/book?campground=demo-park";
+const defaultBaseUrl = "https://campeveryday.com/book?campground=demo-park";
 const defaultCampaign = "referrals-pilot";
 const defaultRefCode = "AFF-DEMO";
 
@@ -404,7 +404,7 @@ export default function PromotionsPage() {
                   id="baseUrl"
                   value={baseUrl}
                   onChange={(event) => setBaseUrl(event.target.value)}
-                  placeholder="https://campreserv.com/book"
+                  placeholder="https://campeveryday.com/book"
                 />
                 <p className="text-xs text-slate-500">Use a public booking or landing page.</p>
               </div>

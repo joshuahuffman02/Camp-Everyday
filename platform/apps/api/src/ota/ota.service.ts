@@ -43,7 +43,7 @@ export class OtaService {
   private readonly webhookErrorRateTarget = Number(process.env.OTA_WEBHOOK_ERROR_RATE ?? 0.01);
   private readonly successRateTarget = Number(process.env.OTA_SUCCESS_RATE ?? 0.95);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private defaultConfig(campgroundId: string): OtaConfig {
     return {
@@ -270,14 +270,14 @@ export class OtaService {
     const lines: string[] = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Campreserv//OTA iCal//EN",
+      "PRODID:-//Camp Everyday Host//OTA iCal//EN",
       "CALSCALE:GREGORIAN",
     ];
 
     for (const res of reservations) {
       lines.push(
         "BEGIN:VEVENT",
-        `UID:${res.id}@campreserv`,
+        `UID:${res.id}@campeveryday`,
         `DTSTAMP:${this.formatIcsDate(new Date(res.bookedAt || res.arrivalDate))}`,
         `DTSTART:${this.formatIcsDate(new Date(res.arrivalDate))}`,
         `DTEND:${this.formatIcsDate(new Date(res.departureDate))}`,
@@ -289,7 +289,7 @@ export class OtaService {
     for (const b of blackouts) {
       lines.push(
         "BEGIN:VEVENT",
-        `UID:${b.id}@campreserv`,
+        `UID:${b.id}@campeveryday`,
         `DTSTAMP:${this.formatIcsDate(new Date(b.startDate))}`,
         `DTSTART:${this.formatIcsDate(new Date(b.startDate))}`,
         `DTEND:${this.formatIcsDate(new Date(b.endDate))}`,

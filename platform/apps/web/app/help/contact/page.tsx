@@ -214,7 +214,7 @@ export default function ContactPage() {
                 <span className="text-sm font-semibold text-slate-900">Other ways to reach us</span>
               </div>
               <div className="text-sm text-slate-700">
-                Email: <span className="font-medium">support@campreserv.com</span><br />
+                Email: <span className="font-medium">support@campeveryday.com</span><br />
                 Phone (24/7 critical): <span className="font-medium">(555) 123-0199</span>
               </div>
               <div className="text-xs text-slate-500">
