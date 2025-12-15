@@ -14,6 +14,7 @@ import { HousekeepingReport } from "./definitions/HousekeepingReport";
 import { TransactionLogReport } from "./definitions/TransactionLogReport";
 import { RevenueBySiteTypeReport } from "./definitions/RevenueBySiteTypeReport";
 import { PaymentMethodsReport } from "./definitions/PaymentMethodsReport";
+import { NewVsReturningReport } from "./definitions/NewVsReturningReport";
 
 interface ReportRendererProps {
     tab: ReportTab;
@@ -71,6 +72,9 @@ export function ReportRenderer({ tab, subTab, campgroundId, dateRange, reportFil
     if (tab === "guests") {
         if (subTab === "guest-origins") {
             return <GuestOriginsReport campgroundId={campgroundId} dateRange={dateRange} />;
+        }
+        if (subTab === "new-vs-returning") {
+            return <NewVsReturningReport campgroundId={campgroundId} dateRange={dateRange} />;
         }
     }
 
