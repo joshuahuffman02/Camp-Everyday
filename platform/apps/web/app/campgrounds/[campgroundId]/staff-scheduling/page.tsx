@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
+import { Search, User } from "lucide-react";
 
 type Shift = {
   id: string;
@@ -17,17 +18,24 @@ type Shift = {
 };
 
 type StaffRole = { id: string; code: string; name: string };
+type StaffMember = { id: string; firstName?: string; lastName?: string; email?: string };
 
 const STATUS_OPTIONS = ["all", "scheduled", "in_progress", "submitted", "approved", "rejected"];
 
 export default function StaffSchedulingPage({ params }: { params: { campgroundId: string } }) {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [roles, setRoles] = useState<StaffRole[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("calendar");
   const [dragShiftId, setDragShiftId] = useState<string | null>(null);
+
+  // Staff selector state
+  const [staffSearch, setStaffSearch] = useState("");
+  const [showStaffDropdown, setShowStaffDropdown] = useState(false);
+
   const [form, setForm] = useState({
     userId: "",
     date: "",
@@ -35,6 +43,19 @@ export default function StaffSchedulingPage({ params }: { params: { campgroundId
     end: "17:00",
     role: "",
   });
+
+  // Selected staff display
+  const selectedStaff = useMemo(() => staffMembers.find(s => s.id === form.userId), [staffMembers, form.userId]);
+
+  // Filtered staff list
+  const filteredStaff = useMemo(() => {
+    if (!staffSearch.trim()) return staffMembers.slice(0, 10);
+    const q = staffSearch.toLowerCase();
+    return staffMembers.filter(s => {
+      const name = `${s.firstName || ""} ${s.lastName || ""}`.toLowerCase();
+      return name.includes(q) || (s.email || "").toLowerCase().includes(q);
+    }).slice(0, 10);
+  }, [staffMembers, staffSearch]);
 
   const [startDay, setStartDay] = useState(() => new Date());
 
@@ -83,16 +104,30 @@ export default function StaffSchedulingPage({ params }: { params: { campgroundId
 
   const loadRoles = async () => {
     try {
-      const res = await fetch(`/api/staff/roles?campgroundId=${params.campgroundId}`);
-      if (res.ok) {
-        const data = await res.json();
+      const [rolesRes, membersRes] = await Promise.all([
+        fetch(`/api/staff/roles?campgroundId=${params.campgroundId}`),
+        fetch(`/api/campgrounds/${params.campgroundId}/members`).catch(() => null)
+      ]);
+
+      if (rolesRes.ok) {
+        const data = await rolesRes.json();
         setRoles(data || []);
         if (!form.role && data?.length) {
           setForm((f) => ({ ...f, role: data[0].name }));
         }
       }
+
+      if (membersRes?.ok) {
+        const members = await membersRes.json();
+        setStaffMembers((members || []).map((m: any) => ({
+          id: m.userId || m.id,
+          firstName: m.user?.firstName || m.firstName,
+          lastName: m.user?.lastName || m.lastName,
+          email: m.user?.email || m.email
+        })));
+      }
     } catch {
-      // ignore role load errors; optional
+      // ignore load errors; optional
     }
   };
 
@@ -274,12 +309,57 @@ export default function StaffSchedulingPage({ params }: { params: { campgroundId
           <div className="rounded-lg border p-4 space-y-3" data-testid="staff-create-card">
             <h2 className="text-lg font-medium">Create Shift</h2>
             <div className="grid gap-3">
-              <input
-                className="w-full rounded border px-3 py-2"
-                placeholder="User ID"
-                value={form.userId}
-                onChange={(e) => setForm({ ...form, userId: e.target.value })}
-              />
+              {/* Staff Member Selector */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <User className="inline h-4 w-4 mr-1" />
+                  Staff Member
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    className="w-full pl-8 pr-8 rounded border px-3 py-2"
+                    placeholder="Search staff by name or email..."
+                    value={form.userId ? `${selectedStaff?.firstName || ""} ${selectedStaff?.lastName || ""}`.trim() || form.userId : staffSearch}
+                    onChange={(e) => {
+                      setStaffSearch(e.target.value);
+                      setForm({ ...form, userId: "" });
+                      setShowStaffDropdown(true);
+                    }}
+                    onFocus={() => setShowStaffDropdown(true)}
+                  />
+                  {form.userId && (
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ ...form, userId: "" }); setStaffSearch(""); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >×</button>
+                  )}
+                </div>
+                {showStaffDropdown && !form.userId && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {filteredStaff.length > 0 ? filteredStaff.map(s => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setForm({ ...form, userId: s.id });
+                          setShowStaffDropdown(false);
+                          setStaffSearch("");
+                        }}
+                        className="w-full px-3 py-2 text-left hover:bg-slate-50 text-sm border-b last:border-b-0"
+                      >
+                        <div className="font-medium">{s.firstName} {s.lastName}</div>
+                        <div className="text-xs text-slate-500">{s.email}</div>
+                      </button>
+                    )) : (
+                      <div className="px-3 py-2 text-sm text-slate-500">
+                        {staffMembers.length === 0 ? "No staff members found. Add members in Settings." : "No matching staff."}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <input
                 className="w-full rounded border px-3 py-2"
                 type="date"
