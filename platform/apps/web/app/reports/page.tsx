@@ -147,6 +147,24 @@ function ReportsPageInner() {
 
 
 
+  const summaryQuery = useQuery({
+    queryKey: ["reports-summary", campgroundId],
+    queryFn: () => apiClient.getDashboardSummary(campgroundId!),
+    enabled: !!campgroundId
+  });
+
+  const agingQuery = useQuery({
+    queryKey: ["reports-aging", campgroundId],
+    queryFn: () => apiClient.getAging(campgroundId!),
+    enabled: !!campgroundId
+  });
+
+  const ledgerSummaryQuery = useQuery({
+    queryKey: ["reports-ledger-summary", campgroundId],
+    queryFn: () => apiClient.getLedgerSummary(campgroundId!, {}),
+    enabled: !!campgroundId
+  });
+
   const reservationsQuery = useQuery({
     queryKey: ["reservations", campgroundId],
     queryFn: () => apiClient.getReservations(campgroundId!),

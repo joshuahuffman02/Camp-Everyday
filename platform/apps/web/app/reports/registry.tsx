@@ -59,7 +59,7 @@ export const reportCatalog: ReportDefinition[] = [
         label: 'Overview',
         icon: LayoutList,
         description: 'High-level KPIs and trends at a glance',
-        subReports: [{ label: 'Dashboard summary', description: 'Revenue, occupancy, ADR, RevPAR' }]
+        subReports: [{ id: 'dashboard-summary', label: 'Dashboard summary', description: 'Revenue, occupancy, ADR, RevPAR' }]
     },
     {
         id: 'daily',
@@ -115,6 +115,6 @@ export const reportCatalog: ReportDefinition[] = [
         label: 'Audits',
         icon: ClipboardList,
         description: 'Activity logs and compliance tracking',
-        subReports: [{ label: 'Audit log', description: 'All system activity' }]
+        subReports: [{ id: 'audit-log', label: 'Audit log', description: 'All system activity' }]
     }
 ];
