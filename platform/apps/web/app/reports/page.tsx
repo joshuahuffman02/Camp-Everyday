@@ -4458,8 +4458,8 @@ function ReportsPageInner() {
 
               <>
                 {/* OVERVIEW TAB */}
-                {activeTab === 'overview' && (
-                  <OverviewReport campgroundId={campgroundId!} />
+                {activeTab === 'overview' && campgroundId && (
+                  <OverviewReport campgroundId={campgroundId} />
                 )}
 
 
@@ -4471,7 +4471,7 @@ function ReportsPageInner() {
 
 
                 {/* DYNAMIC REPORT RENDERER */}
-                {activeTab !== 'overview' && (
+                {activeTab !== 'overview' && campgroundId && (
                   <ReportRenderer
                     tab={activeTab as ReportTab}
                     subTab={activeSubTab || (subTabs[activeTab as keyof typeof subTabs]?.[0]?.id)}
