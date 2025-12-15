@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 interface NewVsReturningReportProps {
@@ -12,7 +11,7 @@ interface NewVsReturningReportProps {
 const COLORS = ['#8b5cf6', '#3b82f6']; // Purple (New), Blue (Returning)
 
 export function NewVsReturningReport({ campgroundId, dateRange }: NewVsReturningReportProps) {
-    const { data: reservations } = useQuery({
+    const { data: reservations, isLoading, error } = useQuery({
         queryKey: ["reservations", campgroundId],
         queryFn: () => apiClient.getReservations(campgroundId),
     });
@@ -20,33 +19,24 @@ export function NewVsReturningReport({ campgroundId, dateRange }: NewVsReturning
     const reportData = useMemo(() => {
         if (!reservations) return { pieData: [], total: 0, newCount: 0, returningCount: 0 };
 
-        const start = startOfDay(new Date(dateRange.start));
-        const end = endOfDay(new Date(dateRange.end));
+        // Robust date parsing (matching ArrivalsReport)
+        const start = new Date(dateRange.start);
+        const end = new Date(dateRange.end);
+        end.setHours(23, 59, 59, 999);
 
         let newCount = 0;
         let returningCount = 0;
-        const processedGuestIds = new Set<string>();
 
         reservations.forEach(r => {
             if (r.status === 'cancelled') return;
-            const rStart = startOfDay(new Date(r.arrivalDate));
 
-            // Filter by arrival in date range
-            if (!isWithinInterval(rStart, { start, end })) return;
-
-            // Avoid double counting same guest if they have multiple reservations in period?
-            // Usually "New vs Returning" is per stay/reservation or per unique guest?
-            // " % of arrivals were new guests".
-            // If satisfied per reservation basis.
+            const arrivalDate = new Date(r.arrivalDate);
+            // Simple timestamp comparison to avoid date-fns RangeErrors
+            if (arrivalDate < start || arrivalDate > end) return;
 
             const guest = r.guest;
+            // If guest data is missing, we can't classify, so skip
             if (!guest) return;
-
-            // Logic: "New" if repeatStays == 0 or 1 (depending on when it's incremented).
-            // Usually "repeatStays" implies *past* stays.
-            // If this is their first stay, repeatStays might be 0.
-            // If they have stayed before, it's > 0.
-            // Let's assume repeatStays > 0 means Returning. 0 means New.
 
             if ((guest.repeatStays || 0) > 0) {
                 returningCount++;
@@ -63,6 +53,14 @@ export function NewVsReturningReport({ campgroundId, dateRange }: NewVsReturning
 
         return { pieData, total, newCount, returningCount };
     }, [reservations, dateRange]);
+
+    if (isLoading) {
+        return <div className="text-sm text-slate-500">Loading analysis...</div>;
+    }
+
+    if (error) {
+        return <div className="text-sm text-red-500">Failed to load reservation data.</div>;
+    }
 
     return (
         <div className="space-y-8">
@@ -87,12 +85,16 @@ export function NewVsReturningReport({ campgroundId, dateRange }: NewVsReturning
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip />
-                                <Legend />
+                                <Tooltip
+                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                />
+                                <Legend verticalAlign="bottom" height={36} />
                             </PieChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="h-full flex items-center justify-center text-slate-400">No arrivals in period</div>
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                            <p>No guest arrivals in this period</p>
+                        </div>
                     )}
                 </div>
 
