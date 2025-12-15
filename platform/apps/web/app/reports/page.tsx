@@ -2643,14 +2643,14 @@ function ReportsPageInner() {
     const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
     const now = new Date();
     const currentMonth = now.getMonth();
-    const months: { name: string; total: number; paid: number; bookings: number; isCurrent: boolean }[] = [];
+    const months: { month: string; revenue: number; paid: number; bookings: number; isCurrent: boolean }[] = [];
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     for (let m = 0; m < 12; m++) {
       months.push({
-        name: monthNames[m],
-        total: 0,
+        month: monthNames[m],
+        revenue: 0,
         paid: 0,
         bookings: 0,
         isCurrent: m === currentMonth
@@ -2670,7 +2670,7 @@ function ReportsPageInner() {
       }
 
       const m = arrived.getMonth();
-      months[m].total += (r.totalAmount || 0) / 100;
+      months[m].revenue += (r.totalAmount || 0) / 100;
       months[m].paid += (r.paidAmount || 0) / 100;
       months[m].bookings += 1;
     });
