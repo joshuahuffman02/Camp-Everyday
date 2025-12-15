@@ -4152,40 +4152,6 @@ function ReportsPageInner() {
             )}
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex flex-wrap gap-2 -mx-1">
-            {[
-              { id: 'overview' as ReportTab, label: 'Overview' },
-              { id: 'daily' as ReportTab, label: 'Daily' },
-              { id: 'revenue' as ReportTab, label: 'Revenue' },
-              { id: 'performance' as ReportTab, label: 'Performance' },
-              { id: 'guests' as ReportTab, label: 'Guests' },
-              { id: 'marketing' as ReportTab, label: 'Marketing' },
-              { id: 'forecasting' as ReportTab, label: 'Forecasting' },
-              { id: 'accounting' as ReportTab, label: 'Accounting' },
-              { id: 'audits' as ReportTab, label: 'Audits' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  if (tab.id !== 'overview' && tab.id !== 'audits') {
-                    const subs = subTabs[tab.id as keyof typeof subTabs] || [];
-                    setActiveSubTab(subs[0]?.id ?? null);
-                  } else {
-                    setActiveSubTab(null);
-                  }
-                }}
-                className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.id
-                  ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
           {/* Sub-tabs */}
           {(activeTab as string) !== 'overview' && (activeTab as string) !== 'audits' && subTabs[activeTab as keyof typeof subTabs] && (
             <div className="flex flex-wrap gap-2 -mx-1">
@@ -4445,43 +4411,6 @@ function ReportsPageInner() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Tab Navigation */}
-          {campgroundId && (
-            <div className="flex flex-wrap gap-2 -mx-1">
-              {[
-                { id: 'overview' as ReportTab, label: 'Overview' },
-                { id: 'daily' as ReportTab, label: 'Daily' },
-                { id: 'revenue' as ReportTab, label: 'Revenue' },
-                { id: 'performance' as ReportTab, label: 'Performance' },
-                { id: 'guests' as ReportTab, label: 'Guests' },
-                { id: 'marketing' as ReportTab, label: 'Marketing' },
-                { id: 'forecasting' as ReportTab, label: 'Forecasting' },
-                { id: 'accounting' as ReportTab, label: 'Accounting' },
-                { id: 'audits' as ReportTab, label: 'Audits' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    // reset sub-tab when switching
-                    if (tab.id !== 'overview' && tab.id !== 'audits') {
-                      const subs = subTabs[tab.id as keyof typeof subTabs] || [];
-                      setActiveSubTab(subs[0]?.id ?? null);
-                    } else {
-                      setActiveSubTab(null);
-                    }
-                  }}
-                  className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.id
-                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                    }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
             </div>
           )}
 
