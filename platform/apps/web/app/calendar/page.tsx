@@ -1595,8 +1595,8 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* Day View */}
-        {selectedCampground && !sitesQuery.isLoading && !reservationsQuery.isLoading && viewMode === "day" && (
+        {/* Day View - Disabled in favor of Timeline */}
+        {false && selectedCampground && !sitesQuery.isLoading && !reservationsQuery.isLoading && viewMode === "day" && (
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
               <div className="text-sm font-semibold text-slate-900">
@@ -1659,8 +1659,8 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* Week View */}
-        {selectedCampground && !sitesQuery.isLoading && !reservationsQuery.isLoading && viewMode === "week" && (
+        {/* Week View - Disabled in favor of Timeline */}
+        {false && selectedCampground && !sitesQuery.isLoading && !reservationsQuery.isLoading && viewMode === "week" && (
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto">
             <div className="grid grid-cols-8 text-xs font-semibold text-slate-700 border-b border-slate-200 min-w-[960px]">
               <div className="px-3 py-2 sticky left-0 z-30 bg-slate-100 border-r border-slate-200 text-left text-sm">
@@ -1727,8 +1727,8 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* Month View (condensed) */}
-        {selectedCampground && !sitesQuery.isLoading && !reservationsQuery.isLoading && viewMode === "month" && (
+        {/* Month View (condensed) - Disabled in favor of Timeline */}
+        {false && selectedCampground && !sitesQuery.isLoading && !reservationsQuery.isLoading && viewMode === "month" && (
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="grid grid-cols-7 border-b border-slate-200 text-xs font-semibold text-slate-700">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
@@ -2195,7 +2195,7 @@ export default function CalendarPage() {
                                 style={{
                                   gridColumn: `${startIdx + 1} / span ${span}`,
                                   minWidth: `${span * 90}px`,
-                                  pointerEvents: "auto",
+                                  pointerEvents: isDragging ? "none" : "auto",
                                   height: "100%"
                                 }}
                                 title={`${guestName || "Guest"} • ${res.arrivalDate} → ${res.departureDate} • $${total.toFixed(

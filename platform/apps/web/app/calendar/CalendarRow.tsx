@@ -159,7 +159,10 @@ export const CalendarRow = memo(function CalendarRow({
                         return (
                             <div
                                 key={res.id}
-                                className="relative h-full w-full pointer-events-auto"
+                                className={cn(
+                                    "relative h-full w-full",
+                                    isDragging ? "pointer-events-none" : "pointer-events-auto"
+                                )}
                                 style={{
                                     gridColumn: `${startIdx + 1} / span ${span}`,
                                     zIndex: 20
