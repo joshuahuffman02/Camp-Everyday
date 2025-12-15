@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import * as LucideIcons from "lucide-react";
 import {
   roadmapPhases,
   getPhaseProgress,
@@ -8,6 +9,22 @@ import {
   statusColors,
   statusLabels,
 } from "../../../lib/roadmap-data";
+
+// Helper to render a lucide icon from its name (kebab-case)
+function PhaseIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
+  const iconName = name
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('') as keyof typeof LucideIcons;
+
+  const IconComponent = LucideIcons[iconName] as React.ComponentType<{ className?: string }>;
+
+  if (!IconComponent) {
+    return <LucideIcons.Circle className={className} />;
+  }
+
+  return <IconComponent className={className} />;
+}
 
 export default function PublicRoadmapPage() {
   const sortedPhases = [...roadmapPhases].sort((a, b) => a.order - b.order);
@@ -19,7 +36,7 @@ export default function PublicRoadmapPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Product roadmap</p>
             <h1 className="text-2xl font-bold text-slate-900">Camp Everyday</h1>
-            <p className="text-sm text-slate-600">What we’re building next</p>
+            <p className="text-sm text-slate-600">What we're building next</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -50,7 +67,7 @@ export default function PublicRoadmapPage() {
                 <div className="p-5 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      <div className="text-xl">{phase.icon}</div>
+                      <PhaseIcon name={phase.icon} className="h-5 w-5 text-slate-600 mt-1" />
                       <div>
                         <div className="text-xs font-semibold text-slate-500">Phase {idx + 1}</div>
                         <h3 className="text-lg font-semibold text-slate-900">{phase.name}</h3>

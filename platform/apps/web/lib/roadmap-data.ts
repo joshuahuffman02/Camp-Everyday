@@ -70,7 +70,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Core platform architecture, multi-tenant data model, ledger system, and payment processing — the bedrock everything else builds on.',
         status: 'completed',
         order: 1,
-        icon: '🏗️',
+        icon: 'building-2',
         color: 'emerald',
         milestones: [
             { id: 'platform-scaffold', name: 'Platform scaffold', description: 'NestJS + Prisma API, Next.js frontend, shared Zod types', status: 'completed' },
@@ -87,7 +87,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Full reservation lifecycle from initial booking to checkout, plus flexible pricing with seasonal rates, weekend premiums, and dynamic rules.',
         status: 'completed',
         order: 2,
-        icon: '📅',
+        icon: 'calendar-days',
         color: 'blue',
         milestones: [
             { id: 'site-classes', name: 'Site classes', description: 'Group sites by type (RV, tent, cabin) with default rates and amenities', status: 'completed' },
@@ -104,7 +104,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Guest accounts, on-site portal with ordering and messaging, add-ons, and self-service capabilities that transform when guests check in.',
         status: 'completed',
         order: 3,
-        icon: '👥',
+        icon: 'users',
         color: 'violet',
         milestones: [
             { id: 'guest-profiles', name: 'Guest profiles', description: 'Contact info, vehicle details, preferences, notes', status: 'completed' },
@@ -123,7 +123,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Real-time availability engine with rig-fit matching, public booking widgets, hold systems, and waitlist notifications.',
         status: 'completed',
         order: 4,
-        icon: '🔍',
+        icon: 'search',
         color: 'amber',
         milestones: [
             { id: 'realtime-availability', name: 'Real-time availability', description: 'Live site availability API with caching', status: 'completed' },
@@ -139,7 +139,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Public-facing campground pages, SEO optimization, promotional campaigns, and comprehensive reporting dashboards.',
         status: 'completed',
         order: 5,
-        icon: '📊',
+        icon: 'bar-chart-3',
         color: 'rose',
         milestones: [
             { id: 'public-pages', name: 'Public campground pages', description: 'Detail pages with photos, amenities, site types, events', status: 'completed' },
@@ -149,7 +149,7 @@ export const roadmapPhases: RoadmapPhase[] = [
             { id: 'pickup-reporting', name: 'Pickup reporting', description: 'Demand pickups with 7/30/90-day and weekly/monthly rollups plus CSV export', status: 'completed' },
             { id: 'email-campaigns', name: 'Email campaigns', description: 'Newsletter integration, automated marketing sequences', status: 'completed' },
             { id: 'lead-capture', name: 'Lead capture & CRM sync stub', description: 'Landing-page lead forms, admin lead board with statuses, and stubbed CRM sync', status: 'completed' },
-        { id: 'promo-analytics', name: 'Promo analytics & redemptions', description: 'Promo usage, redemptions, and filters in marketing reports', status: 'completed' },
+            { id: 'promo-analytics', name: 'Promo analytics & redemptions', description: 'Promo usage, redemptions, and filters in marketing reports', status: 'completed' },
         ],
     },
     {
@@ -158,7 +158,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Camp store inventory management, product catalog, add-on services (late checkout, early check-in), and unified ordering for staff and guests.',
         status: 'completed',
         order: 6,
-        icon: '🛒',
+        icon: 'shopping-cart',
         color: 'orange',
         milestones: [
             { id: 'product-catalog', name: 'Product catalog', description: 'Store items with categories, pricing, images, and inventory tracking', status: 'completed' },
@@ -176,7 +176,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Activity management, session scheduling, and guest booking for events, tours, and equipment rentals.',
         status: 'completed',
         order: 7,
-        icon: '🎟️',
+        icon: 'ticket',
         color: 'pink',
         milestones: [
             { id: 'activity-mgmt', name: 'Activity management', description: 'Create and manage activities with photos and details', status: 'completed' },
@@ -192,7 +192,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Interactive map interface, maintenance management, events calendar, OTA integrations, and mobile apps.',
         status: 'completed',
         order: 8,
-        icon: '🚀',
+        icon: 'rocket',
         color: 'cyan',
         milestones: [
             { id: 'interactive-map', name: 'Interactive map', description: 'Visual drag-and-drop site picker with live availability status', status: 'completed' },
@@ -209,7 +209,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Pre-ship QA, UI/navigation polish, and sign-off across environments.',
         status: 'in_progress',
         order: 30,
-        icon: '🚦',
+        icon: 'traffic-cone',
         color: 'slate',
         milestones: [
             { id: 'pre-ship-qa-polish', name: 'Pre-ship QA & UI polish', description: 'Full QA across dev/staging/prod, nav cleanup, security/privacy checks, and ship-blocker fixes.', status: 'in_progress' },
@@ -222,7 +222,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'NPS collection, automated outreach, review capture, public reputation, and admin controls.',
         status: 'completed',
         order: 9,
-        icon: '⭐',
+        icon: 'star',
         color: 'amber',
         milestones: [
             { id: 'nps-core', name: 'NPS core + metrics', description: 'Surveys, invites, responses, detractor alerts/tickets, promoter → review request bridge', status: 'completed' },
@@ -237,7 +237,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Deliverability, templates, sequences, and smart inbox workflows across guest/staff messaging.',
         status: 'completed',
         order: 9,
-        icon: '💬',
+        icon: 'message-circle',
         color: 'emerald',
         milestones: [
             { id: 'provider-health', name: 'Deliverability & provider health', description: 'DMARC/DKIM/SPF checks, bounce monitoring, and provider failover', status: 'completed' },
@@ -252,7 +252,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Referral loops, promotions performance, lifecycle nudges, and attribution across channels.',
         status: 'completed',
         order: 10,
-        icon: '📈',
+        icon: 'trending-up',
         color: 'blue',
         milestones: [
             { id: 'abandoned-cart', name: 'Abandoned cart recovery', description: 'Capture and retarget public booking drop-offs with email/SMS', status: 'completed' },
@@ -266,7 +266,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'In-app content planning system with smart suggestions, templates, content bank, and reporting to drive occupancy and engagement—no external auto-posting.',
         status: 'completed',
         order: 10,
-        icon: '📣',
+        icon: 'megaphone',
         color: 'fuchsia',
         milestones: [
             { id: 'smp-calendar', name: 'Content calendar', description: 'Month/week/list views, drag/drop posts, platform tags, idea parking lot, auto slot generation, filters, and status states.', status: 'completed' },
@@ -287,7 +287,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Privacy-first event tracking, conversion insights, recommendations with permissions-gated Apply buttons, and forecasting/ML readiness.',
         status: 'completed',
         order: 11,
-        icon: '🧠',
+        icon: 'brain',
         color: 'violet',
         milestones: [
             { id: 'event-tracking-layer', name: 'Event tracking layer', description: 'Structured events across booking flow (views, add-to-stay, abandon/complete) with session/device/referrer/region', status: 'completed' },
@@ -309,16 +309,16 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Auditability, permissions depth, privacy controls, and compliance readiness.',
         status: 'completed',
         order: 12,
-        icon: '🛡️',
+        icon: 'shield-check',
         color: 'amber',
         milestones: [
             { id: 'audit-trails', name: 'Audit trails', description: 'Immutable event logging with staff attribution and export', status: 'completed' },
             { id: 'granular-permissions', name: 'Granular permissions', description: 'Field-level RBAC, scoped roles, and approvals', status: 'completed' },
             { id: 'privacy-controls', name: 'Privacy & PII controls', description: 'Redaction, key management, and consent logging', status: 'completed' },
             { id: 'compliance', name: 'Compliance readiness', description: 'SOC 2 controls, backups, data retention, and DPA tooling', status: 'completed' },
-        { id: 'branding-controls', name: 'Branding controls', description: 'Logo, color, font, email header/footer applied to guest touchpoints', status: 'completed' },
-        { id: 'cancellation-policies', name: 'Cancellation policies', description: 'Structured policy type/window/fees with email display', status: 'completed' },
-        { id: 'forms-checkin', name: 'Forms & check-in blocking', description: 'Form templates, submissions, and check-in blocked until completed', status: 'completed' },
+            { id: 'branding-controls', name: 'Branding controls', description: 'Logo, color, font, email header/footer applied to guest touchpoints', status: 'completed' },
+            { id: 'cancellation-policies', name: 'Cancellation policies', description: 'Structured policy type/window/fees with email display', status: 'completed' },
+            { id: 'forms-checkin', name: 'Forms & check-in blocking', description: 'Form templates, submissions, and check-in blocked until completed', status: 'completed' },
         ],
     },
     {
@@ -327,7 +327,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'SLOs, observability, perf budgets, rate limits, and disaster recovery.',
         status: 'completed',
         order: 13,
-        icon: '⚡️',
+        icon: 'zap',
         color: 'rose',
         milestones: [
             { id: 'observability', name: 'Observability & SLOs', description: 'Tracing/metrics/logs with user-impact SLOs and alerting', status: 'completed' },
@@ -342,7 +342,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Public API, webhooks, SDKs, and sandbox for partners and extensions.',
         status: 'completed',
         order: 14,
-        icon: '🧩',
+        icon: 'puzzle',
         color: 'orange',
         milestones: [
             { id: 'public-api', name: 'Public API', description: 'OAuth2 + scoped tokens with per-campground access', status: 'completed' },
@@ -357,7 +357,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Deepen money movement, reconciliation, alt payments, and chargeback tooling.',
         status: 'completed',
         order: 15,
-        icon: '💳',
+        icon: 'credit-card',
         color: 'pink',
         milestones: [
             { id: 'platform-fees', name: 'Platform fees & plans', description: 'Per-booking fees and plans via Stripe Connect', status: 'completed' },
@@ -373,7 +373,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'SOPs, auto-tasking, inventory reorders, and copilot for staff workflows.',
         status: 'completed',
         order: 16,
-        icon: '🤖',
+        icon: 'bot',
         color: 'cyan',
         milestones: [
             { id: 'auto-tasking', name: 'Auto-tasking', description: 'Trigger maintenance/housekeeping tasks from events', status: 'completed' },
@@ -388,7 +388,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Field-ready staff tools, offline kiosk/pos, and resilient sync for low-connectivity parks.',
         status: 'completed',
         order: 17,
-        icon: '📱',
+        icon: 'smartphone',
         color: 'emerald',
         milestones: [
             { id: 'pwa-lite', name: 'Guest & staff PWA slices', description: 'Lightweight PWA for arrivals/tasks and guest stay with messaging, orders-to-site requests, events, and offline queuing', status: 'completed' },
@@ -405,7 +405,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Accounting, access control, CRM/helpdesk, and exports to meet operators where they are.',
         status: 'completed',
         order: 18,
-        icon: '🔌',
+        icon: 'plug',
         color: 'blue',
         milestones: [
             { id: 'accounting-sync', name: 'Accounting sync', description: 'QuickBooks/Xero mappings, reconciliation, and exports', status: 'completed' },
@@ -420,7 +420,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Richer data-driven recommendations, semantic search, and assistant-style workflows.',
         status: 'completed',
         order: 19,
-        icon: '✨',
+        icon: 'sparkles',
         color: 'violet',
         milestones: [
             { id: 'recommendations', name: 'Recommendations', description: 'Site/upsell recommendations based on guest intent', status: 'completed' },
@@ -435,7 +435,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Multi-property ops, localization, tax/currency support, and approvals at scale.',
         status: 'completed',
         order: 20,
-        icon: '🌐',
+        icon: 'globe',
         color: 'amber',
         milestones: [
             { id: 'multi-property', name: 'Multi-property ops', description: 'Portfolio views, cross-park reporting, and routing', status: 'completed' },
@@ -450,7 +450,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Contextual help, inline guidance, and in-app support reporting with routed triage.',
         status: 'completed',
         order: 21,
-        icon: '🆘',
+        icon: 'life-buoy',
         color: 'slate',
         milestones: [
             { id: 'contextual-help', name: 'Contextual help panel', description: 'Slide-in help panel, /help hub, search, pinned/recent, role-aware filters, task pills, Shift+? shortcut', status: 'completed' },
@@ -467,7 +467,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Mature, staff-only XP/levels tied to real work with challenges, badges, and dashboards. Opt-in per campground; guests never see it.',
         status: 'completed',
         order: 22,
-        icon: '🎯',
+        icon: 'target',
         color: 'purple',
         milestones: [
             { id: 'xp-system', name: 'XP system', description: 'XP for tasks, maintenance, check-ins, zero-error reservations, checklists, positive reviews, on-time assignments, and assists; light penalties for overdue/mistakes.', status: 'completed' },
@@ -488,7 +488,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'POS/store resilience, guest/portal polish, trust/PII controls, OTA iCal sync, finance fixes.',
         status: 'in_progress',
         order: 23,
-        icon: '🛠️',
+        icon: 'wrench',
         color: 'slate',
         milestones: [
             { id: 'pos-offline', name: 'POS offline queue & sync log', description: 'Queue orders, show sync state, charge-to-site hardening, refunds/credits, low-stock alerts', status: 'in_progress' },
@@ -504,7 +504,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Two-way OTA, support/ops tooling, reporting/exports, integrations, and offline/PWA resilience.',
         status: 'completed',
         order: 24,
-        icon: '🌊',
+        icon: 'waves',
         color: 'indigo',
         milestones: [
             { id: 'ota-two-way', name: 'Two-way OTA', description: 'Availability/rates/reservations with logs, retry, per-channel status', status: 'completed' },
@@ -520,7 +520,7 @@ export const roadmapPhases: RoadmapPhase[] = [
         description: 'Public API/webhooks, SDKs, AI assist, IoT hooks, enterprise/international packs.',
         status: 'planned',
         order: 25,
-        icon: '🌐',
+        icon: 'globe-2',
         color: 'teal',
         milestones: [
             { id: 'public-api', name: 'Public API & webhooks', description: 'OAuth2 sandbox, SDKs, client generators, webhook retry/logs', status: 'planned' },

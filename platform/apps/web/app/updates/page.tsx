@@ -5,6 +5,8 @@ import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "../../components/breadcrumbs";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import * as LucideIcons from "lucide-react";
+import { Sparkles, Wrench, Bug, Building2 } from "lucide-react";
 import {
   updates,
   getPhaseById,
@@ -12,6 +14,22 @@ import {
   type Update,
   type UpdateCategory,
 } from "../../lib/roadmap-data";
+
+// Helper to render a lucide icon from its name (kebab-case)
+function PhaseIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
+  const iconName = name
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('') as keyof typeof LucideIcons;
+
+  const IconComponent = LucideIcons[iconName] as React.ComponentType<{ className?: string }>;
+
+  if (!IconComponent) {
+    return <LucideIcons.Circle className={className} />;
+  }
+
+  return <IconComponent className={className} />;
+}
 
 function CategoryBadge({ category }: { category: UpdateCategory }) {
   const colors = categoryColors[category];
@@ -21,15 +39,15 @@ function CategoryBadge({ category }: { category: UpdateCategory }) {
     bugfix: "Bug Fix",
     infrastructure: "Infrastructure",
   };
-  const icons: Record<UpdateCategory, string> = {
-    feature: "✨",
-    improvement: "🔧",
-    bugfix: "🐛",
-    infrastructure: "🏗️",
+  const icons: Record<UpdateCategory, React.ReactNode> = {
+    feature: <Sparkles className="h-3.5 w-3.5" />,
+    improvement: <Wrench className="h-3.5 w-3.5" />,
+    bugfix: <Bug className="h-3.5 w-3.5" />,
+    infrastructure: <Building2 className="h-3.5 w-3.5" />,
   };
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
-      <span>{icons[category]}</span>
+      {icons[category]}
       {labels[category]}
     </span>
   );
@@ -95,7 +113,7 @@ function UpdateCard({ update, isFirst }: { update: Update; isFirst: boolean }) {
               href={`/roadmap#${phase.id}`}
               className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium group/link"
             >
-              <span className="text-lg">{phase.icon}</span>
+              <PhaseIcon name={phase.icon} className="h-5 w-5" />
               <span>Related to: {phase.name}</span>
               <svg className="w-4 h-4 transform group-hover/link:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -201,7 +219,7 @@ function UpdatesPageInner() {
         {currentPhase && (
           <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg p-3">
             <div className="flex items-center gap-2 text-sm text-blue-700">
-              <span className="text-lg">{currentPhase.icon}</span>
+              <PhaseIcon name={currentPhase.icon} className="h-5 w-5" />
               <span>Showing updates for: <strong>{currentPhase.name}</strong></span>
             </div>
             <Link

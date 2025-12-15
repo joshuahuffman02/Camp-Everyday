@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useWhoami } from "@/hooks/use-whoami";
+import * as LucideIcons from "lucide-react";
 import {
     roadmapPhases,
     getPhaseProgress,
@@ -17,6 +18,24 @@ import {
     type RoadmapPhase,
     type Milestone,
 } from "../../lib/roadmap-data";
+
+// Helper to render a lucide icon from its name (kebab-case)
+function PhaseIcon({ name, className = "h-6 w-6" }: { name: string; className?: string }) {
+    // Convert kebab-case to PascalCase (e.g., "building-2" -> "Building2")
+    const iconName = name
+        .split('-')
+        .map((part, i) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('') as keyof typeof LucideIcons;
+
+    const IconComponent = LucideIcons[iconName] as React.ComponentType<{ className?: string }>;
+
+    if (!IconComponent) {
+        // Fallback to a default icon if not found
+        return <LucideIcons.Circle className={className} />;
+    }
+
+    return <IconComponent className={className} />;
+}
 
 const planningSnapshot = [
     {
@@ -137,7 +156,7 @@ function PhaseCard({ phase, index }: { phase: RoadmapPhase; index: number }) {
                     {/* Title row */}
                     <div className="flex items-start justify-between gap-4 mb-3">
                         <div className="flex items-center gap-3">
-                            <span className="text-2xl">{phase.icon}</span>
+                            <PhaseIcon name={phase.icon} className="h-6 w-6 text-slate-600" />
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900">{phase.name}</h3>
                                 <p className="text-sm text-slate-500 mt-0.5">{phase.description}</p>
