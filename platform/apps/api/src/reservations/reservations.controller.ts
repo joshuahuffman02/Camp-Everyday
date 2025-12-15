@@ -193,4 +193,24 @@ export class ReservationsController {
   ) {
     return this.reservations.getMatchedSites(campgroundId, guestId);
   }
+
+  @Post("reservations/:id/split")
+  splitReservation(
+    @Param("id") id: string,
+    @Body() body: {
+      segments: Array<{ siteId: string; startDate: string; endDate: string }>;
+      sendNotification?: boolean;
+    },
+    @Req() req: any
+  ) {
+    return this.reservations.splitReservation(id, body.segments, {
+      actorId: req?.user?.id ?? null,
+      sendNotification: body.sendNotification ?? true
+    });
+  }
+
+  @Get("reservations/:id/segments")
+  getSegments(@Param("id") id: string) {
+    return this.reservations.getReservationSegments(id);
+  }
 }

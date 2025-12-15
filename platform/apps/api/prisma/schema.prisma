@@ -1478,6 +1478,7 @@ model Site {
   utilityMeters      UtilityMeter[]
   accessGrants       AccessGrant[]
   documentTemplates  DocumentTemplate[]
+  reservationSegments ReservationSegment[]
 
   @@unique([campgroundId, name])
   @@index([campgroundId])
@@ -1759,6 +1760,9 @@ model Reservation {
   signatureArtifacts SignatureArtifact[]
   coiUploads CoiUpload[]
 
+  // Split booking segments (when a stay spans multiple sites)
+  segments ReservationSegment[]
+
   @@index([campgroundId])
   @@index([siteId])
   @@index([guestId])
@@ -1766,6 +1770,27 @@ model Reservation {
   @@index([groupId])
   @@index([referralCode])
   @@index([referralProgramId])
+}
+
+// Split booking segment - represents a portion of a reservation on a specific site
+model ReservationSegment {
+  id            String   @id @default(cuid())
+  reservationId String
+  siteId        String
+  startDate     DateTime
+  endDate       DateTime
+  subtotalCents Int      @default(0) // Price for this segment based on site rates
+  sortOrder     Int      @default(0) // Order of segments in the stay
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  site        Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId])
+  @@index([siteId])
+  @@index([startDate])
 }
 
 model MaintenanceTicket {

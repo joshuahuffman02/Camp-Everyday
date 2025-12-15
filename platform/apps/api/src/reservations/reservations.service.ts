@@ -2400,4 +2400,204 @@ export class ReservationsService {
       throw e;
     }
   }
+
+  /**
+   * Split a reservation into multiple site segments.
+   * Allows a guest to stay on different sites during their reservation.
+   * Each segment has its own siteId and price based on that site's rates.
+   */
+  async splitReservation(
+    reservationId: string,
+    segments: Array<{
+      siteId: string;
+      startDate: string | Date;
+      endDate: string | Date;
+    }>,
+    options?: { actorId?: string | null; sendNotification?: boolean }
+  ) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: reservationId },
+      include: { campground: true, guest: true, site: true }
+    });
+
+    if (!reservation) {
+      throw new NotFoundException("Reservation not found");
+    }
+
+    // Validate segments are contiguous and cover the full reservation
+    const sortedSegments = [...segments].sort(
+      (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+    );
+
+    const resStart = new Date(reservation.arrivalDate);
+    const resEnd = new Date(reservation.departureDate);
+    resStart.setHours(0, 0, 0, 0);
+    resEnd.setHours(0, 0, 0, 0);
+
+    // First segment must start at reservation arrival
+    const firstStart = new Date(sortedSegments[0].startDate);
+    firstStart.setHours(0, 0, 0, 0);
+    if (firstStart.getTime() !== resStart.getTime()) {
+      throw new BadRequestException(
+        `First segment must start on ${resStart.toISOString().slice(0, 10)}`
+      );
+    }
+
+    // Last segment must end at reservation departure
+    const lastEnd = new Date(sortedSegments[sortedSegments.length - 1].endDate);
+    lastEnd.setHours(0, 0, 0, 0);
+    if (lastEnd.getTime() !== resEnd.getTime()) {
+      throw new BadRequestException(
+        `Last segment must end on ${resEnd.toISOString().slice(0, 10)}`
+      );
+    }
+
+    // Validate segments are contiguous (no gaps)
+    for (let i = 1; i < sortedSegments.length; i++) {
+      const prevEnd = new Date(sortedSegments[i - 1].endDate);
+      prevEnd.setHours(0, 0, 0, 0);
+      const currStart = new Date(sortedSegments[i].startDate);
+      currStart.setHours(0, 0, 0, 0);
+      if (currStart.getTime() !== prevEnd.getTime()) {
+        throw new BadRequestException(
+          `Segments must be contiguous. Gap found between segment ${i} and ${i + 1}.`
+        );
+      }
+    }
+
+    // Validate each site exists and is available for their segment
+    for (const seg of sortedSegments) {
+      const site = await this.prisma.site.findUnique({ where: { id: seg.siteId } });
+      if (!site) {
+        throw new NotFoundException(`Site ${seg.siteId} not found`);
+      }
+      if (site.campgroundId !== reservation.campgroundId) {
+        throw new BadRequestException(`Site ${seg.siteId} is not in this campground`);
+      }
+
+      // Check availability (ignore this reservation's original site block)
+      await this.assertSiteAvailable(
+        seg.siteId,
+        new Date(seg.startDate),
+        new Date(seg.endDate),
+        reservationId
+      );
+    }
+
+    // Calculate price for each segment
+    const segmentPrices: number[] = [];
+    for (const seg of sortedSegments) {
+      const priceResult = await this.computePriceV2(
+        reservation.campgroundId,
+        seg.siteId,
+        new Date(seg.startDate),
+        new Date(seg.endDate)
+      );
+      segmentPrices.push(priceResult.totalCents);
+    }
+
+    const newTotalAmount = segmentPrices.reduce((sum, p) => sum + p, 0);
+
+    // Delete any existing segments and create new ones
+    await this.prisma.reservationSegment.deleteMany({
+      where: { reservationId }
+    });
+
+    // Create new segments in a transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Create segments
+      for (let i = 0; i < sortedSegments.length; i++) {
+        const seg = sortedSegments[i];
+        await tx.reservationSegment.create({
+          data: {
+            reservationId,
+            siteId: seg.siteId,
+            startDate: new Date(seg.startDate),
+            endDate: new Date(seg.endDate),
+            subtotalCents: segmentPrices[i],
+            sortOrder: i
+          }
+        });
+      }
+
+      // Update reservation total and set siteId to first segment's site
+      const updated = await tx.reservation.update({
+        where: { id: reservationId },
+        data: {
+          siteId: sortedSegments[0].siteId,
+          totalAmount: newTotalAmount,
+          balanceAmount: Math.max(0, newTotalAmount - reservation.paidAmount),
+          notes: reservation.notes
+            ? `${reservation.notes}\n[Split Stay] ${sortedSegments.length} segments across sites.`
+            : `[Split Stay] ${sortedSegments.length} segments across sites.`
+        },
+        include: {
+          segments: { include: { site: true }, orderBy: { sortOrder: "asc" } },
+          guest: true,
+          campground: true
+        }
+      });
+
+      return updated;
+    });
+
+    // Record audit log
+    await this.audit.log({
+      action: "reservation.split",
+      resourceType: "Reservation",
+      resourceId: reservationId,
+      userId: options?.actorId ?? null,
+      campgroundId: reservation.campgroundId,
+      metadata: {
+        segmentCount: sortedSegments.length,
+        siteIds: sortedSegments.map((s) => s.siteId),
+        oldTotalCents: reservation.totalAmount,
+        newTotalCents: newTotalAmount
+      }
+    });
+
+    // Send notification to guest about site change if requested
+    if (options?.sendNotification && reservation.guest?.email) {
+      try {
+        const siteNames = await Promise.all(
+          sortedSegments.map(async (s) => {
+            const site = await this.prisma.site.findUnique({
+              where: { id: s.siteId },
+              select: { name: true }
+            });
+            return site?.name ?? s.siteId;
+          })
+        );
+
+        await this.emailService.sendTemplatedEmail({
+          to: reservation.guest.email,
+          campgroundId: reservation.campgroundId,
+          template: "reservation_update",
+          context: {
+            guestFirstName: reservation.guest.primaryFirstName,
+            campgroundName: reservation.campground.name,
+            arrivalDate: reservation.arrivalDate.toISOString().slice(0, 10),
+            departureDate: reservation.departureDate.toISOString().slice(0, 10),
+            message: `Your stay has been split across multiple sites: ${siteNames.join(" → ")}. We will ensure a smooth transition between sites.`,
+            totalAmount: (newTotalAmount / 100).toFixed(2)
+          }
+        });
+      } catch (err) {
+        console.warn("Failed to send split booking notification:", err);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Get reservation segments for a reservation (if it's a split booking)
+   */
+  async getReservationSegments(reservationId: string) {
+    return this.prisma.reservationSegment.findMany({
+      where: { reservationId },
+      include: { site: true },
+      orderBy: { sortOrder: "asc" }
+    });
+  }
 }
