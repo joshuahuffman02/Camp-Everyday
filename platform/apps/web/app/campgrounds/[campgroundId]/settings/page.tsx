@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { NewbookImport } from "@/components/settings/NewbookImport";
 
 export default function CampgroundSettingsPage() {
     const params = useParams();
@@ -872,7 +873,7 @@ export default function CampgroundSettingsPage() {
                     )}
 
                     {/* Data Tab */}
-                    {activeTab === "data" && (
+                    {activeTab === "data" && (<>
                         <Card className="p-6 space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -971,7 +972,10 @@ export default function CampgroundSettingsPage() {
                                 </div>
                             </div>
                         </Card>
-                    )}
+
+                        {/* NewBook Import */}
+                        <NewbookImport campgroundId={campgroundId} />
+                    </>)}
 
                     {/* Billing Tab */}
                     {activeTab === "billing" && (<>
