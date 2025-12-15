@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+import { ArrowLeft, BarChart3, CalendarDays, Printer, Check } from "lucide-react";
 
 interface CalendarSettings {
   defaultDayCount: number;
@@ -95,8 +96,8 @@ export default function CalendarSettingsPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <Link href="/calendar" className="text-slate-500 hover:text-slate-700">
-                ← Back to Calendar
+              <Link href="/calendar" className="text-slate-500 hover:text-slate-700 flex items-center gap-1">
+                <ArrowLeft className="h-4 w-4" /> Back to Calendar
               </Link>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">Calendar Settings</h1>
@@ -114,7 +115,7 @@ export default function CalendarSettingsPage() {
               disabled={saving}
               className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
             >
-              {saving ? "Saving..." : saved ? "✓ Saved" : "Save Settings"}
+              {saving ? "Saving..." : saved ? <span className="flex items-center gap-1"><Check className="h-4 w-4" /> Saved</span> : "Save Settings"}
             </button>
           </div>
         </div>
@@ -213,11 +214,10 @@ export default function CalendarSettingsPage() {
                   onClick={() =>
                     setSettings({ ...settings, colorScheme: scheme.value as CalendarSettings["colorScheme"] })
                   }
-                  className={`p-4 rounded-xl border text-left transition-all ${
-                    settings.colorScheme === scheme.value
-                      ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200"
-                      : "border-slate-200 hover:border-slate-300"
-                  }`}
+                  className={`p-4 rounded-xl border text-left transition-all ${settings.colorScheme === scheme.value
+                    ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200"
+                    : "border-slate-200 hover:border-slate-300"
+                    }`}
                 >
                   <div className="font-medium text-slate-900">{scheme.label}</div>
                   <div className="text-sm text-slate-500">{scheme.desc}</div>
@@ -310,7 +310,7 @@ export default function CalendarSettingsPage() {
                 }}
                 className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
               >
-                📊 Export CSV
+                <div className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Export CSV</div>
               </button>
               <button
                 onClick={() => {
@@ -319,7 +319,7 @@ export default function CalendarSettingsPage() {
                 }}
                 className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
               >
-                📅 Export iCal
+                <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Export iCal</div>
               </button>
               <button
                 onClick={() => {
@@ -328,7 +328,7 @@ export default function CalendarSettingsPage() {
                 }}
                 className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
               >
-                🖨️ Print
+                <div className="flex items-center gap-2"><Printer className="h-4 w-4" /> Print</div>
               </button>
             </div>
           </section>

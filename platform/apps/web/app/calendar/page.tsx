@@ -28,7 +28,10 @@ import {
   Sparkles,
   AlertTriangle,
   Mail,
-  CreditCard
+  CreditCard,
+  Map,
+  SearchX,
+  MousePointer2
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { computeDepositDue } from "@campreserv/shared";
@@ -1556,7 +1559,7 @@ export default function CalendarPage() {
         {/* Empty State - No Sites */}
         {selectedCampground && !sitesQuery.isLoading && !reservationsQuery.isLoading && (sitesQuery.data?.length || 0) === 0 && (
           <div className="card p-8 text-center">
-            <div className="text-4xl mb-3">🗺️</div>
+            <div className="flex justify-center mb-3"><Map className="h-10 w-10 text-slate-400" /></div>
             <h2 className="text-lg font-semibold text-slate-900 mb-2">No sites yet</h2>
             <p className="text-sm text-slate-600">Add sites to this campground to start booking on the calendar.</p>
           </div>
@@ -1569,7 +1572,7 @@ export default function CalendarPage() {
           (sitesQuery.data?.length || 0) > 0 &&
           reservationsActive.length === 0 && (
             <div className="card p-8 text-center">
-              <div className="text-4xl mb-3">🛶</div>
+              <div className="flex justify-center mb-3"><SearchX className="h-10 w-10 text-slate-400" /></div>
               <h2 className="text-lg font-semibold text-slate-900 mb-2">No reservations in this range</h2>
               <p className="text-sm text-slate-600">Try expanding the date range or creating a new reservation.</p>
             </div>
@@ -1578,16 +1581,16 @@ export default function CalendarPage() {
         {/* Empty State - No Campground */}
         {!selectedCampground && (
           <div className="card p-8 text-center">
-            <div className="text-4xl mb-3">📅</div>
+            <div className="flex justify-center mb-3"><Calendar className="h-10 w-10 text-emerald-500" /></div>
             <h2 className="text-lg font-semibold text-slate-900 mb-2">Smart Booking Calendar</h2>
             <p className="text-sm text-slate-600 mb-4">
               Select a campground above to view and manage reservations with drag-and-drop
             </p>
-            <ul className="text-xs text-slate-500 text-left max-w-md mx-auto space-y-1">
-              <li>• Drag across dates to create new reservations</li>
-              <li>• Drag existing reservations to reschedule</li>
-              <li>• See real-time availability and pricing</li>
-              <li>• Navigate by day, week, or month</li>
+            <ul className="text-xs text-slate-500 text-left max-w-md mx-auto space-y-2">
+              <li className="flex items-center gap-2"><MousePointer2 className="h-3 w-3" /> Drag across dates to create new reservations</li>
+              <li className="flex items-center gap-2"><MousePointer2 className="h-3 w-3" /> Drag existing reservations to reschedule</li>
+              <li className="flex items-center gap-2"><CheckCircle className="h-3 w-3" /> See real-time availability and pricing</li>
+              <li className="flex items-center gap-2"><Calendar className="h-3 w-3" /> Navigate by day, week, or month</li>
             </ul>
           </div>
         )}
