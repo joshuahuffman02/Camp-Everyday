@@ -12,7 +12,7 @@ import { apiClient } from "../../lib/api-client";
 import { saveReport } from "@/components/reports/savedReports";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FileDown, Calendar, FileSpreadsheet, X, Info } from "lucide-react";
+import { FileDown, Calendar, FileSpreadsheet, X, Info, ChevronDown, ChevronUp, LayoutList, TrendingUp, Users, BarChart3, Megaphone, LineChart, Calculator, ClipboardList } from "lucide-react";
 
 import { BookingSourcesTab } from "../../components/reports/BookingSourcesTab";
 import { GuestOriginsTab } from "../../components/reports/GuestOriginsTab";
@@ -64,6 +64,73 @@ const subTabs: Record<Exclude<ReportTab, 'overview' | 'audits'>, SubTab[]> = {
   'guest-origins': []
 };
 
+// Full report catalog for discoverability
+const reportCatalog = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    icon: LayoutList,
+    description: 'High-level KPIs and trends at a glance',
+    subReports: [{ label: 'Dashboard summary', description: 'Revenue, occupancy, ADR, RevPAR' }]
+  },
+  {
+    id: 'daily',
+    label: 'Daily Operations',
+    icon: Calendar,
+    description: 'Day-to-day arrivals, departures, and transactions',
+    subReports: subTabs.daily
+  },
+  {
+    id: 'revenue',
+    label: 'Revenue',
+    icon: TrendingUp,
+    description: 'Detailed revenue analysis and breakdowns',
+    subReports: subTabs.revenue
+  },
+  {
+    id: 'performance',
+    label: 'Performance',
+    icon: BarChart3,
+    description: 'Site and property performance metrics',
+    subReports: subTabs.performance
+  },
+  {
+    id: 'guests',
+    label: 'Guests',
+    icon: Users,
+    description: 'Guest demographics and behavior patterns',
+    subReports: subTabs.guests
+  },
+  {
+    id: 'marketing',
+    label: 'Marketing',
+    icon: Megaphone,
+    description: 'Booking sources and campaign effectiveness',
+    subReports: subTabs.marketing
+  },
+  {
+    id: 'forecasting',
+    label: 'Forecasting',
+    icon: LineChart,
+    description: 'Projections and demand predictions',
+    subReports: subTabs.forecasting
+  },
+  {
+    id: 'accounting',
+    label: 'Accounting',
+    icon: Calculator,
+    description: 'Financial ledgers and aging reports',
+    subReports: subTabs.accounting
+  },
+  {
+    id: 'audits',
+    label: 'Audits',
+    icon: ClipboardList,
+    description: 'Activity logs and compliance tracking',
+    subReports: [{ label: 'Audit log', description: 'All system activity' }]
+  }
+];
+
 const formatCurrency = (value: number, decimals: number = 0) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -113,6 +180,9 @@ function ReportsPageInner() {
     rowCount: number;
     tabName: string;
   } | null>(null);
+
+  // Report catalog panel state
+  const [showCatalog, setShowCatalog] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
