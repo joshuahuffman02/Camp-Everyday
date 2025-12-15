@@ -2379,6 +2379,28 @@ export const apiClient = {
     const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/sites`);
     return SiteArray.parse(data);
   },
+  async getLedgerEntries(campgroundId: string) {
+    // Note: This endpoint might return a large dataset. 
+    // In production, we'd want server-side filtering by date range.
+    // For now, we'll fetch all and filter client-side to match other reports.
+    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/ledger`);
+    return z.array(LedgerEntrySchema).parse(data);
+  },
+  async getPayments(campgroundId: string) {
+    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/payments`);
+    // Define schema locally or use z.any() if we want to be loose for now, 
+    // but ideally we define PaymentSchema. For now let's use a simple array checks.
+    // Actually, let's define PaymentSchema momentarily or just return unknown and cast in component?
+    // Better: Define schema.
+    return z.array(z.object({
+      id: z.string(),
+      amountCents: z.number(),
+      method: z.string(),
+      direction: z.string().optional(),
+      createdAt: z.string().or(z.date()),
+      formattedAmount: z.string().optional(), // In case server sends it
+    })).parse(data);
+  },
   async getSite(id: string) {
     const data = await fetchJSON<unknown>(`/sites/${id}`);
     return SiteSchema.parse(data);
@@ -2497,13 +2519,7 @@ export const apiClient = {
     const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/site-classes`);
     return SiteClassArray.parse(data);
   },
-  async getLedgerEntries(campgroundId: string) {
-    // Note: This endpoint might return a large dataset. 
-    // In production, we'd want server-side filtering by date range.
-    // For now, we'll fetch all and filter client-side to match other reports.
-    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/ledger`);
-    return z.array(LedgerEntrySchema).parse(data);
-  },
+
 
   async getSiteClass(id: string) {
     const data = await fetchJSON<unknown>(`/site-classes/${id}`);

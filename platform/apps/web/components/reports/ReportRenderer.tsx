@@ -13,6 +13,7 @@ import { DailySummaryReport } from "./definitions/DailySummaryReport";
 import { HousekeepingReport } from "./definitions/HousekeepingReport";
 import { TransactionLogReport } from "./definitions/TransactionLogReport";
 import { RevenueBySiteTypeReport } from "./definitions/RevenueBySiteTypeReport";
+import { PaymentMethodsReport } from "./definitions/PaymentMethodsReport";
 
 interface ReportRendererProps {
     tab: ReportTab;
@@ -60,6 +61,9 @@ export function ReportRenderer({ tab, subTab, campgroundId, dateRange, reportFil
         }
         if (subTab === "revenue-by-site-type") {
             return <RevenueBySiteTypeReport campgroundId={campgroundId} dateRange={dateRange} />;
+        }
+        if (subTab === "payment-methods") {
+            return <PaymentMethodsReport campgroundId={campgroundId} dateRange={dateRange} />;
         }
     }
 
