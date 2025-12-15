@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+import { CalendarDays, Tent, Users, CreditCard, XCircle } from "lucide-react";
 
 interface Reservation {
   id: string;
@@ -131,13 +132,12 @@ export default function PortalManagePage() {
               <p className="text-slate-400">Site {selectedReservation.site.siteNumber}</p>
             </div>
             <span
-              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                selectedReservation.status === "confirmed"
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : selectedReservation.status === "checked_in"
+              className={`px-3 py-1 rounded-full text-xs font-medium ${selectedReservation.status === "confirmed"
+                ? "bg-emerald-500/20 text-emerald-300"
+                : selectedReservation.status === "checked_in"
                   ? "bg-blue-500/20 text-blue-300"
                   : "bg-slate-500/20 text-slate-300"
-              }`}
+                }`}
             >
               {selectedReservation.status.replace("_", " ")}
             </span>
@@ -173,7 +173,7 @@ export default function PortalManagePage() {
           <h3 className="text-lg font-semibold">What would you like to do?</h3>
 
           <ActionButton
-            icon="📅"
+            icon={<CalendarDays className="h-6 w-6" />}
             title="Modify Dates"
             description="Change your check-in or check-out dates"
             onClick={() => setActiveAction("modify-dates")}
@@ -181,7 +181,7 @@ export default function PortalManagePage() {
           />
 
           <ActionButton
-            icon="🏕️"
+            icon={<Tent className="h-6 w-6" />}
             title="Change Site"
             description="Request a different campsite"
             onClick={() => setActiveAction("change-site")}
@@ -189,7 +189,7 @@ export default function PortalManagePage() {
           />
 
           <ActionButton
-            icon="👥"
+            icon={<Users className="h-6 w-6" />}
             title="Add/Remove Guests"
             description="Update your party size"
             onClick={() => setActiveAction("add-guest")}
@@ -197,7 +197,7 @@ export default function PortalManagePage() {
 
           {balanceDue > 0 && (
             <ActionButton
-              icon="💳"
+              icon={<CreditCard className="h-6 w-6" />}
               title="Pay Balance"
               description={`Pay your outstanding balance of $${(balanceDue / 100).toFixed(2)}`}
               onClick={() => setActiveAction("pay-balance")}
@@ -206,7 +206,7 @@ export default function PortalManagePage() {
           )}
 
           <ActionButton
-            icon="❌"
+            icon={<XCircle className="h-6 w-6" />}
             title="Cancel Reservation"
             description="Cancel your reservation (fees may apply)"
             onClick={() => setActiveAction("cancel")}
@@ -242,7 +242,7 @@ function ActionButton({
   highlight,
   danger,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   description: string;
   onClick: () => void;
@@ -254,18 +254,17 @@ function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`w-full p-4 rounded-xl text-left transition-all ${
-        disabled
-          ? "bg-slate-800/30 text-slate-500 cursor-not-allowed"
-          : danger
+      className={`w-full p-4 rounded-xl text-left transition-all ${disabled
+        ? "bg-slate-800/30 text-slate-500 cursor-not-allowed"
+        : danger
           ? "bg-red-900/20 hover:bg-red-900/30 border border-red-800/30"
           : highlight
-          ? "bg-emerald-900/30 hover:bg-emerald-900/40 border border-emerald-700/30"
-          : "bg-white/5 hover:bg-white/10 border border-white/10"
-      }`}
+            ? "bg-emerald-900/30 hover:bg-emerald-900/40 border border-emerald-700/30"
+            : "bg-white/5 hover:bg-white/10 border border-white/10"
+        }`}
     >
       <div className="flex items-center gap-4">
-        <span className="text-2xl">{icon}</span>
+        <span className="text-emerald-400">{icon}</span>
         <div>
           <h4 className="font-medium">{title}</h4>
           <p className="text-sm text-slate-400">{description}</p>
@@ -427,7 +426,7 @@ function ActionModal({
             <>
               <div className="bg-red-900/30 border border-red-800/30 rounded-lg p-4">
                 <p className="text-sm text-red-300">
-                  Cancellation fees may apply based on your booking date and campground policy. 
+                  Cancellation fees may apply based on your booking date and campground policy.
                   This action cannot be undone.
                 </p>
               </div>
@@ -460,11 +459,10 @@ function ActionModal({
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className={`flex-1 px-4 py-2 rounded-lg font-medium ${
-                action === "cancel"
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-emerald-600 hover:bg-emerald-700"
-              } disabled:opacity-50`}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium ${action === "cancel"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-emerald-600 hover:bg-emerald-700"
+                } disabled:opacity-50`}
             >
               {loading ? "Processing..." : action === "cancel" ? "Confirm Cancellation" : "Submit"}
             </button>

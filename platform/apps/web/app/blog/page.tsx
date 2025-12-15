@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { BookOpen, ArrowRight } from "lucide-react";
+import { BookOpen, ArrowRight, Tent, Map, Caravan, Users, Wrench, TreePine } from "lucide-react";
 import { PublicHeader } from "../../components/public/PublicHeader";
 
 export const metadata: Metadata = {
@@ -37,10 +37,10 @@ export default function BlogPage() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-4">Coming Soon</h2>
           <p className="text-slate-600 max-w-md mx-auto mb-8">
-            We&apos;re working on amazing content for you! Our blog will feature camping tips, 
+            We&apos;re working on amazing content for you! Our blog will feature camping tips,
             destination guides, and insights from campground owners.
           </p>
-          
+
           {/* Subscribe Form */}
           <div className="max-w-md mx-auto">
             <p className="text-sm text-slate-500 mb-4">Get notified when we launch:</p>
@@ -64,28 +64,28 @@ export default function BlogPage() {
         <div className="mb-12">
           <h3 className="text-lg font-semibold text-slate-900 mb-6 text-center">Topics We&apos;ll Cover</h3>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
-              <span className="text-2xl mb-2 block">⛺</span>
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100 flex flex-col items-center">
+              <Tent className="h-6 w-6 text-emerald-600 mb-2" />
               <span className="font-medium text-slate-900">Camping Tips</span>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
-              <span className="text-2xl mb-2 block">🗺️</span>
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100 flex flex-col items-center">
+              <Map className="h-6 w-6 text-emerald-600 mb-2" />
               <span className="font-medium text-slate-900">Destination Guides</span>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
-              <span className="text-2xl mb-2 block">🚐</span>
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100 flex flex-col items-center">
+              <Caravan className="h-6 w-6 text-emerald-600 mb-2" />
               <span className="font-medium text-slate-900">RV Life</span>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
-              <span className="text-2xl mb-2 block">👨‍👩‍👧‍👦</span>
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100 flex flex-col items-center">
+              <Users className="h-6 w-6 text-emerald-600 mb-2" />
               <span className="font-medium text-slate-900">Family Camping</span>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
-              <span className="text-2xl mb-2 block">🏕️</span>
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100 flex flex-col items-center">
+              <TreePine className="h-6 w-6 text-emerald-600 mb-2" />
               <span className="font-medium text-slate-900">Owner Stories</span>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
-              <span className="text-2xl mb-2 block">🔧</span>
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100 flex flex-col items-center">
+              <Wrench className="h-6 w-6 text-emerald-600 mb-2" />
               <span className="font-medium text-slate-900">Gear Reviews</span>
             </div>
           </div>

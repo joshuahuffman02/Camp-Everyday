@@ -2235,7 +2235,7 @@ export default function CalendarPage() {
                 })}
               {sitesQuery.data?.length === 0 && (
                 <div className="px-4 py-12 text-center text-slate-600">
-                  <div className="text-3xl mb-2">🏕️</div>
+                  <div className="flex justify-center mb-2"><Tent className="h-8 w-8 text-slate-400" /></div>
                   <p className="text-sm font-medium">No sites configured</p>
                   <p className="text-xs text-slate-500 mt-1">Add sites to this campground to start managing reservations</p>
                 </div>
