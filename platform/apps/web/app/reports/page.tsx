@@ -12,7 +12,7 @@ import { apiClient } from "../../lib/api-client";
 import { saveReport } from "@/components/reports/savedReports";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FileDown, Calendar, FileSpreadsheet, X, Info, ChevronDown, ChevronUp, LayoutList, TrendingUp, Users, BarChart3, Megaphone, LineChart, Calculator, ClipboardList, ExternalLink } from "lucide-react";
+import { FileDown, Calendar, FileSpreadsheet, X, Info, ChevronDown, ChevronUp, LayoutList, TrendingUp, Users, BarChart3, Megaphone, LineChart, Calculator, ClipboardList, ExternalLink, SlidersHorizontal, Filter } from "lucide-react";
 
 import { BookingSourcesTab } from "../../components/reports/BookingSourcesTab";
 import { GuestOriginsTab } from "../../components/reports/GuestOriginsTab";
@@ -183,6 +183,14 @@ function ReportsPageInner() {
 
   // Report catalog panel state
   const [showCatalog, setShowCatalog] = useState(false);
+
+  // Report customization/filter state
+  const [showFilters, setShowFilters] = useState(false);
+  const [reportFilters, setReportFilters] = useState({
+    status: 'all' as 'all' | 'confirmed' | 'checked_in' | 'pending' | 'cancelled',
+    siteType: 'all' as string,
+    groupBy: 'none' as 'none' | 'site' | 'status' | 'date' | 'siteType'
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2138,30 +2146,41 @@ function ReportsPageInner() {
 
   // Marketing: Conversion and booking value
   const marketingStats = useMemo(() => {
-    if (!reservationsQuery.data) return null;
+    if (!reservationsQuery.data || !sitesQuery.data) return null;
 
-    const total = reservationsQuery.data.length;
-    const confirmed = reservationsQuery.data.filter(r => r.status === 'confirmed').length;
-    const pending = reservationsQuery.data.filter(r => r.status === 'pending').length;
-    const cancelled = reservationsQuery.data.filter(r => r.status === 'cancelled').length;
+    const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
+
+    const filteredData = reservationsQuery.data.filter(r => {
+      // Apply customizations
+      if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return false;
+      if (reportFilters.siteType !== 'all') {
+        const site = siteMap.get(r.siteId);
+        if (site && (site as any).siteType !== reportFilters.siteType) return false;
+      }
+      return true;
+    });
+
+    const total = filteredData.length;
+    const confirmed = filteredData.filter(r => r.status === 'confirmed').length;
+    const pending = filteredData.filter(r => r.status === 'pending').length;
+    const cancelled = filteredData.filter(r => r.status === 'cancelled').length;
 
     const conversionRate = total > 0 ? (((confirmed + pending) / total) * 100).toFixed(1) : '0';
 
-    const totalValue = reservationsQuery.data
+    const totalValue = filteredData
       .filter(r => r.status !== 'cancelled')
       .reduce((sum, r) => sum + (r.totalAmount || 0), 0) / 100;
 
-    const avgBookingValue = (confirmed + pending) > 0 ? totalValue / (confirmed + pending) : 0;
+    // Average value
+    const avgValue = (confirmed + pending) > 0 ? (totalValue / (confirmed + pending)) : 0;
 
     return {
-      total,
-      confirmed,
-      pending,
-      cancelled,
       conversionRate,
-      avgBookingValue
+      totalValue,
+      avgBookingValue: avgValue,
+      totalBookings: confirmed + pending
     };
-  }, [reservationsQuery.data]);
+  }, [reservationsQuery.data, sitesQuery.data, reportFilters]);
 
   // Year-over-year comparison
   const yearOverYearStats = useMemo(() => {
@@ -2345,15 +2364,31 @@ function ReportsPageInner() {
     return reservationsQuery.data
       .filter(r => {
         const arrival = new Date(r.arrivalDate);
-        return arrival >= today && arrival < tomorrow && r.status !== 'cancelled';
+        const dayMatches = arrival >= today && arrival < tomorrow;
+        if (!dayMatches) return false;
+
+        // Apply customizations
+        if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return false;
+        if (reportFilters.siteType !== 'all') {
+          const site = siteMap.get(r.siteId);
+          // Safely access siteType if it exists
+          if (site && (site as any).siteType !== reportFilters.siteType) return false;
+        }
+
+        return r.status !== 'cancelled'; // Always exclude cancelled unless specifically asked? Or should filter handle it?
       })
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
+        siteType: (siteMap.get(r.siteId) as any)?.siteType || 'Unknown',
         guestName: `${(r as any).guest?.primaryFirstName || ''} ${(r as any).guest?.primaryLastName || ''}`.trim() || 'N/A'
       }))
-      .sort((a, b) => a.siteName.localeCompare(b.siteName));
-  }, [reservationsQuery.data, sitesQuery.data]);
+      .sort((a, b) => {
+        if (reportFilters.groupBy === 'status') return a.status.localeCompare(b.status);
+        if (reportFilters.groupBy === 'siteType') return a.siteType.localeCompare(b.siteType);
+        return a.siteName.localeCompare(b.siteName);
+      });
+  }, [reservationsQuery.data, sitesQuery.data, reportFilters]);
 
   // Daily departures
   const dailyDepartures = useMemo(() => {
@@ -2369,15 +2404,26 @@ function ReportsPageInner() {
     return reservationsQuery.data
       .filter(r => {
         const departure = new Date(r.departureDate);
-        return departure >= today && departure < tomorrow && r.status !== 'cancelled';
+        const dayMatches = departure >= today && departure < tomorrow;
+        if (!dayMatches) return false;
+
+        // Apply customizations
+        if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return false;
+        if (reportFilters.siteType !== 'all') {
+          const site = siteMap.get(r.siteId);
+          if (site && (site as any).siteType !== reportFilters.siteType) return false;
+        }
+
+        return r.status !== 'cancelled';
       })
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
+        siteType: (siteMap.get(r.siteId) as any)?.siteType || 'Unknown',
         guestName: `${(r as any).guest?.primaryFirstName || ''} ${(r as any).guest?.primaryLastName || ''}`.trim() || 'N/A'
       }))
       .sort((a, b) => a.siteName.localeCompare(b.siteName));
-  }, [reservationsQuery.data, sitesQuery.data]);
+  }, [reservationsQuery.data, sitesQuery.data, reportFilters]);
 
   // In-house guests (currently occupied)
   const inHouseGuests = useMemo(() => {
@@ -2556,23 +2602,45 @@ function ReportsPageInner() {
     const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
 
     return reservationsQuery.data
-      .filter(r => r.status !== 'cancelled' && ((r.paidAmount || 0) > 0 || (r.totalAmount || 0) > 0))
+      .filter(r => {
+        // Base filter
+        if (r.status === 'cancelled' && (r.paidAmount || 0) === 0 && (r.totalAmount || 0) === 0) return false;
+        if (!((r.paidAmount || 0) > 0 || (r.totalAmount || 0) > 0)) return false;
+
+        // Apply customizations
+        if (reportFilters.siteType !== 'all') {
+          const site = siteMap.get(r.siteId);
+          if (site && (site as any).siteType !== reportFilters.siteType) return false;
+        }
+        // Optional: filter by reservation status if requested, though transactions exist independent of status
+        if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return false;
+
+        return true;
+      })
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
+        siteType: (siteMap.get(r.siteId) as any)?.siteType || 'Unknown',
         guestName: `${(r as any).guest?.primaryFirstName || ''} ${(r as any).guest?.primaryLastName || ''}`.trim() || 'N/A',
         total: (r.totalAmount || 0) / 100,
         paid: (r.paidAmount || 0) / 100,
         balance: (r.balanceAmount || 0) / 100,
         transactionDate: r.createdAt || r.arrivalDate
       }))
-      .sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
-  }, [reservationsQuery.data, sitesQuery.data]);
+      .sort((a, b) => {
+        // Apply group sorting
+        if (reportFilters.groupBy === 'status') return a.status.localeCompare(b.status);
+        if (reportFilters.groupBy === 'siteType') return a.siteType.localeCompare(b.siteType);
+        // Default sort by date desc
+        return new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime();
+      });
+  }, [reservationsQuery.data, sitesQuery.data, reportFilters]);
 
   // Monthly revenue report (all 12 months for current year)
   const monthlyRevenue = useMemo(() => {
-    if (!reservationsQuery.data) return null;
+    if (!reservationsQuery.data || !sitesQuery.data) return null;
 
+    const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
     const now = new Date();
     const currentMonth = now.getMonth();
     const months = [];
@@ -2580,25 +2648,35 @@ function ReportsPageInner() {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     for (let m = 0; m < 12; m++) {
-      const monthStart = new Date(now.getFullYear(), m, 1);
-      const monthEnd = new Date(now.getFullYear(), m + 1, 0);
-
-      const monthReservations = reservationsQuery.data.filter(r => {
-        const arrival = new Date(r.arrivalDate);
-        return arrival >= monthStart && arrival <= monthEnd && r.status !== 'cancelled';
-      });
-
       months.push({
-        month: `${monthNames[m]} ${now.getFullYear()}`,
-        bookings: monthReservations.length,
-        revenue: monthReservations.reduce((sum, r) => sum + (r.totalAmount || 0), 0) / 100,
-        paid: monthReservations.reduce((sum, r) => sum + (r.paidAmount || 0), 0) / 100,
+        name: monthNames[m],
+        total: 0,
+        paid: 0,
+        bookings: 0,
         isCurrent: m === currentMonth
       });
     }
 
+    reservationsQuery.data.forEach(r => {
+      const arrived = new Date(r.arrivalDate);
+      if (arrived.getFullYear() !== now.getFullYear()) return;
+      if (r.status === 'cancelled') return;
+
+      // Apply customizations
+      if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return;
+      if (reportFilters.siteType !== 'all') {
+        const site = siteMap.get(r.siteId);
+        if (site && (site as any).siteType !== reportFilters.siteType) return;
+      }
+
+      const m = arrived.getMonth();
+      months[m].total += (r.totalAmount || 0) / 100;
+      months[m].paid += (r.paidAmount || 0) / 100;
+      months[m].bookings += 1;
+    });
+
     return months;
-  }, [reservationsQuery.data]);
+  }, [reservationsQuery.data, sitesQuery.data, reportFilters]);
 
   // Annual revenue report (last 3 years)
   const annualRevenue = useMemo(() => {
@@ -4170,14 +4248,134 @@ function ReportsPageInner() {
             </div>
           )}
 
-          {(summaryQuery.isLoading || agingQuery.isLoading || ledgerSummaryQuery.isLoading) && (
-            <div className="text-sm text-slate-500">Loading metrics…</div>
-          )}
-          {(summaryQuery.error || agingQuery.error || ledgerSummaryQuery.error) && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Some report data failed to load. Try again or refresh.
-            </div>
-          )}
+          {/* Report Customization Panel */}
+          <div className="border border-slate-200 rounded-xl bg-white">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition-colors rounded-xl"
+            >
+              <div className="flex items-center gap-3">
+                <SlidersHorizontal className="h-5 w-5 text-slate-600" />
+                <div>
+                  <span className="font-medium text-slate-900">Customize Report</span>
+                  <span className="text-slate-500 text-sm ml-2">Filters, date range, grouping</span>
+                </div>
+              </div>
+              {showFilters ? (
+                <ChevronUp className="h-5 w-5 text-slate-400" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-slate-400" />
+              )}
+            </button>
+
+            {showFilters && (
+              <div className="px-4 pb-4 pt-2 border-t border-slate-100 space-y-4">
+                {/* Date Range Presets */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-2">Quick Date Range</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'Today', days: 0 },
+                      { label: 'Last 7 days', days: 7 },
+                      { label: 'Last 30 days', days: 30 },
+                      { label: 'Last 90 days', days: 90 },
+                      { label: 'This year', days: 365 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        onClick={() => {
+                          const end = new Date();
+                          const start = new Date();
+                          start.setDate(start.getDate() - preset.days);
+                          setDateRange({
+                            start: start.toISOString().slice(0, 10),
+                            end: end.toISOString().slice(0, 10)
+                          });
+                        }}
+                        className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Filters Row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Status Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                    <select
+                      value={reportFilters.status}
+                      onChange={(e) => setReportFilters({ ...reportFilters, status: e.target.value as any })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
+                    >
+                      <option value="all">All statuses</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="checked_in">Checked In</option>
+                      <option value="pending">Pending</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+
+                  {/* Site Type Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Site Type</label>
+                    <select
+                      value={reportFilters.siteType}
+                      onChange={(e) => setReportFilters({ ...reportFilters, siteType: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
+                    >
+                      <option value="all">All site types</option>
+                      <option value="RV">RV Sites</option>
+                      <option value="Tent">Tent Sites</option>
+                      <option value="Cabin">Cabins</option>
+                      <option value="Glamping">Glamping</option>
+                    </select>
+                  </div>
+
+                  {/* Group By */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Group By</label>
+                    <select
+                      value={reportFilters.groupBy}
+                      onChange={(e) => setReportFilters({ ...reportFilters, groupBy: e.target.value as any })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
+                    >
+                      <option value="none">No grouping</option>
+                      <option value="site">By Site</option>
+                      <option value="status">By Status</option>
+                      <option value="date">By Date</option>
+                      <option value="siteType">By Site Type</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Active Filters Summary */}
+                {(reportFilters.status !== 'all' || reportFilters.siteType !== 'all' || reportFilters.groupBy !== 'none') && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <Filter className="h-4 w-4 text-indigo-500" />
+                    <span className="text-xs text-slate-600">Active filters:</span>
+                    {reportFilters.status !== 'all' && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{reportFilters.status}</span>
+                    )}
+                    {reportFilters.siteType !== 'all' && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">{reportFilters.siteType}</span>
+                    )}
+                    {reportFilters.groupBy !== 'none' && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">Grouped by {reportFilters.groupBy}</span>
+                    )}
+                    <button
+                      onClick={() => setReportFilters({ status: 'all', siteType: 'all', groupBy: 'none' })}
+                      className="text-xs text-slate-500 hover:text-slate-700 underline ml-auto"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
             {renderSubReportContent()}
