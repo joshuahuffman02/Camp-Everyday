@@ -24,8 +24,22 @@ export function NewVsReturningReport({ campgroundId, dateRange }: NewVsReturning
         const end = new Date(dateRange.end);
         end.setHours(23, 59, 59, 999);
 
+        // Count reservations per guest to determine new vs returning
+        const guestReservationCounts: Record<string, number> = {};
+        const guestRepeatStays: Record<string, number> = {};
+
+        // First pass: count all reservations per guest and record repeatStays
+        reservations.forEach(r => {
+            if (r.status === 'cancelled' || !r.guestId) return;
+            guestReservationCounts[r.guestId] = (guestReservationCounts[r.guestId] || 0) + 1;
+            if (r.guest?.repeatStays != null && r.guest.repeatStays > 0) {
+                guestRepeatStays[r.guestId] = r.guest.repeatStays;
+            }
+        });
+
         let newCount = 0;
         let returningCount = 0;
+        const countedGuests = new Set<string>();
 
         reservations.forEach(r => {
             if (r.status === 'cancelled') return;
@@ -34,11 +48,18 @@ export function NewVsReturningReport({ campgroundId, dateRange }: NewVsReturning
             // Simple timestamp comparison to avoid date-fns RangeErrors
             if (arrivalDate < start || arrivalDate > end) return;
 
-            const guest = r.guest;
-            // If guest data is missing, we can't classify, so skip
-            if (!guest) return;
+            const guestId = r.guestId;
+            if (!guestId || countedGuests.has(guestId)) return;
+            countedGuests.add(guestId);
 
-            if ((guest.repeatStays || 0) > 0) {
+            // A guest is "returning" if:
+            // 1. They have repeatStays > 0 in the database, OR
+            // 2. They have more than 1 reservation in our current dataset
+            const isReturning =
+                (guestRepeatStays[guestId] || 0) > 0 ||
+                (guestReservationCounts[guestId] || 0) > 1;
+
+            if (isReturning) {
                 returningCount++;
             } else {
                 newCount++;
