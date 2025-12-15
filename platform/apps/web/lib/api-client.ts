@@ -2497,6 +2497,14 @@ export const apiClient = {
     const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/site-classes`);
     return SiteClassArray.parse(data);
   },
+  async getLedgerEntries(campgroundId: string) {
+    // Note: This endpoint might return a large dataset. 
+    // In production, we'd want server-side filtering by date range.
+    // For now, we'll fetch all and filter client-side to match other reports.
+    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/ledger`);
+    return z.array(LedgerEntrySchema).parse(data);
+  },
+
   async getSiteClass(id: string) {
     const data = await fetchJSON<unknown>(`/site-classes/${id}`);
     return SiteClassSchema.parse(data);

@@ -21,7 +21,8 @@ import { resolvePoints } from "../../components/reports/heatmap-utils";
 import { recordTelemetry } from "../../lib/sync-telemetry";
 
 import { reportCatalog, subTabs, ReportTab, SubTab } from "./registry";
-import { OverviewReport } from "../../components/reports/definitions/OverviewReport";
+import { OverviewReport } from "@/components/reports/definitions/OverviewReport";
+import { ReportRenderer } from "@/components/reports/ReportRenderer";
 
 const formatCurrency = (value: number, decimals: number = 0) => {
   return new Intl.NumberFormat('en-US', {
@@ -4469,2722 +4470,2493 @@ function ReportsPageInner() {
 
 
 
-                {/* DAILY TAB */}
-                {/* Daily Arrivals */}
-                {(activeTab as string) === 'daily' && dailyArrivals && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Today's Arrivals</div>
-                      <div className="text-xs text-slate-500">Guests checking in today</div>
-                    </div>
-                    {dailyArrivals.length === 0 ? (
-                      <div className="text-sm text-slate-500">No arrivals today</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Status</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Total</th>
-                              <th className="text-center py-2 text-slate-600 font-medium w-16"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {dailyArrivals.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2">{r.arrivalDate}</td>
-                                <td className="py-2">{r.departureDate}</td>
-                                <td className="py-2">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs ${r.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' :
-                                    r.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                                      'bg-slate-100 text-slate-800'
-                                    }`}>
-                                    {r.status}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-right">{formatCurrency((r.totalAmount || 0) / 100)}</td>
-                                <td className="py-2 text-center">
-                                  <Link href={`/reservations/${r.id}`} className="text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 text-xs">
-                                    View <ExternalLink className="h-3 w-3" />
-                                  </Link>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+                {/* DYNAMIC REPORT RENDERER */}
+                {activeTab !== 'overview' && (
+                  <ReportRenderer
+                    tab={activeTab as ReportTab}
+                    subTab={activeSubTab || (subTabs[activeTab as keyof typeof subTabs]?.[0]?.id)}
+                    campgroundId={campgroundId}
+                    dateRange={dateRange}
+                    reportFilters={reportFilters}
+                  />
                 )}
 
-                {/* Daily Departures */}
-                {(activeTab as string) === 'daily' && dailyDepartures && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Today's Departures</div>
-                      <div className="text-xs text-slate-500">Guests checking out today</div>
-                    </div>
-                    {dailyDepartures.length === 0 ? (
-                      <div className="text-sm text-slate-500">No departures today</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Status</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {dailyDepartures.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2">{r.arrivalDate}</td>
-                                <td className="py-2">{r.departureDate}</td>
-                                <td className="py-2">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs ${r.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' :
-                                    r.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                                      'bg-slate-100 text-slate-800'
-                                    }`}>
-                                    {r.status}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-right">{formatCurrency((r.totalAmount || 0) / 100)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* In-House Guests */}
-                {(activeTab as string) === 'daily' && inHouseGuests && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">In-House Guests</div>
-                      <div className="text-xs text-slate-500">Currently occupied sites</div>
-                    </div>
-                    {inHouseGuests.length === 0 ? (
-                      <div className="text-sm text-slate-500">No guests in-house</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                              <th className="text-center py-2 text-slate-600 font-medium">Nights Left</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Balance</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {inHouseGuests.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2">{r.arrivalDate}</td>
-                                <td className="py-2">{r.departureDate}</td>
-                                <td className="py-2 text-center">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.nightsRemaining === 1 ? 'bg-amber-100 text-amber-800' :
-                                    r.nightsRemaining <= 3 ? 'bg-blue-100 text-blue-800' :
-                                      'bg-slate-100 text-slate-800'
-                                    }`}>
-                                    {r.nightsRemaining}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-right">
-                                  <span className={((r.balanceAmount || 0) > 0) ? 'text-amber-700 font-medium' : ''}>
-                                    {formatCurrency((r.balanceAmount || 0) / 100)}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Upcoming Check-Ins (7 Days) */}
-                {(activeTab as string) === 'daily' && upcomingCheckIns && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Upcoming Check-Ins</div>
-                      <div className="text-xs text-slate-500">Next 7 days arrival schedule</div>
-                    </div>
-                    {upcomingCheckIns.length === 0 ? (
-                      <div className="text-sm text-slate-500">No upcoming check-ins in the next 7 days</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Date</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Status</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {upcomingCheckIns.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                <td className="py-2 font-medium">{r.arrivalDate}</td>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2">{r.departureDate}</td>
-                                <td className="py-2">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs ${r.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' :
-                                    r.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                                      'bg-slate-100 text-slate-800'
-                                    }`}>
-                                    {r.status}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-right">{formatCurrency((r.totalAmount || 0) / 100)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Upcoming Check-Outs (7 Days) */}
-                {(activeTab as string) === 'daily' && upcomingCheckOuts && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Upcoming Check-Outs</div>
-                      <div className="text-xs text-slate-500">Next 7 days departure schedule</div>
-                    </div>
-                    {upcomingCheckOuts.length === 0 ? (
-                      <div className="text-sm text-slate-500">No upcoming check-outs in the next 7 days</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Date</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Status</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {upcomingCheckOuts.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                <td className="py-2 font-medium">{r.departureDate}</td>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2">{r.arrivalDate}</td>
-                                <td className="py-2">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs ${r.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' :
-                                    r.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                                      'bg-slate-100 text-slate-800'
-                                    }`}>
-                                    {r.status}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-right">{formatCurrency((r.totalAmount || 0) / 100)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Weekly Revenue Summary */}
-                {(activeTab as string) === 'daily' && weeklyRevenue && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Current Week Summary</div>
-                      <div className="text-xs text-slate-500">Sunday - Saturday revenue snapshot</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Bookings</div>
-                        <div className="text-2xl font-bold text-slate-900">{weeklyRevenue.bookings}</div>
-                      </div>
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">Revenue</div>
-                        <div className="text-2xl font-bold text-emerald-900">{formatCurrency(weeklyRevenue.revenue, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Paid</div>
-                        <div className="text-2xl font-bold text-blue-900">{formatCurrency(weeklyRevenue.paid, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                        <div className="text-xs text-amber-700 mb-1">Outstanding</div>
-                        <div className="text-2xl font-bold text-amber-900">{formatCurrency(weeklyRevenue.outstanding, 0)}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Quarterly Revenue */}
-                {(activeTab as string) === 'daily' && quarterlyRevenue && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Quarterly Performance</div>
-                      <div className="text-xs text-slate-500">Year-to-date quarterly breakdown</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {quarterlyRevenue.map(q => (
-                        <div
-                          key={q.quarter}
-                          className={`rounded-lg border p-3 ${q.isCurrent
-                            ? 'border-emerald-200 bg-emerald-50'
-                            : 'border-slate-200 bg-slate-50'
-                            }`}
-                        >
-                          <div className={`text-xs mb-1 ${q.isCurrent ? 'text-emerald-700' : 'text-slate-600'}`}>
-                            {q.quarter} {q.isCurrent && '(Current)'}
-                          </div>
-                          <div className={`text-xl font-bold ${q.isCurrent ? 'text-emerald-900' : 'text-slate-900'}`}>
-                            {formatCurrency(q.revenue, 0)}
-                          </div>
-                          <div className={`text-xs mt-1 ${q.isCurrent ? 'text-emerald-700' : 'text-slate-600'}`}>
-                            {q.bookings} bookings
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Payment Due Report */}
-                {(activeTab as string) === 'daily' && paymentDueReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Outstanding Payments</div>
-                      <div className="text-xs text-slate-500">Reservations with balance due, sorted by amount</div>
-                    </div>
-                    {paymentDueReport.length === 0 ? (
-                      <div className="text-sm text-slate-500">No outstanding payments</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Balance Due</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {paymentDueReport.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-amber-50' : 'bg-white'}>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2">{r.arrivalDate}</td>
-                                <td className="py-2">{r.departureDate}</td>
-                                <td className="py-2 text-right">
-                                  <span className="text-amber-700 font-semibold">{formatCurrency(r.balance)}</span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Site Status Report */}
-                {(activeTab as string) === 'daily' && siteStatusReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Site Status Overview</div>
-                      <div className="text-xs text-slate-500">Real-time availability status for all sites</div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="border-b border-slate-200">
-                          <tr>
-                            <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                            <th className="text-left py-2 text-slate-600 font-medium">Class</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {siteStatusReport.map((site, idx) => (
-                            <tr key={site.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                              <td className="py-2 font-medium">{site.name}</td>
-                              <td className="py-2">{site.className}</td>
-                              <td className="py-2 text-center">
-                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${site.status === 'Available' ? 'bg-emerald-100 text-emerald-800' :
-                                  site.status === 'Occupied' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-slate-300 text-slate-700'
-                                  }`}>
-                                  {site.status}
-                                </span>
-                              </td>
+                {
+                  (activeTab as string) === 'daily' && siteStatusReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Site Status Overview</div>
+                        <div className="text-xs text-slate-500">Real-time availability status for all sites</div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b border-slate-200">
+                            <tr>
+                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
+                              <th className="text-left py-2 text-slate-600 font-medium">Class</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Status</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {siteStatusReport.map((site, idx) => (
+                              <tr key={site.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
+                                <td className="py-2 font-medium">{site.name}</td>
+                                <td className="py-2">{site.className}</td>
+                                <td className="py-2 text-center">
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${site.status === 'Available' ? 'bg-emerald-100 text-emerald-800' :
+                                    site.status === 'Occupied' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-slate-300 text-slate-700'
+                                    }`}>
+                                    {site.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                }
 
                 {/* Transaction Log */}
-                {(activeTab as string) === 'daily' && transactionLog && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Transaction Log</div>
-                      <div className="text-xs text-slate-500">Complete financial activity log, sorted by date</div>
-                    </div>
-                    {transactionLog.length === 0 ? (
-                      <div className="text-sm text-slate-500">No transactions found</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Date</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Total</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Paid</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Balance</th>
-                              <th className="text-center py-2 text-slate-600 font-medium w-16"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {transactionLog.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                <td className="py-2 font-medium">{r.transactionDate}</td>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2 text-xs text-slate-600">{r.arrivalDate}</td>
-                                <td className="py-2 text-xs text-slate-600">{r.departureDate}</td>
-                                <td className="py-2 text-right">{formatCurrency(r.total)}</td>
-                                <td className="py-2 text-right">
-                                  <span className="text-emerald-700 font-medium">${r.paid.toFixed(2)}</span>
-                                </td>
-                                <td className="py-2 text-right">
-                                  <span className={r.balance > 0 ? 'text-amber-700 font-medium' : 'text-slate-600'}>
-                                    {formatCurrency(r.balance)}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-center">
-                                  <Link href={`/reservations/${r.id}`} className="text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 text-xs">
-                                    View <ExternalLink className="h-3 w-3" />
-                                  </Link>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Monthly Revenue */}
-                {(activeTab as string) === 'daily' && monthlyRevenue && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Monthly Revenue Breakdown</div>
-                      <div className="text-xs text-slate-500">All 12 months for current year</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {monthlyRevenue.map(m => (
-                        <div
-                          key={m.month}
-                          className={`rounded-lg border p-3 ${m.isCurrent
-                            ? 'border-emerald-200 bg-emerald-50'
-                            : 'border-slate-200 bg-slate-50'
-                            }`}
-                        >
-                          <div className={`text-xs mb-1 ${m.isCurrent ? 'text-emerald-700 font-medium' : 'text-slate-600'}`}>
-                            {m.month}
-                          </div>
-                          <div className={`text-lg font-bold ${m.isCurrent ? 'text-emerald-900' : 'text-slate-900'}`}>
-                            {formatCurrency(m.revenue, 0)}
-                          </div>
-                          <div className={`text-xs mt-1 ${m.isCurrent ? 'text-emerald-700' : 'text-slate-600'}`}>
-                            {m.bookings} bookings
-                          </div>
-                          <div className={`text-xs ${m.isCurrent ? 'text-emerald-600' : 'text-slate-500'}`}>
-                            Paid: {formatCurrency(m.paid, 0)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Annual Revenue */}
-                {(activeTab as string) === 'daily' && annualRevenue && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Annual Revenue Comparison</div>
-                      <div className="text-xs text-slate-500">Year-over-year performance (last 3 years)</div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      {annualRevenue.map(y => (
-                        <div
-                          key={y.year}
-                          className={`rounded-lg border p-4 ${y.isCurrent
-                            ? 'border-emerald-300 bg-emerald-50'
-                            : 'border-slate-200 bg-slate-50'
-                            }`}
-                        >
-                          <div className={`text-sm mb-2 ${y.isCurrent ? 'text-emerald-700 font-semibold' : 'text-slate-600 font-medium'}`}>
-                            {y.year} {y.isCurrent && '(Current)'}
-                          </div>
-                          <div className={`text-2xl font-bold mb-2 ${y.isCurrent ? 'text-emerald-900' : 'text-slate-900'}`}>
-                            {formatCurrency(y.revenue, 0)}
-                          </div>
-                          <div className="space-y-1">
-                            <div className={`text-xs ${y.isCurrent ? 'text-emerald-700' : 'text-slate-600'}`}>
-                              {y.bookings} total bookings
-                            </div>
-                            <div className={`text-xs ${y.isCurrent ? 'text-emerald-700' : 'text-slate-600'}`}>
-                              Paid: {formatCurrency(y.paid, 0)}
-                            </div>
-                            <div className={`text-xs ${y.isCurrent ? 'text-emerald-600' : 'text-slate-500'}`}>
-                              Avg: {formatCurrency(y.avgPerBooking)}/booking
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Daily Revenue (Last 30 Days) */}
-                {(activeTab as string) === 'daily' && dailyRevenue && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Daily Revenue Trend</div>
-                      <div className="text-xs text-slate-500">Last 30 days booking activity</div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="border-b border-slate-200">
-                          <tr>
-                            <th className="text-left py-2 text-slate-600 font-medium">Date</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Bookings</th>
-                            <th className="text-right py-2 text-slate-600 font-medium">Revenue</th>
-                            <th className="text-right py-2 text-slate-600 font-medium">Paid</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dailyRevenue.map((d, idx) => (
-                            <tr key={d.date} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                              <td className="py-2 font-medium">{d.date}</td>
-                              <td className="py-2 text-center">
-                                <span className={`inline-block px-2 py-0.5 rounded text-xs ${d.bookings > 0 ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-                                  }`}>
-                                  {d.bookings}
-                                </span>
-                              </td>
-                              <td className="py-2 text-right">
-                                <span className={d.revenue > 0 ? 'text-slate-900 font-medium' : 'text-slate-400'}>
-                                  {formatCurrency(d.revenue)}
-                                </span>
-                              </td>
-                              <td className="py-2 text-right">
-                                <span className={d.paid > 0 ? 'text-emerald-700 font-medium' : 'text-slate-400'}>
-                                  {formatCurrency(d.paid)}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Cancellation Report */}
-                {(activeTab as string) === 'daily' && cancellationReport && (
-                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Cancellations</div>
-                      <div className="text-xs text-slate-500">Last 30 days cancelled reservations</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                        <div className="text-xs text-red-700 mb-1">Total Cancelled</div>
-                        <div className="text-2xl font-bold text-red-900">{cancellationReport.summary.count}</div>
-                      </div>
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                        <div className="text-xs text-amber-700 mb-1">Lost Revenue</div>
-                        <div className="text-2xl font-bold text-amber-900">{formatCurrency(cancellationReport.summary.totalLost, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Refunded</div>
-                        <div className="text-2xl font-bold text-blue-900">{formatCurrency(cancellationReport.summary.totalRefunded, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Net Loss</div>
-                        <div className="text-2xl font-bold text-slate-900">{formatCurrency(cancellationReport.summary.netLoss, 0)}</div>
-                      </div>
-                    </div>
-                    {cancellationReport.cancellations.length === 0 ? (
-                      <div className="text-sm text-slate-500">No cancellations in the last 30 days</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Cancel Date</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Lost Revenue</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Refunded</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {cancellationReport.cancellations.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-red-50' : 'bg-white'}>
-                                <td className="py-2 font-medium">{new Date(r.cancelDate).toISOString().split('T')[0]}</td>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2 text-xs text-slate-600">{r.arrivalDate}</td>
-                                <td className="py-2 text-right">
-                                  <span className="text-red-700 font-medium">{formatCurrency(r.lostRevenue)}</span>
-                                </td>
-                                <td className="py-2 text-right">
-                                  <span className="text-blue-700">{formatCurrency(r.refunded)}</span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* No-Show Report */}
-                {(activeTab as string) === 'daily' && noShowReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">No-Shows</div>
-                      <div className="text-xs text-slate-500">Guests who didn't arrive for confirmed reservations</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                      <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                        <div className="text-xs text-orange-700 mb-1">Total No-Shows</div>
-                        <div className="text-2xl font-bold text-orange-900">{noShowReport.summary.count}</div>
-                      </div>
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                        <div className="text-xs text-red-700 mb-1">Lost Revenue</div>
-                        <div className="text-2xl font-bold text-red-900">{formatCurrency(noShowReport.summary.totalLost, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">Paid (Non-Refundable)</div>
-                        <div className="text-2xl font-bold text-emerald-900">{formatCurrency(noShowReport.summary.totalPaid, 0)}</div>
-                      </div>
-                    </div>
-                    {noShowReport.noShows.length === 0 ? (
-                      <div className="text-sm text-emerald-600">No no-shows detected - excellent!</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Days Late</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Expected Arrival</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Amount Paid</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {noShowReport.noShows.map((r, idx) => (
-                              <tr key={r.id} className={idx % 2 === 0 ? 'bg-orange-50' : 'bg-white'}>
-                                <td className="py-2">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.daysLate > 7 ? 'bg-red-100 text-red-800' :
-                                    r.daysLate > 3 ? 'bg-orange-100 text-orange-800' :
-                                      'bg-amber-100 text-amber-800'
-                                    }`}>
-                                    {r.daysLate} days
-                                  </span>
-                                </td>
-                                <td className="py-2">{r.siteName}</td>
-                                <td className="py-2">{r.guestName}</td>
-                                <td className="py-2 text-xs text-slate-600">{r.arrivalDate}</td>
-                                <td className="py-2 text-xs text-slate-600">{r.departureDate}</td>
-                                <td className="py-2 text-right">
-                                  <span className="text-emerald-700 font-medium">${r.paid.toFixed(2)}</span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* REVENUE TAB */}
-                {activeTab === 'revenue' && reservationStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Reservation Analytics</div>
-                      <div className="text-xs text-slate-500">For date range: {dateRange.start} to {dateRange.end}</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total Bookings</div>
-                        <div className="text-2xl font-bold text-slate-900">{reservationStats.total}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">Revenue</div>
-                        <div className="text-2xl font-bold text-emerald-900">{formatCurrency(reservationStats.totalRevenue, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Avg Lead Time</div>
-                        <div className="text-2xl font-bold text-blue-900">{reservationStats.avgLeadTime}d</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-purple-50 p-3">
-                        <div className="text-xs text-purple-700 mb-1">Avg per Booking</div>
-                        <div className="text-2xl font-bold text-purple-900">
-                          {reservationStats.total > 0 ? formatCurrency(reservationStats.totalRevenue / reservationStats.total, 0) : '0'}
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-slate-700 mb-2">By Status</div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {Object.entries(reservationStats.byStatus).map(([status, count]) => (
-                          <div key={status} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
-                            <div className="text-xs text-slate-500 capitalize">{status.replace('_', ' ')}</div>
-                            <div className="font-semibold text-slate-900">{count}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Site Performance */}
-                {activeTab === 'performance' && sitePerformance && sitePerformance.length > 0 && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Top 10 Sites by Revenue</div>
-                      <div className="text-xs text-slate-500">All-time performance</div>
-                    </div>
-                    <div className="space-y-2">
-                      {sitePerformance.map((site, idx) => (
-                        <div key={site.name} className="flex items-center gap-3">
-                          <div className="flex-shrink-0 w-6 text-center text-xs font-semibold text-slate-500">#{idx + 1}</div>
-                          <div className="flex-1 flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
-                            <div>
-                              <div className="text-sm font-medium text-slate-900">{site.name}</div>
-                              <div className="text-xs text-slate-500">{site.bookings} bookings</div>
-                            </div>
-                            <div className="text-sm font-bold text-emerald-600">{formatCurrency(site.revenue, 0)}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Revenue Trends */}
-                {activeTab === 'revenue' && revenueTrends && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Revenue Trends</div>
-                      <div className="text-xs text-slate-500">Last 12 months</div>
-                    </div>
-                    <div className="space-y-1">
-                      {revenueTrends.map(({ month, revenue }) => {
-                        const maxRevenue = Math.max(...revenueTrends.map(t => t.revenue), 1);
-                        const width = (revenue / maxRevenue) * 100;
-                        return (
-                          <div key={month} className="flex items-center gap-2">
-                            <div className="w-20 text-xs text-slate-600 flex-shrink-0">{month}</div>
-                            <div className="flex-1 h-8 bg-slate-100 rounded relative overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500"
-                                style={{ width: `${width}%` }}
-                              />
-                              <div className="absolute inset-0 flex items-center px-2">
-                                <span className="text-xs font-semibold text-slate-900">{formatCurrency(revenue, 0)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* REVENUE TAB - Weekend vs Weekday */}
-                {activeTab === 'revenue' && weekendVsWeekdayStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Weekend vs Weekday Performance</div>
-                      <div className="text-xs text-slate-500">Booking patterns by arrival day</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-                        <div className="text-sm font-bold text-blue-900">Weekend (Fri-Sat Arrivals)</div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <div className="text-xs text-blue-700 mb-1">Bookings</div>
-                            <div className="text-2xl font-bold text-blue-900">{weekendVsWeekdayStats.weekend.bookings}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-blue-700 mb-1">Revenue</div>
-                            <div className="text-2xl font-bold text-blue-900">{formatCurrency(weekendVsWeekdayStats.weekend.revenue, 0)}</div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-blue-700 mb-1">Avg per Booking</div>
-                          <div className="text-lg font-bold text-blue-900">{formatCurrency(weekendVsWeekdayStats.weekend.avgRevenue, 0)}</div>
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-                        <div className="text-sm font-bold text-slate-900">Weekday (Sun-Thu Arrivals)</div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <div className="text-xs text-slate-600 mb-1">Bookings</div>
-                            <div className="text-2xl font-bold text-slate-900">{weekendVsWeekdayStats.weekday.bookings}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-slate-600 mb-1">Revenue</div>
-                            <div className="text-2xl font-bold text-slate-900">{formatCurrency(weekendVsWeekdayStats.weekday.revenue, 0)}</div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-slate-600 mb-1">Avg per Booking</div>
-                          <div className="text-lg font-bold text-slate-900">{formatCurrency(weekendVsWeekdayStats.weekday.avgRevenue, 0)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* REVENUE TAB - Pricing Analysis by Site Class */}
-                {activeTab === 'revenue' && pricingAnalysis && pricingAnalysis.length > 0 && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Pricing Analysis by Site Class</div>
-                      <div className="text-xs text-slate-500">Average daily rate and performance metrics</div>
-                    </div>
-                    <div className="space-y-2">
-                      {pricingAnalysis.map((cls) => (
-                        <div key={cls.className} className="rounded-md border border-slate-200 bg-white p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-sm font-medium text-slate-900">{cls.className}</div>
-                            <div className="text-lg font-bold text-emerald-600">${cls.adr}/night</div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 text-xs">
-                            <div>
-                              <div className="text-slate-500">Total Nights</div>
-                              <div className="font-semibold text-slate-900">{cls.totalNights}</div>
-                            </div>
-                            <div>
-                              <div className="text-slate-500">Total Revenue</div>
-                              <div className="font-semibold text-slate-900">{formatCurrency(cls.totalRevenue, 0)}</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* REVENUE TAB - ADR Trends */}
-                {activeTab === 'revenue' && adrTrends && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">ADR Trends</div>
-                      <div className="text-xs text-slate-500">Average daily rate over last 12 months</div>
-                    </div>
-                    <div className="space-y-1">
-                      {adrTrends.map(({ month, adr }) => {
-                        const maxADR = Math.max(...adrTrends.map(t => parseFloat(t.adr)), 1);
-                        const width = (parseFloat(adr) / maxADR) * 100;
-                        return (
-                          <div key={month} className="flex items-center gap-2">
-                            <div className="w-20 text-xs text-slate-600 flex-shrink-0">{month}</div>
-                            <div className="flex-1 h-8 bg-slate-100 rounded relative overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-500"
-                                style={{ width: `${width}%` }}
-                              />
-                              <div className="absolute inset-0 flex items-center px-2">
-                                <span className="text-xs font-semibold text-slate-900">${adr}</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Site Class Performance */}
-                {activeTab === 'performance' && siteClassStats && siteClassStats.length > 0 && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Site Class Performance</div>
-                      <div className="text-xs text-slate-500">Revenue by class</div>
-                    </div>
-                    <div className="space-y-2">
-                      {siteClassStats.map((cls) => (
-                        <div key={cls.className} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
-                          <div>
-                            <div className="text-sm font-medium text-slate-900">{cls.className}</div>
-                            <div className="text-xs text-slate-500">{cls.bookings} bookings</div>
-                          </div>
-                          <div className="text-sm font-bold text-emerald-600">{formatCurrency(cls.revenue, 0)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Occupancy Trends */}
-                {activeTab === 'performance' && occupancyTrends && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Occupancy Trends</div>
-                      <div className="text-xs text-slate-500">Last 12 months</div>
-                    </div>
-                    <div className="space-y-1">
-                      {occupancyTrends.map(({ month, occupancy }) => {
-                        const maxOccupancy = Math.max(...occupancyTrends.map(t => parseFloat(t.occupancy)), 1);
-                        const width = (parseFloat(occupancy) / maxOccupancy) * 100;
-                        const occupancyNum = parseFloat(occupancy);
-                        const colorClass = occupancyNum >= 80 ? 'from-emerald-500 to-emerald-600' :
-                          occupancyNum >= 60 ? 'from-blue-500 to-blue-600' :
-                            occupancyNum >= 40 ? 'from-amber-500 to-amber-600' :
-                              'from-slate-400 to-slate-500';
-                        return (
-                          <div key={month} className="flex items-center gap-2">
-                            <div className="w-20 text-xs text-slate-600 flex-shrink-0">{month}</div>
-                            <div className="flex-1 h-8 bg-slate-100 rounded relative overflow-hidden">
-                              <div
-                                className={`h-full bg-gradient-to-r ${colorClass} transition-all duration-500`}
-                                style={{ width: `${width}%` }}
-                              />
-                              <div className="absolute inset-0 flex items-center px-2">
-                                <span className="text-xs font-semibold text-slate-900">{occupancy}%</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Revenue Per Site */}
-                {activeTab === 'performance' && revenuePerSiteStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Revenue Per Site</div>
-                      <div className="text-xs text-slate-500">Average performance metrics</div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total Sites</div>
-                        <div className="text-2xl font-bold text-slate-900">{revenuePerSiteStats.totalSites}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">All-Time Avg</div>
-                        <div className="text-2xl font-bold text-emerald-900">{formatCurrency(revenuePerSiteStats.allTime, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Last 30d Avg</div>
-                        <div className="text-2xl font-bold text-blue-900">{formatCurrency(revenuePerSiteStats.last30Days, 0)}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Site Utilization */}
-                {activeTab === 'performance' && siteUtilizationStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Site Utilization Rate</div>
-                      <div className="text-xs text-slate-500">Booking frequency by site (All-time)</div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3 mb-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total Sites</div>
-                        <div className="text-2xl font-bold text-slate-900">{siteUtilizationStats.sites.length}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Avg Bookings</div>
-                        <div className="text-2xl font-bold text-blue-900">{siteUtilizationStats.avgBookings}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
-                        <div className="text-xs text-amber-700 mb-1">Underutilized</div>
-                        <div className="text-2xl font-bold text-amber-900">{siteUtilizationStats.underutilized}</div>
-                      </div>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto space-y-1">
-                      {siteUtilizationStats.sites.slice(0, 15).map((site, idx) => {
-                        const utilizationPercent = (site.bookings / siteUtilizationStats.avgBookings) * 100;
-                        const colorClass = utilizationPercent >= 100 ? 'bg-emerald-500' :
-                          utilizationPercent >= 70 ? 'bg-blue-500' :
-                            utilizationPercent >= 40 ? 'bg-amber-500' :
-                              'bg-rose-500';
-                        return (
-                          <div key={site.name} className="flex items-center gap-2">
-                            <div className="w-32 text-xs text-slate-600 flex-shrink-0 truncate">{site.name}</div>
-                            <div className="flex-1 h-6 bg-slate-100 rounded relative overflow-hidden">
-                              <div
-                                className={`h-full ${colorClass} transition-all duration-500`}
-                                style={{ width: `${Math.min(utilizationPercent, 100)}%` }}
-                              />
-                              <div className="absolute inset-0 flex items-center px-2">
-                                <span className="text-xs font-semibold text-slate-900">{site.bookings} bookings</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Occupancy by Site Class */}
-                {activeTab === 'performance' && occupancyBySiteClass && occupancyBySiteClass.length > 0 && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Occupancy by Site Class</div>
-                      <div className="text-xs text-slate-500">Annual occupancy rate by class</div>
-                    </div>
-                    <div className="space-y-2">
-                      {occupancyBySiteClass.map((cls) => {
-                        const occupancyNum = parseFloat(cls.occupancy);
-                        const colorClass = occupancyNum >= 80 ? 'from-emerald-500 to-emerald-600' :
-                          occupancyNum >= 60 ? 'from-blue-500 to-blue-600' :
-                            occupancyNum >= 40 ? 'from-amber-500 to-amber-600' :
-                              'from-slate-400 to-slate-500';
-                        return (
-                          <div key={cls.className} className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="font-medium text-slate-900">{cls.className}</span>
-                              <span className="text-slate-600">({cls.sites} sites)</span>
-                            </div>
-                            <div className="h-8 bg-slate-100 rounded relative overflow-hidden">
-                              <div
-                                className={`h-full bg-gradient-to-r ${colorClass} transition-all duration-500`}
-                                style={{ width: `${occupancyNum}%` }}
-                              />
-                              <div className="absolute inset-0 flex items-center px-2">
-                                <span className="text-sm font-semibold text-slate-900">{cls.occupancy}%</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Site Utilization Report (90 days) */}
-                {activeTab === 'performance' && siteUtilizationReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Site Utilization (Last 90 Days)</div>
-                      <div className="text-xs text-slate-500">Occupancy rates and revenue by site | Avg: {siteUtilizationReport.avgOccupancy.toFixed(1)}%</div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="border-b border-slate-200">
-                          <tr>
-                            <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                            <th className="text-left py-2 text-slate-600 font-medium">Class</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Occupancy</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Nights</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Bookings</th>
-                            <th className="text-right py-2 text-slate-600 font-medium">Revenue</th>
-                            <th className="text-right py-2 text-slate-600 font-medium">$/Night</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {siteUtilizationReport.sites.map((site, idx) => (
-                            <tr key={site.siteId} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                              <td className="py-2 font-medium">{site.siteName}</td>
-                              <td className="py-2 text-slate-600">{site.siteClass}</td>
-                              <td className="py-2 text-center">
-                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${site.occupancyRate >= 80 ? 'bg-emerald-100 text-emerald-800' :
-                                  site.occupancyRate >= 60 ? 'bg-blue-100 text-blue-800' :
-                                    site.occupancyRate >= 40 ? 'bg-amber-100 text-amber-800' :
-                                      'bg-red-100 text-red-800'
-                                  }`}>
-                                  {site.occupancyRate.toFixed(1)}%
-                                </span>
-                              </td>
-                              <td className="py-2 text-center text-slate-700">{site.nights}</td>
-                              <td className="py-2 text-center text-slate-700">{site.bookings}</td>
-                              <td className="py-2 text-right font-medium text-slate-900">${site.revenue.toFixed(0)}</td>
-                              <td className="py-2 text-right text-slate-600">${site.avgRevenuePerNight.toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Revenue Per Site Report */}
-                {activeTab === 'performance' && revenuePerSiteReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Revenue Per Site (All-Time)</div>
-                      <div className="text-xs text-slate-500">Total: {formatCurrency(revenuePerSiteReport.totalRevenue, 0)}</div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="border-b border-slate-200">
-                          <tr>
-                            <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                            <th className="text-left py-2 text-slate-600 font-medium">Class</th>
-                            <th className="text-right py-2 text-slate-600 font-medium">Total Revenue</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Bookings</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Nights</th>
-                            <th className="text-right py-2 text-slate-600 font-medium">$/Booking</th>
-                            <th className="text-right py-2 text-slate-600 font-medium">$/Night</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {revenuePerSiteReport.sites.slice(0, 20).map((site, idx) => (
-                            <tr key={site.siteId} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                              <td className="py-2 font-medium">{site.siteName}</td>
-                              <td className="py-2 text-slate-600">{site.siteClass}</td>
-                              <td className="py-2 text-right">
-                                <span className="font-semibold text-emerald-700">{formatCurrency(site.totalRevenue, 0)}</span>
-                              </td>
-                              <td className="py-2 text-center text-slate-700">{site.bookings}</td>
-                              <td className="py-2 text-center text-slate-700">{site.nights}</td>
-                              <td className="py-2 text-right text-slate-600">{formatCurrency(site.avgPerBooking)}</td>
-                              <td className="py-2 text-right text-slate-600">{formatCurrency(site.avgPerNight)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'performance' && enableAnalyticsMaps && (occupancyHeatPoints.length > 0 || revenueHeatPoints.length > 0) && (
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    {occupancyHeatPoints.length > 0 && (
-                      <HeatmapCard
-                        title="Utilization Heatmap (90 days)"
-                        subtitle="Occupancy hotspots by site"
-                        points={occupancyHeatPoints}
-                        center={siteCoords.center}
-                        maxValue={100}
-                        isLoading={sitesQuery.isLoading || reservationsQuery.isLoading}
-                      />
-                    )}
-                    {revenueHeatPoints.length > 0 && (
-                      <HeatmapCard
-                        title="Revenue Heatmap (lifetime)"
-                        subtitle="Revenue hotspots by site"
-                        points={revenueHeatPoints}
-                        center={siteCoords.center}
-                        isLoading={sitesQuery.isLoading || reservationsQuery.isLoading}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Length of Stay Distribution */}
-                {activeTab === 'performance' && lengthOfStayReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Length of Stay Distribution</div>
-                      <div className="text-xs text-slate-500">Avg: {lengthOfStayReport.avgStay.toFixed(1)} nights | Total bookings: {lengthOfStayReport.totalBookings}</div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="border-b border-slate-200">
-                          <tr>
-                            <th className="text-left py-2 text-slate-600 font-medium">Nights</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Bookings</th>
-                            <th className="text-left py-2 text-slate-600 font-medium">Distribution</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lengthOfStayReport.distribution.map((stay, idx) => {
-                            const percentage = (stay.count / lengthOfStayReport.totalBookings) * 100;
-                            return (
-                              <tr key={stay.nights} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                <td className="py-2">
-                                  <span className="font-medium text-slate-900">{stay.nights} {stay.nights === 1 ? 'night' : 'nights'}</span>
-                                </td>
-                                <td className="py-2 text-center">
-                                  <span className="inline-block px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800 font-medium">
-                                    {stay.count}
-                                  </span>
-                                </td>
-                                <td className="py-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-6 bg-slate-100 rounded relative overflow-hidden">
-                                      <div
-                                        className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-500"
-                                        style={{ width: `${percentage}%` }}
-                                      />
-                                      <div className="absolute inset-0 flex items-center px-2">
-                                        <span className="text-xs font-semibold text-slate-900">{percentage.toFixed(1)}%</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Booking Lead Time Analysis */}
-                {activeTab === 'performance' && bookingLeadTimeReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Booking Lead Time Analysis</div>
-                      <div className="text-xs text-slate-500">How far in advance guests book | Avg: {bookingLeadTimeReport.avgLeadTime.toFixed(1)} days | Median: {bookingLeadTimeReport.medianLeadTime} days</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                        <div className="text-xs text-red-700 mb-1">Same Day</div>
-                        <div className="text-xl font-bold text-red-900">{bookingLeadTimeReport.buckets.sameDay}</div>
-                        <div className="text-xs text-red-600 mt-1">
-                          {((bookingLeadTimeReport.buckets.sameDay / bookingLeadTimeReport.total) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                        <div className="text-xs text-orange-700 mb-1">1-7 Days</div>
-                        <div className="text-xl font-bold text-orange-900">{bookingLeadTimeReport.buckets.within7Days}</div>
-                        <div className="text-xs text-orange-600 mt-1">
-                          {((bookingLeadTimeReport.buckets.within7Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                        <div className="text-xs text-amber-700 mb-1">8-14 Days</div>
-                        <div className="text-xl font-bold text-amber-900">{bookingLeadTimeReport.buckets.within14Days}</div>
-                        <div className="text-xs text-amber-600 mt-1">
-                          {((bookingLeadTimeReport.buckets.within14Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                        <div className="text-xs text-yellow-700 mb-1">15-30 Days</div>
-                        <div className="text-xl font-bold text-yellow-900">{bookingLeadTimeReport.buckets.within30Days}</div>
-                        <div className="text-xs text-yellow-600 mt-1">
-                          {((bookingLeadTimeReport.buckets.within30Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-lime-200 bg-lime-50 p-3">
-                        <div className="text-xs text-lime-700 mb-1">31-60 Days</div>
-                        <div className="text-xl font-bold text-lime-900">{bookingLeadTimeReport.buckets.within60Days}</div>
-                        <div className="text-xs text-lime-600 mt-1">
-                          {((bookingLeadTimeReport.buckets.within60Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">61-90 Days</div>
-                        <div className="text-xl font-bold text-emerald-900">{bookingLeadTimeReport.buckets.within90Days}</div>
-                        <div className="text-xs text-emerald-600 mt-1">
-                          {((bookingLeadTimeReport.buckets.within90Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">90+ Days</div>
-                        <div className="text-xl font-bold text-blue-900">{bookingLeadTimeReport.buckets.over90Days}</div>
-                        <div className="text-xs text-blue-600 mt-1">
-                          {((bookingLeadTimeReport.buckets.over90Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* REVENUE TAB - Future Revenue Forecast */}
-                {activeTab === 'revenue' && futureRevenue && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Future Revenue Forecast</div>
-                      <div className="text-xs text-slate-500">Confirmed & pending bookings</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Bookings</div>
-                        <div className="text-2xl font-bold text-blue-900">{futureRevenue.count}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">Total Value</div>
-                        <div className="text-2xl font-bold text-emerald-900">${futureRevenue.totalRevenue.toFixed(0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-green-50 p-3">
-                        <div className="text-xs text-green-700 mb-1">Paid</div>
-                        <div className="text-lg font-bold text-green-900">${futureRevenue.totalPaid.toFixed(0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
-                        <div className="text-xs text-amber-700 mb-1">Outstanding</div>
-                        <div className="text-lg font-bold text-amber-900">${futureRevenue.outstanding.toFixed(0)}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* REVENUE TAB - Payment Breakdown */}
-                {activeTab === 'revenue' && paymentStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Payment Breakdown</div>
-                      <div className="text-xs text-slate-500">All-time collection metrics</div>
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total Revenue</div>
-                        <div className="text-xl font-bold text-slate-900">{formatCurrency(paymentStats.totalRevenue, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-green-50 p-3">
-                        <div className="text-xs text-green-700 mb-1">Collected</div>
-                        <div className="text-xl font-bold text-green-900">{formatCurrency(paymentStats.totalPaid, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
-                        <div className="text-xs text-amber-700 mb-1">Outstanding</div>
-                        <div className="text-xl font-bold text-amber-900">{formatCurrency(paymentStats.totalBalance, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Collection Rate</div>
-                        <div className="text-xl font-bold text-blue-900">{paymentStats.paidPercentage}%</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* REVENUE TAB - Monthly Comparison */}
-                {activeTab === 'revenue' && monthlyComparison && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Month-over-Month</div>
-                      <div className="text-xs text-slate-500">Current vs previous month comparison</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700 uppercase">Current Month</div>
-                        <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
-                          <div className="text-xs text-blue-700 mb-1">Bookings</div>
-                          <div className="text-2xl font-bold text-blue-900">{monthlyComparison.current.bookings}</div>
-                        </div>
-                        <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
-                          <div className="text-xs text-emerald-700 mb-1">Revenue</div>
-                          <div className="text-2xl font-bold text-emerald-900">{formatCurrency(monthlyComparison.current.revenue, 0)}</div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700 uppercase">Previous Month</div>
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                          <div className="text-xs text-slate-600 mb-1">Bookings</div>
-                          <div className="text-2xl font-bold text-slate-900">{monthlyComparison.previous.bookings}</div>
-                        </div>
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                          <div className="text-xs text-slate-600 mb-1">Revenue</div>
-                          <div className="text-2xl font-bold text-slate-900">{formatCurrency(monthlyComparison.previous.revenue, 0)}</div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700 uppercase">Change</div>
-                        <div className={`rounded-lg border border-slate-200 p-3 ${monthlyComparison.change.bookings >= 0 ? 'bg-green-50' : 'bg-rose-50'}`}>
-                          <div className="text-xs mb-1 ${monthlyComparison.change.bookings >= 0 ? 'text-green-700' : 'text-rose-700'}">Bookings</div>
-                          <div className={`text-2xl font-bold ${monthlyComparison.change.bookings >= 0 ? 'text-green-900' : 'text-rose-900'}`}>
-                            {monthlyComparison.change.bookings >= 0 ? '+' : ''}{monthlyComparison.change.bookings}
-                          </div>
-                        </div>
-                        <div className={`rounded-lg border border-slate-200 p-3 ${parseFloat(monthlyComparison.change.revenuePercent) >= 0 ? 'bg-green-50' : 'bg-rose-50'}`}>
-                          <div className="text-xs mb-1 ${parseFloat(monthlyComparison.change.revenuePercent) >= 0 ? 'text-green-700' : 'text-rose-700'}">Revenue</div>
-                          <div className={`text-2xl font-bold ${parseFloat(monthlyComparison.change.revenuePercent) >= 0 ? 'text-green-900' : 'text-rose-900'}`}>
-                            {parseFloat(monthlyComparison.change.revenuePercent) >= 0 ? '+' : ''}{monthlyComparison.change.revenuePercent}%
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* GUESTS TAB */}
-                {activeTab === 'guests' && guestStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Guest Analytics</div>
-                      <div className="text-xs text-slate-500">Loyalty metrics</div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total</div>
-                        <div className="text-2xl font-bold text-slate-900">{guestStats.total}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-purple-50 p-3">
-                        <div className="text-xs text-purple-700 mb-1">Repeat</div>
-                        <div className="text-2xl font-bold text-purple-900">{guestStats.repeat}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Rate</div>
-                        <div className="text-2xl font-bold text-blue-900">{guestStats.repeatRate}%</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* GUESTS TAB - Party Size Distribution */}
-                {activeTab === 'guests' && partySizeStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Party Size Distribution</div>
-                      <div className="text-xs text-slate-500">Average party size: {partySizeStats.avgPartySize} guests</div>
-                    </div>
-                    <div className="space-y-2">
-                      {Object.entries(partySizeStats.distribution).map(([range, count]) => {
-                        const total = Object.values(partySizeStats.distribution).reduce((sum, c) => sum + c, 0);
-                        const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
-                        return (
-                          <div key={range} className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-slate-700">{range} guests</span>
-                              <span className="font-semibold text-slate-900">{count} ({percentage}%)</span>
-                            </div>
-                            <div className="h-2 bg-slate-100 rounded overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-purple-500 to-purple-600"
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* GUESTS TAB - Top Guests by Revenue */}
-                {activeTab === 'guests' && topGuestsStats && topGuestsStats.length > 0 && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Top 10 Guests by Revenue</div>
-                      <div className="text-xs text-slate-500">Most valuable customers (All-time)</div>
-                    </div>
-                    <div className="space-y-2">
-                      {topGuestsStats.map((guest, idx) => (
-                        <div key={idx} className="flex items-center gap-3">
-                          <div className="flex-shrink-0 w-6 text-center text-xs font-semibold text-slate-500">#{idx + 1}</div>
-                          <div className="flex-1 flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
-                            <div>
-                              <div className="text-sm font-medium text-slate-900">{guest.name}</div>
-                              <div className="text-xs text-slate-500">{guest.bookings} bookings</div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-bold text-emerald-600">{formatCurrency(guest.revenue, 0)}</div>
-                              <div className="text-xs text-slate-500">{formatCurrency(guest.revenue / guest.bookings, 0)}/booking</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* GUESTS TAB - Guest Loyalty & Repeat Visitors */}
-                {activeTab === 'guests' && guestLoyaltyReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Guest Loyalty & Repeat Visitors</div>
-                      <div className="text-xs text-slate-500">
-                        Repeat Rate: {guestLoyaltyReport.stats.repeatRate.toFixed(1)}% |
-                        Avg Visits per Repeat Guest: {guestLoyaltyReport.stats.avgVisitsPerRepeatGuest.toFixed(1)}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total Guests</div>
-                        <div className="text-2xl font-bold text-slate-900">{guestLoyaltyReport.stats.totalGuests}</div>
-                      </div>
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">Repeat Guests</div>
-                        <div className="text-2xl font-bold text-emerald-900">{guestLoyaltyReport.stats.repeatGuests}</div>
-                      </div>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Repeat Rate</div>
-                        <div className="text-2xl font-bold text-blue-900">{guestLoyaltyReport.stats.repeatRate.toFixed(1)}%</div>
-                      </div>
-                    </div>
-                    {guestLoyaltyReport.guests.length === 0 ? (
-                      <div className="text-sm text-slate-500">No repeat guests yet</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-slate-200">
-                            <tr>
-                              <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
-                              <th className="text-center py-2 text-slate-600 font-medium">Visits</th>
-                              <th className="text-right py-2 text-slate-600 font-medium">Total Spent</th>
-                              <th className="text-left py-2 text-slate-600 font-medium">Last Visit</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {guestLoyaltyReport.guests.slice(0, 25).map((guest, idx) => (
-                              <tr key={guest.guestId} className={idx % 2 === 0 ? 'bg-emerald-50' : 'bg-white'}>
-                                <td className="py-2 font-medium">{guest.name}</td>
-                                <td className="py-2 text-center">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${guest.visits >= 10 ? 'bg-purple-100 text-purple-800' :
-                                    guest.visits >= 5 ? 'bg-emerald-100 text-emerald-800' :
-                                      guest.visits >= 3 ? 'bg-blue-100 text-blue-800' :
-                                        'bg-slate-100 text-slate-800'
-                                    }`}>
-                                    {guest.visits}x
-                                  </span>
-                                </td>
-                                <td className="py-2 text-right">
-                                  <span className="font-semibold text-emerald-700">{formatCurrency(guest.totalSpent)}</span>
-                                </td>
-                                <td className="py-2 text-slate-600">{guest.lastVisit}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* GUESTS TAB - Guest Segmentation (New vs Returning) */}
-                {activeTab === 'guests' && guestSegmentationReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Guest Segmentation Analysis</div>
-                      <div className="text-xs text-slate-500">New vs Returning guest revenue breakdown | Returning Rate: {guestSegmentationReport.returningRate.toFixed(1)}%</div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {guestSegmentationReport.segments.map(segment => (
-                        <div key={segment.type} className={`rounded-lg border-2 p-4 ${segment.type === 'New Guests' ? 'border-blue-300 bg-blue-50' : 'border-emerald-300 bg-emerald-50'
-                          }`}>
-                          <div className={`text-sm font-semibold mb-3 ${segment.type === 'New Guests' ? 'text-blue-900' : 'text-emerald-900'
-                            }`}>
-                            {segment.type}
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${segment.type === 'New Guests' ? 'text-blue-700' : 'text-emerald-700'}`}>
-                                Total Guests
-                              </span>
-                              <span className={`text-lg font-bold ${segment.type === 'New Guests' ? 'text-blue-900' : 'text-emerald-900'}`}>
-                                {segment.count}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${segment.type === 'New Guests' ? 'text-blue-700' : 'text-emerald-700'}`}>
-                                Bookings
-                              </span>
-                              <span className={`text-lg font-bold ${segment.type === 'New Guests' ? 'text-blue-900' : 'text-emerald-900'}`}>
-                                {segment.bookings}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${segment.type === 'New Guests' ? 'text-blue-700' : 'text-emerald-700'}`}>
-                                Total Revenue
-                              </span>
-                              <span className={`text-xl font-bold ${segment.type === 'New Guests' ? 'text-blue-900' : 'text-emerald-900'}`}>
-                                {formatCurrency(segment.revenue, 0)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center pt-2 border-t border-current/20">
-                              <span className={`text-xs ${segment.type === 'New Guests' ? 'text-blue-600' : 'text-emerald-600'}`}>
-                                Avg Per Booking
-                              </span>
-                              <span className={`text-sm font-semibold ${segment.type === 'New Guests' ? 'text-blue-800' : 'text-emerald-800'}`}>
-                                {formatCurrency(segment.avgRevenue)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* ANALYTICS TAB */}
-                {activeTab === 'analytics' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Cancellation Analytics */}
-                    {cancellationStats && (
-                      <div className="card p-4 space-y-3">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Cancellation Analytics</div>
-                          <div className="text-xs text-slate-500">All-time performance</div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                            <div className="text-xs text-slate-600 mb-1">Total</div>
-                            <div className="text-2xl font-bold text-slate-900">{cancellationStats.total}</div>
-                          </div>
-                          <div className="rounded-lg border border-slate-200 bg-rose-50 p-3">
-                            <div className="text-xs text-rose-700 mb-1">Rate</div>
-                            <div className="text-2xl font-bold text-rose-900">{cancellationStats.rate}%</div>
-                          </div>
-                          <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
-                            <div className="text-xs text-amber-700 mb-1">Lost $</div>
-                            <div className="text-2xl font-bold text-amber-900">{formatCurrency(cancellationStats.revenueLost, 0)}</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Length of Stay */}
-                    {lengthOfStayStats && (
-                      <div className="card p-4 space-y-3">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Length of Stay</div>
-                          <div className="text-xs text-slate-500">Average: {lengthOfStayStats.avgNights} nights</div>
-                        </div>
-                        <div className="space-y-2">
-                          {Object.entries(lengthOfStayStats.distribution).map(([range, count]) => (
-                            <div key={range} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
-                              <span className="text-slate-700">{range}</span>
-                              <span className="font-semibold text-slate-900">{count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Booking Window Distribution */}
-                    {bookingWindowStats && (
-                      <div className="card p-4 space-y-3">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Booking Window</div>
-                          <div className="text-xs text-slate-500">Average: {bookingWindowStats.avgDays} days in advance</div>
-                        </div>
-                        <div className="space-y-2">
-                          {Object.entries(bookingWindowStats.distribution).map(([range, count]) => (
-                            <div key={range} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
-                              <span className="text-slate-700">{range}</span>
-                              <span className="font-semibold text-slate-900">{count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Day of Week Patterns */}
-                    {dayOfWeekStats && (
-                      <div className="card p-4 space-y-3">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Day of Week Patterns</div>
-                          <div className="text-xs text-slate-500">Arrival & departure trends</div>
-                        </div>
-                        <div className="space-y-2">
-                          {dayOfWeekStats.map(({ day, arrivals, departures }) => (
-                            <div key={day} className="flex items-center gap-2">
-                              <div className="w-20 text-xs text-slate-600 flex-shrink-0">{day.slice(0, 3)}</div>
-                              <div className="flex-1 grid grid-cols-2 gap-2">
-                                <div className="rounded-md border border-slate-200 bg-blue-50 px-2 py-1 text-xs">
-                                  <span className="text-blue-700">In: </span>
-                                  <span className="font-semibold text-blue-900">{arrivals}</span>
-                                </div>
-                                <div className="rounded-md border border-slate-200 bg-amber-50 px-2 py-1 text-xs">
-                                  <span className="text-amber-700">Out: </span>
-                                  <span className="font-semibold text-amber-900">{departures}</span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Revenue Concentration */}
-                    {revenueConcentrationStats && (
-                      <div className="card p-4 space-y-3 lg:col-span-2">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Revenue Concentration</div>
-                          <div className="text-xs text-slate-500">Pareto analysis of site revenue distribution</div>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="rounded-lg border border-slate-200 bg-white p-4">
-                            <div className="text-xs text-slate-600 mb-2">Total Sites</div>
-                            <div className="text-3xl font-bold text-slate-900 mb-3">{revenueConcentrationStats.totalSites}</div>
-                            <div className="text-xs text-slate-500">In your campground</div>
-                          </div>
-                          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                            <div className="text-xs text-emerald-700 mb-2">Top 20% of Sites</div>
-                            <div className="text-3xl font-bold text-emerald-900 mb-3">{revenueConcentrationStats.top20Percent}%</div>
-                            <div className="text-xs text-emerald-700">of total revenue</div>
-                          </div>
-                          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                            <div className="text-xs text-blue-700 mb-2">Top 50% of Sites</div>
-                            <div className="text-3xl font-bold text-blue-900 mb-3">{revenueConcentrationStats.top50Percent}%</div>
-                            <div className="text-xs text-blue-700">of total revenue</div>
-                          </div>
-                        </div>
-                        <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-700">
-                          <span className="font-semibold">Insight:</span> Understanding revenue concentration helps identify your star performers and opportunities to improve underperforming sites.
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* MARKETING TAB */}
-                {activeTab === 'marketing' && marketingStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Booking Conversion</div>
-                      <div className="text-xs text-slate-500">All-time conversion metrics</div>
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total</div>
-                        <div className="text-2xl font-bold text-slate-900">{marketingStats.total}</div>
-                      </div>
-                      <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                        <div className="text-xs text-green-700 mb-1">Confirmed</div>
-                        <div className="text-2xl font-bold text-green-900">{marketingStats.confirmed}</div>
-                      </div>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Pending</div>
-                        <div className="text-2xl font-bold text-blue-900">{marketingStats.pending}</div>
-                      </div>
-                      <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
-                        <div className="text-xs text-rose-700 mb-1">Cancelled</div>
-                        <div className="text-2xl font-bold text-rose-900">{marketingStats.cancelled}</div>
-                      </div>
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">Conv. Rate</div>
-                        <div className="text-2xl font-bold text-emerald-900">{marketingStats.conversionRate}%</div>
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-                      <div className="text-xs text-purple-700 mb-1">Average Booking Value</div>
-                      <div className="text-3xl font-bold text-purple-900">{formatCurrency(marketingStats.avgBookingValue)}</div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'marketing' && bookingPaceStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Booking Pace</div>
-                      <div className="text-xs text-slate-500">Future bookings on the books</div>
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Next 30 Days</div>
-                        <div className="text-2xl font-bold text-blue-900">{bookingPaceStats.next30Days}</div>
-                        <div className="text-xs text-blue-700">bookings</div>
-                      </div>
-                      <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3">
-                        <div className="text-xs text-cyan-700 mb-1">31-60 Days</div>
-                        <div className="text-2xl font-bold text-cyan-900">{bookingPaceStats.next60Days}</div>
-                        <div className="text-xs text-cyan-700">bookings</div>
-                      </div>
-                      <div className="rounded-lg border border-teal-200 bg-teal-50 p-3">
-                        <div className="text-xs text-teal-700 mb-1">61-90 Days</div>
-                        <div className="text-2xl font-bold text-teal-900">{bookingPaceStats.next90Days}</div>
-                        <div className="text-xs text-teal-700">bookings</div>
-                      </div>
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">Total Future</div>
-                        <div className="text-2xl font-bold text-emerald-900">{bookingPaceStats.total}</div>
-                        <div className="text-xs text-emerald-700">bookings</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* FORECASTING TAB */}
-                {activeTab === 'forecasting' && revenueForecast && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Revenue Forecast</div>
-                      <div className="text-xs text-slate-500">Projected revenue for next 3 months (confirmed + pending bookings)</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      {revenueForecast.map(({ month, revenue, bookings }) => (
-                        <div key={month} className="rounded-lg border border-slate-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-4 space-y-2">
-                          <div className="text-sm font-bold text-blue-900">{month}</div>
-                          <div>
-                            <div className="text-xs text-slate-600">Projected Revenue</div>
-                            <div className="text-3xl font-bold text-slate-900">{formatCurrency(revenue, 0)}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-slate-600">Bookings</div>
-                            <div className="text-lg font-semibold text-slate-900">{bookings}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800">
-                      <span className="font-semibold">Note:</span> Forecasts are based on current confirmed and pending reservations. Actual results may vary based on new bookings and cancellations.
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'forecasting' && bookingPaceStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Demand Outlook</div>
-                      <div className="text-xs text-slate-500">Booking distribution for next 90 days</div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 text-xs text-slate-600">0-30 days</div>
-                        <div className="flex-1 h-10 bg-slate-100 rounded relative overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-blue-500 to-blue-600"
-                            style={{ width: `${(bookingPaceStats.next30Days / bookingPaceStats.total) * 100}%` }}
-                          />
-                          <div className="absolute inset-0 flex items-center px-2">
-                            <span className="text-sm font-semibold text-slate-900">{bookingPaceStats.next30Days} bookings</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 text-xs text-slate-600">31-60 days</div>
-                        <div className="flex-1 h-10 bg-slate-100 rounded relative overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600"
-                            style={{ width: `${(bookingPaceStats.next60Days / bookingPaceStats.total) * 100}%` }}
-                          />
-                          <div className="absolute inset-0 flex items-center px-2">
-                            <span className="text-sm font-semibold text-slate-900">{bookingPaceStats.next60Days} bookings</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 text-xs text-slate-600">61-90 days</div>
-                        <div className="flex-1 h-10 bg-slate-100 rounded relative overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-teal-500 to-teal-600"
-                            style={{ width: `${(bookingPaceStats.next90Days / bookingPaceStats.total) * 100}%` }}
-                          />
-                          <div className="absolute inset-0 flex items-center px-2">
-                            <span className="text-sm font-semibold text-slate-900">{bookingPaceStats.next90Days} bookings</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* FORECASTING TAB - Seasonal Analysis */}
-                {activeTab === 'forecasting' && seasonalAnalysisReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Peak vs Off-Peak Season Analysis</div>
-                      <div className="text-xs text-slate-500">Avg Revenue: ${seasonalAnalysisReport.avgRevenue.toFixed(0)}/month | Peak: {seasonalAnalysisReport.peakMonths.map(m => m.month).join(', ')}</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {seasonalAnalysisReport.months.map(month => {
-                        const isPeak = seasonalAnalysisReport.peakMonths.some(m => m.month === month.month);
-                        const isOffPeak = seasonalAnalysisReport.offPeakMonths.some(m => m.month === month.month);
-                        return (
-                          <div
-                            key={month.month}
-                            className={`rounded-lg border p-3 ${isPeak ? 'border-emerald-300 bg-emerald-50' :
-                              isOffPeak ? 'border-amber-300 bg-amber-50' :
-                                'border-slate-200 bg-slate-50'
-                              }`}
-                          >
-                            <div className={`text-xs mb-1 font-medium ${isPeak ? 'text-emerald-700' :
-                              isOffPeak ? 'text-amber-700' :
-                                'text-slate-600'
-                              }`}>
-                              {month.month}
-                            </div>
-                            <div className={`text-lg font-bold ${isPeak ? 'text-emerald-900' :
-                              isOffPeak ? 'text-amber-900' :
-                                'text-slate-900'
-                              }`}>
-                              {formatCurrency(month.revenue, 0)}
-                            </div>
-                            <div className={`text-xs mt-1 ${isPeak ? 'text-emerald-600' :
-                              isOffPeak ? 'text-amber-600' :
-                                'text-slate-500'
-                              }`}>
-                              {month.bookings} bookings
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* FORECASTING TAB - Day of Week Performance */}
-                {activeTab === 'forecasting' && dayOfWeekReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Day of Week Performance</div>
-                      <div className="text-xs text-slate-500">Check-in patterns by arrival day | Avg: {dayOfWeekReport.avgBookingsPerDay.toFixed(1)} bookings/day</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-                      {dayOfWeekReport.days.map(day => {
-                        const isWeekend = day.day === 'Friday' || day.day === 'Saturday';
-                        return (
-                          <div
-                            key={day.day}
-                            className={`rounded-lg border p-3 ${isWeekend ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-slate-50'
-                              }`}
-                          >
-                            <div className={`text-xs mb-1 ${isWeekend ? 'text-blue-700 font-medium' : 'text-slate-600'}`}>
-                              {day.day.substring(0, 3)}
-                            </div>
-                            <div className={`text-xl font-bold ${isWeekend ? 'text-blue-900' : 'text-slate-900'}`}>
-                              {day.bookings}
-                            </div>
-                            <div className={`text-xs mt-1 ${isWeekend ? 'text-blue-600' : 'text-slate-500'}`}>
-                              {formatCurrency(day.revenue, 0)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* FORECASTING TAB - Revenue Optimization Opportunities */}
-                {activeTab === 'forecasting' && revenueOptimizationReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Revenue Optimization Opportunities</div>
-                      <div className="text-xs text-slate-500">Actionable insights to improve performance</div>
-                    </div>
-                    {revenueOptimizationReport.length === 0 ? (
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
-                        <div className="text-emerald-800 font-medium">All systems performing well!</div>
-                        <div className="text-xs text-emerald-600 mt-1">No optimization opportunities detected</div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {revenueOptimizationReport.map((opp, idx) => (
-                          <div
-                            key={idx}
-                            className={`rounded-lg border p-3 ${opp.severity === 'high' ? 'border-red-200 bg-red-50' :
-                              opp.severity === 'medium' ? 'border-amber-200 bg-amber-50' :
-                                'border-blue-200 bg-blue-50'
-                              }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${opp.severity === 'high' ? 'bg-red-100 text-red-800' :
-                                    opp.severity === 'medium' ? 'bg-amber-100 text-amber-800' :
-                                      'bg-blue-100 text-blue-800'
-                                    }`}>
-                                    {opp.severity.toUpperCase()}
-                                  </span>
-                                  <span className={`text-xs font-medium ${opp.severity === 'high' ? 'text-red-700' :
-                                    opp.severity === 'medium' ? 'text-amber-700' :
-                                      'text-blue-700'
-                                    }`}>
-                                    {opp.type}
-                                  </span>
-                                </div>
-                                <div className={`text-sm ${opp.severity === 'high' ? 'text-red-900' :
-                                  opp.severity === 'medium' ? 'text-amber-900' :
-                                    'text-blue-900'
-                                  }`}>
-                                  {opp.description}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* FORECASTING TAB - Occupancy Forecast (90 days) */}
-                {activeTab === 'forecasting' && occupancyForecastReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">90-Day Occupancy Forecast</div>
-                      <div className="text-xs text-slate-500">
-                        Avg: {occupancyForecastReport.avgOccupancy.toFixed(1)}% |
-                        Peak: {occupancyForecastReport.peakDay.occupancy.toFixed(1)}% on {occupancyForecastReport.peakDay.date} |
-                        Low: {occupancyForecastReport.lowDay.occupancy.toFixed(1)}% on {occupancyForecastReport.lowDay.date}
-                      </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="border-b border-slate-200">
-                          <tr>
-                            <th className="text-left py-2 text-slate-600 font-medium">Date</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Occupied</th>
-                            <th className="text-center py-2 text-slate-600 font-medium">Total Sites</th>
-                            <th className="text-left py-2 text-slate-600 font-medium">Occupancy</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {occupancyForecastReport.forecast.map((day, idx) => {
-                            if (idx % 7 !== 0) return null; // Show weekly snapshots
-                            return (
-                              <tr key={day.date} className={idx % 14 === 0 ? 'bg-slate-50' : ''}>
-                                <td className="py-2 font-medium">{day.date}</td>
-                                <td className="py-2 text-center text-slate-700">{day.occupiedSites}</td>
-                                <td className="py-2 text-center text-slate-600">{day.totalSites}</td>
-                                <td className="py-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-6 bg-slate-100 rounded relative overflow-hidden max-w-xs">
-                                      <div
-                                        className={`h-full transition-all duration-500 ${day.occupancy >= 80 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600' :
-                                          day.occupancy >= 60 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
-                                            day.occupancy >= 40 ? 'bg-gradient-to-r from-amber-500 to-amber-600' :
-                                              'bg-gradient-to-r from-red-500 to-red-600'
-                                          }`}
-                                        style={{ width: `${day.occupancy}%` }}
-                                      />
-                                      <div className="absolute inset-0 flex items-center px-2">
-                                        <span className="text-xs font-semibold text-slate-900">{day.occupancy.toFixed(1)}%</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Extended Stay Analysis */}
-                {activeTab === 'performance' && extendedStayReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Extended Stay Analysis</div>
-                      <div className="text-xs text-slate-500">Long-term guest tracking (7+ nights)</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      {extendedStayReport.summary.map(category => (
-                        <div key={category.type} className="rounded-lg border-2 border-purple-300 bg-purple-50 p-4">
-                          <div className="text-xs font-semibold text-purple-900 mb-3">{category.type}</div>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-purple-700">Bookings</span>
-                              <span className="text-lg font-bold text-purple-900">{category.count}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-purple-700">Unique Guests</span>
-                              <span className="text-lg font-bold text-purple-900">{category.uniqueGuests}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-purple-700">Revenue</span>
-                              <span className="text-lg font-bold text-purple-900">{formatCurrency(category.revenue, 0)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-purple-700">Avg Stay</span>
-                              <span className="text-lg font-bold text-purple-900">{category.avgStay.toFixed(1)} nights</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {extendedStayReport.extendedStays.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700 uppercase">Top Extended Stays</div>
+                {
+                  (activeTab as string) === 'daily' && transactionLog && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Transaction Log</div>
+                        <div className="text-xs text-slate-500">Complete financial activity log, sorted by date</div>
+                      </div>
+                      {transactionLog.length === 0 ? (
+                        <div className="text-sm text-slate-500">No transactions found</div>
+                      ) : (
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead className="border-b border-slate-200">
                               <tr>
-                                <th className="text-left py-2 text-slate-600 font-medium">Type</th>
-                                <th className="text-left py-2 text-slate-600 font-medium">Guest</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Date</th>
                                 <th className="text-left py-2 text-slate-600 font-medium">Site</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Guest</th>
                                 <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
                                 <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                                <th className="text-right py-2 text-slate-600 font-medium">Nights</th>
-                                <th className="text-right py-2 text-slate-600 font-medium">Revenue</th>
+                                <th className="text-right py-2 text-slate-600 font-medium">Total</th>
+                                <th className="text-right py-2 text-slate-600 font-medium">Paid</th>
+                                <th className="text-right py-2 text-slate-600 font-medium">Balance</th>
+                                <th className="text-center py-2 text-slate-600 font-medium w-16"></th>
                               </tr>
                             </thead>
                             <tbody>
-                              {extendedStayReport.extendedStays.map((stay, idx) => (
-                                <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                  <td className="py-2">
-                                    <span className={`inline-block px-2 py-0.5 rounded text-xs ${stay.type === 'Monthly (30+)' ? 'bg-purple-100 text-purple-800' :
-                                      stay.type === 'Bi-Weekly (14-29)' ? 'bg-indigo-100 text-indigo-800' :
-                                        'bg-blue-100 text-blue-800'
-                                      }`}>
-                                      {stay.type}
+                              {transactionLog.map((r, idx) => (
+                                <tr key={r.id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
+                                  <td className="py-2 font-medium">{r.transactionDate}</td>
+                                  <td className="py-2">{r.siteName}</td>
+                                  <td className="py-2">{r.guestName}</td>
+                                  <td className="py-2 text-xs text-slate-600">{r.arrivalDate}</td>
+                                  <td className="py-2 text-xs text-slate-600">{r.departureDate}</td>
+                                  <td className="py-2 text-right">{formatCurrency(r.total)}</td>
+                                  <td className="py-2 text-right">
+                                    <span className="text-emerald-700 font-medium">${r.paid.toFixed(2)}</span>
+                                  </td>
+                                  <td className="py-2 text-right">
+                                    <span className={r.balance > 0 ? 'text-amber-700 font-medium' : 'text-slate-600'}>
+                                      {formatCurrency(r.balance)}
                                     </span>
                                   </td>
-                                  <td className="py-2">{stay.guest}</td>
-                                  <td className="py-2">{stay.site}</td>
-                                  <td className="py-2">{stay.arrival}</td>
-                                  <td className="py-2">{stay.departure}</td>
-                                  <td className="py-2 text-right font-semibold">{stay.nights}</td>
-                                  <td className="py-2 text-right">{formatCurrency(stay.revenue)}</td>
+                                  <td className="py-2 text-center">
+                                    <Link href={`/reservations/${r.id}`} className="text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 text-xs">
+                                      View <ExternalLink className="h-3 w-3" />
+                                    </Link>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )
+                }
 
-                {/* GUESTS TAB - Group Booking Analysis */}
-                {activeTab === 'guests' && groupBookingReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Group Booking Analysis</div>
-                      <div className="text-xs text-slate-500">Parties of 5+ guests | Total: {groupBookingReport.totalGroups} groups</div>
+                {/* Monthly Revenue */}
+                {
+                  (activeTab as string) === 'daily' && monthlyRevenue && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Monthly Revenue Breakdown</div>
+                        <div className="text-xs text-slate-500">All 12 months for current year</div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {monthlyRevenue.map(m => (
+                          <div
+                            key={m.month}
+                            className={`rounded-lg border p-3 ${m.isCurrent
+                              ? 'border-emerald-200 bg-emerald-50'
+                              : 'border-slate-200 bg-slate-50'
+                              }`}
+                          >
+                            <div className={`text-xs mb-1 ${m.isCurrent ? 'text-emerald-700 font-medium' : 'text-slate-600'}`}>
+                              {m.month}
+                            </div>
+                            <div className={`text-lg font-bold ${m.isCurrent ? 'text-emerald-900' : 'text-slate-900'}`}>
+                              {formatCurrency(m.revenue, 0)}
+                            </div>
+                            <div className={`text-xs mt-1 ${m.isCurrent ? 'text-emerald-700' : 'text-slate-600'}`}>
+                              {m.bookings} bookings
+                            </div>
+                            <div className={`text-xs ${m.isCurrent ? 'text-emerald-600' : 'text-slate-500'}`}>
+                              Paid: {formatCurrency(m.paid, 0)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Total Groups</div>
-                        <div className="text-2xl font-bold text-blue-900">{groupBookingReport.totalGroups}</div>
+                  )
+                }
+
+                {/* Annual Revenue */}
+                {
+                  (activeTab as string) === 'daily' && annualRevenue && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Annual Revenue Comparison</div>
+                        <div className="text-xs text-slate-500">Year-over-year performance (last 3 years)</div>
                       </div>
-                      <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
-                        <div className="text-xs text-emerald-700 mb-1">Total Revenue</div>
-                        <div className="text-2xl font-bold text-emerald-900">{formatCurrency(groupBookingReport.totalRevenue, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-purple-50 p-3">
-                        <div className="text-xs text-purple-700 mb-1">Avg Party Size</div>
-                        <div className="text-2xl font-bold text-purple-900">{groupBookingReport.avgPartySize.toFixed(1)}</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
-                        <div className="text-xs text-amber-700 mb-1">Avg Revenue/Person</div>
-                        <div className="text-2xl font-bold text-amber-900">{formatCurrency(groupBookingReport.avgRevenuePerPerson, 0)}</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {annualRevenue.map(y => (
+                          <div
+                            key={y.year}
+                            className={`rounded-lg border p-4 ${y.isCurrent
+                              ? 'border-emerald-300 bg-emerald-50'
+                              : 'border-slate-200 bg-slate-50'
+                              }`}
+                          >
+                            <div className={`text-sm mb-2 ${y.isCurrent ? 'text-emerald-700 font-semibold' : 'text-slate-600 font-medium'}`}>
+                              {y.year} {y.isCurrent && '(Current)'}
+                            </div>
+                            <div className={`text-2xl font-bold mb-2 ${y.isCurrent ? 'text-emerald-900' : 'text-slate-900'}`}>
+                              {formatCurrency(y.revenue, 0)}
+                            </div>
+                            <div className="space-y-1">
+                              <div className={`text-xs ${y.isCurrent ? 'text-emerald-700' : 'text-slate-600'}`}>
+                                {y.bookings} total bookings
+                              </div>
+                              <div className={`text-xs ${y.isCurrent ? 'text-emerald-700' : 'text-slate-600'}`}>
+                                Paid: {formatCurrency(y.paid, 0)}
+                              </div>
+                              <div className={`text-xs ${y.isCurrent ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                Avg: {formatCurrency(y.avgPerBooking)}/booking
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    {groupBookingReport.largestGroups.length > 0 && (
+                  )
+                }
+
+                {/* Daily Revenue (Last 30 Days) */}
+                {
+                  (activeTab as string) === 'daily' && dailyRevenue && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Daily Revenue Trend</div>
+                        <div className="text-xs text-slate-500">Last 30 days booking activity</div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b border-slate-200">
+                            <tr>
+                              <th className="text-left py-2 text-slate-600 font-medium">Date</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Bookings</th>
+                              <th className="text-right py-2 text-slate-600 font-medium">Revenue</th>
+                              <th className="text-right py-2 text-slate-600 font-medium">Paid</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dailyRevenue.map((d, idx) => (
+                              <tr key={d.date} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
+                                <td className="py-2 font-medium">{d.date}</td>
+                                <td className="py-2 text-center">
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs ${d.bookings > 0 ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                    {d.bookings}
+                                  </span>
+                                </td>
+                                <td className="py-2 text-right">
+                                  <span className={d.revenue > 0 ? 'text-slate-900 font-medium' : 'text-slate-400'}>
+                                    {formatCurrency(d.revenue)}
+                                  </span>
+                                </td>
+                                <td className="py-2 text-right">
+                                  <span className={d.paid > 0 ? 'text-emerald-700 font-medium' : 'text-slate-400'}>
+                                    {formatCurrency(d.paid)}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* Cancellation Report */}
+                {
+                  (activeTab as string) === 'daily' && cancellationReport && (
+                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Cancellations</div>
+                        <div className="text-xs text-slate-500">Last 30 days cancelled reservations</div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                          <div className="text-xs text-red-700 mb-1">Total Cancelled</div>
+                          <div className="text-2xl font-bold text-red-900">{cancellationReport.summary.count}</div>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                          <div className="text-xs text-amber-700 mb-1">Lost Revenue</div>
+                          <div className="text-2xl font-bold text-amber-900">{formatCurrency(cancellationReport.summary.totalLost, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Refunded</div>
+                          <div className="text-2xl font-bold text-blue-900">{formatCurrency(cancellationReport.summary.totalRefunded, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Net Loss</div>
+                          <div className="text-2xl font-bold text-slate-900">{formatCurrency(cancellationReport.summary.netLoss, 0)}</div>
+                        </div>
+                      </div>
+                      {cancellationReport.cancellations.length === 0 ? (
+                        <div className="text-sm text-slate-500">No cancellations in the last 30 days</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="border-b border-slate-200">
+                              <tr>
+                                <th className="text-left py-2 text-slate-600 font-medium">Cancel Date</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Site</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Guest</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
+                                <th className="text-right py-2 text-slate-600 font-medium">Lost Revenue</th>
+                                <th className="text-right py-2 text-slate-600 font-medium">Refunded</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {cancellationReport.cancellations.map((r, idx) => (
+                                <tr key={r.id} className={idx % 2 === 0 ? 'bg-red-50' : 'bg-white'}>
+                                  <td className="py-2 font-medium">{new Date(r.cancelDate).toISOString().split('T')[0]}</td>
+                                  <td className="py-2">{r.siteName}</td>
+                                  <td className="py-2">{r.guestName}</td>
+                                  <td className="py-2 text-xs text-slate-600">{r.arrivalDate}</td>
+                                  <td className="py-2 text-right">
+                                    <span className="text-red-700 font-medium">{formatCurrency(r.lostRevenue)}</span>
+                                  </td>
+                                  <td className="py-2 text-right">
+                                    <span className="text-blue-700">{formatCurrency(r.refunded)}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                {/* No-Show Report */}
+                {
+                  (activeTab as string) === 'daily' && noShowReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">No-Shows</div>
+                        <div className="text-xs text-slate-500">Guests who didn't arrive for confirmed reservations</div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                          <div className="text-xs text-orange-700 mb-1">Total No-Shows</div>
+                          <div className="text-2xl font-bold text-orange-900">{noShowReport.summary.count}</div>
+                        </div>
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                          <div className="text-xs text-red-700 mb-1">Lost Revenue</div>
+                          <div className="text-2xl font-bold text-red-900">{formatCurrency(noShowReport.summary.totalLost, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">Paid (Non-Refundable)</div>
+                          <div className="text-2xl font-bold text-emerald-900">{formatCurrency(noShowReport.summary.totalPaid, 0)}</div>
+                        </div>
+                      </div>
+                      {noShowReport.noShows.length === 0 ? (
+                        <div className="text-sm text-emerald-600">No no-shows detected - excellent!</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="border-b border-slate-200">
+                              <tr>
+                                <th className="text-left py-2 text-slate-600 font-medium">Days Late</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Site</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Guest</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Expected Arrival</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
+                                <th className="text-right py-2 text-slate-600 font-medium">Amount Paid</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {noShowReport.noShows.map((r, idx) => (
+                                <tr key={r.id} className={idx % 2 === 0 ? 'bg-orange-50' : 'bg-white'}>
+                                  <td className="py-2">
+                                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.daysLate > 7 ? 'bg-red-100 text-red-800' :
+                                      r.daysLate > 3 ? 'bg-orange-100 text-orange-800' :
+                                        'bg-amber-100 text-amber-800'
+                                      }`}>
+                                      {r.daysLate} days
+                                    </span>
+                                  </td>
+                                  <td className="py-2">{r.siteName}</td>
+                                  <td className="py-2">{r.guestName}</td>
+                                  <td className="py-2 text-xs text-slate-600">{r.arrivalDate}</td>
+                                  <td className="py-2 text-xs text-slate-600">{r.departureDate}</td>
+                                  <td className="py-2 text-right">
+                                    <span className="text-emerald-700 font-medium">${r.paid.toFixed(2)}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                {/* REVENUE TAB */}
+                {
+                  activeTab === 'revenue' && reservationStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Reservation Analytics</div>
+                        <div className="text-xs text-slate-500">For date range: {dateRange.start} to {dateRange.end}</div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total Bookings</div>
+                          <div className="text-2xl font-bold text-slate-900">{reservationStats.total}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">Revenue</div>
+                          <div className="text-2xl font-bold text-emerald-900">{formatCurrency(reservationStats.totalRevenue, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Avg Lead Time</div>
+                          <div className="text-2xl font-bold text-blue-900">{reservationStats.avgLeadTime}d</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-purple-50 p-3">
+                          <div className="text-xs text-purple-700 mb-1">Avg per Booking</div>
+                          <div className="text-2xl font-bold text-purple-900">
+                            {reservationStats.total > 0 ? formatCurrency(reservationStats.totalRevenue / reservationStats.total, 0) : '0'}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-2">By Status</div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {Object.entries(reservationStats.byStatus).map(([status, count]) => (
+                            <div key={status} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                              <div className="text-xs text-slate-500 capitalize">{status.replace('_', ' ')}</div>
+                              <div className="font-semibold text-slate-900">{count}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Site Performance */}
+                {
+                  activeTab === 'performance' && sitePerformance && sitePerformance.length > 0 && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Top 10 Sites by Revenue</div>
+                        <div className="text-xs text-slate-500">All-time performance</div>
+                      </div>
                       <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700 uppercase">Largest Groups</div>
+                        {sitePerformance.map((site, idx) => (
+                          <div key={site.name} className="flex items-center gap-3">
+                            <div className="flex-shrink-0 w-6 text-center text-xs font-semibold text-slate-500">#{idx + 1}</div>
+                            <div className="flex-1 flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
+                              <div>
+                                <div className="text-sm font-medium text-slate-900">{site.name}</div>
+                                <div className="text-xs text-slate-500">{site.bookings} bookings</div>
+                              </div>
+                              <div className="text-sm font-bold text-emerald-600">{formatCurrency(site.revenue, 0)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* Revenue Trends */}
+                {
+                  activeTab === 'revenue' && revenueTrends && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Revenue Trends</div>
+                        <div className="text-xs text-slate-500">Last 12 months</div>
+                      </div>
+                      <div className="space-y-1">
+                        {revenueTrends.map(({ month, revenue }) => {
+                          const maxRevenue = Math.max(...revenueTrends.map(t => t.revenue), 1);
+                          const width = (revenue / maxRevenue) * 100;
+                          return (
+                            <div key={month} className="flex items-center gap-2">
+                              <div className="w-20 text-xs text-slate-600 flex-shrink-0">{month}</div>
+                              <div className="flex-1 h-8 bg-slate-100 rounded relative overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500"
+                                  style={{ width: `${width}%` }}
+                                />
+                                <div className="absolute inset-0 flex items-center px-2">
+                                  <span className="text-xs font-semibold text-slate-900">{formatCurrency(revenue, 0)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* REVENUE TAB - Weekend vs Weekday */}
+                {
+                  activeTab === 'revenue' && weekendVsWeekdayStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Weekend vs Weekday Performance</div>
+                        <div className="text-xs text-slate-500">Booking patterns by arrival day</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+                          <div className="text-sm font-bold text-blue-900">Weekend (Fri-Sat Arrivals)</div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <div className="text-xs text-blue-700 mb-1">Bookings</div>
+                              <div className="text-2xl font-bold text-blue-900">{weekendVsWeekdayStats.weekend.bookings}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-blue-700 mb-1">Revenue</div>
+                              <div className="text-2xl font-bold text-blue-900">{formatCurrency(weekendVsWeekdayStats.weekend.revenue, 0)}</div>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-blue-700 mb-1">Avg per Booking</div>
+                            <div className="text-lg font-bold text-blue-900">{formatCurrency(weekendVsWeekdayStats.weekend.avgRevenue, 0)}</div>
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+                          <div className="text-sm font-bold text-slate-900">Weekday (Sun-Thu Arrivals)</div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <div className="text-xs text-slate-600 mb-1">Bookings</div>
+                              <div className="text-2xl font-bold text-slate-900">{weekendVsWeekdayStats.weekday.bookings}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-600 mb-1">Revenue</div>
+                              <div className="text-2xl font-bold text-slate-900">{formatCurrency(weekendVsWeekdayStats.weekday.revenue, 0)}</div>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-slate-600 mb-1">Avg per Booking</div>
+                            <div className="text-lg font-bold text-slate-900">{formatCurrency(weekendVsWeekdayStats.weekday.avgRevenue, 0)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* REVENUE TAB - Pricing Analysis by Site Class */}
+                {
+                  activeTab === 'revenue' && pricingAnalysis && pricingAnalysis.length > 0 && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Pricing Analysis by Site Class</div>
+                        <div className="text-xs text-slate-500">Average daily rate and performance metrics</div>
+                      </div>
+                      <div className="space-y-2">
+                        {pricingAnalysis.map((cls) => (
+                          <div key={cls.className} className="rounded-md border border-slate-200 bg-white p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-sm font-medium text-slate-900">{cls.className}</div>
+                              <div className="text-lg font-bold text-emerald-600">${cls.adr}/night</div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                              <div>
+                                <div className="text-slate-500">Total Nights</div>
+                                <div className="font-semibold text-slate-900">{cls.totalNights}</div>
+                              </div>
+                              <div>
+                                <div className="text-slate-500">Total Revenue</div>
+                                <div className="font-semibold text-slate-900">{formatCurrency(cls.totalRevenue, 0)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* REVENUE TAB - ADR Trends */}
+                {
+                  activeTab === 'revenue' && adrTrends && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">ADR Trends</div>
+                        <div className="text-xs text-slate-500">Average daily rate over last 12 months</div>
+                      </div>
+                      <div className="space-y-1">
+                        {adrTrends.map(({ month, adr }) => {
+                          const maxADR = Math.max(...adrTrends.map(t => parseFloat(t.adr)), 1);
+                          const width = (parseFloat(adr) / maxADR) * 100;
+                          return (
+                            <div key={month} className="flex items-center gap-2">
+                              <div className="w-20 text-xs text-slate-600 flex-shrink-0">{month}</div>
+                              <div className="flex-1 h-8 bg-slate-100 rounded relative overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-500"
+                                  style={{ width: `${width}%` }}
+                                />
+                                <div className="absolute inset-0 flex items-center px-2">
+                                  <span className="text-xs font-semibold text-slate-900">${adr}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Site Class Performance */}
+                {
+                  activeTab === 'performance' && siteClassStats && siteClassStats.length > 0 && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Site Class Performance</div>
+                        <div className="text-xs text-slate-500">Revenue by class</div>
+                      </div>
+                      <div className="space-y-2">
+                        {siteClassStats.map((cls) => (
+                          <div key={cls.className} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
+                            <div>
+                              <div className="text-sm font-medium text-slate-900">{cls.className}</div>
+                              <div className="text-xs text-slate-500">{cls.bookings} bookings</div>
+                            </div>
+                            <div className="text-sm font-bold text-emerald-600">{formatCurrency(cls.revenue, 0)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Occupancy Trends */}
+                {
+                  activeTab === 'performance' && occupancyTrends && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Occupancy Trends</div>
+                        <div className="text-xs text-slate-500">Last 12 months</div>
+                      </div>
+                      <div className="space-y-1">
+                        {occupancyTrends.map(({ month, occupancy }) => {
+                          const maxOccupancy = Math.max(...occupancyTrends.map(t => parseFloat(t.occupancy)), 1);
+                          const width = (parseFloat(occupancy) / maxOccupancy) * 100;
+                          const occupancyNum = parseFloat(occupancy);
+                          const colorClass = occupancyNum >= 80 ? 'from-emerald-500 to-emerald-600' :
+                            occupancyNum >= 60 ? 'from-blue-500 to-blue-600' :
+                              occupancyNum >= 40 ? 'from-amber-500 to-amber-600' :
+                                'from-slate-400 to-slate-500';
+                          return (
+                            <div key={month} className="flex items-center gap-2">
+                              <div className="w-20 text-xs text-slate-600 flex-shrink-0">{month}</div>
+                              <div className="flex-1 h-8 bg-slate-100 rounded relative overflow-hidden">
+                                <div
+                                  className={`h-full bg-gradient-to-r ${colorClass} transition-all duration-500`}
+                                  style={{ width: `${width}%` }}
+                                />
+                                <div className="absolute inset-0 flex items-center px-2">
+                                  <span className="text-xs font-semibold text-slate-900">{occupancy}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Revenue Per Site */}
+                {
+                  activeTab === 'performance' && revenuePerSiteStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Revenue Per Site</div>
+                        <div className="text-xs text-slate-500">Average performance metrics</div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total Sites</div>
+                          <div className="text-2xl font-bold text-slate-900">{revenuePerSiteStats.totalSites}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">All-Time Avg</div>
+                          <div className="text-2xl font-bold text-emerald-900">{formatCurrency(revenuePerSiteStats.allTime, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Last 30d Avg</div>
+                          <div className="text-2xl font-bold text-blue-900">{formatCurrency(revenuePerSiteStats.last30Days, 0)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Site Utilization */}
+                {
+                  activeTab === 'performance' && siteUtilizationStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Site Utilization Rate</div>
+                        <div className="text-xs text-slate-500">Booking frequency by site (All-time)</div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mb-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total Sites</div>
+                          <div className="text-2xl font-bold text-slate-900">{siteUtilizationStats.sites.length}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Avg Bookings</div>
+                          <div className="text-2xl font-bold text-blue-900">{siteUtilizationStats.avgBookings}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
+                          <div className="text-xs text-amber-700 mb-1">Underutilized</div>
+                          <div className="text-2xl font-bold text-amber-900">{siteUtilizationStats.underutilized}</div>
+                        </div>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto space-y-1">
+                        {siteUtilizationStats.sites.slice(0, 15).map((site, idx) => {
+                          const utilizationPercent = (site.bookings / siteUtilizationStats.avgBookings) * 100;
+                          const colorClass = utilizationPercent >= 100 ? 'bg-emerald-500' :
+                            utilizationPercent >= 70 ? 'bg-blue-500' :
+                              utilizationPercent >= 40 ? 'bg-amber-500' :
+                                'bg-rose-500';
+                          return (
+                            <div key={site.name} className="flex items-center gap-2">
+                              <div className="w-32 text-xs text-slate-600 flex-shrink-0 truncate">{site.name}</div>
+                              <div className="flex-1 h-6 bg-slate-100 rounded relative overflow-hidden">
+                                <div
+                                  className={`h-full ${colorClass} transition-all duration-500`}
+                                  style={{ width: `${Math.min(utilizationPercent, 100)}%` }}
+                                />
+                                <div className="absolute inset-0 flex items-center px-2">
+                                  <span className="text-xs font-semibold text-slate-900">{site.bookings} bookings</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Occupancy by Site Class */}
+                {
+                  activeTab === 'performance' && occupancyBySiteClass && occupancyBySiteClass.length > 0 && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Occupancy by Site Class</div>
+                        <div className="text-xs text-slate-500">Annual occupancy rate by class</div>
+                      </div>
+                      <div className="space-y-2">
+                        {occupancyBySiteClass.map((cls) => {
+                          const occupancyNum = parseFloat(cls.occupancy);
+                          const colorClass = occupancyNum >= 80 ? 'from-emerald-500 to-emerald-600' :
+                            occupancyNum >= 60 ? 'from-blue-500 to-blue-600' :
+                              occupancyNum >= 40 ? 'from-amber-500 to-amber-600' :
+                                'from-slate-400 to-slate-500';
+                          return (
+                            <div key={cls.className} className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="font-medium text-slate-900">{cls.className}</span>
+                                <span className="text-slate-600">({cls.sites} sites)</span>
+                              </div>
+                              <div className="h-8 bg-slate-100 rounded relative overflow-hidden">
+                                <div
+                                  className={`h-full bg-gradient-to-r ${colorClass} transition-all duration-500`}
+                                  style={{ width: `${occupancyNum}%` }}
+                                />
+                                <div className="absolute inset-0 flex items-center px-2">
+                                  <span className="text-sm font-semibold text-slate-900">{cls.occupancy}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Site Utilization Report (90 days) */}
+                {
+                  activeTab === 'performance' && siteUtilizationReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Site Utilization (Last 90 Days)</div>
+                        <div className="text-xs text-slate-500">Occupancy rates and revenue by site | Avg: {siteUtilizationReport.avgOccupancy.toFixed(1)}%</div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b border-slate-200">
+                            <tr>
+                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
+                              <th className="text-left py-2 text-slate-600 font-medium">Class</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Occupancy</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Nights</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Bookings</th>
+                              <th className="text-right py-2 text-slate-600 font-medium">Revenue</th>
+                              <th className="text-right py-2 text-slate-600 font-medium">$/Night</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {siteUtilizationReport.sites.map((site, idx) => (
+                              <tr key={site.siteId} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
+                                <td className="py-2 font-medium">{site.siteName}</td>
+                                <td className="py-2 text-slate-600">{site.siteClass}</td>
+                                <td className="py-2 text-center">
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${site.occupancyRate >= 80 ? 'bg-emerald-100 text-emerald-800' :
+                                    site.occupancyRate >= 60 ? 'bg-blue-100 text-blue-800' :
+                                      site.occupancyRate >= 40 ? 'bg-amber-100 text-amber-800' :
+                                        'bg-red-100 text-red-800'
+                                    }`}>
+                                    {site.occupancyRate.toFixed(1)}%
+                                  </span>
+                                </td>
+                                <td className="py-2 text-center text-slate-700">{site.nights}</td>
+                                <td className="py-2 text-center text-slate-700">{site.bookings}</td>
+                                <td className="py-2 text-right font-medium text-slate-900">${site.revenue.toFixed(0)}</td>
+                                <td className="py-2 text-right text-slate-600">${site.avgRevenuePerNight.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Revenue Per Site Report */}
+                {
+                  activeTab === 'performance' && revenuePerSiteReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Revenue Per Site (All-Time)</div>
+                        <div className="text-xs text-slate-500">Total: {formatCurrency(revenuePerSiteReport.totalRevenue, 0)}</div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b border-slate-200">
+                            <tr>
+                              <th className="text-left py-2 text-slate-600 font-medium">Site</th>
+                              <th className="text-left py-2 text-slate-600 font-medium">Class</th>
+                              <th className="text-right py-2 text-slate-600 font-medium">Total Revenue</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Bookings</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Nights</th>
+                              <th className="text-right py-2 text-slate-600 font-medium">$/Booking</th>
+                              <th className="text-right py-2 text-slate-600 font-medium">$/Night</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {revenuePerSiteReport.sites.slice(0, 20).map((site, idx) => (
+                              <tr key={site.siteId} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
+                                <td className="py-2 font-medium">{site.siteName}</td>
+                                <td className="py-2 text-slate-600">{site.siteClass}</td>
+                                <td className="py-2 text-right">
+                                  <span className="font-semibold text-emerald-700">{formatCurrency(site.totalRevenue, 0)}</span>
+                                </td>
+                                <td className="py-2 text-center text-slate-700">{site.bookings}</td>
+                                <td className="py-2 text-center text-slate-700">{site.nights}</td>
+                                <td className="py-2 text-right text-slate-600">{formatCurrency(site.avgPerBooking)}</td>
+                                <td className="py-2 text-right text-slate-600">{formatCurrency(site.avgPerNight)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {
+                  activeTab === 'performance' && enableAnalyticsMaps && (occupancyHeatPoints.length > 0 || revenueHeatPoints.length > 0) && (
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                      {occupancyHeatPoints.length > 0 && (
+                        <HeatmapCard
+                          title="Utilization Heatmap (90 days)"
+                          subtitle="Occupancy hotspots by site"
+                          points={occupancyHeatPoints}
+                          center={siteCoords.center}
+                          maxValue={100}
+                          isLoading={sitesQuery.isLoading || reservationsQuery.isLoading}
+                        />
+                      )}
+                      {revenueHeatPoints.length > 0 && (
+                        <HeatmapCard
+                          title="Revenue Heatmap (lifetime)"
+                          subtitle="Revenue hotspots by site"
+                          points={revenueHeatPoints}
+                          center={siteCoords.center}
+                          isLoading={sitesQuery.isLoading || reservationsQuery.isLoading}
+                        />
+                      )}
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Length of Stay Distribution */}
+                {
+                  activeTab === 'performance' && lengthOfStayReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Length of Stay Distribution</div>
+                        <div className="text-xs text-slate-500">Avg: {lengthOfStayReport.avgStay.toFixed(1)} nights | Total bookings: {lengthOfStayReport.totalBookings}</div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b border-slate-200">
+                            <tr>
+                              <th className="text-left py-2 text-slate-600 font-medium">Nights</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Bookings</th>
+                              <th className="text-left py-2 text-slate-600 font-medium">Distribution</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lengthOfStayReport.distribution.map((stay, idx) => {
+                              const percentage = (stay.count / lengthOfStayReport.totalBookings) * 100;
+                              return (
+                                <tr key={stay.nights} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
+                                  <td className="py-2">
+                                    <span className="font-medium text-slate-900">{stay.nights} {stay.nights === 1 ? 'night' : 'nights'}</span>
+                                  </td>
+                                  <td className="py-2 text-center">
+                                    <span className="inline-block px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800 font-medium">
+                                      {stay.count}
+                                    </span>
+                                  </td>
+                                  <td className="py-2">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 h-6 bg-slate-100 rounded relative overflow-hidden">
+                                        <div
+                                          className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-500"
+                                          style={{ width: `${percentage}%` }}
+                                        />
+                                        <div className="absolute inset-0 flex items-center px-2">
+                                          <span className="text-xs font-semibold text-slate-900">{percentage.toFixed(1)}%</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Booking Lead Time Analysis */}
+                {
+                  activeTab === 'performance' && bookingLeadTimeReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Booking Lead Time Analysis</div>
+                        <div className="text-xs text-slate-500">How far in advance guests book | Avg: {bookingLeadTimeReport.avgLeadTime.toFixed(1)} days | Median: {bookingLeadTimeReport.medianLeadTime} days</div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                          <div className="text-xs text-red-700 mb-1">Same Day</div>
+                          <div className="text-xl font-bold text-red-900">{bookingLeadTimeReport.buckets.sameDay}</div>
+                          <div className="text-xs text-red-600 mt-1">
+                            {((bookingLeadTimeReport.buckets.sameDay / bookingLeadTimeReport.total) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                          <div className="text-xs text-orange-700 mb-1">1-7 Days</div>
+                          <div className="text-xl font-bold text-orange-900">{bookingLeadTimeReport.buckets.within7Days}</div>
+                          <div className="text-xs text-orange-600 mt-1">
+                            {((bookingLeadTimeReport.buckets.within7Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                          <div className="text-xs text-amber-700 mb-1">8-14 Days</div>
+                          <div className="text-xl font-bold text-amber-900">{bookingLeadTimeReport.buckets.within14Days}</div>
+                          <div className="text-xs text-amber-600 mt-1">
+                            {((bookingLeadTimeReport.buckets.within14Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                          <div className="text-xs text-yellow-700 mb-1">15-30 Days</div>
+                          <div className="text-xl font-bold text-yellow-900">{bookingLeadTimeReport.buckets.within30Days}</div>
+                          <div className="text-xs text-yellow-600 mt-1">
+                            {((bookingLeadTimeReport.buckets.within30Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-lime-200 bg-lime-50 p-3">
+                          <div className="text-xs text-lime-700 mb-1">31-60 Days</div>
+                          <div className="text-xl font-bold text-lime-900">{bookingLeadTimeReport.buckets.within60Days}</div>
+                          <div className="text-xs text-lime-600 mt-1">
+                            {((bookingLeadTimeReport.buckets.within60Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">61-90 Days</div>
+                          <div className="text-xl font-bold text-emerald-900">{bookingLeadTimeReport.buckets.within90Days}</div>
+                          <div className="text-xs text-emerald-600 mt-1">
+                            {((bookingLeadTimeReport.buckets.within90Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">90+ Days</div>
+                          <div className="text-xl font-bold text-blue-900">{bookingLeadTimeReport.buckets.over90Days}</div>
+                          <div className="text-xs text-blue-600 mt-1">
+                            {((bookingLeadTimeReport.buckets.over90Days / bookingLeadTimeReport.total) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* REVENUE TAB - Future Revenue Forecast */}
+                {
+                  activeTab === 'revenue' && futureRevenue && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Future Revenue Forecast</div>
+                        <div className="text-xs text-slate-500">Confirmed & pending bookings</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Bookings</div>
+                          <div className="text-2xl font-bold text-blue-900">{futureRevenue.count}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">Total Value</div>
+                          <div className="text-2xl font-bold text-emerald-900">${futureRevenue.totalRevenue.toFixed(0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-green-50 p-3">
+                          <div className="text-xs text-green-700 mb-1">Paid</div>
+                          <div className="text-lg font-bold text-green-900">${futureRevenue.totalPaid.toFixed(0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
+                          <div className="text-xs text-amber-700 mb-1">Outstanding</div>
+                          <div className="text-lg font-bold text-amber-900">${futureRevenue.outstanding.toFixed(0)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* REVENUE TAB - Payment Breakdown */}
+                {
+                  activeTab === 'revenue' && paymentStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Payment Breakdown</div>
+                        <div className="text-xs text-slate-500">All-time collection metrics</div>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total Revenue</div>
+                          <div className="text-xl font-bold text-slate-900">{formatCurrency(paymentStats.totalRevenue, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-green-50 p-3">
+                          <div className="text-xs text-green-700 mb-1">Collected</div>
+                          <div className="text-xl font-bold text-green-900">{formatCurrency(paymentStats.totalPaid, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
+                          <div className="text-xs text-amber-700 mb-1">Outstanding</div>
+                          <div className="text-xl font-bold text-amber-900">{formatCurrency(paymentStats.totalBalance, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Collection Rate</div>
+                          <div className="text-xl font-bold text-blue-900">{paymentStats.paidPercentage}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* REVENUE TAB - Monthly Comparison */}
+                {
+                  activeTab === 'revenue' && monthlyComparison && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Month-over-Month</div>
+                        <div className="text-xs text-slate-500">Current vs previous month comparison</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold text-slate-700 uppercase">Current Month</div>
+                          <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
+                            <div className="text-xs text-blue-700 mb-1">Bookings</div>
+                            <div className="text-2xl font-bold text-blue-900">{monthlyComparison.current.bookings}</div>
+                          </div>
+                          <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
+                            <div className="text-xs text-emerald-700 mb-1">Revenue</div>
+                            <div className="text-2xl font-bold text-emerald-900">{formatCurrency(monthlyComparison.current.revenue, 0)}</div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold text-slate-700 uppercase">Previous Month</div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="text-xs text-slate-600 mb-1">Bookings</div>
+                            <div className="text-2xl font-bold text-slate-900">{monthlyComparison.previous.bookings}</div>
+                          </div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="text-xs text-slate-600 mb-1">Revenue</div>
+                            <div className="text-2xl font-bold text-slate-900">{formatCurrency(monthlyComparison.previous.revenue, 0)}</div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold text-slate-700 uppercase">Change</div>
+                          <div className={`rounded-lg border border-slate-200 p-3 ${monthlyComparison.change.bookings >= 0 ? 'bg-green-50' : 'bg-rose-50'}`}>
+                            <div className="text-xs mb-1 ${monthlyComparison.change.bookings >= 0 ? 'text-green-700' : 'text-rose-700'}">Bookings</div>
+                            <div className={`text-2xl font-bold ${monthlyComparison.change.bookings >= 0 ? 'text-green-900' : 'text-rose-900'}`}>
+                              {monthlyComparison.change.bookings >= 0 ? '+' : ''}{monthlyComparison.change.bookings}
+                            </div>
+                          </div>
+                          <div className={`rounded-lg border border-slate-200 p-3 ${parseFloat(monthlyComparison.change.revenuePercent) >= 0 ? 'bg-green-50' : 'bg-rose-50'}`}>
+                            <div className="text-xs mb-1 ${parseFloat(monthlyComparison.change.revenuePercent) >= 0 ? 'text-green-700' : 'text-rose-700'}">Revenue</div>
+                            <div className={`text-2xl font-bold ${parseFloat(monthlyComparison.change.revenuePercent) >= 0 ? 'text-green-900' : 'text-rose-900'}`}>
+                              {parseFloat(monthlyComparison.change.revenuePercent) >= 0 ? '+' : ''}{monthlyComparison.change.revenuePercent}%
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* GUESTS TAB */}
+                {
+                  activeTab === 'guests' && guestStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Guest Analytics</div>
+                        <div className="text-xs text-slate-500">Loyalty metrics</div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total</div>
+                          <div className="text-2xl font-bold text-slate-900">{guestStats.total}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-purple-50 p-3">
+                          <div className="text-xs text-purple-700 mb-1">Repeat</div>
+                          <div className="text-2xl font-bold text-purple-900">{guestStats.repeat}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Rate</div>
+                          <div className="text-2xl font-bold text-blue-900">{guestStats.repeatRate}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* GUESTS TAB - Party Size Distribution */}
+                {
+                  activeTab === 'guests' && partySizeStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Party Size Distribution</div>
+                        <div className="text-xs text-slate-500">Average party size: {partySizeStats.avgPartySize} guests</div>
+                      </div>
+                      <div className="space-y-2">
+                        {Object.entries(partySizeStats.distribution).map(([range, count]) => {
+                          const total = Object.values(partySizeStats.distribution).reduce((sum, c) => sum + c, 0);
+                          const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
+                          return (
+                            <div key={range} className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-slate-700">{range} guests</span>
+                                <span className="font-semibold text-slate-900">{count} ({percentage}%)</span>
+                              </div>
+                              <div className="h-2 bg-slate-100 rounded overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-purple-500 to-purple-600"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* GUESTS TAB - Top Guests by Revenue */}
+                {
+                  activeTab === 'guests' && topGuestsStats && topGuestsStats.length > 0 && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Top 10 Guests by Revenue</div>
+                        <div className="text-xs text-slate-500">Most valuable customers (All-time)</div>
+                      </div>
+                      <div className="space-y-2">
+                        {topGuestsStats.map((guest, idx) => (
+                          <div key={idx} className="flex items-center gap-3">
+                            <div className="flex-shrink-0 w-6 text-center text-xs font-semibold text-slate-500">#{idx + 1}</div>
+                            <div className="flex-1 flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
+                              <div>
+                                <div className="text-sm font-medium text-slate-900">{guest.name}</div>
+                                <div className="text-xs text-slate-500">{guest.bookings} bookings</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold text-emerald-600">{formatCurrency(guest.revenue, 0)}</div>
+                                <div className="text-xs text-slate-500">{formatCurrency(guest.revenue / guest.bookings, 0)}/booking</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* GUESTS TAB - Guest Loyalty & Repeat Visitors */}
+                {
+                  activeTab === 'guests' && guestLoyaltyReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Guest Loyalty & Repeat Visitors</div>
+                        <div className="text-xs text-slate-500">
+                          Repeat Rate: {guestLoyaltyReport.stats.repeatRate.toFixed(1)}% |
+                          Avg Visits per Repeat Guest: {guestLoyaltyReport.stats.avgVisitsPerRepeatGuest.toFixed(1)}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total Guests</div>
+                          <div className="text-2xl font-bold text-slate-900">{guestLoyaltyReport.stats.totalGuests}</div>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">Repeat Guests</div>
+                          <div className="text-2xl font-bold text-emerald-900">{guestLoyaltyReport.stats.repeatGuests}</div>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Repeat Rate</div>
+                          <div className="text-2xl font-bold text-blue-900">{guestLoyaltyReport.stats.repeatRate.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                      {guestLoyaltyReport.guests.length === 0 ? (
+                        <div className="text-sm text-slate-500">No repeat guests yet</div>
+                      ) : (
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead className="border-b border-slate-200">
                               <tr>
                                 <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
-                                <th className="text-left py-2 text-slate-600 font-medium">Site</th>
-                                <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
-                                <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
-                                <th className="text-right py-2 text-slate-600 font-medium">Party Size</th>
-                                <th className="text-right py-2 text-slate-600 font-medium">Revenue</th>
-                                <th className="text-right py-2 text-slate-600 font-medium">$/Person</th>
+                                <th className="text-center py-2 text-slate-600 font-medium">Visits</th>
+                                <th className="text-right py-2 text-slate-600 font-medium">Total Spent</th>
+                                <th className="text-left py-2 text-slate-600 font-medium">Last Visit</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {groupBookingReport.largestGroups.map((group, idx) => (
-                                <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
-                                  <td className="py-2">{group.guest}</td>
-                                  <td className="py-2">{group.site}</td>
-                                  <td className="py-2">{group.arrival}</td>
-                                  <td className="py-2">{group.departure}</td>
-                                  <td className="py-2 text-right">
-                                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${group.partySize >= 10 ? 'bg-purple-100 text-purple-800' :
-                                      group.partySize >= 8 ? 'bg-indigo-100 text-indigo-800' :
-                                        'bg-blue-100 text-blue-800'
+                              {guestLoyaltyReport.guests.slice(0, 25).map((guest, idx) => (
+                                <tr key={guest.guestId} className={idx % 2 === 0 ? 'bg-emerald-50' : 'bg-white'}>
+                                  <td className="py-2 font-medium">{guest.name}</td>
+                                  <td className="py-2 text-center">
+                                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${guest.visits >= 10 ? 'bg-purple-100 text-purple-800' :
+                                      guest.visits >= 5 ? 'bg-emerald-100 text-emerald-800' :
+                                        guest.visits >= 3 ? 'bg-blue-100 text-blue-800' :
+                                          'bg-slate-100 text-slate-800'
                                       }`}>
-                                      {group.partySize}
+                                      {guest.visits}x
                                     </span>
                                   </td>
-                                  <td className="py-2 text-right">{formatCurrency(group.revenue)}</td>
-                                  <td className="py-2 text-right">{formatCurrency(group.revenuePerPerson)}</td>
+                                  <td className="py-2 text-right">
+                                    <span className="font-semibold text-emerald-700">{formatCurrency(guest.totalSpent)}</span>
+                                  </td>
+                                  <td className="py-2 text-slate-600">{guest.lastVisit}</td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* PERFORMANCE TAB - Advance vs Walk-in Booking Analysis */}
-                {activeTab === 'performance' && advanceBookingReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Advance vs Walk-in Booking Analysis</div>
-                      <div className="text-xs text-slate-500">Booking lead time distribution | Total: {advanceBookingReport.total} bookings</div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      {advanceBookingReport.categories.map(cat => (
-                        <div key={cat.type} className={`rounded-lg border-2 p-4 ${cat.type === 'Same Day / Walk-in' ? 'border-red-300 bg-red-50' :
-                          cat.type === 'Advance (1-30 days)' ? 'border-amber-300 bg-amber-50' :
-                            'border-emerald-300 bg-emerald-50'
-                          }`}>
-                          <div className={`text-xs font-semibold mb-3 ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
-                            cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
-                              'text-emerald-900'
+                  )
+                }
+
+                {/* GUESTS TAB - Guest Segmentation (New vs Returning) */}
+                {
+                  activeTab === 'guests' && guestSegmentationReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Guest Segmentation Analysis</div>
+                        <div className="text-xs text-slate-500">New vs Returning guest revenue breakdown | Returning Rate: {guestSegmentationReport.returningRate.toFixed(1)}%</div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {guestSegmentationReport.segments.map(segment => (
+                          <div key={segment.type} className={`rounded-lg border-2 p-4 ${segment.type === 'New Guests' ? 'border-blue-300 bg-blue-50' : 'border-emerald-300 bg-emerald-50'
                             }`}>
-                            {cat.type}
+                            <div className={`text-sm font-semibold mb-3 ${segment.type === 'New Guests' ? 'text-blue-900' : 'text-emerald-900'
+                              }`}>
+                              {segment.type}
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className={`text-xs ${segment.type === 'New Guests' ? 'text-blue-700' : 'text-emerald-700'}`}>
+                                  Total Guests
+                                </span>
+                                <span className={`text-lg font-bold ${segment.type === 'New Guests' ? 'text-blue-900' : 'text-emerald-900'}`}>
+                                  {segment.count}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className={`text-xs ${segment.type === 'New Guests' ? 'text-blue-700' : 'text-emerald-700'}`}>
+                                  Bookings
+                                </span>
+                                <span className={`text-lg font-bold ${segment.type === 'New Guests' ? 'text-blue-900' : 'text-emerald-900'}`}>
+                                  {segment.bookings}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className={`text-xs ${segment.type === 'New Guests' ? 'text-blue-700' : 'text-emerald-700'}`}>
+                                  Total Revenue
+                                </span>
+                                <span className={`text-xl font-bold ${segment.type === 'New Guests' ? 'text-blue-900' : 'text-emerald-900'}`}>
+                                  {formatCurrency(segment.revenue, 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center pt-2 border-t border-current/20">
+                                <span className={`text-xs ${segment.type === 'New Guests' ? 'text-blue-600' : 'text-emerald-600'}`}>
+                                  Avg Per Booking
+                                </span>
+                                <span className={`text-sm font-semibold ${segment.type === 'New Guests' ? 'text-blue-800' : 'text-emerald-800'}`}>
+                                  {formatCurrency(segment.avgRevenue)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* ANALYTICS TAB */}
+                {
+                  activeTab === 'analytics' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Cancellation Analytics */}
+                      {cancellationStats && (
+                        <div className="card p-4 space-y-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Cancellation Analytics</div>
+                            <div className="text-xs text-slate-500">All-time performance</div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                              <div className="text-xs text-slate-600 mb-1">Total</div>
+                              <div className="text-2xl font-bold text-slate-900">{cancellationStats.total}</div>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-rose-50 p-3">
+                              <div className="text-xs text-rose-700 mb-1">Rate</div>
+                              <div className="text-2xl font-bold text-rose-900">{cancellationStats.rate}%</div>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
+                              <div className="text-xs text-amber-700 mb-1">Lost $</div>
+                              <div className="text-2xl font-bold text-amber-900">{formatCurrency(cancellationStats.revenueLost, 0)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Length of Stay */}
+                      {lengthOfStayStats && (
+                        <div className="card p-4 space-y-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Length of Stay</div>
+                            <div className="text-xs text-slate-500">Average: {lengthOfStayStats.avgNights} nights</div>
                           </div>
                           <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${cat.type === 'Same Day / Walk-in' ? 'text-red-700' :
-                                cat.type === 'Advance (1-30 days)' ? 'text-amber-700' :
-                                  'text-emerald-700'
-                                }`}>
-                                Bookings
-                              </span>
-                              <span className={`text-lg font-bold ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
-                                cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
-                                  'text-emerald-900'
-                                }`}>
-                                {cat.count}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${cat.type === 'Same Day / Walk-in' ? 'text-red-700' :
-                                cat.type === 'Advance (1-30 days)' ? 'text-amber-700' :
-                                  'text-emerald-700'
-                                }`}>
-                                Percentage
-                              </span>
-                              <span className={`text-lg font-bold ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
-                                cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
-                                  'text-emerald-900'
-                                }`}>
-                                {cat.percentage.toFixed(1)}%
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${cat.type === 'Same Day / Walk-in' ? 'text-red-700' :
-                                cat.type === 'Advance (1-30 days)' ? 'text-amber-700' :
-                                  'text-emerald-700'
-                                }`}>
-                                Revenue
-                              </span>
-                              <span className={`text-lg font-bold ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
-                                cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
-                                  'text-emerald-900'
-                                }`}>
-                                {formatCurrency(cat.revenue, 0)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${cat.type === 'Same Day / Walk-in' ? 'text-red-700' :
-                                cat.type === 'Advance (1-30 days)' ? 'text-amber-700' :
-                                  'text-emerald-700'
-                                }`}>
-                                Avg/Booking
-                              </span>
-                              <span className={`text-lg font-bold ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
-                                cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
-                                  'text-emerald-900'
-                                }`}>
-                                {formatCurrency(cat.avgRevenue, 0)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* FORECASTING TAB - Pricing Strategy Recommendations */}
-                {activeTab === 'forecasting' && pricingStrategyReport && pricingStrategyReport.length > 0 && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">AI-Driven Pricing Strategy Recommendations</div>
-                      <div className="text-xs text-slate-500">Revenue optimization opportunities | {pricingStrategyReport.length} recommendations</div>
-                    </div>
-                    <div className="space-y-2">
-                      {pricingStrategyReport.map((rec, idx) => (
-                        <div key={idx} className={`rounded-lg border-2 p-3 ${rec.priority === 'high' ? 'border-rose-300 bg-rose-50' :
-                          rec.priority === 'medium' ? 'border-amber-300 bg-amber-50' :
-                            'border-blue-300 bg-blue-50'
-                          }`}>
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${rec.priority === 'high' ? 'bg-rose-200 text-rose-900' :
-                                rec.priority === 'medium' ? 'bg-amber-200 text-amber-900' :
-                                  'bg-blue-200 text-blue-900'
-                                }`}>
-                                {rec.priority.toUpperCase()}
-                              </span>
-                              <span className={`text-sm font-semibold ${rec.priority === 'high' ? 'text-rose-900' :
-                                rec.priority === 'medium' ? 'text-amber-900' :
-                                  'text-blue-900'
-                                }`}>
-                                {rec.type}
-                              </span>
-                            </div>
-                            <div className="text-xs font-semibold text-slate-700">{rec.site}</div>
-                          </div>
-                          <div className={`text-xs mb-2 ${rec.priority === 'high' ? 'text-rose-700' :
-                            rec.priority === 'medium' ? 'text-amber-700' :
-                              'text-blue-700'
-                            }`}>
-                            {rec.reason}
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 text-xs">
-                            <div>
-                              <span className="text-slate-600">Current Rate:</span>
-                              <span className="ml-1 font-semibold">{formatCurrency(rec.currentRate, 0)}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-600">Suggested:</span>
-                              <span className="ml-1 font-semibold">{formatCurrency(rec.suggestedRate, 0)}</span>
-                            </div>
-                            {rec.potentialIncrease > 0 && (
-                              <div>
-                                <span className="text-slate-600">Potential:</span>
-                                <span className="ml-1 font-semibold text-emerald-700">+{formatCurrency(rec.potentialIncrease, 0)}</span>
+                            {Object.entries(lengthOfStayStats.distribution).map(([range, count]) => (
+                              <div key={range} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <span className="text-slate-700">{range}</span>
+                                <span className="font-semibold text-slate-900">{count}</span>
                               </div>
-                            )}
-                          </div>
-                          <div className="mt-3 pt-3 border-t border-slate-200/60 flex justify-end">
-                            <Button
-                              size="sm"
-                              variant={rec.priority === 'high' ? 'default' : 'secondary'}
-                              onClick={async () => {
-                                try {
-                                  if (!campgroundId) return;
-
-                                  const startDate = new Date();
-                                  const endDate = new Date();
-                                  endDate.setDate(endDate.getDate() + 30); // 30 day rule by default
-
-                                  await apiClient.createPricingRule(campgroundId, {
-                                    label: `AI: ${rec.suggestion} - ${rec.site}`,
-                                    startDate: startDate.toISOString().split('T')[0],
-                                    endDate: endDate.toISOString().split('T')[0],
-                                    isActive: true,
-                                    ruleType: 'flat',
-                                    flatAdjust: Math.round(rec.suggestedRate * 100),
-                                  } as any);
-
-                                  toast({
-                                    title: "Pricing Rule Applied",
-                                    description: `Applied ${formatCurrency(rec.suggestedRate)} rate for ${rec.site} (30 days).`,
-                                  });
-                                } catch (err: any) {
-                                  toast({
-                                    title: "Failed to apply",
-                                    description: err.message || "Unknown error",
-                                    variant: "destructive"
-                                  });
-                                }
-                              }}
-                            >
-                              Apply Recommendation
-                            </Button>
+                            ))}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
 
-                {/* FORECASTING TAB - Weekend Premium Analysis */}
-                {activeTab === 'forecasting' && weekendPremiumReport && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Weekend Premium Analysis</div>
-                      <div className="text-xs text-slate-500">Weekday vs Weekend rate comparison (Friday/Saturday arrivals)</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                      <div className="rounded-lg border-2 border-blue-300 bg-blue-50 p-4">
-                        <div className="text-sm font-semibold text-blue-900 mb-3">Weekday Bookings</div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-blue-700">Total Bookings</span>
-                            <span className="text-lg font-bold text-blue-900">{weekendPremiumReport.weekday.bookings}</span>
+                      {/* Booking Window Distribution */}
+                      {bookingWindowStats && (
+                        <div className="card p-4 space-y-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Booking Window</div>
+                            <div className="text-xs text-slate-500">Average: {bookingWindowStats.avgDays} days in advance</div>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-blue-700">Total Revenue</span>
-                            <span className="text-lg font-bold text-blue-900">{formatCurrency(weekendPremiumReport.weekday.revenue, 0)}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-blue-700">Avg Rate</span>
-                            <span className="text-xl font-bold text-blue-900">{formatCurrency(weekendPremiumReport.weekday.avgRate, 0)}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="rounded-lg border-2 border-purple-300 bg-purple-50 p-4">
-                        <div className="text-sm font-semibold text-purple-900 mb-3">Weekend Bookings</div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-purple-700">Total Bookings</span>
-                            <span className="text-lg font-bold text-purple-900">{weekendPremiumReport.weekend.bookings}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-purple-700">Total Revenue</span>
-                            <span className="text-lg font-bold text-purple-900">{formatCurrency(weekendPremiumReport.weekend.revenue, 0)}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-purple-700">Avg Rate</span>
-                            <span className="text-xl font-bold text-purple-900">{formatCurrency(weekendPremiumReport.weekend.avgRate, 0)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className={`rounded-lg border-2 p-4 ${weekendPremiumReport.premium > 0 ? 'border-emerald-300 bg-emerald-50' : 'border-rose-300 bg-rose-50'
-                      }`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className={`text-sm font-semibold mb-1 ${weekendPremiumReport.premium > 0 ? 'text-emerald-900' : 'text-rose-900'
-                            }`}>
-                            Weekend Premium
-                          </div>
-                          <div className={`text-xs ${weekendPremiumReport.premium > 0 ? 'text-emerald-700' : 'text-rose-700'
-                            }`}>
-                            {weekendPremiumReport.premium > 0
-                              ? 'Weekend rates are higher - good!'
-                              : weekendPremiumReport.premium < 0
-                                ? 'Consider implementing weekend premium pricing'
-                                : 'Weekend and weekday rates are equal'}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 text-right">
-                          <div className={`text-2xl font-bold ${weekendPremiumReport.premium > 0 ? 'text-emerald-900' :
-                            weekendPremiumReport.premium < -5 ? 'text-rose-900' : 'text-slate-900'
-                            }`}>
-                            {weekendPremiumReport.premium > 0 ? '+' : ''}{weekendPremiumReport.premium.toFixed(1)}%
-                          </div>
-                          {weekendPremiumReport.premium <= 0 && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={async () => {
-                                try {
-                                  if (!campgroundId) return;
-                                  const startDate = new Date();
-                                  const endDate = new Date();
-                                  endDate.setDate(endDate.getDate() + 90); // 90 days
-
-                                  // Create Friday Rule
-                                  await apiClient.createPricingRule(campgroundId, {
-                                    label: `AI: Weekend Premium (Fri)`,
-                                    startDate: startDate.toISOString().split('T')[0],
-                                    endDate: endDate.toISOString().split('T')[0],
-                                    dayOfWeek: 5, // Friday
-                                    isActive: true,
-                                    ruleType: 'dow',
-                                    percentAdjust: 0.20, // +20%
-                                  } as any);
-
-                                  // Create Saturday Rule
-                                  await apiClient.createPricingRule(campgroundId, {
-                                    label: `AI: Weekend Premium (Sat)`,
-                                    startDate: startDate.toISOString().split('T')[0],
-                                    endDate: endDate.toISOString().split('T')[0],
-                                    dayOfWeek: 6, // Saturday
-                                    isActive: true,
-                                    ruleType: 'dow',
-                                    percentAdjust: 0.20, // +20%
-                                  } as any);
-
-                                  toast({
-                                    title: "Weekend Premium Applied",
-                                    description: "Created +20% pricing rules for Fridays and Saturdays (90 days).",
-                                  });
-                                } catch (err: any) {
-                                  toast({
-                                    title: "Failed to apply",
-                                    description: err.message || "Unknown error",
-                                    variant: "destructive"
-                                  });
-                                }
-                              }}
-                            >
-                              Apply +20% Premium
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ACCOUNTING TAB */}
-                {activeTab === 'accounting' && paymentStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Payment Summary</div>
-                      <div className="text-xs text-slate-500">All-time collection metrics</div>
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total Revenue</div>
-                        <div className="text-2xl font-bold text-slate-900">{formatCurrency(paymentStats.totalRevenue, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                        <div className="text-xs text-green-700 mb-1">Collected</div>
-                        <div className="text-2xl font-bold text-green-900">{formatCurrency(paymentStats.totalPaid, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                        <div className="text-xs text-amber-700 mb-1">Outstanding</div>
-                        <div className="text-2xl font-bold text-amber-900">{formatCurrency(paymentStats.totalBalance, 0)}</div>
-                      </div>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <div className="text-xs text-blue-700 mb-1">Collection %</div>
-                        <div className="text-2xl font-bold text-blue-900">{paymentStats.paidPercentage}%</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'accounting' && paymentMethodStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Payment Status Distribution</div>
-                      <div className="text-xs text-slate-500">Breakdown by payment completion</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                        <div className="text-xs text-emerald-700 mb-2">Fully Paid</div>
-                        <div className="text-3xl font-bold text-emerald-900 mb-1">{paymentMethodStats.fullyPaid}</div>
-                        <div className="text-xs text-emerald-700">{((paymentMethodStats.fullyPaid / paymentMethodStats.total) * 100).toFixed(1)}% of total</div>
-                      </div>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                        <div className="text-xs text-blue-700 mb-2">Partially Paid</div>
-                        <div className="text-3xl font-bold text-blue-900 mb-1">{paymentMethodStats.partiallyPaid}</div>
-                        <div className="text-xs text-blue-700">{((paymentMethodStats.partiallyPaid / paymentMethodStats.total) * 100).toFixed(1)}% of total</div>
-                      </div>
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                        <div className="text-xs text-amber-700 mb-2">Unpaid</div>
-                        <div className="text-3xl font-bold text-amber-900 mb-1">{paymentMethodStats.unpaid}</div>
-                        <div className="text-xs text-amber-700">{((paymentMethodStats.unpaid / paymentMethodStats.total) * 100).toFixed(1)}% of total</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-xs text-slate-600 mb-2">Total Bookings</div>
-                        <div className="text-3xl font-bold text-slate-900 mb-1">{paymentMethodStats.total}</div>
-                        <div className="text-xs text-slate-600">Active reservations</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ACCOUNTING TAB - Refund Tracking */}
-                {activeTab === 'accounting' && refundStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Refund & Cancellation Summary</div>
-                      <div className="text-xs text-slate-500">Cancelled reservations with payment history</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                      <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
-                        <div className="text-xs text-rose-700 mb-2">Total Cancelled</div>
-                        <div className="text-3xl font-bold text-rose-900 mb-1">{refundStats.totalCancelled}</div>
-                        <div className="text-xs text-rose-700">Reservations</div>
-                      </div>
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                        <div className="text-xs text-amber-700 mb-2">Refunded Amount</div>
-                        <div className="text-3xl font-bold text-amber-900">{formatCurrency(refundStats.refundedAmount, 0)}</div>
-                        <div className="text-xs text-amber-700">Total refunds issued</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-xs text-slate-600 mb-2">Avg Refund</div>
-                        <div className="text-3xl font-bold text-slate-900">{formatCurrency(refundStats.avgRefund, 0)}</div>
-                        <div className="text-xs text-slate-600">Per cancellation</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'accounting' && agingQuery.data && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Accounts Receivable Aging</div>
-                      <div className="text-xs text-slate-500">Outstanding balances by age bucket</div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {Object.entries(agingQuery.data).map(([bucket, cents]) => {
-                        const colorMap: Record<string, string> = {
-                          'current': 'bg-green-50 border-green-200 text-green-900',
-                          '1_30': 'bg-blue-50 border-blue-200 text-blue-900',
-                          '31_60': 'bg-amber-50 border-amber-200 text-amber-900',
-                          '61_90': 'bg-orange-50 border-orange-200 text-orange-900',
-                          'over_90': 'bg-rose-50 border-rose-200 text-rose-900'
-                        };
-                        return (
-                          <div key={bucket} className={`rounded-lg border p-3 ${colorMap[bucket] || 'bg-slate-50 border-slate-200'}`}>
-                            <div className="text-xs mb-1 font-medium">{bucket.replace('_', '-').replace('over ', '90+ ')}</div>
-                            <div className="text-2xl font-bold">{formatCurrency(cents / 100)}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* AUDITS TAB */}
-                {activeTab === 'audits' && dataQualityStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Data Quality Overview</div>
-                      <div className="text-xs text-slate-500">Issues requiring attention</div>
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className={`rounded-lg border p-4 ${dataQualityStats.inactiveSites > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-                        <div className="text-xs text-slate-700 mb-2">Inactive Sites</div>
-                        <div className={`text-3xl font-bold mb-1 ${dataQualityStats.inactiveSites > 0 ? 'text-amber-900' : 'text-green-900'}`}>
-                          {dataQualityStats.inactiveSites}
-                        </div>
-                        <div className="text-xs text-slate-600">No bookings in 1 year</div>
-                      </div>
-                      <div className={`rounded-lg border p-4 ${dataQualityStats.incompleteReservations > 0 ? 'bg-rose-50 border-rose-200' : 'bg-green-50 border-green-200'}`}>
-                        <div className="text-xs text-slate-700 mb-2">Incomplete Data</div>
-                        <div className={`text-3xl font-bold mb-1 ${dataQualityStats.incompleteReservations > 0 ? 'text-rose-900' : 'text-green-900'}`}>
-                          {dataQualityStats.incompleteReservations}
-                        </div>
-                        <div className="text-xs text-slate-600">Missing critical fields</div>
-                      </div>
-                      <div className={`rounded-lg border p-4 ${dataQualityStats.futureUnpaid > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-                        <div className="text-xs text-slate-700 mb-2">Future Unpaid</div>
-                        <div className={`text-3xl font-bold mb-1 ${dataQualityStats.futureUnpaid > 0 ? 'text-amber-900' : 'text-green-900'}`}>
-                          {dataQualityStats.futureUnpaid}
-                        </div>
-                        <div className="text-xs text-slate-600">Confirmed, no payment</div>
-                      </div>
-                      <div className={`rounded-lg border p-4 ${dataQualityStats.negativeBalance > 0 ? 'bg-rose-50 border-rose-200' : 'bg-green-50 border-green-200'}`}>
-                        <div className="text-xs text-slate-700 mb-2">Negative Balance</div>
-                        <div className={`text-3xl font-bold mb-1 ${dataQualityStats.negativeBalance > 0 ? 'text-rose-900' : 'text-green-900'}`}>
-                          {dataQualityStats.negativeBalance}
-                        </div>
-                        <div className="text-xs text-slate-600">Overpayment issues</div>
-                      </div>
-                    </div>
-                    <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-700">
-                      <span className="font-semibold">Health Score:</span> {
-                        ((1 - ((dataQualityStats.inactiveSites + dataQualityStats.incompleteReservations + dataQualityStats.negativeBalance) /
-                          (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100).toFixed(1)
-                      }% - {
-                        ((1 - ((dataQualityStats.inactiveSites + dataQualityStats.incompleteReservations + dataQualityStats.negativeBalance) /
-                          (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100) >= 95 ? 'Excellent' :
-                          ((1 - ((dataQualityStats.inactiveSites + dataQualityStats.incompleteReservations + dataQualityStats.negativeBalance) /
-                            (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100) >= 85 ? 'Good' :
-                            ((1 - ((dataQualityStats.inactiveSites + dataQualityStats.incompleteReservations + dataQualityStats.negativeBalance) /
-                              (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100) >= 70 ? 'Fair' : 'Needs Attention'
-                      }
-                    </div>
-                  </div>
-                )}
-
-                {/* AUDITS TAB - Rate Consistency Audit */}
-                {activeTab === 'audits' && rateConsistencyStats && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Rate Consistency Audit</div>
-                      <div className="text-xs text-slate-500">Pricing variance analysis across reservations</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-                      <div className="rounded-lg border border-slate-200 bg-white p-3">
-                        <div className="text-xs text-slate-600 mb-1">Sites Checked</div>
-                        <div className="text-2xl font-bold text-slate-900">{rateConsistencyStats.totalSitesChecked}</div>
-                      </div>
-                      <div className={`rounded-lg border p-3 ${rateConsistencyStats.inconsistentSites > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-                        <div className={`text-xs mb-1 ${rateConsistencyStats.inconsistentSites > 0 ? 'text-amber-700' : 'text-green-700'}`}>Inconsistent Rates</div>
-                        <div className={`text-2xl font-bold ${rateConsistencyStats.inconsistentSites > 0 ? 'text-amber-900' : 'text-green-900'}`}>
-                          {rateConsistencyStats.inconsistentSites}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Variance Threshold</div>
-                        <div className="text-2xl font-bold text-slate-900">&gt;20%</div>
-                      </div>
-                    </div>
-                    {rateConsistencyStats.siteVariance.length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold text-slate-700 mb-2 uppercase">Top Issues</div>
-                        <div className="space-y-2">
-                          {rateConsistencyStats.siteVariance.map((site) => (
-                            <div key={site.siteName} className="rounded-md border border-amber-200 bg-amber-50 p-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="text-sm font-medium text-slate-900">{site.siteName}</div>
-                                <div className="text-sm font-bold text-amber-700">{site.variance.toFixed(1)}% variance</div>
+                          <div className="space-y-2">
+                            {Object.entries(bookingWindowStats.distribution).map(([range, count]) => (
+                              <div key={range} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <span className="text-slate-700">{range}</span>
+                                <span className="font-semibold text-slate-900">{count}</span>
                               </div>
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                  <div className="text-slate-600">Min Rate</div>
-                                  <div className="font-semibold text-slate-900">${site.minRate.toFixed(2)}/night</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Day of Week Patterns */}
+                      {dayOfWeekStats && (
+                        <div className="card p-4 space-y-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Day of Week Patterns</div>
+                            <div className="text-xs text-slate-500">Arrival & departure trends</div>
+                          </div>
+                          <div className="space-y-2">
+                            {dayOfWeekStats.map(({ day, arrivals, departures }) => (
+                              <div key={day} className="flex items-center gap-2">
+                                <div className="w-20 text-xs text-slate-600 flex-shrink-0">{day.slice(0, 3)}</div>
+                                <div className="flex-1 grid grid-cols-2 gap-2">
+                                  <div className="rounded-md border border-slate-200 bg-blue-50 px-2 py-1 text-xs">
+                                    <span className="text-blue-700">In: </span>
+                                    <span className="font-semibold text-blue-900">{arrivals}</span>
+                                  </div>
+                                  <div className="rounded-md border border-slate-200 bg-amber-50 px-2 py-1 text-xs">
+                                    <span className="text-amber-700">Out: </span>
+                                    <span className="font-semibold text-amber-900">{departures}</span>
+                                  </div>
                                 </div>
-                                <div>
-                                  <div className="text-slate-600">Max Rate</div>
-                                  <div className="font-semibold text-slate-900">${site.maxRate.toFixed(2)}/night</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Revenue Concentration */}
+                      {revenueConcentrationStats && (
+                        <div className="card p-4 space-y-3 lg:col-span-2">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Revenue Concentration</div>
+                            <div className="text-xs text-slate-500">Pareto analysis of site revenue distribution</div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="rounded-lg border border-slate-200 bg-white p-4">
+                              <div className="text-xs text-slate-600 mb-2">Total Sites</div>
+                              <div className="text-3xl font-bold text-slate-900 mb-3">{revenueConcentrationStats.totalSites}</div>
+                              <div className="text-xs text-slate-500">In your campground</div>
+                            </div>
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                              <div className="text-xs text-emerald-700 mb-2">Top 20% of Sites</div>
+                              <div className="text-3xl font-bold text-emerald-900 mb-3">{revenueConcentrationStats.top20Percent}%</div>
+                              <div className="text-xs text-emerald-700">of total revenue</div>
+                            </div>
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                              <div className="text-xs text-blue-700 mb-2">Top 50% of Sites</div>
+                              <div className="text-3xl font-bold text-blue-900 mb-3">{revenueConcentrationStats.top50Percent}%</div>
+                              <div className="text-xs text-blue-700">of total revenue</div>
+                            </div>
+                          </div>
+                          <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-700">
+                            <span className="font-semibold">Insight:</span> Understanding revenue concentration helps identify your star performers and opportunities to improve underperforming sites.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                {/* MARKETING TAB */}
+                {
+                  activeTab === 'marketing' && marketingStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Booking Conversion</div>
+                        <div className="text-xs text-slate-500">All-time conversion metrics</div>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total</div>
+                          <div className="text-2xl font-bold text-slate-900">{marketingStats.total}</div>
+                        </div>
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                          <div className="text-xs text-green-700 mb-1">Confirmed</div>
+                          <div className="text-2xl font-bold text-green-900">{marketingStats.confirmed}</div>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Pending</div>
+                          <div className="text-2xl font-bold text-blue-900">{marketingStats.pending}</div>
+                        </div>
+                        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+                          <div className="text-xs text-rose-700 mb-1">Cancelled</div>
+                          <div className="text-2xl font-bold text-rose-900">{marketingStats.cancelled}</div>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">Conv. Rate</div>
+                          <div className="text-2xl font-bold text-emerald-900">{marketingStats.conversionRate}%</div>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                        <div className="text-xs text-purple-700 mb-1">Average Booking Value</div>
+                        <div className="text-3xl font-bold text-purple-900">{formatCurrency(marketingStats.avgBookingValue)}</div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {
+                  activeTab === 'marketing' && bookingPaceStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Booking Pace</div>
+                        <div className="text-xs text-slate-500">Future bookings on the books</div>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Next 30 Days</div>
+                          <div className="text-2xl font-bold text-blue-900">{bookingPaceStats.next30Days}</div>
+                          <div className="text-xs text-blue-700">bookings</div>
+                        </div>
+                        <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+                          <div className="text-xs text-cyan-700 mb-1">31-60 Days</div>
+                          <div className="text-2xl font-bold text-cyan-900">{bookingPaceStats.next60Days}</div>
+                          <div className="text-xs text-cyan-700">bookings</div>
+                        </div>
+                        <div className="rounded-lg border border-teal-200 bg-teal-50 p-3">
+                          <div className="text-xs text-teal-700 mb-1">61-90 Days</div>
+                          <div className="text-2xl font-bold text-teal-900">{bookingPaceStats.next90Days}</div>
+                          <div className="text-xs text-teal-700">bookings</div>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">Total Future</div>
+                          <div className="text-2xl font-bold text-emerald-900">{bookingPaceStats.total}</div>
+                          <div className="text-xs text-emerald-700">bookings</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* FORECASTING TAB */}
+                {
+                  activeTab === 'forecasting' && revenueForecast && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Revenue Forecast</div>
+                        <div className="text-xs text-slate-500">Projected revenue for next 3 months (confirmed + pending bookings)</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {revenueForecast.map(({ month, revenue, bookings }) => (
+                          <div key={month} className="rounded-lg border border-slate-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-4 space-y-2">
+                            <div className="text-sm font-bold text-blue-900">{month}</div>
+                            <div>
+                              <div className="text-xs text-slate-600">Projected Revenue</div>
+                              <div className="text-3xl font-bold text-slate-900">{formatCurrency(revenue, 0)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-600">Bookings</div>
+                              <div className="text-lg font-semibold text-slate-900">{bookings}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800">
+                        <span className="font-semibold">Note:</span> Forecasts are based on current confirmed and pending reservations. Actual results may vary based on new bookings and cancellations.
+                      </div>
+                    </div>
+                  )
+                }
+
+                {
+                  activeTab === 'forecasting' && bookingPaceStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Demand Outlook</div>
+                        <div className="text-xs text-slate-500">Booking distribution for next 90 days</div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 text-xs text-slate-600">0-30 days</div>
+                          <div className="flex-1 h-10 bg-slate-100 rounded relative overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-blue-500 to-blue-600"
+                              style={{ width: `${(bookingPaceStats.next30Days / bookingPaceStats.total) * 100}%` }}
+                            />
+                            <div className="absolute inset-0 flex items-center px-2">
+                              <span className="text-sm font-semibold text-slate-900">{bookingPaceStats.next30Days} bookings</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 text-xs text-slate-600">31-60 days</div>
+                          <div className="flex-1 h-10 bg-slate-100 rounded relative overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600"
+                              style={{ width: `${(bookingPaceStats.next60Days / bookingPaceStats.total) * 100}%` }}
+                            />
+                            <div className="absolute inset-0 flex items-center px-2">
+                              <span className="text-sm font-semibold text-slate-900">{bookingPaceStats.next60Days} bookings</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 text-xs text-slate-600">61-90 days</div>
+                          <div className="flex-1 h-10 bg-slate-100 rounded relative overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-teal-500 to-teal-600"
+                              style={{ width: `${(bookingPaceStats.next90Days / bookingPaceStats.total) * 100}%` }}
+                            />
+                            <div className="absolute inset-0 flex items-center px-2">
+                              <span className="text-sm font-semibold text-slate-900">{bookingPaceStats.next90Days} bookings</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* FORECASTING TAB - Seasonal Analysis */}
+                {
+                  activeTab === 'forecasting' && seasonalAnalysisReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Peak vs Off-Peak Season Analysis</div>
+                        <div className="text-xs text-slate-500">Avg Revenue: ${seasonalAnalysisReport.avgRevenue.toFixed(0)}/month | Peak: {seasonalAnalysisReport.peakMonths.map(m => m.month).join(', ')}</div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {seasonalAnalysisReport.months.map(month => {
+                          const isPeak = seasonalAnalysisReport.peakMonths.some(m => m.month === month.month);
+                          const isOffPeak = seasonalAnalysisReport.offPeakMonths.some(m => m.month === month.month);
+                          return (
+                            <div
+                              key={month.month}
+                              className={`rounded-lg border p-3 ${isPeak ? 'border-emerald-300 bg-emerald-50' :
+                                isOffPeak ? 'border-amber-300 bg-amber-50' :
+                                  'border-slate-200 bg-slate-50'
+                                }`}
+                            >
+                              <div className={`text-xs mb-1 font-medium ${isPeak ? 'text-emerald-700' :
+                                isOffPeak ? 'text-amber-700' :
+                                  'text-slate-600'
+                                }`}>
+                                {month.month}
+                              </div>
+                              <div className={`text-lg font-bold ${isPeak ? 'text-emerald-900' :
+                                isOffPeak ? 'text-amber-900' :
+                                  'text-slate-900'
+                                }`}>
+                                {formatCurrency(month.revenue, 0)}
+                              </div>
+                              <div className={`text-xs mt-1 ${isPeak ? 'text-emerald-600' :
+                                isOffPeak ? 'text-amber-600' :
+                                  'text-slate-500'
+                                }`}>
+                                {month.bookings} bookings
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* FORECASTING TAB - Day of Week Performance */}
+                {
+                  activeTab === 'forecasting' && dayOfWeekReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Day of Week Performance</div>
+                        <div className="text-xs text-slate-500">Check-in patterns by arrival day | Avg: {dayOfWeekReport.avgBookingsPerDay.toFixed(1)} bookings/day</div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                        {dayOfWeekReport.days.map(day => {
+                          const isWeekend = day.day === 'Friday' || day.day === 'Saturday';
+                          return (
+                            <div
+                              key={day.day}
+                              className={`rounded-lg border p-3 ${isWeekend ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-slate-50'
+                                }`}
+                            >
+                              <div className={`text-xs mb-1 ${isWeekend ? 'text-blue-700 font-medium' : 'text-slate-600'}`}>
+                                {day.day.substring(0, 3)}
+                              </div>
+                              <div className={`text-xl font-bold ${isWeekend ? 'text-blue-900' : 'text-slate-900'}`}>
+                                {day.bookings}
+                              </div>
+                              <div className={`text-xs mt-1 ${isWeekend ? 'text-blue-600' : 'text-slate-500'}`}>
+                                {formatCurrency(day.revenue, 0)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* FORECASTING TAB - Revenue Optimization Opportunities */}
+                {
+                  activeTab === 'forecasting' && revenueOptimizationReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Revenue Optimization Opportunities</div>
+                        <div className="text-xs text-slate-500">Actionable insights to improve performance</div>
+                      </div>
+                      {revenueOptimizationReport.length === 0 ? (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
+                          <div className="text-emerald-800 font-medium">All systems performing well!</div>
+                          <div className="text-xs text-emerald-600 mt-1">No optimization opportunities detected</div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {revenueOptimizationReport.map((opp, idx) => (
+                            <div
+                              key={idx}
+                              className={`rounded-lg border p-3 ${opp.severity === 'high' ? 'border-red-200 bg-red-50' :
+                                opp.severity === 'medium' ? 'border-amber-200 bg-amber-50' :
+                                  'border-blue-200 bg-blue-50'
+                                }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${opp.severity === 'high' ? 'bg-red-100 text-red-800' :
+                                      opp.severity === 'medium' ? 'bg-amber-100 text-amber-800' :
+                                        'bg-blue-100 text-blue-800'
+                                      }`}>
+                                      {opp.severity.toUpperCase()}
+                                    </span>
+                                    <span className={`text-xs font-medium ${opp.severity === 'high' ? 'text-red-700' :
+                                      opp.severity === 'medium' ? 'text-amber-700' :
+                                        'text-blue-700'
+                                      }`}>
+                                      {opp.type}
+                                    </span>
+                                  </div>
+                                  <div className={`text-sm ${opp.severity === 'high' ? 'text-red-900' :
+                                    opp.severity === 'medium' ? 'text-amber-900' :
+                                      'text-blue-900'
+                                    }`}>
+                                    {opp.description}
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
-                    {rateConsistencyStats.inconsistentSites === 0 && (
-                      <div className="rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
-                        <span className="font-semibold">All Clear!</span> No significant rate inconsistencies detected across your sites.
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )
+                }
 
-                {activeTab === 'audits' && sitesQuery.data && (
-                  <div className="card p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Inventory Audit</div>
-                      <div className="text-xs text-slate-500">Site configuration summary</div>
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-white p-3">
-                        <div className="text-xs text-slate-600 mb-1">Total Sites</div>
-                        <div className="text-2xl font-bold text-slate-900">{sitesQuery.data.length}</div>
-                      </div>
-                      <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                        <div className="text-xs text-green-700 mb-1">Active</div>
-                        <div className="text-2xl font-bold text-green-900">
-                          {sitesQuery.data.filter(s => s.isActive).length}
+                {/* FORECASTING TAB - Occupancy Forecast (90 days) */}
+                {
+                  activeTab === 'forecasting' && occupancyForecastReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">90-Day Occupancy Forecast</div>
+                        <div className="text-xs text-slate-500">
+                          Avg: {occupancyForecastReport.avgOccupancy.toFixed(1)}% |
+                          Peak: {occupancyForecastReport.peakDay.occupancy.toFixed(1)}% on {occupancyForecastReport.peakDay.date} |
+                          Low: {occupancyForecastReport.lowDay.occupancy.toFixed(1)}% on {occupancyForecastReport.lowDay.date}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs text-slate-600 mb-1">Inactive</div>
-                        <div className="text-2xl font-bold text-slate-900">
-                          {sitesQuery.data.filter(s => !s.isActive).length}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b border-slate-200">
+                            <tr>
+                              <th className="text-left py-2 text-slate-600 font-medium">Date</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Occupied</th>
+                              <th className="text-center py-2 text-slate-600 font-medium">Total Sites</th>
+                              <th className="text-left py-2 text-slate-600 font-medium">Occupancy</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {occupancyForecastReport.forecast.map((day, idx) => {
+                              if (idx % 7 !== 0) return null; // Show weekly snapshots
+                              return (
+                                <tr key={day.date} className={idx % 14 === 0 ? 'bg-slate-50' : ''}>
+                                  <td className="py-2 font-medium">{day.date}</td>
+                                  <td className="py-2 text-center text-slate-700">{day.occupiedSites}</td>
+                                  <td className="py-2 text-center text-slate-600">{day.totalSites}</td>
+                                  <td className="py-2">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 h-6 bg-slate-100 rounded relative overflow-hidden max-w-xs">
+                                        <div
+                                          className={`h-full transition-all duration-500 ${day.occupancy >= 80 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600' :
+                                            day.occupancy >= 60 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+                                              day.occupancy >= 40 ? 'bg-gradient-to-r from-amber-500 to-amber-600' :
+                                                'bg-gradient-to-r from-red-500 to-red-600'
+                                            }`}
+                                          style={{ width: `${day.occupancy}%` }}
+                                        />
+                                        <div className="absolute inset-0 flex items-center px-2">
+                                          <span className="text-xs font-semibold text-slate-900">{day.occupancy.toFixed(1)}%</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Extended Stay Analysis */}
+                {
+                  activeTab === 'performance' && extendedStayReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Extended Stay Analysis</div>
+                        <div className="text-xs text-slate-500">Long-term guest tracking (7+ nights)</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {extendedStayReport.summary.map(category => (
+                          <div key={category.type} className="rounded-lg border-2 border-purple-300 bg-purple-50 p-4">
+                            <div className="text-xs font-semibold text-purple-900 mb-3">{category.type}</div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-purple-700">Bookings</span>
+                                <span className="text-lg font-bold text-purple-900">{category.count}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-purple-700">Unique Guests</span>
+                                <span className="text-lg font-bold text-purple-900">{category.uniqueGuests}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-purple-700">Revenue</span>
+                                <span className="text-lg font-bold text-purple-900">{formatCurrency(category.revenue, 0)}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-purple-700">Avg Stay</span>
+                                <span className="text-lg font-bold text-purple-900">{category.avgStay.toFixed(1)} nights</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {extendedStayReport.extendedStays.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold text-slate-700 uppercase">Top Extended Stays</div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="border-b border-slate-200">
+                                <tr>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Type</th>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Guest</th>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Site</th>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
+                                  <th className="text-right py-2 text-slate-600 font-medium">Nights</th>
+                                  <th className="text-right py-2 text-slate-600 font-medium">Revenue</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {extendedStayReport.extendedStays.map((stay, idx) => (
+                                  <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
+                                    <td className="py-2">
+                                      <span className={`inline-block px-2 py-0.5 rounded text-xs ${stay.type === 'Monthly (30+)' ? 'bg-purple-100 text-purple-800' :
+                                        stay.type === 'Bi-Weekly (14-29)' ? 'bg-indigo-100 text-indigo-800' :
+                                          'bg-blue-100 text-blue-800'
+                                        }`}>
+                                        {stay.type}
+                                      </span>
+                                    </td>
+                                    <td className="py-2">{stay.guest}</td>
+                                    <td className="py-2">{stay.site}</td>
+                                    <td className="py-2">{stay.arrival}</td>
+                                    <td className="py-2">{stay.departure}</td>
+                                    <td className="py-2 text-right font-semibold">{stay.nights}</td>
+                                    <td className="py-2 text-right">{formatCurrency(stay.revenue)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                {/* GUESTS TAB - Group Booking Analysis */}
+                {
+                  activeTab === 'guests' && groupBookingReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Group Booking Analysis</div>
+                        <div className="text-xs text-slate-500">Parties of 5+ guests | Total: {groupBookingReport.totalGroups} groups</div>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Total Groups</div>
+                          <div className="text-2xl font-bold text-blue-900">{groupBookingReport.totalGroups}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700 mb-1">Total Revenue</div>
+                          <div className="text-2xl font-bold text-emerald-900">{formatCurrency(groupBookingReport.totalRevenue, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-purple-50 p-3">
+                          <div className="text-xs text-purple-700 mb-1">Avg Party Size</div>
+                          <div className="text-2xl font-bold text-purple-900">{groupBookingReport.avgPartySize.toFixed(1)}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-amber-50 p-3">
+                          <div className="text-xs text-amber-700 mb-1">Avg Revenue/Person</div>
+                          <div className="text-2xl font-bold text-amber-900">{formatCurrency(groupBookingReport.avgRevenuePerPerson, 0)}</div>
+                        </div>
+                      </div>
+                      {groupBookingReport.largestGroups.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold text-slate-700 uppercase">Largest Groups</div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="border-b border-slate-200">
+                                <tr>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Guest Name</th>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Site</th>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Arrival</th>
+                                  <th className="text-left py-2 text-slate-600 font-medium">Departure</th>
+                                  <th className="text-right py-2 text-slate-600 font-medium">Party Size</th>
+                                  <th className="text-right py-2 text-slate-600 font-medium">Revenue</th>
+                                  <th className="text-right py-2 text-slate-600 font-medium">$/Person</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {groupBookingReport.largestGroups.map((group, idx) => (
+                                  <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
+                                    <td className="py-2">{group.guest}</td>
+                                    <td className="py-2">{group.site}</td>
+                                    <td className="py-2">{group.arrival}</td>
+                                    <td className="py-2">{group.departure}</td>
+                                    <td className="py-2 text-right">
+                                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${group.partySize >= 10 ? 'bg-purple-100 text-purple-800' :
+                                        group.partySize >= 8 ? 'bg-indigo-100 text-indigo-800' :
+                                          'bg-blue-100 text-blue-800'
+                                        }`}>
+                                        {group.partySize}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 text-right">{formatCurrency(group.revenue)}</td>
+                                    <td className="py-2 text-right">{formatCurrency(group.revenuePerPerson)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                {/* PERFORMANCE TAB - Advance vs Walk-in Booking Analysis */}
+                {
+                  activeTab === 'performance' && advanceBookingReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Advance vs Walk-in Booking Analysis</div>
+                        <div className="text-xs text-slate-500">Booking lead time distribution | Total: {advanceBookingReport.total} bookings</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {advanceBookingReport.categories.map(cat => (
+                          <div key={cat.type} className={`rounded-lg border-2 p-4 ${cat.type === 'Same Day / Walk-in' ? 'border-red-300 bg-red-50' :
+                            cat.type === 'Advance (1-30 days)' ? 'border-amber-300 bg-amber-50' :
+                              'border-emerald-300 bg-emerald-50'
+                            }`}>
+                            <div className={`text-xs font-semibold mb-3 ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
+                              cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
+                                'text-emerald-900'
+                              }`}>
+                              {cat.type}
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className={`text-xs ${cat.type === 'Same Day / Walk-in' ? 'text-red-700' :
+                                  cat.type === 'Advance (1-30 days)' ? 'text-amber-700' :
+                                    'text-emerald-700'
+                                  }`}>
+                                  Bookings
+                                </span>
+                                <span className={`text-lg font-bold ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
+                                  cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
+                                    'text-emerald-900'
+                                  }`}>
+                                  {cat.count}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className={`text-xs ${cat.type === 'Same Day / Walk-in' ? 'text-red-700' :
+                                  cat.type === 'Advance (1-30 days)' ? 'text-amber-700' :
+                                    'text-emerald-700'
+                                  }`}>
+                                  Percentage
+                                </span>
+                                <span className={`text-lg font-bold ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
+                                  cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
+                                    'text-emerald-900'
+                                  }`}>
+                                  {cat.percentage.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className={`text-xs ${cat.type === 'Same Day / Walk-in' ? 'text-red-700' :
+                                  cat.type === 'Advance (1-30 days)' ? 'text-amber-700' :
+                                    'text-emerald-700'
+                                  }`}>
+                                  Revenue
+                                </span>
+                                <span className={`text-lg font-bold ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
+                                  cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
+                                    'text-emerald-900'
+                                  }`}>
+                                  {formatCurrency(cat.revenue, 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className={`text-xs ${cat.type === 'Same Day / Walk-in' ? 'text-red-700' :
+                                  cat.type === 'Advance (1-30 days)' ? 'text-amber-700' :
+                                    'text-emerald-700'
+                                  }`}>
+                                  Avg/Booking
+                                </span>
+                                <span className={`text-lg font-bold ${cat.type === 'Same Day / Walk-in' ? 'text-red-900' :
+                                  cat.type === 'Advance (1-30 days)' ? 'text-amber-900' :
+                                    'text-emerald-900'
+                                  }`}>
+                                  {formatCurrency(cat.avgRevenue, 0)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* FORECASTING TAB - Pricing Strategy Recommendations */}
+                {
+                  activeTab === 'forecasting' && pricingStrategyReport && pricingStrategyReport.length > 0 && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">AI-Driven Pricing Strategy Recommendations</div>
+                        <div className="text-xs text-slate-500">Revenue optimization opportunities | {pricingStrategyReport.length} recommendations</div>
+                      </div>
+                      <div className="space-y-2">
+                        {pricingStrategyReport.map((rec, idx) => (
+                          <div key={idx} className={`rounded-lg border-2 p-3 ${rec.priority === 'high' ? 'border-rose-300 bg-rose-50' :
+                            rec.priority === 'medium' ? 'border-amber-300 bg-amber-50' :
+                              'border-blue-300 bg-blue-50'
+                            }`}>
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${rec.priority === 'high' ? 'bg-rose-200 text-rose-900' :
+                                  rec.priority === 'medium' ? 'bg-amber-200 text-amber-900' :
+                                    'bg-blue-200 text-blue-900'
+                                  }`}>
+                                  {rec.priority.toUpperCase()}
+                                </span>
+                                <span className={`text-sm font-semibold ${rec.priority === 'high' ? 'text-rose-900' :
+                                  rec.priority === 'medium' ? 'text-amber-900' :
+                                    'text-blue-900'
+                                  }`}>
+                                  {rec.type}
+                                </span>
+                              </div>
+                              <div className="text-xs font-semibold text-slate-700">{rec.site}</div>
+                            </div>
+                            <div className={`text-xs mb-2 ${rec.priority === 'high' ? 'text-rose-700' :
+                              rec.priority === 'medium' ? 'text-amber-700' :
+                                'text-blue-700'
+                              }`}>
+                              {rec.reason}
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              <div>
+                                <span className="text-slate-600">Current Rate:</span>
+                                <span className="ml-1 font-semibold">{formatCurrency(rec.currentRate, 0)}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-600">Suggested:</span>
+                                <span className="ml-1 font-semibold">{formatCurrency(rec.suggestedRate, 0)}</span>
+                              </div>
+                              {rec.potentialIncrease > 0 && (
+                                <div>
+                                  <span className="text-slate-600">Potential:</span>
+                                  <span className="ml-1 font-semibold text-emerald-700">+{formatCurrency(rec.potentialIncrease, 0)}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-slate-200/60 flex justify-end">
+                              <Button
+                                size="sm"
+                                variant={rec.priority === 'high' ? 'default' : 'secondary'}
+                                onClick={async () => {
+                                  try {
+                                    if (!campgroundId) return;
+
+                                    const startDate = new Date();
+                                    const endDate = new Date();
+                                    endDate.setDate(endDate.getDate() + 30); // 30 day rule by default
+
+                                    await apiClient.createPricingRule(campgroundId, {
+                                      label: `AI: ${rec.suggestion} - ${rec.site}`,
+                                      startDate: startDate.toISOString().split('T')[0],
+                                      endDate: endDate.toISOString().split('T')[0],
+                                      isActive: true,
+                                      ruleType: 'flat',
+                                      flatAdjust: Math.round(rec.suggestedRate * 100),
+                                    } as any);
+
+                                    toast({
+                                      title: "Pricing Rule Applied",
+                                      description: `Applied ${formatCurrency(rec.suggestedRate)} rate for ${rec.site} (30 days).`,
+                                    });
+                                  } catch (err: any) {
+                                    toast({
+                                      title: "Failed to apply",
+                                      description: err.message || "Unknown error",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                              >
+                                Apply Recommendation
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* FORECASTING TAB - Weekend Premium Analysis */}
+                {
+                  activeTab === 'forecasting' && weekendPremiumReport && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Weekend Premium Analysis</div>
+                        <div className="text-xs text-slate-500">Weekday vs Weekend rate comparison (Friday/Saturday arrivals)</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                        <div className="rounded-lg border-2 border-blue-300 bg-blue-50 p-4">
+                          <div className="text-sm font-semibold text-blue-900 mb-3">Weekday Bookings</div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-blue-700">Total Bookings</span>
+                              <span className="text-lg font-bold text-blue-900">{weekendPremiumReport.weekday.bookings}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-blue-700">Total Revenue</span>
+                              <span className="text-lg font-bold text-blue-900">{formatCurrency(weekendPremiumReport.weekday.revenue, 0)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-blue-700">Avg Rate</span>
+                              <span className="text-xl font-bold text-blue-900">{formatCurrency(weekendPremiumReport.weekday.avgRate, 0)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="rounded-lg border-2 border-purple-300 bg-purple-50 p-4">
+                          <div className="text-sm font-semibold text-purple-900 mb-3">Weekend Bookings</div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-purple-700">Total Bookings</span>
+                              <span className="text-lg font-bold text-purple-900">{weekendPremiumReport.weekend.bookings}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-purple-700">Total Revenue</span>
+                              <span className="text-lg font-bold text-purple-900">{formatCurrency(weekendPremiumReport.weekend.revenue, 0)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-purple-700">Avg Rate</span>
+                              <span className="text-xl font-bold text-purple-900">{formatCurrency(weekendPremiumReport.weekend.avgRate, 0)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className={`rounded-lg border-2 p-4 ${weekendPremiumReport.premium > 0 ? 'border-emerald-300 bg-emerald-50' : 'border-rose-300 bg-rose-50'
+                        }`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className={`text-sm font-semibold mb-1 ${weekendPremiumReport.premium > 0 ? 'text-emerald-900' : 'text-rose-900'
+                              }`}>
+                              Weekend Premium
+                            </div>
+                            <div className={`text-xs ${weekendPremiumReport.premium > 0 ? 'text-emerald-700' : 'text-rose-700'
+                              }`}>
+                              {weekendPremiumReport.premium > 0
+                                ? 'Weekend rates are higher - good!'
+                                : weekendPremiumReport.premium < 0
+                                  ? 'Consider implementing weekend premium pricing'
+                                  : 'Weekend and weekday rates are equal'}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2 text-right">
+                            <div className={`text-2xl font-bold ${weekendPremiumReport.premium > 0 ? 'text-emerald-900' :
+                              weekendPremiumReport.premium < -5 ? 'text-rose-900' : 'text-slate-900'
+                              }`}>
+                              {weekendPremiumReport.premium > 0 ? '+' : ''}{weekendPremiumReport.premium.toFixed(1)}%
+                            </div>
+                            {weekendPremiumReport.premium <= 0 && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={async () => {
+                                  try {
+                                    if (!campgroundId) return;
+                                    const startDate = new Date();
+                                    const endDate = new Date();
+                                    endDate.setDate(endDate.getDate() + 90); // 90 days
+
+                                    // Create Friday Rule
+                                    await apiClient.createPricingRule(campgroundId, {
+                                      label: `AI: Weekend Premium (Fri)`,
+                                      startDate: startDate.toISOString().split('T')[0],
+                                      endDate: endDate.toISOString().split('T')[0],
+                                      dayOfWeek: 5, // Friday
+                                      isActive: true,
+                                      ruleType: 'dow',
+                                      percentAdjust: 0.20, // +20%
+                                    } as any);
+
+                                    // Create Saturday Rule
+                                    await apiClient.createPricingRule(campgroundId, {
+                                      label: `AI: Weekend Premium (Sat)`,
+                                      startDate: startDate.toISOString().split('T')[0],
+                                      endDate: endDate.toISOString().split('T')[0],
+                                      dayOfWeek: 6, // Saturday
+                                      isActive: true,
+                                      ruleType: 'dow',
+                                      percentAdjust: 0.20, // +20%
+                                    } as any);
+
+                                    toast({
+                                      title: "Weekend Premium Applied",
+                                      description: "Created +20% pricing rules for Fridays and Saturdays (90 days).",
+                                    });
+                                  } catch (err: any) {
+                                    toast({
+                                      title: "Failed to apply",
+                                      description: err.message || "Unknown error",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                              >
+                                Apply +20% Premium
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )
+                }
+
+                {/* ACCOUNTING TAB */}
+                {
+                  activeTab === 'accounting' && paymentStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Payment Summary</div>
+                        <div className="text-xs text-slate-500">All-time collection metrics</div>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total Revenue</div>
+                          <div className="text-2xl font-bold text-slate-900">{formatCurrency(paymentStats.totalRevenue, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                          <div className="text-xs text-green-700 mb-1">Collected</div>
+                          <div className="text-2xl font-bold text-green-900">{formatCurrency(paymentStats.totalPaid, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                          <div className="text-xs text-amber-700 mb-1">Outstanding</div>
+                          <div className="text-2xl font-bold text-amber-900">{formatCurrency(paymentStats.totalBalance, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700 mb-1">Collection %</div>
+                          <div className="text-2xl font-bold text-blue-900">{paymentStats.paidPercentage}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {
+                  activeTab === 'accounting' && paymentMethodStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Payment Status Distribution</div>
+                        <div className="text-xs text-slate-500">Breakdown by payment completion</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                          <div className="text-xs text-emerald-700 mb-2">Fully Paid</div>
+                          <div className="text-3xl font-bold text-emerald-900 mb-1">{paymentMethodStats.fullyPaid}</div>
+                          <div className="text-xs text-emerald-700">{((paymentMethodStats.fullyPaid / paymentMethodStats.total) * 100).toFixed(1)}% of total</div>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                          <div className="text-xs text-blue-700 mb-2">Partially Paid</div>
+                          <div className="text-3xl font-bold text-blue-900 mb-1">{paymentMethodStats.partiallyPaid}</div>
+                          <div className="text-xs text-blue-700">{((paymentMethodStats.partiallyPaid / paymentMethodStats.total) * 100).toFixed(1)}% of total</div>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                          <div className="text-xs text-amber-700 mb-2">Unpaid</div>
+                          <div className="text-3xl font-bold text-amber-900 mb-1">{paymentMethodStats.unpaid}</div>
+                          <div className="text-xs text-amber-700">{((paymentMethodStats.unpaid / paymentMethodStats.total) * 100).toFixed(1)}% of total</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-xs text-slate-600 mb-2">Total Bookings</div>
+                          <div className="text-3xl font-bold text-slate-900 mb-1">{paymentMethodStats.total}</div>
+                          <div className="text-xs text-slate-600">Active reservations</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* ACCOUNTING TAB - Refund Tracking */}
+                {
+                  activeTab === 'accounting' && refundStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Refund & Cancellation Summary</div>
+                        <div className="text-xs text-slate-500">Cancelled reservations with payment history</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
+                          <div className="text-xs text-rose-700 mb-2">Total Cancelled</div>
+                          <div className="text-3xl font-bold text-rose-900 mb-1">{refundStats.totalCancelled}</div>
+                          <div className="text-xs text-rose-700">Reservations</div>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                          <div className="text-xs text-amber-700 mb-2">Refunded Amount</div>
+                          <div className="text-3xl font-bold text-amber-900">{formatCurrency(refundStats.refundedAmount, 0)}</div>
+                          <div className="text-xs text-amber-700">Total refunds issued</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-xs text-slate-600 mb-2">Avg Refund</div>
+                          <div className="text-3xl font-bold text-slate-900">{formatCurrency(refundStats.avgRefund, 0)}</div>
+                          <div className="text-xs text-slate-600">Per cancellation</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                {
+                  activeTab === 'accounting' && agingQuery.data && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Accounts Receivable Aging</div>
+                        <div className="text-xs text-slate-500">Outstanding balances by age bucket</div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {Object.entries(agingQuery.data).map(([bucket, cents]) => {
+                          const colorMap: Record<string, string> = {
+                            'current': 'bg-green-50 border-green-200 text-green-900',
+                            '1_30': 'bg-blue-50 border-blue-200 text-blue-900',
+                            '31_60': 'bg-amber-50 border-amber-200 text-amber-900',
+                            '61_90': 'bg-orange-50 border-orange-200 text-orange-900',
+                            'over_90': 'bg-rose-50 border-rose-200 text-rose-900'
+                          };
+                          return (
+                            <div key={bucket} className={`rounded-lg border p-3 ${colorMap[bucket] || 'bg-slate-50 border-slate-200'}`}>
+                              <div className="text-xs mb-1 font-medium">{bucket.replace('_', '-').replace('over ', '90+ ')}</div>
+                              <div className="text-2xl font-bold">{formatCurrency(cents / 100)}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* AUDITS TAB */}
+                {
+                  activeTab === 'audits' && dataQualityStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Data Quality Overview</div>
+                        <div className="text-xs text-slate-500">Issues requiring attention</div>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className={`rounded-lg border p-4 ${dataQualityStats.inactiveSites > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                          <div className="text-xs text-slate-700 mb-2">Inactive Sites</div>
+                          <div className={`text-3xl font-bold mb-1 ${dataQualityStats.inactiveSites > 0 ? 'text-amber-900' : 'text-green-900'}`}>
+                            {dataQualityStats.inactiveSites}
+                          </div>
+                          <div className="text-xs text-slate-600">No bookings in 1 year</div>
+                        </div>
+                        <div className={`rounded-lg border p-4 ${dataQualityStats.incompleteReservations > 0 ? 'bg-rose-50 border-rose-200' : 'bg-green-50 border-green-200'}`}>
+                          <div className="text-xs text-slate-700 mb-2">Incomplete Data</div>
+                          <div className={`text-3xl font-bold mb-1 ${dataQualityStats.incompleteReservations > 0 ? 'text-rose-900' : 'text-green-900'}`}>
+                            {dataQualityStats.incompleteReservations}
+                          </div>
+                          <div className="text-xs text-slate-600">Missing critical fields</div>
+                        </div>
+                        <div className={`rounded-lg border p-4 ${dataQualityStats.futureUnpaid > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                          <div className="text-xs text-slate-700 mb-2">Future Unpaid</div>
+                          <div className={`text-3xl font-bold mb-1 ${dataQualityStats.futureUnpaid > 0 ? 'text-amber-900' : 'text-green-900'}`}>
+                            {dataQualityStats.futureUnpaid}
+                          </div>
+                          <div className="text-xs text-slate-600">Confirmed, no payment</div>
+                        </div>
+                        <div className={`rounded-lg border p-4 ${dataQualityStats.negativeBalance > 0 ? 'bg-rose-50 border-rose-200' : 'bg-green-50 border-green-200'}`}>
+                          <div className="text-xs text-slate-700 mb-2">Negative Balance</div>
+                          <div className={`text-3xl font-bold mb-1 ${dataQualityStats.negativeBalance > 0 ? 'text-rose-900' : 'text-green-900'}`}>
+                            {dataQualityStats.negativeBalance}
+                          </div>
+                          <div className="text-xs text-slate-600">Overpayment issues</div>
+                        </div>
+                      </div>
+                      <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-700">
+                        <span className="font-semibold">Health Score:</span> {
+                          ((1 - ((dataQualityStats.inactiveSites + dataQualityStats.incompleteReservations + dataQualityStats.negativeBalance) /
+                            (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100).toFixed(1)
+                        }% - {
+                          ((1 - ((dataQualityStats.inactiveSites + dataQualityStats.incompleteReservations + dataQualityStats.negativeBalance) /
+                            (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100) >= 95 ? 'Excellent' :
+                            ((1 - ((dataQualityStats.inactiveSites + dataQualityStats.incompleteReservations + dataQualityStats.negativeBalance) /
+                              (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100) >= 85 ? 'Good' :
+                              ((1 - ((dataQualityStats.inactiveSites + dataQualityStats.incompleteReservations + dataQualityStats.negativeBalance) /
+                                (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100) >= 70 ? 'Fair' : 'Needs Attention'
+                        }
+                      </div>
+                    </div>
+                  )
+                }
+
+                {/* AUDITS TAB - Rate Consistency Audit */}
+                {
+                  activeTab === 'audits' && rateConsistencyStats && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Rate Consistency Audit</div>
+                        <div className="text-xs text-slate-500">Pricing variance analysis across reservations</div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                        <div className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div className="text-xs text-slate-600 mb-1">Sites Checked</div>
+                          <div className="text-2xl font-bold text-slate-900">{rateConsistencyStats.totalSitesChecked}</div>
+                        </div>
+                        <div className={`rounded-lg border p-3 ${rateConsistencyStats.inconsistentSites > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                          <div className={`text-xs mb-1 ${rateConsistencyStats.inconsistentSites > 0 ? 'text-amber-700' : 'text-green-700'}`}>Inconsistent Rates</div>
+                          <div className={`text-2xl font-bold ${rateConsistencyStats.inconsistentSites > 0 ? 'text-amber-900' : 'text-green-900'}`}>
+                            {rateConsistencyStats.inconsistentSites}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Variance Threshold</div>
+                          <div className="text-2xl font-bold text-slate-900">&gt;20%</div>
+                        </div>
+                      </div>
+                      {rateConsistencyStats.siteVariance.length > 0 && (
+                        <div>
+                          <div className="text-xs font-semibold text-slate-700 mb-2 uppercase">Top Issues</div>
+                          <div className="space-y-2">
+                            {rateConsistencyStats.siteVariance.map((site) => (
+                              <div key={site.siteName} className="rounded-md border border-amber-200 bg-amber-50 p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="text-sm font-medium text-slate-900">{site.siteName}</div>
+                                  <div className="text-sm font-bold text-amber-700">{site.variance.toFixed(1)}% variance</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <div className="text-slate-600">Min Rate</div>
+                                    <div className="font-semibold text-slate-900">${site.minRate.toFixed(2)}/night</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-slate-600">Max Rate</div>
+                                    <div className="font-semibold text-slate-900">${site.maxRate.toFixed(2)}/night</div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {rateConsistencyStats.inconsistentSites === 0 && (
+                        <div className="rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+                          <span className="font-semibold">All Clear!</span> No significant rate inconsistencies detected across your sites.
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                {
+                  activeTab === 'audits' && sitesQuery.data && (
+                    <div className="card p-4 space-y-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Inventory Audit</div>
+                        <div className="text-xs text-slate-500">Site configuration summary</div>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div className="text-xs text-slate-600 mb-1">Total Sites</div>
+                          <div className="text-2xl font-bold text-slate-900">{sitesQuery.data.length}</div>
+                        </div>
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                          <div className="text-xs text-green-700 mb-1">Active</div>
+                          <div className="text-2xl font-bold text-green-900">
+                            {sitesQuery.data.filter(s => s.isActive).length}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs text-slate-600 mb-1">Inactive</div>
+                          <div className="text-2xl font-bold text-slate-900">
+                            {sitesQuery.data.filter(s => !s.isActive).length}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
               </>
             </>
           )}
-        </div>
-      </div>
+        </div >
+      </div >
 
       {/* Export Confirmation Dialog */}
-      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+      < Dialog open={showExportDialog} onOpenChange={setShowExportDialog} >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -7255,9 +7027,9 @@ function ReportsPageInner() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
-    </DashboardShell>
+    </DashboardShell >
   );
 }
 
