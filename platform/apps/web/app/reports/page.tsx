@@ -20,116 +20,8 @@ import { HeatmapCard } from "../../components/reports/HeatmapCard";
 import { resolvePoints } from "../../components/reports/heatmap-utils";
 import { recordTelemetry } from "../../lib/sync-telemetry";
 
-type ReportTab = 'overview' | 'daily' | 'revenue' | 'performance' | 'guests' | 'marketing' | 'forecasting' | 'accounting' | 'audits' | 'booking-sources' | 'guest-origins';
-
-type SubTab = {
-  id: string;
-  label: string;
-  description?: string;
-};
-
-const subTabs: Record<Exclude<ReportTab, 'overview' | 'audits'>, SubTab[]> = {
-  daily: [
-    { id: 'daily-summary', label: 'Daily summary', description: 'Today’s pickup, arrivals, departures' },
-    { id: 'transaction-log', label: 'Transaction log', description: 'Payments, refunds, charges' }
-  ],
-  revenue: [
-    { id: 'revenue-overview', label: 'Revenue overview', description: 'Gross/Net, ADR, RevPAR' },
-    { id: 'revenue-by-source', label: 'By source/channel', description: 'Online vs admin vs kiosk' }
-  ],
-  performance: [
-    { id: 'pace', label: 'Pace vs target', description: 'On-the-books vs goals' },
-    { id: 'occupancy', label: 'Occupancy & ADR', description: 'Blend by date/site type' },
-    { id: 'site-breakdown', label: 'Site breakdown', description: 'RevPAR, ADR, occupancy by site' }
-  ],
-  guests: [
-    { id: 'guest-origins', label: 'Guest origins', description: 'State/ZIP mix' },
-    { id: 'guest-behavior', label: 'Behavior', description: 'Lead time, LOS, cancellations' }
-  ],
-  marketing: [
-    { id: 'booking-sources', label: 'Booking sources', description: 'Channel mix and revenue' },
-    { id: 'campaigns', label: 'Campaigns', description: 'Promo usage and lift' }
-  ],
-  forecasting: [
-    { id: 'revenue-forecast', label: 'Revenue forecast', description: 'Projected revenue vs last year' },
-    { id: 'demand-outlook', label: 'Demand outlook', description: 'Pickup by week and seasonality' },
-    { id: 'pickup', label: 'Pickup', description: 'Bookings/revenue vs prior window' },
-    { id: 'peak-nonpeak', label: 'Peak vs non-peak', description: 'Performance by season' }
-  ],
-  accounting: [
-    { id: 'ledger', label: 'Ledger summary', description: 'GL net and exports' },
-    { id: 'aging', label: 'Aging', description: 'AR buckets and overdue' }
-  ],
-  'booking-sources': [],
-  'guest-origins': []
-};
-
-// Full report catalog for discoverability
-const reportCatalog = [
-  {
-    id: 'overview',
-    label: 'Overview',
-    icon: LayoutList,
-    description: 'High-level KPIs and trends at a glance',
-    subReports: [{ label: 'Dashboard summary', description: 'Revenue, occupancy, ADR, RevPAR' }]
-  },
-  {
-    id: 'daily',
-    label: 'Daily Operations',
-    icon: Calendar,
-    description: 'Day-to-day arrivals, departures, and transactions',
-    subReports: subTabs.daily
-  },
-  {
-    id: 'revenue',
-    label: 'Revenue',
-    icon: TrendingUp,
-    description: 'Detailed revenue analysis and breakdowns',
-    subReports: subTabs.revenue
-  },
-  {
-    id: 'performance',
-    label: 'Performance',
-    icon: BarChart3,
-    description: 'Site and property performance metrics',
-    subReports: subTabs.performance
-  },
-  {
-    id: 'guests',
-    label: 'Guests',
-    icon: Users,
-    description: 'Guest demographics and behavior patterns',
-    subReports: subTabs.guests
-  },
-  {
-    id: 'marketing',
-    label: 'Marketing',
-    icon: Megaphone,
-    description: 'Booking sources and campaign effectiveness',
-    subReports: subTabs.marketing
-  },
-  {
-    id: 'forecasting',
-    label: 'Forecasting',
-    icon: LineChart,
-    description: 'Projections and demand predictions',
-    subReports: subTabs.forecasting
-  },
-  {
-    id: 'accounting',
-    label: 'Accounting',
-    icon: Calculator,
-    description: 'Financial ledgers and aging reports',
-    subReports: subTabs.accounting
-  },
-  {
-    id: 'audits',
-    label: 'Audits',
-    icon: ClipboardList,
-    description: 'Activity logs and compliance tracking',
-    subReports: [{ label: 'Audit log', description: 'All system activity' }]
-  }
-];
+import { reportCatalog, subTabs, ReportTab, SubTab } from "./registry";
+import { OverviewReport } from "../../components/reports/definitions/OverviewReport";
 
 const formatCurrency = (value: number, decimals: number = 0) => {
   return new Intl.NumberFormat('en-US', {
@@ -247,29 +139,13 @@ function ReportsPageInner() {
     enabled: !!campgroundId
   });
 
-  const summaryQuery = useQuery({
-    queryKey: ["reports-summary", campgroundId],
-    queryFn: () => apiClient.getDashboardSummary(campgroundId!),
-    enabled: !!campgroundId
-  });
 
-  const agingQuery = useQuery({
-    queryKey: ["reports-aging", campgroundId],
-    queryFn: () => apiClient.getAging(campgroundId!),
-    enabled: !!campgroundId
-  });
 
-  const ledgerSummaryQuery = useQuery({
-    queryKey: ["reports-ledger-summary", campgroundId],
-    queryFn: () => apiClient.getLedgerSummary(campgroundId!, {}),
-    enabled: !!campgroundId
-  });
 
-  const npsMetricsQuery = useQuery({
-    queryKey: ["nps-metrics", campgroundId],
-    queryFn: () => apiClient.getNpsMetrics(campgroundId!),
-    enabled: !!campgroundId
-  });
+
+
+
+
 
   const reservationsQuery = useQuery({
     queryKey: ["reservations", campgroundId],
@@ -320,21 +196,7 @@ function ReportsPageInner() {
       .sort((a, b) => b.revenue - a.revenue);
   }, [reservationsQuery.data]);
 
-  const cards = useMemo(() => {
-    if (!summaryQuery.data) return [];
-    const s = summaryQuery.data;
-    return [
-      { label: "Revenue (30d)", value: formatCurrency(s.revenue) },
-      { label: "ADR", value: formatCurrency(s.adr) },
-      { label: "RevPAR", value: formatCurrency(s.revpar) },
-      { label: "Occupancy", value: `${s.occupancy}%` },
-      { label: "Future reservations", value: s.futureReservations },
-      { label: "Sites", value: s.sites },
-      { label: "Overdue balance", value: formatCurrency(s.overdueBalance) },
-      { label: "Maintenance open", value: s.maintenanceOpen },
-      { label: "Maintenance overdue", value: s.maintenanceOverdue }
-    ];
-  }, [summaryQuery.data]);
+
 
   // Reservation analytics filtered by date range
   const reservationStats = useMemo(() => {
@@ -1766,44 +1628,7 @@ function ReportsPageInner() {
   }, [reservationsQuery.data, sitesQuery.data]);
 
   // Seasonal performance analysis
-  const seasonalStats = useMemo(() => {
-    if (!reservationsQuery.data) return null;
 
-    const seasons: Record<string, { revenue: number; bookings: number; nights: number }> = {
-      'Winter': { revenue: 0, bookings: 0, nights: 0 },
-      'Spring': { revenue: 0, bookings: 0, nights: 0 },
-      'Summer': { revenue: 0, bookings: 0, nights: 0 },
-      'Fall': { revenue: 0, bookings: 0, nights: 0 }
-    };
-
-    const getSeason = (date: Date) => {
-      const month = date.getMonth();
-      if (month >= 2 && month <= 4) return 'Spring';
-      if (month >= 5 && month <= 7) return 'Summer';
-      if (month >= 8 && month <= 10) return 'Fall';
-      return 'Winter';
-    };
-
-    reservationsQuery.data.forEach(r => {
-      if (r.status !== 'cancelled') {
-        const arrival = new Date(r.arrivalDate);
-        const departure = new Date(r.departureDate);
-        const season = getSeason(arrival);
-        const nights = Math.max(1, Math.floor((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24)));
-
-        seasons[season].revenue += (r.totalAmount || 0) / 100;
-        seasons[season].bookings++;
-        seasons[season].nights += nights;
-      }
-    });
-
-    return Object.entries(seasons).map(([season, data]) => ({
-      season,
-      revenue: data.revenue,
-      bookings: data.bookings,
-      avgNights: data.bookings > 0 ? (data.nights / data.bookings).toFixed(1) : '0'
-    }));
-  }, [reservationsQuery.data]);
 
   // Weekend vs weekday performance
   const weekendVsWeekdayStats = useMemo(() => {
@@ -2198,38 +2023,7 @@ function ReportsPageInner() {
   }, [reservationsQuery.data, sitesQuery.data, reportFilters]);
 
   // Year-over-year comparison
-  const yearOverYearStats = useMemo(() => {
-    if (!reservationsQuery.data) return null;
 
-    const now = new Date();
-    const thisYearStart = new Date(now.getFullYear(), 0, 1);
-    const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
-    const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
-
-    const thisYear = reservationsQuery.data.filter(r => {
-      const arrival = new Date(r.arrivalDate);
-      return arrival >= thisYearStart && r.status !== 'cancelled';
-    });
-
-    const lastYear = reservationsQuery.data.filter(r => {
-      const arrival = new Date(r.arrivalDate);
-      return arrival >= lastYearStart && arrival <= lastYearEnd && r.status !== 'cancelled';
-    });
-
-    const thisYearRevenue = thisYear.reduce((sum, r) => sum + (r.totalAmount || 0), 0) / 100;
-    const lastYearRevenue = lastYear.reduce((sum, r) => sum + (r.totalAmount || 0), 0) / 100;
-
-    const revenueChange = lastYearRevenue > 0 ? (((thisYearRevenue - lastYearRevenue) / lastYearRevenue) * 100).toFixed(1) : '0';
-
-    return {
-      thisYear: { bookings: thisYear.length, revenue: thisYearRevenue },
-      lastYear: { bookings: lastYear.length, revenue: lastYearRevenue },
-      change: {
-        bookings: thisYear.length - lastYear.length,
-        revenuePercent: revenueChange
-      }
-    };
-  }, [reservationsQuery.data]);
 
   // Pricing analysis by site class
   const pricingAnalysis = useMemo(() => {
@@ -3914,21 +3708,7 @@ function ReportsPageInner() {
         }
         break;
 
-      case 'overview':
-        if (summaryQuery.data && seasonalStats) {
-          csv = 'Metric,Value\n';
-          csv += `Revenue (30d),${summaryQuery.data.revenue.toFixed(2)}\n`;
-          csv += `ADR,${summaryQuery.data.adr.toFixed(2)}\n`;
-          csv += `RevPAR,${summaryQuery.data.revpar.toFixed(2)}\n`;
-          csv += `Occupancy,${summaryQuery.data.occupancy}%\n`;
-          csv += `Future Reservations,${summaryQuery.data.futureReservations}\n`;
-          csv += `Sites,${summaryQuery.data.sites}\n\n`;
-          csv += 'Season,Revenue,Bookings,Avg Nights\n';
-          seasonalStats.forEach(s => {
-            csv += `${s.season},${s.revenue.toFixed(2)},${s.bookings},${s.avgNights}\n`;
-          });
-        }
-        break;
+
 
       case 'revenue':
         if (reservationsQuery.data) {
@@ -4659,182 +4439,17 @@ function ReportsPageInner() {
 
               <>
                 {/* OVERVIEW TAB */}
-                {activeTab === 'overview' && summaryQuery.data && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {cards.map((card) => (
-                      <div
-                        key={card.label}
-                        className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-2"
-                      >
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">
-                          {card.label}
-                        </div>
-                        <div className="text-xl font-semibold text-slate-900">{card.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {activeTab === 'overview' && npsMetricsQuery.data && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                      <div className="text-[11px] uppercase tracking-wide text-emerald-700 font-semibold">NPS</div>
-                      <div className="text-3xl font-bold text-emerald-900 mt-1">{npsMetricsQuery.data.nps ?? "—"}</div>
-                      <div className="text-xs text-emerald-700">Promoters {npsMetricsQuery.data.promoters} · Detractors {npsMetricsQuery.data.detractors}</div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Responses</div>
-                      <div className="text-3xl font-bold text-slate-900 mt-1">{npsMetricsQuery.data.totalResponses}</div>
-                      <div className="text-xs text-slate-500">Response rate {npsMetricsQuery.data.responseRate ?? "—"}%</div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Passives</div>
-                      <div className="text-3xl font-bold text-slate-900 mt-1">{npsMetricsQuery.data.passives}</div>
-                      <div className="text-xs text-slate-500">Balanced feedback</div>
-                    </div>
-                  </div>
-                )}
-
                 {activeTab === 'overview' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Aging</div>
-                          <div className="text-xs text-slate-500">Outstanding balances by bucket</div>
-                        </div>
-                        {agingQuery.isFetching && <div className="text-xs text-slate-500">Updating…</div>}
-                      </div>
-                      {agingQuery.data ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          {Object.entries(agingQuery.data).map(([bucket, cents]) => (
-                            <div key={bucket} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm shadow-inner">
-                              <div className="text-[11px] uppercase text-slate-500 font-semibold">{bucket.replace("_", "-")}</div>
-                              <div className="font-semibold text-slate-900">{formatCurrency(cents / 100)}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-slate-500">No aging data.</div>
-                      )}
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Ledger summary</div>
-                          <div className="text-xs text-slate-500">Net by GL code</div>
-                        </div>
-                        {ledgerSummaryQuery.isFetching && <div className="text-xs text-slate-500">Updating…</div>}
-                      </div>
-                      {ledgerSummaryQuery.data && ledgerSummaryQuery.data.length > 0 ? (
-                        <div className="space-y-2">
-                          {ledgerSummaryQuery.data.map((row) => (
-                            <div key={row.glCode} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                              <span className="text-slate-700">{row.glCode}</span>
-                              <span className="font-semibold text-slate-900">{formatCurrency(row.netCents / 100)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-slate-500">No ledger summary yet.</div>
-                      )}
-                    </div>
-                  </div>
+                  <OverviewReport campgroundId={campgroundId!} />
                 )}
 
-                {/* OVERVIEW TAB - Year-over-Year Comparison */}
-                {activeTab === 'overview' && yearOverYearStats && (
-                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Year-over-Year Comparison</div>
-                      <div className="text-xs text-slate-500">{new Date().getFullYear()} vs {new Date().getFullYear() - 1}</div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700 uppercase">This Year</div>
-                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 shadow-inner">
-                          <div className="text-xs text-blue-700 mb-1">Bookings</div>
-                          <div className="text-2xl font-bold text-blue-900">{yearOverYearStats.thisYear.bookings}</div>
-                        </div>
-                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 shadow-inner">
-                          <div className="text-xs text-emerald-700 mb-1">Revenue</div>
-                          <div className="text-2xl font-bold text-emerald-900">{formatCurrency(yearOverYearStats.thisYear.revenue, 0)}</div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700 uppercase">Last Year</div>
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
-                          <div className="text-xs text-slate-600 mb-1">Bookings</div>
-                          <div className="text-2xl font-bold text-slate-900">{yearOverYearStats.lastYear.bookings}</div>
-                        </div>
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
-                          <div className="text-xs text-slate-600 mb-1">Revenue</div>
-                          <div className="text-2xl font-bold text-slate-900">{formatCurrency(yearOverYearStats.lastYear.revenue, 0)}</div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700 uppercase">Growth</div>
-                        <div className={`rounded-lg border p-3 ${yearOverYearStats.change.bookings >= 0 ? 'bg-green-50 border-green-200' : 'bg-rose-50 border-rose-200'}`}>
-                          <div className="text-xs mb-1 ${yearOverYearStats.change.bookings >= 0 ? 'text-green-700' : 'text-rose-700'}">Bookings</div>
-                          <div className={`text-2xl font-bold ${yearOverYearStats.change.bookings >= 0 ? 'text-green-900' : 'text-rose-900'}`}>
-                            {yearOverYearStats.change.bookings >= 0 ? '+' : ''}{yearOverYearStats.change.bookings}
-                          </div>
-                        </div>
-                        <div className={`rounded-lg border p-3 ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'bg-green-50 border-green-200' : 'bg-rose-50 border-rose-200'}`}>
-                          <div className="text-xs mb-1 ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'text-green-700' : 'text-rose-700'}">Revenue</div>
-                          <div className={`text-2xl font-bold ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'text-green-900' : 'text-rose-900'}`}>
-                            {parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? '+' : ''}{yearOverYearStats.change.revenuePercent}%
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
-                {/* OVERVIEW TAB - Seasonal Performance */}
-                {activeTab === 'overview' && seasonalStats && (
-                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">Seasonal Performance</div>
-                      <div className="text-xs text-slate-500">Revenue and bookings by season</div>
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      {seasonalStats.map(({ season, revenue, bookings, avgNights }) => {
-                        const colorMap: Record<string, string> = {
-                          'Spring': 'bg-green-50 border-green-200',
-                          'Summer': 'bg-orange-50 border-orange-200',
-                          'Fall': 'bg-amber-50 border-amber-200',
-                          'Winter': 'bg-blue-50 border-blue-200'
-                        };
-                        const textColorMap: Record<string, string> = {
-                          'Spring': 'text-green-900',
-                          'Summer': 'text-orange-900',
-                          'Fall': 'text-amber-900',
-                          'Winter': 'text-blue-900'
-                        };
-                        return (
-                          <div key={season} className={`rounded-xl border shadow-sm ${colorMap[season]} p-3 space-y-2`}>
-                            <div className={`text-sm font-bold ${textColorMap[season]}`}>{season}</div>
-                            <div className="space-y-1">
-                              <div className="text-xs text-slate-600">Revenue</div>
-                              <div className="text-lg font-bold text-slate-900">{formatCurrency(revenue, 0)}</div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <div className="text-slate-500">Bookings</div>
-                                <div className="font-semibold text-slate-900">{bookings}</div>
-                              </div>
-                              <div>
-                                <div className="text-slate-500">Avg Nights</div>
-                                <div className="font-semibold text-slate-900">{avgNights}</div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+
+
+
+
+
+
 
                 {/* DAILY TAB */}
                 {/* Daily Arrivals */}
