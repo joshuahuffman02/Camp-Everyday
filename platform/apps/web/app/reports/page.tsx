@@ -2684,7 +2684,7 @@ function ReportsPageInner() {
 
     const now = new Date();
     const currentYear = now.getFullYear();
-    const years: { year: number; bookings: number; revenue: number; isCurrent: boolean }[] = [];
+    const years: { year: number; bookings: number; revenue: number; paid: number; avgPerBooking: number; isCurrent: boolean }[] = [];
 
     for (let y = currentYear - 2; y <= currentYear; y++) {
       const yearStart = new Date(y, 0, 1);
