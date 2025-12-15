@@ -12,6 +12,10 @@ import { WaitlistDialog } from "@/components/waitlist/WaitlistDialog";
 import { Badge } from "@/components/ui/badge";
 import { useAnalyticsEmitters } from "./useAnalytics";
 import { trackEvent } from "@/lib/analytics";
+import {
+    Check, Moon, CalendarDays, Caravan, Tent, Car, Home, Sparkles, Users, Lock,
+    Frown, CheckCircle
+} from "lucide-react";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder");
 
@@ -134,7 +138,7 @@ function BookingProgress({ currentStep }: { currentStep: BookingStep }) {
                                 : "bg-slate-200 text-slate-500"
                             }`}
                     >
-                        {step.num < currentStep ? "✓" : step.num}
+                        {step.num < currentStep ? <Check className="h-4 w-4" /> : step.num}
                     </div>
                     <span className={`ml-2 text-xs sm:text-sm font-medium hidden sm:inline ${step.num <= currentStep ? "text-emerald-700" : "text-slate-400"
                         }`}>
@@ -229,7 +233,7 @@ function DateStep({
         onArrivalChange(value);
         if (!value) return;
 
-            const arrival = new Date(value);
+        const arrival = new Date(value);
         const hasDeparture = !!departureDate;
         const departure = departureDate ? new Date(departureDate) : null;
 
@@ -254,16 +258,16 @@ function DateStep({
                     <button
                         type="button"
                         onClick={handleTonight}
-                        className="px-4 py-2 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-700 rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-emerald-300"
+                        className="px-4 py-2 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-700 rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-emerald-300 inline-flex items-center gap-1"
                     >
-                        🌙 Tonight
+                        <Moon className="h-4 w-4" /> Tonight
                     </button>
                     <button
                         type="button"
                         onClick={handleWeekend}
-                        className="px-4 py-2 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-700 rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-emerald-300"
+                        className="px-4 py-2 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-700 rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-emerald-300 inline-flex items-center gap-1"
                     >
-                        🗓️ Weekend
+                        <CalendarDays className="h-4 w-4" /> Weekend
                     </button>
                     <button
                         type="button"
@@ -381,15 +385,15 @@ function SiteStep({
     siteSelectionFeeCents?: number | null;
     onProceedWithoutLock?: () => void;
 }) {
-    const siteTypeIcons: Record<string, string> = {
-        rv: "🚐",
-        trailer: "🚐",
-        tent: "⛺",
-        car: "🚗",
-        cabin: "🏠",
-        yurt: "🛖",
-        group: "👥",
-        glamping: "✨"
+    const siteTypeIcons: Record<string, React.ReactNode> = {
+        rv: <Caravan className="h-5 w-5" />,
+        trailer: <Caravan className="h-5 w-5" />,
+        tent: <Tent className="h-5 w-5" />,
+        car: <Car className="h-5 w-5" />,
+        cabin: <Home className="h-5 w-5" />,
+        yurt: <Home className="h-5 w-5" />,
+        group: <Users className="h-5 w-5" />,
+        glamping: <Sparkles className="h-5 w-5" />
     };
 
     const StatusBadge = ({ status }: { status: string }) => {
@@ -443,9 +447,9 @@ function SiteStep({
         return (
             <div className="text-center py-12 space-y-5">
                 <div>
-                <span className="text-6xl">😔</span>
-                <h3 className="text-xl font-bold text-slate-900 mt-4">No Sites Available</h3>
-                <p className="text-slate-600 mt-2">Sorry, there are no sites available for your selected dates.</p>
+                    <Frown className="h-16 w-16 text-slate-400 mx-auto" />
+                    <h3 className="text-xl font-bold text-slate-900 mt-4">No Sites Available</h3>
+                    <p className="text-slate-600 mt-2">Sorry, there are no sites available for your selected dates.</p>
                 </div>
 
                 {nextAvailability && onApplySuggestedDates && (
@@ -478,7 +482,7 @@ function SiteStep({
                                     onClick={() => onChangeSiteType(type)}
                                     className="px-4 py-2 rounded-lg border border-emerald-200 bg-white shadow-sm hover:border-emerald-400 transition-colors text-sm font-semibold text-emerald-800"
                                 >
-                                    {siteTypeIcons[type] || "🏕️"} {siteTypeLabel(type)} ({typeSites.length} open)
+                                    {siteTypeIcons[type] || <Tent className="h-5 w-5" />} {siteTypeLabel(type)} ({typeSites.length} open)
                                 </button>
                             ))}
                         </div>
@@ -530,7 +534,7 @@ function SiteStep({
             {Object.entries(sitesByClass).map(([className, classSites]) => (
                 <div key={className} className="mb-10">
                     <div className="flex items-center gap-2 mb-3">
-                        <span className="text-xl">{siteTypeIcons[classSites[0]?.siteClass?.siteType || "tent"] || "🏕️"}</span>
+                        <span className="text-slate-600">{siteTypeIcons[classSites[0]?.siteClass?.siteType || "tent"] || <Tent className="h-5 w-5" />}</span>
                         <h3 className="text-lg font-semibold text-slate-900">{className}</h3>
                         {classSites[0]?.siteClass?.defaultRate && (
                             <span className="text-emerald-700 font-semibold ml-auto">
@@ -569,8 +573,8 @@ function SiteStep({
                                             <Badge variant="secondary" className="bg-black/60 text-white border-white/10">
                                                 {site.siteClass?.siteType?.toUpperCase() || "SITE"}
                                             </Badge>
-                                        <StatusBadge status={site.status || 'available'} />
-                                    </div>
+                                            <StatusBadge status={site.status || 'available'} />
+                                        </div>
                                         {selected && (
                                             <div className="absolute bottom-3 right-3 rounded-full bg-emerald-600 text-white text-xs px-3 py-1 shadow-lg">
                                                 Selected
@@ -611,7 +615,7 @@ function SiteStep({
                                             <div className="mt-3 flex flex-col gap-2">
                                                 {selectionFeeDisplay ? (
                                                     <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 flex items-center gap-2">
-                                                        <span>🔒</span>
+                                                        <Lock className="h-4 w-4" />
                                                         <span>
                                                             Selecting this site adds {selectionFeeDisplay} (set by the campground). Fees apply only when you lock a specific site.
                                                         </span>
@@ -1585,7 +1589,7 @@ function ReviewStep({
                                 : selectedSite?.siteClass?.name || "Site details"}
                         </div>
                     </div>
-                    <span className="text-3xl">🏕️</span>
+                    <Tent className="h-8 w-8 text-emerald-600" />
                 </div>
 
                 <div className="py-4 border-b border-slate-200 space-y-2">
@@ -2135,7 +2139,7 @@ export default function BookingPage() {
                 email: guestInfo.email || undefined,
                 phone: guestInfo.phone || undefined,
                 abandonedAt: new Date().toISOString()
-            }).catch(() => {});
+            }).catch(() => { });
         }, 15 * 60 * 1000);
         abandonTimerRef.current = t;
         return () => {
@@ -2190,7 +2194,7 @@ export default function BookingPage() {
     if (campgroundError || !campground) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-4">
-                <span className="text-6xl">🏕️</span>
+                <Tent className="h-16 w-16 text-emerald-500" />
                 <h1 className="text-2xl font-bold text-slate-800">Campground Not Found</h1>
                 <Link
                     href="/"
@@ -2256,26 +2260,26 @@ export default function BookingPage() {
                                 onChangeSiteType={handleSiteTypeChange}
                                 currentSiteType={selectedSiteType}
                                 nextAvailability={nextAvailability}
-                        onApplySuggestedDates={handleApplySuggestedDates}
-                        onBookSelected={() => setStep(3)}
-                        siteSelectionFeeCents={siteSelectionFeeCents}
-                        heroImage={campground?.heroImageUrl || campground?.photos?.[0] || null}
-                        onProceedWithoutLock={() => {
-                            const pool = filteredSites.length > 0 ? filteredSites : availableSites || [];
-                            const fallbackSite = pool.find((s) => s.status === "available");
-                            if (fallbackSite) {
-                                setSelectedSiteId(fallbackSite.id);
-                                setSelectedSiteClassId(fallbackSite.siteClass?.id || null);
-                            } else if ((campground?.siteClasses || []).length > 0) {
-                                const classMatch = (campground?.siteClasses || []).find((sc: any) =>
-                                    selectedSiteType === "all" ? true : matchesSiteType(selectedSiteType, sc.siteType)
-                                );
-                                setSelectedSiteClassId(classMatch?.id || null);
-                                setSelectedSiteId(null);
-                            }
-                            setAssignOnArrival(true);
-                            setStep(3);
-                        }}
+                                onApplySuggestedDates={handleApplySuggestedDates}
+                                onBookSelected={() => setStep(3)}
+                                siteSelectionFeeCents={siteSelectionFeeCents}
+                                heroImage={campground?.heroImageUrl || campground?.photos?.[0] || null}
+                                onProceedWithoutLock={() => {
+                                    const pool = filteredSites.length > 0 ? filteredSites : availableSites || [];
+                                    const fallbackSite = pool.find((s) => s.status === "available");
+                                    if (fallbackSite) {
+                                        setSelectedSiteId(fallbackSite.id);
+                                        setSelectedSiteClassId(fallbackSite.siteClass?.id || null);
+                                    } else if ((campground?.siteClasses || []).length > 0) {
+                                        const classMatch = (campground?.siteClasses || []).find((sc: any) =>
+                                            selectedSiteType === "all" ? true : matchesSiteType(selectedSiteType, sc.siteType)
+                                        );
+                                        setSelectedSiteClassId(classMatch?.id || null);
+                                        setSelectedSiteId(null);
+                                    }
+                                    setAssignOnArrival(true);
+                                    setStep(3);
+                                }}
                             />
                         )}
 
@@ -2298,8 +2302,8 @@ export default function BookingPage() {
                                 arrivalDate={arrivalDate}
                                 departureDate={departureDate}
                                 selectedSite={selectedSite}
-                            selectedSiteClassId={selectedSiteClassId}
-                            assignOnArrival={assignOnArrival}
+                                selectedSiteClassId={selectedSiteClassId}
+                                assignOnArrival={assignOnArrival}
                                 guestInfo={guestInfo}
                                 onBack={() => setStep(3)}
                                 holdExpiresAt={holdExpiresAt}
