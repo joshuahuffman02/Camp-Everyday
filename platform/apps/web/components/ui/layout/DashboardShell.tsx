@@ -267,6 +267,25 @@ export function DashboardShell({ children, className, title, subtitle }: { child
   const allowSupport = !!supportAllowed && (platformRole ? true : hasCampgroundAccess);
   const allowOps = (whoami?.allowed?.operationsWrite ?? false) && (platformRole ? true : hasCampgroundAccess);
 
+  // Role-based visibility for nav sections
+  // Cast allowed to any to access permissions that may not be in the strict type
+  const allowed = whoami?.allowed as Record<string, boolean> | undefined;
+  // Check for manager-level or higher permissions (financeRead, reportsRead, or any write permission)
+  const isManager = Boolean(
+    platformRole ||
+    allowed?.financeRead ||
+    allowed?.reportsRead ||
+    allowed?.usersWrite ||
+    allowOps
+  );
+  // Check for admin-level permissions (settings access)
+  const isAdmin = Boolean(
+    platformRole ||
+    allowed?.settingsWrite ||
+    allowed?.usersWrite ||
+    allowed?.pricingWrite
+  );
+
   // Sync API token from session to localStorage
   useEffect(() => {
     const apiToken = (session as any)?.apiToken;
@@ -496,7 +515,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
       { label: "Roadmap", href: "/roadmap", icon: "sparkles" }
     ];
 
-    return [
+    const sections = [
       {
         heading: "Primary",
         items: primaryItems,
@@ -508,21 +527,31 @@ export function DashboardShell({ children, className, title, subtitle }: { child
         items: operationsItems,
         collapsible: true,
         defaultOpen: true
-      },
-      {
+      }
+    ];
+
+    // Only show Management section for managers and above
+    if (isManager) {
+      sections.push({
         heading: "Management",
         items: managementItems,
         collapsible: true,
         defaultOpen: false
-      },
-      {
+      });
+    }
+
+    // Only show Settings section for admins
+    if (isAdmin) {
+      sections.push({
         heading: "Settings",
         items: settingsItems,
         collapsible: true,
         defaultOpen: false
-      }
-    ];
-  }, [cgReservationsPath, cgScopedPath, unreadMessages, allowOps, allowSupport, selected, platformRole]);
+      });
+    }
+
+    return sections;
+  }, [cgReservationsPath, cgScopedPath, unreadMessages, allowOps, allowSupport, selected, platformRole, isManager, isAdmin]);
 
   const frontDeskShortcuts = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
