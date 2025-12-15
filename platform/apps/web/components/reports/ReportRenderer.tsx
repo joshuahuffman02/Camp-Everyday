@@ -11,6 +11,7 @@ import { LedgerSummaryReport } from "./definitions/LedgerSummaryReport";
 import { MaintenanceDailyReport } from "./definitions/MaintenanceDailyReport";
 import { DailySummaryReport } from "./definitions/DailySummaryReport";
 import { HousekeepingReport } from "./definitions/HousekeepingReport";
+import { TransactionLogReport } from "./definitions/TransactionLogReport";
 
 interface ReportRendererProps {
     tab: ReportTab;
@@ -30,6 +31,9 @@ export function ReportRenderer({ tab, subTab, campgroundId, dateRange, reportFil
     if (tab === "daily") {
         if (subTab === "daily-summary") {
             return <DailySummaryReport campgroundId={campgroundId} dateRange={dateRange} />;
+        }
+        if (subTab === "transaction-log") {
+            return <TransactionLogReport campgroundId={campgroundId} dateRange={dateRange} />;
         }
         if (subTab === "housekeeping-status") {
             return <HousekeepingReport campgroundId={campgroundId} />;
