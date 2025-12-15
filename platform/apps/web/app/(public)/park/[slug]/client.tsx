@@ -7,25 +7,40 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import { trackEvent } from "@/lib/analytics";
+import {
+    Wifi, Waves, Flame, Droplets, Store, Fish, Ship, PlayCircle, ShowerHead, Dog,
+    Footprints, Mountain, Bike, Check, Tent, Caravan, Home, Users, Sparkles,
+    Star, Calendar, MapPin, Clock, Phone, Mail, Link2, Zap, Droplet, Plug, Leaf,
+    TreeDeciduous, Palette, RefreshCw
+} from "lucide-react";
 
 type PublicCampgroundDetail = Awaited<ReturnType<typeof apiClient.getPublicCampground>>;
 
-// Amenity icon mapping
-const amenityIcons: Record<string, string> = {
-    WiFi: "📶",
-    Pool: "🏊",
-    "Hot Tub": "♨️",
-    Laundry: "🧺",
-    "Camp Store": "🏪",
-    "Fishing Dock": "🎣",
-    "Boat Ramp": "🚤",
-    Playground: "🛝",
-    "Fire Pits": "🔥",
-    Showers: "🚿",
-    "Pet Friendly": "🐕",
-    "Hiking Trails": "🥾",
-    "Mountain Views": "🏔️",
-    "Bike Rentals": "🚴",
+// Amenity icon mapping with lucide components
+const amenityIcons: Record<string, React.ReactNode> = {
+    WiFi: <Wifi className="h-5 w-5" />,
+    Pool: <Waves className="h-5 w-5" />,
+    "Hot Tub": <Flame className="h-5 w-5" />,
+    Laundry: <Droplets className="h-5 w-5" />,
+    "Camp Store": <Store className="h-5 w-5" />,
+    "Fishing Dock": <Fish className="h-5 w-5" />,
+    "Boat Ramp": <Ship className="h-5 w-5" />,
+    Playground: <PlayCircle className="h-5 w-5" />,
+    "Fire Pits": <Flame className="h-5 w-5" />,
+    Showers: <ShowerHead className="h-5 w-5" />,
+    "Pet Friendly": <Dog className="h-5 w-5" />,
+    "Hiking Trails": <Footprints className="h-5 w-5" />,
+    "Mountain Views": <Mountain className="h-5 w-5" />,
+    "Bike Rentals": <Bike className="h-5 w-5" />,
+};
+
+// Site type icon mapping
+const siteTypeIcons: Record<string, React.ReactNode> = {
+    rv: <Caravan className="h-8 w-8" />,
+    tent: <Tent className="h-8 w-8" />,
+    cabin: <Home className="h-8 w-8" />,
+    group: <Users className="h-8 w-8" />,
+    glamping: <Sparkles className="h-8 w-8" />,
 };
 
 function formatPrice(cents: number): string {
@@ -55,7 +70,7 @@ function ReviewBadge({ score, count }: { score?: number | null; count?: number |
     if (!Number.isFinite(numeric)) return null;
     return (
         <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-800 px-3 py-1 rounded-full border border-amber-200 text-sm font-semibold">
-            <span>⭐ {numeric.toFixed(1)}</span>
+            <span className="flex items-center gap-1"><Star className="h-4 w-4 text-amber-500" /> {numeric.toFixed(1)}</span>
             <span className="text-amber-700 text-xs">{count ?? 0} reviews</span>
         </div>
     );
@@ -72,8 +87,8 @@ function PhotoGallery({ photos, heroImage, campgroundId }: { photos: string[]; h
 
     if (allPhotos.length === 0) {
         return (
-            <div className="w-full h-[500px] bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center">
-                <span className="text-white text-6xl">🏕️</span>
+            <div className="w-full h-[500px] bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white">
+                <Tent className="h-20 w-20" />
             </div>
         );
     }
@@ -118,7 +133,7 @@ function AmenitiesGrid({ amenities }: { amenities: string[] }) {
                     key={amenity}
                     className="flex items-center gap-2 bg-slate-50 rounded-lg px-4 py-3 border border-slate-100"
                 >
-                    <span className="text-xl">{amenityIcons[amenity] || "✓"}</span>
+                    <span className="text-emerald-600">{amenityIcons[amenity] || <Check className="h-5 w-5" />}</span>
                     <span className="text-sm font-medium text-slate-700">{amenity}</span>
                 </div>
             ))}
@@ -140,18 +155,10 @@ function SiteClassCard({
     externalUrl?: string | null;
     onSelect?: (siteType?: string) => void;
 }) {
-    const typeIcons: Record<string, string> = {
-        rv: "🚐",
-        tent: "⛺",
-        cabin: "🏠",
-        group: "👥",
-        glamping: "✨",
-    };
-
     return (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow">
-            <div className="h-32 bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
-                <span className="text-5xl">{typeIcons[siteClass.siteType || "tent"] || "🏕️"}</span>
+            <div className="h-32 bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white">
+                {siteTypeIcons[siteClass.siteType || "tent"] || <Tent className="h-10 w-10" />}
             </div>
             <div className="p-5">
                 <h3 className="font-bold text-lg text-slate-900">{siteClass.name}</h3>
@@ -165,16 +172,16 @@ function SiteClassCard({
                         </span>
                     )}
                     {siteClass.hookupsPower && (
-                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded">⚡ Power</span>
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded inline-flex items-center gap-1"><Zap className="h-3 w-3" /> Power</span>
                     )}
                     {siteClass.hookupsWater && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">💧 Water</span>
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded inline-flex items-center gap-1"><Droplet className="h-3 w-3" /> Water</span>
                     )}
                     {siteClass.hookupsSewer && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">🔌 Sewer</span>
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded inline-flex items-center gap-1"><Plug className="h-3 w-3" /> Sewer</span>
                     )}
                     {siteClass.petFriendly && (
-                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">🐕 Pets OK</span>
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded inline-flex items-center gap-1"><Dog className="h-3 w-3" /> Pets OK</span>
                     )}
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
@@ -263,7 +270,7 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
                         <span
                             className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide ${typeColors[event.eventType]}`}
                         >
-                            {event.eventType === 'holiday' ? '🎉 Holiday Weekend' : '🎭 Themed Weekend'}
+                            {event.eventType === 'holiday' ? <><Star className="h-3.5 w-3.5 inline" /> Holiday Weekend</> : <><Palette className="h-3.5 w-3.5 inline" /> Themed Weekend</>}
                         </span>
                         <h3 className="font-bold text-xl text-slate-900 mt-3">{event.title}</h3>
                         {event.description && (
@@ -273,12 +280,12 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
                 </div>
                 <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-4">
                     <div className="flex items-center gap-1">
-                        <span>📅</span>
+                        <Calendar className="h-4 w-4" />
                         <span>{formatDate(event.startDate)} {event.endDate && `- ${formatDate(event.endDate)}`}</span>
                     </div>
                     {event.location && (
                         <div className="flex items-center gap-1">
-                            <span>📍</span>
+                            <MapPin className="h-4 w-4" />
                             <span>{event.location}</span>
                         </div>
                     )}
@@ -329,7 +336,7 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
                     </div>
                 )}
                 <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">🎨</span>
+                    <Palette className="h-5 w-5 text-amber-600" />
                     <span className="text-xs px-2 py-1 bg-amber-500 text-white rounded-full font-bold uppercase">
                         All Weekend
                     </span>
@@ -341,13 +348,13 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
                 <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-600">
                     {event.location && (
                         <div className="flex items-center gap-1">
-                            <span>📍</span>
+                            <MapPin className="h-4 w-4" />
                             <span>{event.location}</span>
                         </div>
                     )}
                     {event.startTime && event.endTime && (
                         <div className="flex items-center gap-1">
-                            <span>🕐</span>
+                            <Clock className="h-4 w-4" />
                             <span>{formatTime(event.startTime)} - {formatTime(event.endTime)}</span>
                         </div>
                     )}
@@ -373,8 +380,8 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
                             {event.eventType.charAt(0).toUpperCase() + event.eventType.slice(1)}
                         </span>
                         {recurrenceLabel && (
-                            <span className="text-xs px-2 py-1 bg-green-500 text-white rounded-full font-medium">
-                                🔄 {recurrenceLabel}
+                            <span className="text-xs px-2 py-1 bg-green-500 text-white rounded-full font-medium inline-flex items-center gap-1">
+                                <RefreshCw className="h-3 w-3" /> {recurrenceLabel}
                             </span>
                         )}
                     </div>
@@ -386,18 +393,18 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
             </div>
             <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
                 <div className="flex items-center gap-1">
-                    <span>📅</span>
+                    <Calendar className="h-4 w-4" />
                     <span>{formatDate(event.startDate)}</span>
                 </div>
                 {event.startTime && (
                     <div className="flex items-center gap-1">
-                        <span>🕐</span>
+                        <Clock className="h-4 w-4" />
                         <span>{formatTime(event.startTime)}</span>
                     </div>
                 )}
                 {event.location && (
                     <div className="flex items-center gap-1">
-                        <span>📍</span>
+                        <MapPin className="h-4 w-4" />
                         <span>{event.location}</span>
                     </div>
                 )}
@@ -636,7 +643,7 @@ export function CampgroundDetailClient({
     if (error || !campground) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-                <span className="text-6xl">🏕️</span>
+                <Tent className="h-16 w-16 text-emerald-500" />
                 <h1 className="text-2xl font-bold text-slate-800">Campground Not Found</h1>
                 <p className="text-slate-600">The campground you're looking for doesn't exist or isn't available.</p>
                 <Link
@@ -715,13 +722,13 @@ export function CampgroundDetailClient({
                             </Link>
                         )}
                         {campground.phone && (
-                            <a href={`tel:${campground.phone}`} className="text-slate-600 hover:text-emerald-600">
-                                📞 {campground.phone}
+                            <a href={`tel:${campground.phone}`} className="text-slate-600 hover:text-emerald-600 inline-flex items-center gap-1">
+                                <Phone className="h-4 w-4" /> {campground.phone}
                             </a>
                         )}
                         {campground.email && (
-                            <a href={`mailto:${campground.email}`} className="text-slate-600 hover:text-emerald-600">
-                                ✉️ {campground.email}
+                            <a href={`mailto:${campground.email}`} className="text-slate-600 hover:text-emerald-600 inline-flex items-center gap-1">
+                                <Mail className="h-4 w-4" /> {campground.email}
                             </a>
                         )}
                     </div>
@@ -729,7 +736,7 @@ export function CampgroundDetailClient({
 
                 {viewOnly && (
                     <div className="mb-8 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                        <span className="text-xl" aria-hidden>🔗</span>
+                        <Link2 className="h-5 w-5 text-amber-600 flex-shrink-0" aria-hidden />
                         <div>
                             <p className="font-semibold text-amber-900">Discovery listing — booking handled off-platform</p>
                             <p className="text-sm text-amber-800">
@@ -752,21 +759,21 @@ export function CampgroundDetailClient({
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                         {campground.checkInTime && (
                             <div>
-                                <div className="text-2xl mb-1">🕐</div>
+                                <div className="flex justify-center mb-1"><Clock className="h-6 w-6 text-slate-400" /></div>
                                 <div className="text-sm text-slate-500">Check-in</div>
                                 <div className="font-semibold text-slate-800">{formatTime(campground.checkInTime)}</div>
                             </div>
                         )}
                         {campground.checkOutTime && (
                             <div>
-                                <div className="text-2xl mb-1">🕐</div>
+                                <div className="flex justify-center mb-1"><Clock className="h-6 w-6 text-slate-400" /></div>
                                 <div className="text-sm text-slate-500">Check-out</div>
                                 <div className="font-semibold text-slate-800">{formatTime(campground.checkOutTime)}</div>
                             </div>
                         )}
                         {campground.seasonStart && (
                             <div>
-                                <div className="text-2xl mb-1">🌱</div>
+                                <div className="flex justify-center mb-1"><Leaf className="h-6 w-6 text-green-500" /></div>
                                 <div className="text-sm text-slate-500">Season Opens</div>
                                 <div className="font-semibold text-slate-800">
                                     {new Date(campground.seasonStart).toLocaleDateString("en-US", {
@@ -778,7 +785,7 @@ export function CampgroundDetailClient({
                         )}
                         {campground.seasonEnd && (
                             <div>
-                                <div className="text-2xl mb-1">🍂</div>
+                                <div className="flex justify-center mb-1"><TreeDeciduous className="h-6 w-6 text-amber-500" /></div>
                                 <div className="text-sm text-slate-500">Season Ends</div>
                                 <div className="font-semibold text-slate-800">
                                     {new Date(campground.seasonEnd).toLocaleDateString("en-US", {
@@ -800,7 +807,7 @@ export function CampgroundDetailClient({
                         </div>
                         {campground.reviewScore ? (
                             <div className="flex items-center gap-2 bg-amber-50 text-amber-800 px-3 py-2 rounded-full border border-amber-200 text-sm font-semibold">
-                                <span>⭐ {Number(campground.reviewScore).toFixed(1)}</span>
+                                <span className="flex items-center gap-1"><Star className="h-4 w-4 text-amber-500" /> {Number(campground.reviewScore).toFixed(1)}</span>
                                 <span className="text-amber-700 text-xs">{campground.reviewCount ?? 0} reviews</span>
                             </div>
                         ) : null}
