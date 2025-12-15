@@ -449,8 +449,12 @@ function NewReservationInner() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Set default payment amount to total
-    const totalInCents = (nights * ratePerNight) + siteLockFee;
+    // Set default payment amount to total including add-ons
+    const upsellTotalForPayment = selectedUpsells.reduce((acc, id) => {
+      const item = upsellOptions.find(o => o.id === id);
+      return acc + (item?.price || 0);
+    }, 0);
+    const totalInCents = (nights * ratePerNight) + siteLockFee + upsellTotalForPayment;
     setPaymentData({
       paymentAmount: totalInCents / 100, // Convert to dollars for display
       paymentMethod: "",
