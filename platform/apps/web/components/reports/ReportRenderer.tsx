@@ -15,6 +15,7 @@ import { TransactionLogReport } from "./definitions/TransactionLogReport";
 import { RevenueBySiteTypeReport } from "./definitions/RevenueBySiteTypeReport";
 import { PaymentMethodsReport } from "./definitions/PaymentMethodsReport";
 import { NewVsReturningReport } from "./definitions/NewVsReturningReport";
+import { LengthOfStayReport } from "./definitions/LengthOfStayReport";
 
 interface ReportRendererProps {
     tab: ReportTab;
@@ -85,6 +86,9 @@ export function ReportRenderer({ tab, subTab, campgroundId, dateRange, reportFil
         }
         if (subTab === "occupancy") {
             return <OccupancyReport campgroundId={campgroundId} dateRange={dateRange} />;
+        }
+        if (subTab === "los-analysis") {
+            return <LengthOfStayReport campgroundId={campgroundId} dateRange={dateRange} />;
         }
     }
 
