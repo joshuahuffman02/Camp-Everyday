@@ -2,14 +2,11 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { useState } from "react";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Brain, Shield, Zap, BarChart3, TrendingUp, MessageSquare, Eye, EyeOff } from "lucide-react";
+import { Brain, Shield, Zap, BarChart3, TrendingUp, MessageSquare, AlertCircle } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 
 interface AiSettings {
@@ -39,19 +36,17 @@ export default function AiSettingsPage() {
     const campgroundId = params.campgroundId as string;
     const queryClient = useQueryClient();
 
-    const [showApiKey, setShowApiKey] = useState(false);
-    const [apiKeyInput, setApiKeyInput] = useState("");
-
     const { data: campground } = useQuery({
         queryKey: ["campground", campgroundId],
         queryFn: () => apiClient.getCampground(campgroundId),
         enabled: !!campgroundId,
     });
 
-    const { data: settings, isLoading } = useQuery({
+    const { data: settings, isLoading, error } = useQuery({
         queryKey: ["ai-settings", campgroundId],
         queryFn: () => apiClient.getAiSettings(campgroundId),
         enabled: !!campgroundId,
+        retry: false,
     });
 
     const { data: usage } = useQuery({
@@ -65,6 +60,9 @@ export default function AiSettingsPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["ai-settings", campgroundId] });
         },
+        onError: (err) => {
+            console.error("Failed to update AI settings:", err);
+        },
     });
 
     const handleToggle = (field: keyof AiSettings) => {
@@ -72,18 +70,8 @@ export default function AiSettingsPage() {
         mutation.mutate({ [field]: !settings[field] } as Partial<AiSettings>);
     };
 
-    const handleProviderChange = (provider: string) => {
-        mutation.mutate({ aiProvider: provider } as Partial<AiSettings>);
-    };
-
     const handleAnonymizationChange = (level: string) => {
         mutation.mutate({ aiAnonymizationLevel: level } as Partial<AiSettings>);
-    };
-
-    const handleSaveApiKey = () => {
-        mutation.mutate({ aiApiKey: apiKeyInput || null } as Partial<AiSettings>);
-        setApiKeyInput("");
-        setShowApiKey(false);
     };
 
     if (isLoading) {
@@ -94,6 +82,28 @@ export default function AiSettingsPage() {
                         <div className="h-8 bg-slate-200 rounded w-1/3" />
                         <div className="h-64 bg-slate-200 rounded" />
                     </div>
+                </div>
+            </DashboardShell>
+        );
+    }
+
+    if (error) {
+        return (
+            <DashboardShell>
+                <div className="p-8">
+                    <Card className="border-red-200 bg-red-50">
+                        <CardContent className="py-6">
+                            <div className="flex items-start gap-4">
+                                <AlertCircle className="w-6 h-6 text-red-600" />
+                                <div>
+                                    <h3 className="font-semibold text-red-900">Unable to load AI settings</h3>
+                                    <p className="text-sm text-red-700 mt-1">
+                                        {(error as Error)?.message || "An error occurred. Please try again."}
+                                    </p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </DashboardShell>
         );
@@ -181,57 +191,9 @@ export default function AiSettingsPage() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="text-sm font-medium text-slate-700">AI Provider</label>
-                                    <p className="text-xs text-slate-500 mb-2">Which AI service to use</p>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[
-                                            { value: "openai", label: "OpenAI", desc: "GPT-4" },
-                                            { value: "anthropic", label: "Anthropic", desc: "Claude" },
-                                            { value: "local", label: "Self-Hosted", desc: "Your server" },
-                                        ].map((option) => (
-                                            <button
-                                                key={option.value}
-                                                onClick={() => handleProviderChange(option.value)}
-                                                className={`p-3 rounded-lg border text-left transition-all ${settings.aiProvider === option.value
-                                                    ? "border-violet-500 bg-violet-50 ring-1 ring-violet-500"
-                                                    : "border-slate-200 hover:border-slate-300"
-                                                    }`}
-                                            >
-                                                <div className="font-medium text-sm">{option.label}</div>
-                                                <div className="text-xs text-slate-500">{option.desc}</div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="text-sm font-medium text-slate-700">Custom API Key</label>
-                                    <p className="text-xs text-slate-500 mb-2">
-                                        {settings.hasCustomApiKey
-                                            ? "You have a custom API key configured"
-                                            : "Use your own API key (optional)"}
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <Input
-                                                type={showApiKey ? "text" : "password"}
-                                                placeholder={settings.hasCustomApiKey ? "••••••••" : "sk-..."}
-                                                value={apiKeyInput}
-                                                onChange={(e) => setApiKeyInput(e.target.value)}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowApiKey(!showApiKey)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                            >
-                                                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-                                        <Button onClick={handleSaveApiKey} variant="outline" disabled={!apiKeyInput}>
-                                            Save
-                                        </Button>
-                                    </div>
+                                <div className="p-3 rounded-lg bg-slate-50 text-sm text-slate-600">
+                                    <strong>AI powered by Camp Everyday.</strong> We use OpenAI's GPT-4 to provide AI features.
+                                    Your data is anonymized before processing and never used to train models.
                                 </div>
                             </CardContent>
                         </Card>
