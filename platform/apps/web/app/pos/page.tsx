@@ -492,50 +492,49 @@ export default function POSPage() {
                 <div className="flex-1 flex flex-col gap-6 min-w-0">
                     <div className="flex items-center justify-between">
                         <h1 className="text-2xl font-bold text-slate-900">Point of Sale</h1>
-                            <div className="flex items-center gap-2">
-                                {!isOnline && <Badge variant="outline">Offline</Badge>}
-                                {queuedOrders > 0 && (
-                                    <Badge
-                                        variant="secondary"
-                                        title={
-                                            conflicts.length
-                                                ? `${queuedOrders - conflicts.length} queued, ${conflicts.length} conflicts${conflicts[0]?.lastError ? ` (last error: ${conflicts[0].lastError})` : ""}${
-                                                    queuedOrders > conflicts.length
-                                                        ? ` • next retry ${new Date(
-                                                              Math.min(
-                                                                  ...loadQueue()
-                                                                      .map((i) => i.nextAttemptAt)
-                                                                      .filter((n) => typeof n === "number")
-                                                              )
-                                                          ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                                                        : ""
-                                                }`
-                                                : `${queuedOrders} queued`
-                                        }
-                                    >
-                                        {queuedOrders} queued
-                                    </Badge>
-                                )}
-                                <Button asChild size="sm" variant="outline">
-                                    <Link href="/pwa/sync-log">Sync log</Link>
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => flushQueue()}>
-                                    Flush now
-                                </Button>
-                                <Button asChild size="sm" variant="secondary">
-                                    <Link href="/store" title="Manage products, categories, add-ons, taxes, hours, channel allotments">Manage inventory</Link>
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    onClick={() => {
-                                        setSelectedOrderForRefund(recentOrders[0]?.id ?? null);
-                                        setIsRefundOpen(true);
-                                    }}
-                                    disabled={ordersLoading}
+                        <div className="flex items-center gap-2">
+                            {!isOnline && <Badge variant="outline">Offline</Badge>}
+                            {queuedOrders > 0 && (
+                                <Badge
+                                    variant="secondary"
+                                    title={
+                                        conflicts.length
+                                            ? `${queuedOrders - conflicts.length} queued, ${conflicts.length} conflicts${conflicts[0]?.lastError ? ` (last error: ${conflicts[0].lastError})` : ""}${queuedOrders > conflicts.length
+                                                ? ` • next retry ${new Date(
+                                                    Math.min(
+                                                        ...loadQueue()
+                                                            .map((i) => i.nextAttemptAt)
+                                                            .filter((n) => typeof n === "number")
+                                                    )
+                                                ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                                                : ""
+                                            }`
+                                            : `${queuedOrders} queued`
+                                    }
                                 >
-                                    Refund / Exchange
-                                </Button>
-                            </div>
+                                    {queuedOrders} queued
+                                </Badge>
+                            )}
+                            <Button asChild size="sm" variant="outline">
+                                <Link href="/pwa/sync-log">Sync log</Link>
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => flushQueue()}>
+                                Flush now
+                            </Button>
+                            <Button asChild size="sm" variant="secondary">
+                                <Link href="/store" title="Manage products, categories, add-ons, taxes, hours, channel allotments">Manage inventory</Link>
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={() => {
+                                    setSelectedOrderForRefund(recentOrders[0]?.id ?? null);
+                                    setIsRefundOpen(true);
+                                }}
+                                disabled={ordersLoading}
+                            >
+                                Refund / Exchange
+                            </Button>
+                        </div>
                     </div>
 
                     {conflicts.length > 0 && (
@@ -556,6 +555,40 @@ export default function POSPage() {
                             ))}
                         </div>
                     )}
+
+                    {/* Low Stock Alerts */}
+                    {(() => {
+                        const lowStockProducts = products.filter(p => typeof p.stock === 'number' && p.stock > 0 && p.stock < 5);
+                        const outOfStockProducts = products.filter(p => p.stock === 0);
+                        if (lowStockProducts.length === 0 && outOfStockProducts.length === 0) return null;
+                        return (
+                            <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-900 p-3 text-sm space-y-2">
+                                <div className="font-semibold flex items-center gap-2">
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    Inventory Alerts
+                                </div>
+                                {outOfStockProducts.length > 0 && (
+                                    <div className="text-xs">
+                                        <span className="font-medium">Out of stock:</span>{' '}
+                                        {outOfStockProducts.slice(0, 3).map(p => p.name).join(', ')}
+                                        {outOfStockProducts.length > 3 && ` +${outOfStockProducts.length - 3} more`}
+                                    </div>
+                                )}
+                                {lowStockProducts.length > 0 && (
+                                    <div className="text-xs">
+                                        <span className="font-medium">Low stock:</span>{' '}
+                                        {lowStockProducts.slice(0, 3).map(p => `${p.name} (${p.stock})`).join(', ')}
+                                        {lowStockProducts.length > 3 && ` +${lowStockProducts.length - 3} more`}
+                                    </div>
+                                )}
+                                <Link href="/store" className="text-xs text-rose-700 underline hover:text-rose-800">
+                                    Manage inventory →
+                                </Link>
+                            </div>
+                        );
+                    })()}
 
                     {showContent ? (
                         <>
