@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -42,8 +42,21 @@ export default function Dashboard() {
     queryFn: () => apiClient.getCampgrounds()
   });
 
-  const selectedCampground = campgrounds[0];
-  const selectedId = selectedCampground?.id;
+  const [selectedId, setSelectedId] = useState<string>("");
+
+  useEffect(() => {
+    // Sync with sidebar selection
+    const stored = typeof window !== "undefined" ? localStorage.getItem("campreserv:selectedCampground") : null;
+    if (campgrounds.length > 0) {
+      if (stored && campgrounds.some((c) => c.id === stored)) {
+        setSelectedId(stored);
+      } else {
+        setSelectedId(campgrounds[0].id);
+      }
+    }
+  }, [campgrounds]);
+
+  const selectedCampground = campgrounds.find((c) => c.id === selectedId) || campgrounds[0];
 
   const reservationsQuery = useQuery({
     queryKey: ["reservations", selectedId],
