@@ -473,15 +473,8 @@ export function DashboardShell({ children, className, title, subtitle }: { child
       );
     }
 
-    if (allowSupport) {
-      managementItems.push(
-        { label: "Support Queue", href: "/admin/support", icon: "ticket" },
-        { label: "Support Analytics", href: "/admin/support/analytics", icon: "reports" }
-      );
-      if (platformRole) {
-        managementItems.push({ label: "Platform Users", href: "/admin/platform/users", icon: "users" });
-      }
-    }
+    // NOTE: Support Queue / Analytics / Platform Users are accessed via /admin layout
+    // They should NOT appear in the campground staff navigation
 
     // SETTINGS - Admin configuration
     const settingsItems: NavItem[] = [
