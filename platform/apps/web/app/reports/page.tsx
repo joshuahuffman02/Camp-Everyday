@@ -4458,6 +4458,7 @@ function ReportsPageInner() {
                 {/* DYNAMIC REPORT RENDERER */}
                 {activeTab !== 'overview' && campgroundId && (
                   <ReportRenderer
+                    key={`${activeTab}-${activeSubTab || 'default'}`}
                     tab={activeTab as ReportTab}
                     subTab={activeSubTab || (subTabs[activeTab as keyof typeof subTabs]?.[0]?.id)}
                     campgroundId={campgroundId}
