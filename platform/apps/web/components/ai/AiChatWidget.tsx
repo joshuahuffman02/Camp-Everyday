@@ -103,13 +103,17 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
 
     if (!isOpen) {
         return (
-            <button
-                onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all flex items-center justify-center z-50"
-                aria-label="Open AI booking assistant"
-            >
-                <MessageSquare className="w-6 h-6" />
-            </button>
+            <div className="fixed bottom-6 right-6 z-[9999]">
+                {/* Debug wrapper */}
+                <div className="bg-red-500 text-white text-xs px-1 py-0.5 rounded mb-1">Widget Here</div>
+                <button
+                    onClick={() => setIsOpen(true)}
+                    className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all flex items-center justify-center"
+                    aria-label="Open AI booking assistant"
+                >
+                    <MessageSquare className="w-6 h-6" />
+                </button>
+            </div>
         );
     }
 
@@ -179,8 +183,8 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                                 )}
                                 <div
                                     className={`max-w-[75%] p-3 rounded-2xl ${msg.role === "user"
-                                            ? "bg-emerald-500 text-white rounded-br-md"
-                                            : "bg-slate-100 text-slate-900 rounded-bl-md"
+                                        ? "bg-emerald-500 text-white rounded-br-md"
+                                        : "bg-slate-100 text-slate-900 rounded-bl-md"
                                         }`}
                                 >
                                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
