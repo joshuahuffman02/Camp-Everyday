@@ -5637,16 +5637,8 @@ export const apiClient = {
   },
 
   // -------------------------------------------------------------------------
-  // AI Suggestions
+  // AI Suggestions (Legacy - see AI Settings section at end for new methods)
   // -------------------------------------------------------------------------
-  async updateAiSettings(payload: { campgroundId: string; enabled: boolean; openaiApiKey?: string }) {
-    const res = await fetch(`${API_BASE}/ai/settings`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify(payload),
-    });
-    return parseResponse<unknown>(res);
-  },
   async generateAiSuggestions(payload: { campgroundId: string; focus?: string }) {
     const res = await fetch(`${API_BASE}/ai/suggestions`, {
       method: "POST",
