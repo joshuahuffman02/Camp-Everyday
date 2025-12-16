@@ -207,13 +207,13 @@ export const roadmapPhases: RoadmapPhase[] = [
         id: 'ship-readiness',
         name: 'Ship Readiness',
         description: 'Pre-ship QA, UI/navigation polish, and sign-off across environments.',
-        status: 'in_progress',
+        status: 'completed',
         order: 30,
         icon: 'traffic-cone',
         color: 'slate',
         milestones: [
-            { id: 'pre-ship-qa-polish', name: 'Pre-ship QA & UI polish', description: 'Full QA across dev/staging/prod, nav cleanup, security/privacy checks, and ship-blocker fixes.', status: 'in_progress' },
-            { id: 'ship-checklist', name: 'Ship checklist sign-off', description: 'Condensed re-smoke, known-limits doc, and launch readiness checklist.', status: 'planned' },
+            { id: 'pre-ship-qa-polish', name: 'Pre-ship QA & UI polish', description: 'Full QA across dev/staging/prod, nav cleanup, security/privacy checks, and ship-blocker fixes.', status: 'completed' },
+            { id: 'ship-checklist', name: 'Ship checklist sign-off', description: 'Condensed re-smoke, known-limits doc, and launch readiness checklist.', status: 'completed' },
         ],
     },
     {
@@ -486,16 +486,16 @@ export const roadmapPhases: RoadmapPhase[] = [
         id: 'stabilize',
         name: 'Stabilize & Hardening',
         description: 'POS/store resilience, guest/portal polish, trust/PII controls, OTA iCal sync, finance fixes.',
-        status: 'in_progress',
+        status: 'completed',
         order: 23,
         icon: 'wrench',
         color: 'slate',
         milestones: [
-            { id: 'pos-offline', name: 'POS offline queue & sync log', description: 'Queue orders, show sync state, charge-to-site hardening, refunds/credits, low-stock alerts', status: 'in_progress' },
-            { id: 'guest-portal-polish', name: 'Guest portal polish', description: 'Comms timeline, delivery/curbside, assigned-on-arrival booking, order status, offline-friendly My Stay', status: 'in_progress' },
-            { id: 'trust-privacy', name: 'Trust & compliance', description: 'Permissions guardrails, approval flows, audit/PII redaction, backups/restore-sim, retention', status: 'in_progress' },
-            { id: 'ota-ical-next', name: 'OTA iCal sync', description: 'Per-listing calendar export/import with sync status and error badges', status: 'in_progress' },
-            { id: 'finance-fixes', name: 'Finance fixes', description: 'Payouts/disputes views, deposits v2, ledger/tax sanity checks, finance seed fixtures', status: 'in_progress' },
+            { id: 'pos-offline', name: 'POS offline queue & sync log', description: 'Queue orders, show sync state, charge-to-site hardening, refunds/credits, low-stock alerts', status: 'completed' },
+            { id: 'guest-portal-polish', name: 'Guest portal polish', description: 'Comms timeline, delivery/curbside, assigned-on-arrival booking, order status, offline-friendly My Stay', status: 'completed' },
+            { id: 'trust-privacy', name: 'Trust & compliance', description: 'Permissions guardrails, approval flows, audit/PII redaction, backups/restore-sim, retention', status: 'completed' },
+            { id: 'ota-ical-next', name: 'OTA iCal sync', description: 'Per-listing calendar export/import with sync status and error badges', status: 'completed' },
+            { id: 'finance-fixes', name: 'Finance fixes', description: 'Payouts/disputes views, deposits v2, ledger/tax sanity checks, finance seed fixtures', status: 'completed' },
         ],
     },
     {
@@ -536,6 +536,16 @@ export const roadmapPhases: RoadmapPhase[] = [
 // =============================================================================
 
 export const updates: Update[] = [
+    {
+        id: 'update-2025-12-16-ship-readiness-complete',
+        title: 'Ship Readiness & Stabilize phases completed',
+        date: '2025-12-16',
+        body: 'Officially completed the Ship Readiness and Stabilize tracks. Validated build integrity, documented known limitations, performed full browser QA on production, and verified functional completion of Guest Portal, POS Offline, Trust/Compliance, and OTA iCal sync.',
+        tags: ['roadmap', 'status', 'shipping', 'qa'],
+        category: 'improvement',
+        phaseId: 'ship-readiness',
+        milestoneIds: ['pre-ship-qa-polish', 'ship-checklist'],
+    },
     {
         id: 'update-2025-12-11-hardening-alerts-payments-pos',
         title: 'Reliability, payments, POS/stored value hardening shipped',

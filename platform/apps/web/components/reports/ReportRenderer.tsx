@@ -22,13 +22,11 @@ import { RepeatGuestsReport } from "./definitions/RepeatGuestsReport";
 import { DemographicsReport } from "./definitions/DemographicsReport";
 import { TopSpendersReport } from "./definitions/TopSpendersReport";
 import { EmailCaptureReport } from "./definitions/EmailCaptureReport";
-import {
-    LoyaltyMembershipReport,
-    GuestFeedbackReport,
-    GuestPreferencesReport,
-    BannedListReport,
-    SpecialDatesReport
-} from "./definitions/PlaceholderReports";
+import { LoyaltyMembershipReport } from "./definitions/LoyaltyMembershipReport";
+import { GuestFeedbackReport } from "./definitions/GuestFeedbackReport";
+import { GuestPreferencesReport } from "./definitions/GuestPreferencesReport";
+import { BannedListReport } from "./definitions/BannedListReport";
+import { SpecialDatesReport } from "./definitions/SpecialDatesReport";
 // Daily Reports Wave 1
 import {
     EarlyCheckInsReport,
