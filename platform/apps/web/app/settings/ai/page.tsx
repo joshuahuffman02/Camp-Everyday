@@ -48,7 +48,7 @@ export default function AiSettingsPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!campgroundId) throw new Error("Select a campground");
-      return apiClient.updateAiSettings({ campgroundId, enabled: aiEnabled, openaiApiKey: openaiKey || undefined });
+      return apiClient.updateAiSettings(campgroundId, { aiEnabled, aiApiKey: openaiKey || undefined });
     },
     onSuccess: () => {
       toast({ title: "AI settings saved" });
