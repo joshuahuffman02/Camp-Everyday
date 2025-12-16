@@ -46,15 +46,25 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Body() body: BookingChatDto,
   ) {
-    return this.bookingAssist.chat({
-      campgroundId,
-      sessionId: body.sessionId,
-      message: body.message,
-      dates: body.dates,
-      partySize: body.partySize,
-      rigInfo: body.rigInfo,
-      preferences: body.preferences,
-    });
+    try {
+      return await this.bookingAssist.chat({
+        campgroundId,
+        sessionId: body.sessionId,
+        message: body.message,
+        dates: body.dates,
+        partySize: body.partySize,
+        rigInfo: body.rigInfo,
+        preferences: body.preferences,
+      });
+    } catch (error) {
+      console.error('Chat endpoint error:', error);
+      // Return the error message for debugging (in production you'd want to sanitize this)
+      return {
+        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        action: 'info',
+        error: true,
+      };
+    }
   }
 
   /**
