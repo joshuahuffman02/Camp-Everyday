@@ -26,15 +26,25 @@ interface ReportRendererProps {
 }
 
 export function ReportRenderer({ tab, subTab, campgroundId, dateRange, reportFilters }: ReportRendererProps) {
+    // Debug: Show what we're receiving
+    console.log('[ReportRenderer] tab:', tab, 'subTab:', subTab);
+
+    // Visible debug bar (remove after debugging)
+    const debugBar = (
+        <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 px-3 py-2 rounded-md text-sm mb-4">
+            <strong>Debug:</strong> tab="{tab}" | subTab="{subTab}"
+        </div>
+    );
+
     // 1. Overview Tab
     if (tab === "overview") {
-        return <OverviewReport campgroundId={campgroundId} />;
+        return <>{debugBar}<OverviewReport campgroundId={campgroundId} /></>;
     }
 
     // 2. Daily Operations Tests
     if (tab === "daily") {
         if (subTab === "daily-summary") {
-            return <DailySummaryReport campgroundId={campgroundId} dateRange={dateRange} />;
+            return <>{debugBar}<DailySummaryReport campgroundId={campgroundId} dateRange={dateRange} /></>;
         }
         if (subTab === "transaction-log") {
             return <TransactionLogReport campgroundId={campgroundId} dateRange={dateRange} />;
@@ -72,10 +82,10 @@ export function ReportRenderer({ tab, subTab, campgroundId, dateRange, reportFil
     // 4. Guests Reports
     if (tab === "guests") {
         if (subTab === "guest-origins") {
-            return <GuestOriginsReport campgroundId={campgroundId} dateRange={dateRange} />;
+            return <>{debugBar}<GuestOriginsReport campgroundId={campgroundId} dateRange={dateRange} /></>;
         }
         if (subTab === "new-vs-returning") {
-            return <NewVsReturningReport campgroundId={campgroundId} dateRange={dateRange} />;
+            return <>{debugBar}<NewVsReturningReport campgroundId={campgroundId} dateRange={dateRange} /></>;
         }
     }
 
