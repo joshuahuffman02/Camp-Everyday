@@ -28,7 +28,7 @@ interface BookingChatDto {
   preferences?: string[];
 }
 
-@Controller('api/ai')
+@Controller('ai')
 export class AiController {
   constructor(
     private readonly prisma: PrismaService,
