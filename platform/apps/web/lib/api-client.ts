@@ -98,7 +98,12 @@ const OverlapCheckSchema = z.object({
 const OverlapListSchema = z.array(
   z.object({
     siteId: z.string(),
-    // ...
+    reservationA: z.string(),
+    reservationB: z.string(),
+    arrivalA: z.string(),
+    departureA: z.string(),
+    arrivalB: z.string(),
+    departureB: z.string()
   })
 );
 
@@ -127,14 +132,6 @@ export const SmartLockSchema = z.object({
   batteryLevel: numberish(z.number().nullable().optional()),
   metadata: z.record(z.any()).nullable().optional(),
 });
-reservationA: z.string(),
-  reservationB: z.string(),
-    arrivalA: z.string(),
-      departureA: z.string(),
-        arrivalB: z.string(),
-          departureB: z.string()
-  })
-);
 const VehicleSchema = z.object({
   id: z.string(),
   campgroundId: z.string(),
