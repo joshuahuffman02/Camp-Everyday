@@ -1,60 +1,204 @@
-import { Body, Controller, Post, Query, UseGuards } from "@nestjs/common";
-import { AiService } from "./ai.service";
-import { GenerateAiSuggestionsDto } from "./dto/generate-ai-suggestions.dto";
-import { UpdateAiSettingsDto } from "./dto/update-ai-settings.dto";
-import { JwtAuthGuard, Roles, RolesGuard } from "../auth/guards";
-import { UserRole } from "@prisma/client";
-import { AskDto } from "./dto/ask.dto";
-import { RecommendDto } from "./dto/recommend.dto";
-import { PricingSuggestDto } from "./dto/pricing-suggest.dto";
-import { SemanticSearchDto } from "./dto/semantic-search.dto";
-import { CopilotActionDto } from "./dto/copilot-action.dto";
+import { Controller, Get, Post, Patch, Param, Body, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards';
+import { RolesGuard, Roles } from '../auth/guards/roles.guard';
+import { UserRole } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { AiFeatureGateService } from './ai-feature-gate.service';
+import { AiBookingAssistService } from './ai-booking-assist.service';
+import type { Request } from 'express';
 
-@Controller("ai")
-@UseGuards(JwtAuthGuard, RolesGuard)
+interface UpdateAiSettingsDto {
+  aiEnabled?: boolean;
+  aiReplyAssistEnabled?: boolean;
+  aiBookingAssistEnabled?: boolean;
+  aiAnalyticsEnabled?: boolean;
+  aiForecastingEnabled?: boolean;
+  aiAnonymizationLevel?: 'strict' | 'moderate' | 'minimal';
+  aiProvider?: 'openai' | 'anthropic' | 'local';
+  aiApiKey?: string | null;
+  aiMonthlyBudgetCents?: number | null;
+}
+
+interface BookingChatDto {
+  sessionId: string;
+  message: string;
+  dates?: { arrival: string; departure: string };
+  partySize?: { adults: number; children: number };
+  rigInfo?: { type: string; length: number };
+  preferences?: string[];
+}
+
+@Controller('ai')
 export class AiController {
-  constructor(private readonly ai: AiService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gate: AiFeatureGateService,
+    private readonly bookingAssist: AiBookingAssistService,
+  ) { }
 
+  // ==================== PUBLIC ENDPOINTS ====================
+
+  /**
+   * Public endpoint for booking assistant chat (no auth required)
+   */
+  @Post('public/campgrounds/:campgroundId/chat')
+  async bookingChat(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: BookingChatDto,
+  ) {
+    return this.bookingAssist.chat({
+      campgroundId,
+      sessionId: body.sessionId,
+      message: body.message,
+      dates: body.dates,
+      partySize: body.partySize,
+      rigInfo: body.rigInfo,
+      preferences: body.preferences,
+    });
+  }
+
+  /**
+   * Check if booking assist is enabled for a campground (public)
+   */
+  @Get('public/campgrounds/:campgroundId/status')
+  async getPublicAiStatus(@Param('campgroundId') campgroundId: string) {
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: {
+        aiEnabled: true,
+        aiBookingAssistEnabled: true,
+      },
+    });
+
+    return {
+      bookingAssistAvailable: campground?.aiEnabled && campground?.aiBookingAssistEnabled,
+    };
+  }
+
+  // ==================== AUTHENTICATED ENDPOINTS ====================
+
+  @UseGuards(JwtAuthGuard)
+  @Get('campgrounds/:campgroundId/settings')
+  async getAiSettings(@Param('campgroundId') campgroundId: string, @Req() req: Request) {
+    const org = (req as any).organizationId || null;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: {
+        id: true,
+        name: true,
+        organizationId: true,
+        aiEnabled: true,
+        aiReplyAssistEnabled: true,
+        aiBookingAssistEnabled: true,
+        aiAnalyticsEnabled: true,
+        aiForecastingEnabled: true,
+        aiAnonymizationLevel: true,
+        aiProvider: true,
+        aiApiKey: true,
+        aiConsentCollected: true,
+        aiConsentCollectedAt: true,
+        aiMonthlyBudgetCents: true,
+        aiTotalTokensUsed: true,
+      },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return {
+      ...campground,
+      aiApiKey: campground.aiApiKey ? '••••••••' : null,
+      hasCustomApiKey: !!campground.aiApiKey,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.owner, UserRole.manager)
-  @Post("settings")
-  async updateSettings(@Body() dto: UpdateAiSettingsDto & { campgroundId: string }) {
-    return this.ai.updateSettings(dto.campgroundId, dto);
+  @Patch('campgrounds/:campgroundId/settings')
+  async updateAiSettings(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: UpdateAiSettingsDto,
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    const updateData: Record<string, any> = {};
+
+    if (typeof body.aiEnabled === 'boolean') updateData.aiEnabled = body.aiEnabled;
+    if (typeof body.aiReplyAssistEnabled === 'boolean') updateData.aiReplyAssistEnabled = body.aiReplyAssistEnabled;
+    if (typeof body.aiBookingAssistEnabled === 'boolean') updateData.aiBookingAssistEnabled = body.aiBookingAssistEnabled;
+    if (typeof body.aiAnalyticsEnabled === 'boolean') updateData.aiAnalyticsEnabled = body.aiAnalyticsEnabled;
+    if (typeof body.aiForecastingEnabled === 'boolean') updateData.aiForecastingEnabled = body.aiForecastingEnabled;
+    if (body.aiAnonymizationLevel) updateData.aiAnonymizationLevel = body.aiAnonymizationLevel;
+    if (body.aiProvider) updateData.aiProvider = body.aiProvider;
+    if (body.aiApiKey !== undefined) updateData.aiApiKey = body.aiApiKey;
+    if (body.aiMonthlyBudgetCents !== undefined) updateData.aiMonthlyBudgetCents = body.aiMonthlyBudgetCents;
+
+    if (body.aiEnabled && !campground) {
+      updateData.aiConsentCollected = true;
+      updateData.aiConsentCollectedAt = new Date();
+    }
+
+    const updated = await this.prisma.campground.update({
+      where: { id: campgroundId },
+      data: updateData,
+      select: {
+        id: true,
+        aiEnabled: true,
+        aiReplyAssistEnabled: true,
+        aiBookingAssistEnabled: true,
+        aiAnalyticsEnabled: true,
+        aiForecastingEnabled: true,
+        aiAnonymizationLevel: true,
+        aiProvider: true,
+        aiMonthlyBudgetCents: true,
+      },
+    });
+
+    return updated;
   }
 
-  @Roles(UserRole.owner, UserRole.manager, UserRole.marketing)
-  @Post("suggestions")
-  async generate(@Body() dto: GenerateAiSuggestionsDto) {
-    return this.ai.generate(dto);
-  }
+  @UseGuards(JwtAuthGuard)
+  @Get('campgrounds/:campgroundId/usage')
+  async getAiUsage(
+    @Param('campgroundId') campgroundId: string,
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
 
-  @Roles(UserRole.owner, UserRole.manager, UserRole.marketing, UserRole.front_desk, UserRole.finance)
-  @Post("ask")
-  async ask(@Body() dto: AskDto) {
-    return this.ai.ask(dto);
-  }
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true, aiTotalTokensUsed: true },
+    });
 
-  @Roles(UserRole.owner, UserRole.manager, UserRole.marketing, UserRole.front_desk, UserRole.finance)
-  @Post("recommendations")
-  async recommendations(@Body() dto: RecommendDto, @Query("mock") mock?: string) {
-    return this.ai.recommend(dto, mock === "true" || mock === "1");
-  }
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
 
-  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
-  @Post("pricing-suggestions")
-  async pricing(@Body() dto: PricingSuggestDto, @Query("mock") mock?: string) {
-    return this.ai.pricingSuggest(dto, mock === "true" || mock === "1");
-  }
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
 
-  @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.marketing)
-  @Post("semantic-search")
-  async semanticSearch(@Body() dto: SemanticSearchDto, @Query("mock") mock?: string) {
-    return this.ai.semanticSearch(dto, mock === "true" || mock === "1");
-  }
-
-  @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance, UserRole.marketing)
-  @Post("copilot")
-  async copilot(@Body() dto: CopilotActionDto, @Query("mock") mock?: string) {
-    return this.ai.copilot(dto, mock === "true" || mock === "1");
+    return this.gate.getUsageStats(campgroundId, 30);
   }
 }
 

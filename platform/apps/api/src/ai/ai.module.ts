@@ -4,16 +4,20 @@ import { AiProviderService } from './ai-provider.service';
 import { AiFeatureGateService } from './ai-feature-gate.service';
 import { AiReplyAssistService } from './ai-reply-assist.service';
 import { AiInsightsService } from './ai-insights.service';
+import { AiBookingAssistService } from './ai-booking-assist.service';
+import { AiController } from './ai.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
   imports: [PrismaModule],
+  controllers: [AiController],
   providers: [
     AiPrivacyService,
     AiProviderService,
     AiFeatureGateService,
     AiReplyAssistService,
     AiInsightsService,
+    AiBookingAssistService,
   ],
   exports: [
     AiPrivacyService,
@@ -21,6 +25,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     AiFeatureGateService,
     AiReplyAssistService,
     AiInsightsService,
+    AiBookingAssistService,
   ],
 })
 export class AiModule { }
