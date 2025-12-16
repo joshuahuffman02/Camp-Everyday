@@ -508,6 +508,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
       { label: "Saved Reports", href: "/reports/saved", icon: "star" },
       { label: "Audit Log", href: "/reports/audit", icon: "audit" },
       { label: "Analytics", href: "/analytics", icon: "reports" },
+      { label: "AI Settings", href: selected ? `/campgrounds/${selected}/ai` : "/campgrounds", icon: "sparkles" },
       { label: "Roadmap", href: "/roadmap", icon: "sparkles" }
     ];
 
