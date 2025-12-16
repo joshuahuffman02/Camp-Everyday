@@ -4064,6 +4064,20 @@ function ReportsPageInner() {
             </div>
           )}
 
+          {/* DYNAMIC REPORT CONTENT - renders directly below sub-tabs */}
+          {campgroundId && activeTab !== 'overview' && (
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+              <ReportRenderer
+                key={`${activeTab}-${activeSubTab || 'default'}`}
+                tab={activeTab as ReportTab}
+                subTab={activeSubTab || (subTabs[activeTab as keyof typeof subTabs]?.[0]?.id)}
+                campgroundId={campgroundId}
+                dateRange={dateRange}
+                reportFilters={reportFilters}
+              />
+            </div>
+          )}
+
           {/* Report Customization Panel */}
           <div className="border border-slate-200 rounded-xl bg-white">
             <button
