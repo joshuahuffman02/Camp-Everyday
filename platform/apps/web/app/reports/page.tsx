@@ -4441,26 +4441,18 @@ function ReportsPageInner() {
                 </div>
               )}
 
+              {/* DEBUG: Show current state values - ALWAYS visible when campground selected */}
+              <div className="bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded-md text-sm mb-4">
+                <strong>Page Debug:</strong> activeTab="{activeTab}" | activeSubTab="{activeSubTab}" | campgroundId="{campgroundId || 'NULL'}"
+              </div>
+
               <>
                 {/* OVERVIEW TAB */}
                 {activeTab === 'overview' && campgroundId && (
                   <OverviewReport campgroundId={campgroundId} />
                 )}
 
-
-
-
-
-
-
-
-
-                {/* DEBUG: Show current state values */}
-                <div className="bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded-md text-sm mb-4">
-                  <strong>Page Debug:</strong> activeTab="{activeTab}" | activeSubTab="{activeSubTab}" | campgroundId="{campgroundId || 'NULL'}"
-                </div>
-
-                {/* DYNAMIC REPORT RENDERER */}
+                {/* DYNAMIC REPORT RENDERER for non-overview tabs */}
                 {activeTab !== 'overview' && campgroundId && (
                   <ReportRenderer
                     key={`${activeTab}-${activeSubTab || 'default'}`}
