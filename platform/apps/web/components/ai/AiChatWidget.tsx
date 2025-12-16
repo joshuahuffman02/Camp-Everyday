@@ -108,10 +108,10 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                 <div className="bg-red-500 text-white text-xs px-1 py-0.5 rounded mb-1">Widget Here</div>
                 <button
                     onClick={() => setIsOpen(true)}
-                    className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all flex items-center justify-center"
+                    className="w-16 h-16 bg-emerald-500 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all flex items-center justify-center text-2xl font-bold"
                     aria-label="Open AI booking assistant"
                 >
-                    <MessageSquare className="w-6 h-6" />
+                    💬
                 </button>
             </div>
         );
