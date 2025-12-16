@@ -107,31 +107,7 @@ const OverlapListSchema = z.array(
   })
 );
 
-export const UtilityMeterSchema = z.object({
-  id: z.string(),
-  campgroundId: z.string(),
-  siteId: z.string().nullable().optional(),
-  type: z.string(), // power, water, sewer
-  serialNumber: z.string(),
-  model: z.string().nullable().optional(),
-  status: z.string().optional().default("active"),
-  metadata: z.record(z.any()).nullable().optional(),
-  reads: z.array(z.object({
-    readingValue: numberish(z.number()),
-    readAt: z.string().or(z.date()),
-  })).optional(),
-});
-
-export const SmartLockSchema = z.object({
-  id: z.string(),
-  campgroundId: z.string(),
-  siteId: z.string().nullable().optional(),
-  name: z.string().nullable().optional(),
-  vendor: z.string(),
-  status: z.string(),
-  batteryLevel: numberish(z.number().nullable().optional()),
-  metadata: z.record(z.any()).nullable().optional(),
-});
+// Removed duplicate definitions from here
 const VehicleSchema = z.object({
   id: z.string(),
   campgroundId: z.string(),
@@ -1326,12 +1302,14 @@ const IncidentReportSchema = z.object({
   generatedAt: z.string(),
 });
 
-const UtilityMeterSchema = z.object({
+export const UtilityMeterSchema = z.object({
   id: z.string(),
   campgroundId: z.string(),
   siteId: z.string(),
   type: z.string(),
   serialNumber: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  status: z.string().optional().default("active"),
   ratePlanId: z.string().nullable().optional(),
   billingMode: z.string().nullable().optional(),
   billTo: z.string().nullable().optional(),
@@ -1339,6 +1317,22 @@ const UtilityMeterSchema = z.object({
   autoEmail: z.boolean().nullable().optional(),
   lastBilledReadAt: z.string().nullable().optional(),
   active: z.boolean().optional(),
+  metadata: z.record(z.any()).nullable().optional(),
+  reads: z.array(z.object({
+    readingValue: numberish(z.number()),
+    readAt: z.string().or(z.date()),
+  })).optional(),
+});
+
+export const SmartLockSchema = z.object({
+  id: z.string(),
+  campgroundId: z.string(),
+  siteId: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  vendor: z.string(),
+  status: z.string(),
+  batteryLevel: numberish(z.number().nullable().optional()),
+  metadata: z.record(z.any()).nullable().optional(),
 });
 
 const UtilityMeterReadSchema = z.object({
