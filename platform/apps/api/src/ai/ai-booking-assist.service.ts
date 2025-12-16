@@ -75,12 +75,14 @@ export class AiBookingAssistService {
                         id: true,
                         name: true,
                         description: true,
-                        baseNightlyRate: true,
+                        defaultRate: true,
                         maxOccupancy: true,
                         siteType: true,
-                        maxRvLength: true,
-                        hookups: true,
-                        amenities: true,
+                        rigMaxLength: true,
+                        hookupsPower: true,
+                        hookupsWater: true,
+                        hookupsSewer: true,
+                        petFriendly: true,
                     },
                 },
                 sites: {
@@ -146,7 +148,7 @@ export class AiBookingAssistService {
                 campgroundId,
                 isActive: true,
                 maxOccupancy: { gte: preferences.partySize },
-                ...(preferences.rvLength ? { maxRvLength: { gte: preferences.rvLength } } : {}),
+                ...(preferences.rvLength ? { rigMaxLength: { gte: preferences.rvLength } } : {}),
             },
             include: {
                 sites: {
@@ -170,7 +172,7 @@ export class AiBookingAssistService {
             }
 
             // RV length match
-            if (preferences.rvLength && sc.maxRvLength && Number(sc.maxRvLength) >= preferences.rvLength) {
+            if (preferences.rvLength && sc.rigMaxLength && Number(sc.rigMaxLength) >= preferences.rvLength) {
                 score += 15;
                 reasons.push(`Accommodates ${preferences.rvLength}ft RV`);
             }
@@ -186,8 +188,8 @@ export class AiBookingAssistService {
             }
 
             // Budget consideration
-            if (preferences.budget && sc.baseNightlyRate) {
-                if (Number(sc.baseNightlyRate) <= preferences.budget) {
+            if (preferences.budget && sc.defaultRate) {
+                if (Number(sc.defaultRate) <= preferences.budget) {
                     score += 10;
                     reasons.push('Within budget');
                 }
@@ -216,7 +218,7 @@ export class AiBookingAssistService {
 Your job is to help guests find the perfect campsite. Be friendly, helpful, and concise.
 
 Available site types:
-${campground.siteClasses.map((sc: any) => `- ${sc.name}: ${sc.description || 'No description'} (up to ${sc.maxOccupancy} guests, $${sc.baseNightlyRate}/night)`).join('\n')}
+${campground.siteClasses.map((sc: any) => `- ${sc.name}: ${sc.description || 'No description'} (up to ${sc.maxOccupancy} guests, $${sc.defaultRate ? (Number(sc.defaultRate) / 100).toFixed(0) : '??'}/night)`).join('\n')}
 
 Guidelines:
 - If the guest hasn't specified dates, ask for them
