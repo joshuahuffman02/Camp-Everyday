@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, LogOut, Loader2, MessageCircle, Gift, CalendarDays, Clock, Flame, Sparkles, Trees } from "lucide-react";
-import { addDays, differenceInCalendarDays, format, isWithinInterval } from "date-fns";
+import { Calendar, MapPin, Users, LogOut, Loader2, MessageCircle, Gift, CalendarDays, Clock, Flame, Sparkles, Trees, Mail, Package, Truck, Store, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { addDays, differenceInCalendarDays, format, isWithinInterval, formatDistanceToNow } from "date-fns";
 import { GuestChatPanel } from "@/components/portal/GuestChatPanel";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { loadQueue as loadQueueGeneric, saveQueue as saveQueueGeneric, registerBackgroundSync } from "@/lib/offline-queue";
 import { randomId } from "@/lib/random-id";
+import { Label } from "@/components/ui/label";
 
 // Define local types until we have shared types fully integrated
 type GuestData = {
@@ -146,6 +147,11 @@ export default function MyStayPage() {
     const [cart, setCart] = useState<Record<string, { name: string; priceCents: number; qty: number }>>({});
     const [orderLoading, setOrderLoading] = useState(false);
     const [queuedUpsells, setQueuedUpsells] = useState(0);
+    const [deliveryMode, setDeliveryMode] = useState<"delivery" | "pickup">("delivery");
+    const [orders, setOrders] = useState<any[]>([]);
+    const [ordersLoading, setOrdersLoading] = useState(false);
+    const [commsHistory, setCommsHistory] = useState<any[]>([]);
+    const [commsLoading, setCommsLoading] = useState(false);
 
     useEffect(() => {
         const storedToken = localStorage.getItem("campreserv:guestToken");
@@ -225,6 +231,74 @@ export default function MyStayPage() {
         loadProducts();
     }, [token, currentReservation]);
 
+    // Load orders for this reservation (stubbed data for now)
+    useEffect(() => {
+        const loadOrders = async () => {
+            if (!token || !currentReservation) return;
+            setOrdersLoading(true);
+            try {
+                // Stubbed orders data - in production this would call an API
+                const storedOrders = localStorage.getItem(`campreserv:orders:${currentReservation.id}`);
+                if (storedOrders) {
+                    setOrders(JSON.parse(storedOrders));
+                } else {
+                    setOrders([]);
+                }
+            } catch (err) {
+                console.error("Failed to load orders", err);
+                setOrders([]);
+            } finally {
+                setOrdersLoading(false);
+            }
+        };
+        loadOrders();
+    }, [token, currentReservation]);
+
+    // Load communications history (stubbed data for now)
+    useEffect(() => {
+        const loadComms = async () => {
+            if (!token || !currentReservation) return;
+            setCommsLoading(true);
+            try {
+                // Stubbed comms data - in production this would call apiClient.getGuestCommsHistory
+                const now = new Date();
+                const stubComms = [
+                    {
+                        id: "c1",
+                        type: "email",
+                        subject: "Reservation Confirmation",
+                        preview: `Your reservation at ${currentReservation.campground.name} is confirmed!`,
+                        sentAt: new Date(currentReservation.arrivalDate).toISOString(),
+                        status: "delivered"
+                    },
+                    {
+                        id: "c2",
+                        type: "sms",
+                        subject: "Check-in Reminder",
+                        preview: `Reminder: You can check in starting at ${currentReservation.campground.checkInTime || "3:00 PM"} tomorrow`,
+                        sentAt: new Date(new Date(currentReservation.arrivalDate).getTime() - 24 * 60 * 60 * 1000).toISOString(),
+                        status: "delivered"
+                    },
+                    {
+                        id: "c3",
+                        type: "email",
+                        subject: "Welcome to Your Stay",
+                        preview: "Here's everything you need to know for your stay...",
+                        sentAt: currentReservation.arrivalDate,
+                        status: "delivered"
+                    }
+                ];
+                setCommsHistory(stubComms);
+            } catch (err) {
+                console.error("Failed to load comms history", err);
+                setCommsHistory([]);
+            } finally {
+                setCommsLoading(false);
+            }
+        };
+        loadComms();
+    }, [token, currentReservation]);
+
     const handleLogout = () => {
         localStorage.removeItem("campreserv:guestToken");
         router.push("/portal/login");
@@ -283,13 +357,46 @@ export default function MyStayPage() {
         if (!token || !currentReservation || cartItems.length === 0) return;
         setOrderLoading(true);
         try {
+            // Create order via API
             await apiClient.createPortalOrder(token, {
                 reservationId: currentReservation.id,
                 items: cartItems.map((item) => ({ productId: item.id, qty: item.qty }))
             });
+
+            // Also save to localStorage for the Orders tab
+            const newOrder = {
+                id: randomId(),
+                reservationId: currentReservation.id,
+                items: cartItems.map(item => ({
+                    productId: item.id,
+                    name: item.name,
+                    qty: item.qty,
+                    priceCents: item.priceCents
+                })),
+                totalCents: cartTotalCents,
+                deliveryMode,
+                status: "pending",
+                placedAt: new Date().toISOString()
+            };
+            const storageKey = `campreserv:orders:${currentReservation.id}`;
+            const existingOrders = JSON.parse(localStorage.getItem(storageKey) || "[]");
+            localStorage.setItem(storageKey, JSON.stringify([newOrder, ...existingOrders]));
+            setOrders([newOrder, ...existingOrders]);
+
             setCart({});
+            toast({
+                title: "Order placed!",
+                description: deliveryMode === "delivery"
+                    ? `Your order will be delivered to Site ${currentReservation.site.siteNumber}`
+                    : "Your order will be ready for pickup at the office",
+            });
         } catch (err) {
             console.error("Order failed", err);
+            toast({
+                title: "Order failed",
+                description: "Please try again or contact the office.",
+                variant: "destructive",
+            });
         } finally {
             setOrderLoading(false);
         }
@@ -353,20 +460,28 @@ export default function MyStayPage() {
                             </div>
                         </div>
 
-                        {/* Tabs for Stay Details, Events, and Messages */}
+                        {/* Tabs for Stay Details, Orders, Events, History, and Messages */}
                         <Tabs defaultValue="details" className="w-full">
-                            <TabsList className="grid w-full max-w-xl grid-cols-3">
+                            <TabsList className="grid w-full max-w-2xl grid-cols-5">
                                 <TabsTrigger value="details">
-                                    <Calendar className="h-4 w-4 mr-2" />
-                                    Stay Details
+                                    <Calendar className="h-4 w-4 mr-1" />
+                                    <span className="hidden sm:inline">Stay</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="orders">
+                                    <Package className="h-4 w-4 mr-1" />
+                                    <span className="hidden sm:inline">Orders</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="events">
-                                    <CalendarDays className="h-4 w-4 mr-2" />
-                                    Events
+                                    <CalendarDays className="h-4 w-4 mr-1" />
+                                    <span className="hidden sm:inline">Events</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="history">
+                                    <Mail className="h-4 w-4 mr-1" />
+                                    <span className="hidden sm:inline">History</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="messages">
-                                    <MessageCircle className="h-4 w-4 mr-2" />
-                                    Messages
+                                    <MessageCircle className="h-4 w-4 mr-1" />
+                                    <span className="hidden sm:inline">Chat</span>
                                 </TabsTrigger>
                             </TabsList>
 
@@ -513,12 +628,51 @@ export default function MyStayPage() {
                                                     </div>
                                                 )}
                                                 <Separator />
+                                                {/* Delivery Mode Selector */}
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-medium">Delivery Option</Label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDeliveryMode("delivery")}
+                                                            className={`flex items-center justify-center gap-2 p-3 border rounded-lg transition-all ${deliveryMode === "delivery"
+                                                                ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                                                                : "border-slate-200 hover:border-slate-300"
+                                                                }`}
+                                                        >
+                                                            <Truck className="h-4 w-4" />
+                                                            <span className="text-sm font-medium">Deliver</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDeliveryMode("pickup")}
+                                                            className={`flex items-center justify-center gap-2 p-3 border rounded-lg transition-all ${deliveryMode === "pickup"
+                                                                ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                                                                : "border-slate-200 hover:border-slate-300"
+                                                                }`}
+                                                        >
+                                                            <Store className="h-4 w-4" />
+                                                            <span className="text-sm font-medium">Pickup</span>
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {deliveryMode === "delivery"
+                                                            ? `Delivered to Site ${currentReservation.site.siteNumber}`
+                                                            : "Pick up at the camp office"}
+                                                    </p>
+                                                </div>
+                                                <Separator />
                                                 <div className="flex items-center justify-between text-sm">
                                                     <span>Cart Total</span>
                                                     <span className="font-semibold">${(cartTotalCents / 100).toFixed(2)}</span>
                                                 </div>
                                                 <Button className="w-full" onClick={placeOrder} disabled={cartItems.length === 0 || orderLoading}>
-                                                    {orderLoading ? "Placing..." : "Place Order"}
+                                                    {orderLoading ? "Placing..." : (
+                                                        <span className="flex items-center gap-2">
+                                                            {deliveryMode === "delivery" ? <Truck className="h-4 w-4" /> : <Store className="h-4 w-4" />}
+                                                            Place Order
+                                                        </span>
+                                                    )}
                                                 </Button>
                                             </CardContent>
                                         </Card>
@@ -566,6 +720,132 @@ export default function MyStayPage() {
                                                     </div>
                                                 </div>
                                             ))
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            <TabsContent value="orders" className="mt-6">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Your Orders</CardTitle>
+                                        <CardDescription>
+                                            {ordersLoading ? "Loading orders..." : orders.length === 0 ? "No orders placed yet." : `${orders.length} order(s)`}
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {ordersLoading ? (
+                                            <div className="flex items-center gap-2 text-muted-foreground">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span>Loading...</span>
+                                            </div>
+                                        ) : orders.length === 0 ? (
+                                            <div className="text-center py-8 space-y-4">
+                                                <Package className="h-12 w-12 mx-auto text-slate-300" />
+                                                <p className="text-sm text-muted-foreground">No orders yet. Browse the store or add-ons in the Stay tab!</p>
+                                            </div>
+                                        ) : (
+                                            orders.map((order) => (
+                                                <div key={order.id} className="flex items-start gap-3 p-4 border rounded-lg bg-white">
+                                                    <div className={`p-2 rounded ${order.status === "delivered" ? "bg-emerald-50" :
+                                                        order.status === "preparing" ? "bg-amber-50" :
+                                                            "bg-blue-50"
+                                                        }`}>
+                                                        {order.status === "delivered" ? (
+                                                            <CheckCircle className="h-5 w-5 text-emerald-600" />
+                                                        ) : order.status === "preparing" ? (
+                                                            <RefreshCw className="h-5 w-5 text-amber-600 animate-spin" />
+                                                        ) : order.deliveryMode === "pickup" ? (
+                                                            <Store className="h-5 w-5 text-blue-600" />
+                                                        ) : (
+                                                            <Truck className="h-5 w-5 text-blue-600" />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 space-y-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-semibold">Order #{order.id.slice(-6)}</span>
+                                                            <Badge variant={
+                                                                order.status === "delivered" ? "default" :
+                                                                    order.status === "preparing" ? "secondary" :
+                                                                        "outline"
+                                                            }>
+                                                                {order.status === "delivered" ? "Delivered" :
+                                                                    order.status === "preparing" ? "Preparing" :
+                                                                        order.status === "ready" ? "Ready for Pickup" :
+                                                                            "Pending"}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="text-sm text-muted-foreground">
+                                                            {order.items?.length || 0} item(s) • {formatPrice(order.totalCents || 0)}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                                            {order.deliveryMode === "pickup" ? (
+                                                                <><Store className="h-3 w-3" /> Pickup at office</>
+                                                            ) : (
+                                                                <><Truck className="h-3 w-3" /> Deliver to Site {currentReservation.site.siteNumber}</>
+                                                            )}
+                                                        </div>
+                                                        {order.placedAt && (
+                                                            <div className="text-xs text-muted-foreground">
+                                                                Placed {formatDistanceToNow(new Date(order.placedAt), { addSuffix: true })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            <TabsContent value="history" className="mt-6">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Communication History</CardTitle>
+                                        <CardDescription>
+                                            Emails and texts we've sent you about this stay
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {commsLoading ? (
+                                            <div className="flex items-center gap-2 text-muted-foreground">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span>Loading...</span>
+                                            </div>
+                                        ) : commsHistory.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground">No communications yet.</p>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {commsHistory.map((comm) => (
+                                                    <div key={comm.id} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+                                                        <div className={`p-2 rounded ${comm.type === "email" ? "bg-blue-50" : "bg-emerald-50"
+                                                            }`}>
+                                                            {comm.type === "email" ? (
+                                                                <Mail className="h-4 w-4 text-blue-600" />
+                                                            ) : (
+                                                                <MessageCircle className="h-4 w-4 text-emerald-600" />
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 space-y-1 min-w-0">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="font-medium truncate">{comm.subject}</span>
+                                                                <Badge variant="outline" className="text-xs shrink-0">
+                                                                    {comm.status === "delivered" ? (
+                                                                        <CheckCircle className="h-3 w-3 mr-1 text-emerald-500" />
+                                                                    ) : comm.status === "failed" ? (
+                                                                        <AlertCircle className="h-3 w-3 mr-1 text-red-500" />
+                                                                    ) : null}
+                                                                    {comm.status}
+                                                                </Badge>
+                                                            </div>
+                                                            <p className="text-sm text-muted-foreground line-clamp-2">{comm.preview}</p>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {format(new Date(comm.sentAt), "MMM d, yyyy 'at' h:mm a")}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         )}
                                     </CardContent>
                                 </Card>
