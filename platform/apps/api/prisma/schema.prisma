@@ -828,6 +828,9 @@ model Campground {
   latitude   Decimal? @db.Decimal(12, 8)
   longitude  Decimal? @db.Decimal(12, 8)
   timezone   String?  @default("UTC")
+  currency   String   @default("USD") // ISO 4217 currency code
+  taxId      String?  // e.g. VAT number, EIN
+  taxIdName  String   @default("Tax ID") // Label for the tax ID field (e.g. "VAT Reg No")
 
   // Contact
   phone                String?
@@ -1221,6 +1224,7 @@ model TaxRule {
   rate           Decimal?    @db.Decimal(10, 4)
   minNights      Int?
   maxNights      Int?
+  category       String      @default("general") // general, accommodation, goods, services
   requiresWaiver Boolean     @default(false)
   waiverText     String?
   isActive       Boolean     @default(true)

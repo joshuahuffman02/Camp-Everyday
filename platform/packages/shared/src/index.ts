@@ -114,6 +114,9 @@ export const CampgroundSchema = z.object({
   // Financial
   taxState: numberish(z.number().optional()),
   taxLocal: numberish(z.number().optional()),
+  currency: z.string().optional().default("USD"),
+  taxId: z.string().optional().nullable(),
+  taxIdName: z.string().optional().default("Tax ID"),
   depositRule: z
     .enum(["none", "full", "half", "first_night", "first_night_fees", "percentage", "percentage_50"])
     .nullish(),

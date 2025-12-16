@@ -50,7 +50,10 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
     quietHoursStart: campground.quietHoursStart || "",
     quietHoursEnd: campground.quietHoursEnd || "",
     routingAssigneeId: campground.routingAssigneeId || "",
-    isPublished: campground.isPublished ?? true
+    isPublished: campground.isPublished ?? true,
+    currency: campground.currency || "USD",
+    taxId: campground.taxId || "",
+    taxIdName: campground.taxIdName || "Tax ID"
   });
 
   const photoList = form.photos
@@ -98,6 +101,11 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
         quietHoursStart: form.quietHoursStart || null,
         quietHoursEnd: form.quietHoursEnd || null,
         routingAssigneeId: form.routingAssigneeId || null
+      });
+      await apiClient.updateCampgroundFinancials(campground.id, {
+        currency: form.currency,
+        taxId: form.taxId || null,
+        taxIdName: form.taxIdName
       });
       return profile;
     },
@@ -474,6 +482,46 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
               aria-label="Routing assignee"
             />
             <p className="text-xs text-slate-500">Optional: The staff member ID who will be auto-assigned to new unassigned conversations.</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Financial Settings</CardTitle>
+          <p className="text-xs text-slate-500">Currency and tax identification.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700">Currency</label>
+              <Input
+                value={form.currency}
+                onChange={(e) => setForm((s) => ({ ...s, currency: e.target.value }))}
+                placeholder="USD"
+                aria-label="Currency"
+              />
+              <p className="text-xs text-slate-500">ISO 4217 code (e.g. USD, EUR, CAD).</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700">Tax ID Name</label>
+              <Input
+                value={form.taxIdName}
+                onChange={(e) => setForm((s) => ({ ...s, taxIdName: e.target.value }))}
+                placeholder="Tax ID"
+                aria-label="Tax ID Name"
+              />
+              <p className="text-xs text-slate-500">Label shown on invoices (e.g. "VAT Reg No").</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700">Tax ID</label>
+              <Input
+                value={form.taxId}
+                onChange={(e) => setForm((s) => ({ ...s, taxId: e.target.value }))}
+                placeholder="Tax ID value"
+                aria-label="Tax ID"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
