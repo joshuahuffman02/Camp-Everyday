@@ -89,6 +89,7 @@ import { ReferralsModule } from "./referrals/referrals.module";
 import { SignaturesModule } from "./signatures/signatures.module";
 import { TicketsModule } from "./tickets/tickets.module";
 import { AdminModule } from "./admin/admin.module";
+import { AnomaliesModule } from "./anomalies/anomalies.module";
 
 @Module({
   imports: [
@@ -182,6 +183,9 @@ import { AdminModule } from "./admin/admin.module";
     ReferralsModule,
     TicketsModule,
     AdminModule,
+    TicketsModule,
+    AdminModule,
+    AnomaliesModule,
   ],
   providers: []
 })

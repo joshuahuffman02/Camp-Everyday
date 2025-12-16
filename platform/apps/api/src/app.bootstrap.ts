@@ -11,6 +11,7 @@ import { RateLimitService } from "./perf/rate-limit.service";
 import { ObservabilityService } from "./observability/observability.service";
 import { RedactingLogger } from "./logger/redacting.logger";
 import type { Request, Response, NextFunction } from "express";
+import { DeveloperApiModule } from "./developer-api/developer-api.module";
 
 // Shared app configuration - used by both local dev and serverless
 export async function createApp(): Promise<INestApplication> {
@@ -126,8 +127,7 @@ export function configureSwagger(app: INestApplication): void {
 
     const document = SwaggerModule.createDocument(app, config, {
         include: [
-            // We will import the DeveloperApiModule here ideally, or let it scan everything
-            // For now, let's scan everything but typically strict scoping is better
+            DeveloperApiModule
         ],
         deepScanRoutes: true
     });
