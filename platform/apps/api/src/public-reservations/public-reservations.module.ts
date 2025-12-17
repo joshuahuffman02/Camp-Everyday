@@ -12,7 +12,8 @@ import { AccessControlModule } from "../access-control/access-control.module";
 @Module({
     imports: [PrismaModule, RedisModule, PromotionsModule, AbandonedCartModule, MembershipsModule, SignaturesModule, AccessControlModule],
     controllers: [PublicReservationsController],
-    providers: [PublicReservationsService]
+    providers: [PublicReservationsService],
+    exports: [PublicReservationsService]
 })
 export class PublicReservationsModule { }
 
