@@ -7,9 +7,10 @@ import { AiInsightsService } from './ai-insights.service';
 import { AiBookingAssistService } from './ai-booking-assist.service';
 import { AiController } from './ai.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { PublicReservationsModule } from '../public-reservations/public-reservations.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, PublicReservationsModule],
   controllers: [AiController],
   providers: [
     AiPrivacyService,

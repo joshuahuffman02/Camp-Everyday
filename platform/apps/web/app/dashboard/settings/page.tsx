@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import {
@@ -10,27 +10,8 @@ import {
   Mail,
   Lock,
   Settings,
-  TrendingUp,
-  Calendar,
-  Receipt,
-  Tag,
-  Gift,
-  Users,
-  Ban,
-  MessageSquare,
-  Bell,
-  Shield,
-  Key,
-  ShieldCheck,
-  Eye,
-  Code,
-  Webhook,
-  MapPin,
-  Palette,
-  Image,
-  Globe,
-  Clock,
   Search,
+  ChevronRight,
 } from "lucide-react";
 
 type SettingLink = {
@@ -56,42 +37,42 @@ const settingsCategories: SettingCategory[] = [
     links: [
       {
         name: "Dynamic Pricing",
-        href: "/settings/pricing-rules",
+        href: "/dashboard/settings/pricing-rules",
         description: "Configure automated pricing rules based on demand, seasons, and events",
       },
       {
         name: "Seasonal Rates",
-        href: "/settings/seasonal-rates",
+        href: "/dashboard/settings/seasonal-rates",
         description: "Set up seasonal rate variations throughout the year",
       },
       {
         name: "Deposit Policies",
-        href: "/settings/deposit-policies",
+        href: "/dashboard/settings/deposit-policies",
         description: "Define deposit requirements and policies for reservations",
       },
       {
         name: "Tax Rules",
-        href: "/settings/tax-rules",
+        href: "/dashboard/settings/tax-rules",
         description: "Configure tax rates and rules for different site types",
       },
       {
         name: "Upsells",
-        href: "/settings/upsells",
+        href: "/dashboard/settings/upsells",
         description: "Create and manage additional products and services",
       },
       {
         name: "Memberships",
-        href: "/settings/memberships",
+        href: "/dashboard/settings/memberships",
         description: "Set up membership tiers and benefits",
       },
       {
         name: "Blackout Dates",
-        href: "/settings/blackout-dates",
+        href: "/dashboard/settings/blackout-dates",
         description: "Block dates for maintenance or special events",
       },
       {
         name: "Promotions",
-        href: "/settings/promotions",
+        href: "/dashboard/settings/promotions",
         description: "Create promotional campaigns and discount codes",
       },
     ],
@@ -104,22 +85,22 @@ const settingsCategories: SettingCategory[] = [
     links: [
       {
         name: "Email Templates",
-        href: "/settings/templates",
+        href: "/dashboard/settings/templates",
         description: "Customize email templates for confirmations, reminders, and more",
       },
       {
         name: "Notification Triggers",
-        href: "/settings/notification-triggers",
+        href: "/dashboard/settings/notification-triggers",
         description: "Set up automated notifications and triggers",
       },
       {
         name: "Communications",
-        href: "/settings/communications",
+        href: "/dashboard/settings/communications",
         description: "Manage communication preferences and settings",
       },
       {
         name: "Campaigns",
-        href: "/settings/campaigns",
+        href: "/dashboard/settings/campaigns",
         description: "Create and manage marketing campaigns",
       },
     ],
@@ -132,37 +113,37 @@ const settingsCategories: SettingCategory[] = [
     links: [
       {
         name: "Users & Roles",
-        href: "/settings/users",
+        href: "/dashboard/settings/users",
         description: "Manage staff users and their roles",
       },
       {
         name: "Permissions",
-        href: "/settings/permissions",
+        href: "/dashboard/settings/permissions",
         description: "Configure role-based access control",
       },
       {
         name: "Access Control",
-        href: "/settings/access-control",
+        href: "/dashboard/settings/access-control",
         description: "Set up advanced access controls and restrictions",
       },
       {
         name: "Security",
-        href: "/settings/security",
+        href: "/dashboard/settings/security",
         description: "Configure security policies and authentication",
       },
       {
         name: "Privacy",
-        href: "/settings/privacy",
+        href: "/dashboard/settings/privacy",
         description: "Manage privacy settings and data protection",
       },
       {
         name: "Developers",
-        href: "/settings/developers",
+        href: "/dashboard/settings/developers",
         description: "API keys and developer tools",
       },
       {
         name: "Webhooks",
-        href: "/settings/webhooks",
+        href: "/dashboard/settings/webhooks",
         description: "Configure webhook endpoints for integrations",
       },
     ],
@@ -175,57 +156,57 @@ const settingsCategories: SettingCategory[] = [
     links: [
       {
         name: "Campground Config",
-        href: "/settings/policies",
+        href: "/dashboard/settings/policies",
         description: "Basic campground information and policies",
       },
       {
         name: "Branding",
-        href: "/settings/branding",
+        href: "/dashboard/settings/branding",
         description: "Customize your brand colors, logo, and style",
       },
       {
         name: "Photos",
-        href: "/settings/photos",
+        href: "/dashboard/settings/photos",
         description: "Manage property photos and gallery",
       },
       {
         name: "Localization",
-        href: "/settings/localization",
+        href: "/dashboard/settings/localization",
         description: "Set timezone, language, and regional preferences",
       },
       {
         name: "Store Hours",
-        href: "/settings/store-hours",
+        href: "/dashboard/settings/store-hours",
         description: "Configure operating hours and schedules",
       },
       {
         name: "Integrations",
-        href: "/settings/integrations",
+        href: "/dashboard/settings/integrations",
         description: "Connect third-party services and tools",
       },
       {
         name: "Analytics",
-        href: "/settings/analytics",
+        href: "/dashboard/settings/analytics",
         description: "Configure analytics and tracking",
       },
       {
         name: "Payments",
-        href: "/settings/payments",
+        href: "/dashboard/settings/payments",
         description: "Set up payment processors and methods",
       },
       {
         name: "OTA Channels",
-        href: "/settings/ota",
+        href: "/dashboard/settings/ota",
         description: "Manage online travel agency integrations",
       },
       {
         name: "Gamification",
-        href: "/settings/gamification",
+        href: "/dashboard/settings/gamification",
         description: "Configure badges, rewards, and engagement features",
       },
       {
         name: "Jobs",
-        href: "/settings/jobs",
+        href: "/dashboard/settings/jobs",
         description: "Manage background jobs and scheduled tasks",
       },
     ],
@@ -301,13 +282,16 @@ export default function SettingsLandingPage() {
                 {/* Settings Links Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {category.links.map((link) => (
-                    <Link key={link.href} href={link.href}>
-                      <Card className="h-full transition-all hover:shadow-md hover:border-slate-300 cursor-pointer">
-                        <CardHeader>
-                          <CardTitle className="text-base font-semibold text-slate-900">
-                            {link.name}
-                          </CardTitle>
-                          <CardDescription className="text-sm">
+                    <Link key={link.href} href={link.href} className="block group">
+                      <Card className="h-full transition-all hover:shadow-md hover:border-emerald-300 cursor-pointer group-hover:bg-slate-50">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base font-semibold text-slate-900">
+                              {link.name}
+                            </CardTitle>
+                            <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
+                          </div>
+                          <CardDescription className="text-sm line-clamp-2">
                             {link.description}
                           </CardDescription>
                         </CardHeader>

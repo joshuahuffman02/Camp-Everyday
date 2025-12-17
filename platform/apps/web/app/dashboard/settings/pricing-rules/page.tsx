@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
-import { Button } from "../../../components/ui/button";
-import { FormField } from "../../../components/ui/form-field";
-import { apiClient } from "../../../lib/api-client";
+import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
+import { Button } from "../../../../components/ui/button";
+import { FormField } from "../../../../components/ui/form-field";
+import { apiClient } from "../../../../lib/api-client";
 import { Plus, Pencil, Trash2, Calendar, TrendingUp, Sun, Gift, BarChart3 } from "lucide-react";
-import { HelpTooltip, HelpTooltipContent, HelpTooltipSection, HelpTooltipList } from "../../../components/help/HelpTooltip";
-import { PageOnboardingHint } from "../../../components/help/OnboardingHint";
+import { HelpTooltip, HelpTooltipContent, HelpTooltipSection, HelpTooltipList } from "../../../../components/help/HelpTooltip";
+import { PageOnboardingHint } from "../../../../components/help/OnboardingHint";
 
 type PricingRuleV2 = {
   id: string;

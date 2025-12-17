@@ -4,6 +4,7 @@ import { AiPrivacyService } from './ai-privacy.service';
 import { AiFeatureGateService } from './ai-feature-gate.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiFeatureType, AiConsentType } from '@prisma/client';
+import { PublicReservationsService } from '../public-reservations/public-reservations.service';
 
 interface BookingContext {
     campgroundId: string;
@@ -45,6 +46,7 @@ export class AiBookingAssistService {
         private readonly privacy: AiPrivacyService,
         private readonly gate: AiFeatureGateService,
         private readonly prisma: PrismaService,
+        private readonly publicReservations: PublicReservationsService,
     ) { }
 
     /**
@@ -130,11 +132,37 @@ export class AiBookingAssistService {
             });
         }
 
+        // Check availability if dates are known
+        let availableSiteTypes: Set<string> | null = null;
+        if (context.dates && context.dates.arrival && context.dates.departure) {
+            try {
+                // Get raw availability from the booking engine
+                const availability = await this.publicReservations.getAvailability(
+                    campground.slug,
+                    context.dates.arrival,
+                    context.dates.departure,
+                    context.rigInfo?.type,
+                    context.rigInfo?.length?.toString(),
+                    false // needsAccessible - could infer from context if needed
+                );
+
+                // Extract unique site class names that have at least one available site
+                availableSiteTypes = new Set(
+                    availability
+                        .filter((site: any) => site.status === 'available' && site.siteClass)
+                        .map((site: any) => site.siteClass.name)
+                );
+            } catch (err) {
+                console.error("Failed to check availability for AI chat:", err);
+                // Fallback: assume everything is available if check fails, or handle gracefully
+            }
+        }
+
         // Build system prompt
         const systemPrompt = this.buildSystemPrompt(campground);
 
         // Build user prompt with context AND history
-        let userPrompt = this.buildUserPrompt(anonymizedText, context, campground.siteClasses);
+        let userPrompt = this.buildUserPrompt(anonymizedText, context, campground.siteClasses, availableSiteTypes);
 
         // Append conversation history
         if (context.history && context.history.length > 0) {
@@ -299,6 +327,12 @@ CRITICAL:
 - When the guest confirms they want to proceed with a booking, you MUST use "ACTION: book" in your response.
 - Do NOT say "Booking Confirmed". Instead say: "I have pre-filled your details in the booking form. Please review and complete your reservation there."
 - You cannot process payments directly. You must hand off to the secure form.
+- YOU MUST CHECK THE "REAL-TIME AVAILABILITY" SECTION provided in the User Prompt if dates are known.
+- IF A SITE TYPE IS NOT LISTED IN "REAL-TIME AVAILABILITY", IT IS SOLD OUT. DO NOT RECOMMEND IT.
+- If the guest requests a sold-out site type, professionally explain it is unavailable for those dates.
+- THEN, proactively suggest the best available alternative within the SAME CATEGORY (e.g., if they want a Cabin, suggest another Cabin).
+- Do NOT suggest an RV "Site" to someone looking for a Cabin/Tent unless they explicitly mention having an RV. A "Site" usually implies they need to bring their own rig.
+- Always try to save the sale by offering what IS available, but make sure it makes sense for the guest's equipment.
 - Only use "ACTION: book" if you have Dates and Party Size/RV Info.
 - IF ACTION IS BOOK, YOU MUST ALSO OUTPUT METADATA:
   DATES: YYYY-MM-DD,YYYY-MM-DD
@@ -319,6 +353,7 @@ RECOMMENDATIONS: <optional comma-separated site class names>`;
         message: string,
         context: BookingContext,
         siteClasses: any[],
+        availableSiteTypes: Set<string> | null = null,
     ): string {
         let prompt = `Guest message: "${message}"\n`;
 
@@ -333,6 +368,15 @@ RECOMMENDATIONS: <optional comma-separated site class names>`;
         }
         if (context.preferences?.length) {
             prompt += `\nPreferences: ${context.preferences.join(', ')}`;
+        }
+
+        if (availableSiteTypes !== null) {
+            prompt += `\n\nREAL-TIME AVAILABILITY FOR ${context.dates!.arrival} to ${context.dates!.departure}:`;
+            if (availableSiteTypes.size === 0) {
+                prompt += `\n- NO SITES AVAILABLE (Everything is sold out for these dates)`;
+            } else {
+                prompt += `\n- ${Array.from(availableSiteTypes).join('\n- ')}`;
+            }
         }
 
         return prompt;

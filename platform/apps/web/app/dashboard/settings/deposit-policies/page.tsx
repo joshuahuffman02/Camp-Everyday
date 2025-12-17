@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
-import { Button } from "../../../components/ui/button";
-import { apiClient } from "../../../lib/api-client";
+import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
+import { Button } from "../../../../components/ui/button";
+import { apiClient } from "../../../../lib/api-client";
 import { Plus, Pencil, Trash2, Banknote, Clock, Percent, DollarSign } from "lucide-react";
 
 type DepositPolicy = {

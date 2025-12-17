@@ -12,6 +12,24 @@ type AdminTopBarProps = {
     mobileNavOpen?: boolean;
 };
 
+// Click outside hook for closing dropdowns
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
+    useEffect(() => {
+        const listener = (event: MouseEvent | TouchEvent) => {
+            if (!ref.current || ref.current.contains(event.target as Node)) {
+                return;
+            }
+            handler();
+        };
+        document.addEventListener("mousedown", listener);
+        document.addEventListener("touchstart", listener);
+        return () => {
+            document.removeEventListener("mousedown", listener);
+            document.removeEventListener("touchstart", listener);
+        };
+    }, [ref, handler]);
+}
+
 interface SearchResult {
     type: "guest" | "site" | "reservation" | "report";
     id: string;
@@ -27,9 +45,16 @@ export function AdminTopBar({ onToggleNav, mobileNavOpen }: AdminTopBarProps) {
     const [isSearching, setIsSearching] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const notificationsRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
     const { setShowShortcutsDialog } = useKeyboardShortcuts();
+
+    // Close dropdowns when clicking outside
+    useClickOutside(menuRef, () => setIsMenuOpen(false));
+    useClickOutside(notificationsRef, () => setIsNotificationsOpen(false));
 
     // Register callbacks with keyboard shortcuts system
     useEffect(() => {
@@ -181,45 +206,14 @@ export function AdminTopBar({ onToggleNav, mobileNavOpen }: AdminTopBarProps) {
                     </button>
                 </div>
 
-                {/* Right - Help, Shortcuts, Notifications, User */}
+                {/* Right - Notifications & Menu */}
                 <div className="flex items-center gap-2">
-                    {/* Keyboard Shortcuts */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowShortcutsDialog(true)}
-                            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                            title="Keyboard Shortcuts (Press ?)"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                <rect x="2" y="4" width="20" height="16" rx="2" />
-                                <path d="M6 8h.01M10 8h.01M14 8h.01M6 12h.01M10 12h.01M14 12h.01M6 16h.01M10 16h.01M14 16h8" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    {/* Help */}
-                    <div className="relative">
-                        <button
-                            onClick={() => {
-                                setIsHelpPanelOpen(true);
-                                setIsNotificationsOpen(false);
-                            }}
-                            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                            title="Help & Support (Cmd+/)"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="10" />
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                                <circle cx="12" cy="17" r="0.5" fill="currentColor" />
-                            </svg>
-                        </button>
-                    </div>
-
                     {/* Notifications */}
-                    <div className="relative">
+                    <div className="relative" ref={notificationsRef}>
                         <button
                             onClick={() => {
                                 setIsNotificationsOpen(!isNotificationsOpen);
+                                setIsMenuOpen(false);
                                 setIsHelpPanelOpen(false);
                             }}
                             className="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
@@ -297,30 +291,107 @@ export function AdminTopBar({ onToggleNav, mobileNavOpen }: AdminTopBarProps) {
                         )}
                     </div>
 
-                    {/* Roadmap */}
-                    <Link
-                        href="/updates"
-                        className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full hover:bg-amber-100 transition-colors"
-                    >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        What's New
-                    </Link>
+                    {/* Menu Dropdown */}
+                    <div className="relative" ref={menuRef}>
+                        <button
+                            onClick={() => {
+                                setIsMenuOpen(!isMenuOpen);
+                                setIsNotificationsOpen(false);
+                                setIsHelpPanelOpen(false);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Menu"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <circle cx="12" cy="12" r="1" />
+                                <circle cx="12" cy="5" r="1" />
+                                <circle cx="12" cy="19" r="1" />
+                            </svg>
+                        </button>
 
-                    {/* Sign Out */}
-                    <button
-                        onClick={() => {
-                            localStorage.removeItem("campreserv:authToken");
-                            signOut({ callbackUrl: "/auth/signin" });
-                        }}
-                        className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
-                    >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                        Sign Out
-                    </button>
+                        {isMenuOpen && (
+                            <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50">
+                                {/* Settings */}
+                                <Link
+                                    href="/dashboard/settings"
+                                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                    onClick={() => setIsMenuOpen(false)}
+                                >
+                                    <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                        <path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z" />
+                                        <circle cx="12" cy="12" r="3" />
+                                    </svg>
+                                    Settings
+                                </Link>
+
+                                {/* Keyboard Shortcuts */}
+                                <button
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        setShowShortcutsDialog(true);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                >
+                                    <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                                        <path d="M6 8h.01M10 8h.01M14 8h.01M6 12h.01M10 12h.01M14 12h.01M6 16h.01M10 16h.01M14 16h8" />
+                                    </svg>
+                                    Keyboard Shortcuts
+                                    <kbd className="ml-auto px-1.5 py-0.5 bg-slate-100 rounded text-[10px] text-slate-400 border border-slate-200">?</kbd>
+                                </button>
+
+                                {/* Help & Support */}
+                                <button
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        setIsHelpPanelOpen(true);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                >
+                                    <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                                        <circle cx="12" cy="17" r="0.5" fill="currentColor" />
+                                    </svg>
+                                    Help & Support
+                                    <kbd className="ml-auto px-1.5 py-0.5 bg-slate-100 rounded text-[10px] text-slate-400 border border-slate-200">⌘/</kbd>
+                                </button>
+
+                                {/* Divider */}
+                                <div className="my-2 border-t border-slate-100" />
+
+                                {/* What's New */}
+                                <Link
+                                    href="/updates"
+                                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                    onClick={() => setIsMenuOpen(false)}
+                                >
+                                    <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                    </svg>
+                                    What's New
+                                    <span className="ml-auto px-1.5 py-0.5 bg-amber-100 rounded text-[10px] text-amber-700 font-medium">NEW</span>
+                                </Link>
+
+                                {/* Divider */}
+                                <div className="my-2 border-t border-slate-100" />
+
+                                {/* Sign Out */}
+                                <button
+                                    onClick={() => {
+                                        localStorage.removeItem("campreserv:authToken");
+                                        signOut({ callbackUrl: "/auth/signin" });
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                    Sign Out
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../../components/breadcrumbs";
-import { Button } from "../../../components/ui/button";
-import { Card } from "../../../components/ui/card";
-import { Input } from "../../../components/ui/input";
-import { Textarea } from "../../../components/ui/textarea";
-import { Badge } from "../../../components/ui/badge";
-import { useToast } from "../../../components/ui/use-toast";
+import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
+import { Breadcrumbs } from "../../../../components/breadcrumbs";
+import { Button } from "../../../../components/ui/button";
+import { Card } from "../../../../components/ui/card";
+import { Input } from "../../../../components/ui/input";
+import { Textarea } from "../../../../components/ui/textarea";
+import { Badge } from "../../../../components/ui/badge";
+import { useToast } from "../../../../components/ui/use-toast";
 
 type ApiClient = {
   id: string;

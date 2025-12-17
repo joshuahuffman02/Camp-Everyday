@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
-import { Input } from "../../../components/ui/input";
-import { Textarea } from "../../../components/ui/textarea";
-import { Button } from "../../../components/ui/button";
-import { useToast } from "../../../components/ui/use-toast";
-import { apiClient } from "../../../lib/api-client";
+import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../../components/ui/card";
+import { Input } from "../../../../components/ui/input";
+import { Textarea } from "../../../../components/ui/textarea";
+import { Button } from "../../../../components/ui/button";
+import { useToast } from "../../../../components/ui/use-toast";
+import { apiClient } from "../../../../lib/api-client";
 
 type BrandingForm = {
   logoUrl: string;

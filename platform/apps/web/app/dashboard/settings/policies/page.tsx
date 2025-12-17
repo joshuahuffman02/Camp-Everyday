@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
-import { DepositSettingsForm } from "../../../components/settings/DepositSettingsForm";
-import { apiClient } from "../../../lib/api-client";
+import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
+import { DepositSettingsForm } from "../../../../components/settings/DepositSettingsForm";
+import { apiClient } from "../../../../lib/api-client";
 import { HelpAnchor } from "@/components/help/HelpAnchor";
-import { Input } from "../../../components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
-import { Textarea } from "../../../components/ui/textarea";
-import { Button } from "../../../components/ui/button";
-import { useToast } from "../../../components/ui/use-toast";
+import { Input } from "../../../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
+import { Textarea } from "../../../../components/ui/textarea";
+import { Button } from "../../../../components/ui/button";
+import { useToast } from "../../../../components/ui/use-toast";
 
 export default function PoliciesPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
