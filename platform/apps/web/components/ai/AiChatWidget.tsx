@@ -62,7 +62,8 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
             setMessages((prev) => [...prev, assistantMessage]);
 
             // Handle booking action
-            if (data.action === 'book' && data.bookingDetails) {
+            // Only redirect if we have actual booking details (specifically dates) to prevent empty redirects/loops
+            if (data.action === 'book' && data.bookingDetails && data.bookingDetails.dates) {
                 const params = new URLSearchParams(window.location.search);
                 if (data.bookingDetails.dates) {
                     params.set('arrival', data.bookingDetails.dates.arrival);
@@ -141,6 +142,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
     if (!isOpen) {
         return (
             <button
+                type="button"
                 onClick={() => setIsOpen(true)}
                 className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all flex items-center justify-center z-[9999]"
                 aria-label="Open AI booking assistant"
@@ -166,6 +168,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                     </div>
                 </div>
                 <button
+                    type="button"
                     onClick={() => setIsOpen(false)}
                     className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                 >
@@ -194,6 +197,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                         </div>
                     </div>
                     <button
+                        type="button"
                         onClick={handleConsent}
                         className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all"
                     >
@@ -277,6 +281,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                                 disabled={chatMutation.isPending}
                             />
                             <button
+                                type="button"
                                 onClick={handleSend}
                                 disabled={!input.trim() || chatMutation.isPending}
                                 className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
