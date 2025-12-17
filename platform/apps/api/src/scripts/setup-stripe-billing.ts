@@ -20,8 +20,8 @@ if (!STRIPE_SECRET_KEY) {
   process.exit(1);
 }
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: "2025-11-17.clover" as any,
+const stripe = new Stripe(STRIPE_SECRET_KEY as string, {
+  apiVersion: "2024-12-18.acacia" as any,
 });
 
 interface CreatedResources {
@@ -33,7 +33,7 @@ interface CreatedResources {
 async function main() {
   console.log("🚀 Setting up Stripe billing for Camp Everyday...\n");
 
-  const isTestMode = STRIPE_SECRET_KEY.startsWith("sk_test_");
+  const isTestMode = (STRIPE_SECRET_KEY as string).startsWith("sk_test_");
   console.log(`Mode: ${isTestMode ? "🧪 TEST" : "🔴 LIVE"}\n`);
 
   if (!isTestMode) {
@@ -106,8 +106,7 @@ async function main() {
       recurring: {
         interval: "month",
         usage_type: "metered",
-        aggregate_usage: "sum",
-      },
+      } as any,
       metadata: { tier: "standard", type: "booking_fee" },
       nickname: "Standard Per-Booking - $2.50",
     });
@@ -139,8 +138,7 @@ async function main() {
       recurring: {
         interval: "month",
         usage_type: "metered",
-        aggregate_usage: "sum",
-      },
+      } as any,
       metadata: { tier: "founders_circle", type: "booking_fee" },
       nickname: "Founders Circle Per-Booking - $0.75",
     });
@@ -178,8 +176,7 @@ async function main() {
       recurring: {
         interval: "month",
         usage_type: "metered",
-        aggregate_usage: "sum",
-      },
+      } as any,
       metadata: { tier: "pioneer", type: "booking_fee" },
       nickname: "Pioneer Per-Booking - $1.00",
     });
@@ -217,8 +214,7 @@ async function main() {
       recurring: {
         interval: "month",
         usage_type: "metered",
-        aggregate_usage: "sum",
-      },
+      } as any,
       metadata: { tier: "trailblazer", type: "booking_fee" },
       nickname: "Trailblazer Per-Booking - $1.25",
     });
@@ -237,8 +233,7 @@ async function main() {
       recurring: {
         interval: "month",
         usage_type: "metered",
-        aggregate_usage: "sum",
-      },
+      } as any,
       metadata: { type: "sms_outbound" },
       nickname: "SMS Outbound - $0.10",
     });
@@ -252,8 +247,7 @@ async function main() {
       recurring: {
         interval: "month",
         usage_type: "metered",
-        aggregate_usage: "sum",
-      },
+      } as any,
       metadata: { type: "sms_inbound" },
       nickname: "SMS Inbound - $0.04",
     });
@@ -281,7 +275,7 @@ async function main() {
       percent_off: 50,
       duration: "repeating",
       duration_in_months: 6,
-      name: "Trailblazer Early Access - 50% Off 6 Months",
+      name: "Trailblazer - 50% Off 6 Months",
       metadata: { tier: "trailblazer" },
     });
     created.coupons.trailblazer = trailblazerCoupon.id;

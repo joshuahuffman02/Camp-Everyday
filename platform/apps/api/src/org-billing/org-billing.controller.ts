@@ -10,7 +10,7 @@ import {
 } from "@nestjs/common";
 import { OrgBillingService } from "./org-billing.service";
 import { SubscriptionService } from "./subscription.service";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
 @Controller("organizations/:organizationId/billing")
 @UseGuards(JwtAuthGuard)
