@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { SearchBar } from "../../components/public/SearchBar";
 import { CampgroundCard } from "../../components/public/CampgroundCard";
 import { apiClient } from "../../lib/api-client";
@@ -390,7 +391,7 @@ export function HomeClient() {
                                 Tips, guides, and industry insights to help you get the most out of your camping experience.
                             </p>
                         </div>
-                        <a
+                        <Link
                             href="/blog"
                             className="inline-flex items-center gap-2 px-6 py-3 bg-white text-slate-900 border border-slate-200 font-semibold rounded-lg hover:border-emerald-500 hover:text-emerald-600 transition-colors"
                         >
@@ -398,12 +399,15 @@ export function HomeClient() {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                             </svg>
-                        </a>
+                        </Link>
                     </div>
 
                     <div className="grid md:grid-cols-3 gap-6">
                         {/* Featured Blog Card 1 */}
-                        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 group cursor-pointer hover:shadow-md transition-shadow">
+                        <Link
+                            href="/blog/camper-tips/01-first-time-camping-checklist"
+                            className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 group cursor-pointer hover:shadow-md transition-shadow block"
+                        >
                             <div className="p-6">
                                 <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 mb-2 block">
                                     Camper Tips
@@ -414,14 +418,17 @@ export function HomeClient() {
                                 <p className="text-slate-600 text-sm mb-4 line-clamp-3">
                                     Planning your first camping trip? The key to a great experience is preparation. This comprehensive checklist covers everything you need.
                                 </p>
-                                <a href="/blog/camper-tips/01-first-time-camping-checklist" className="text-sm font-semibold text-slate-900 flex items-center gap-1 group-hover:gap-2 transition-all">
+                                <span className="text-sm font-semibold text-slate-900 flex items-center gap-1 group-hover:gap-2 transition-all">
                                     Read Article <span aria-hidden="true">&rarr;</span>
-                                </a>
+                                </span>
                             </div>
-                        </div>
+                        </Link>
 
                         {/* Featured Blog Card 2 */}
-                        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 group cursor-pointer hover:shadow-md transition-shadow">
+                        <Link
+                            href="/blog/industry/01-camping-industry-trends-2024"
+                            className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 group cursor-pointer hover:shadow-md transition-shadow block"
+                        >
                             <div className="p-6">
                                 <span className="text-xs font-semibold uppercase tracking-wider text-violet-600 mb-2 block">
                                     Industry Trends
@@ -432,14 +439,17 @@ export function HomeClient() {
                                 <p className="text-slate-600 text-sm mb-4 line-clamp-3">
                                     Explore the latest camping industry trends for 2024. Data, insights, and what campground owners need to know about the future.
                                 </p>
-                                <a href="/blog/industry/01-camping-industry-trends-2024" className="text-sm font-semibold text-slate-900 flex items-center gap-1 group-hover:gap-2 transition-all">
+                                <span className="text-sm font-semibold text-slate-900 flex items-center gap-1 group-hover:gap-2 transition-all">
                                     Read Article <span aria-hidden="true">&rarr;</span>
-                                </a>
+                                </span>
                             </div>
-                        </div>
+                        </Link>
 
                         {/* Featured Blog Card 3 */}
-                        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 group cursor-pointer hover:shadow-md transition-shadow">
+                        <Link
+                            href="/blog/growth/01-increase-off-season-bookings"
+                            className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 group cursor-pointer hover:shadow-md transition-shadow block"
+                        >
                             <div className="p-6">
                                 <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 mb-2 block">
                                     Growth
@@ -450,11 +460,11 @@ export function HomeClient() {
                                 <p className="text-slate-600 text-sm mb-4 line-clamp-3">
                                     Boost off-season campground revenue with proven strategies. Learn events, pricing, marketing, and partnerships that fill sites.
                                 </p>
-                                <a href="/blog/growth/01-increase-off-season-bookings" className="text-sm font-semibold text-slate-900 flex items-center gap-1 group-hover:gap-2 transition-all">
+                                <span className="text-sm font-semibold text-slate-900 flex items-center gap-1 group-hover:gap-2 transition-all">
                                     Read Article <span aria-hidden="true">&rarr;</span>
-                                </a>
+                                </span>
                             </div>
-                        </div>
+                        </Link>
                     </div>
                 </div>
             </section>

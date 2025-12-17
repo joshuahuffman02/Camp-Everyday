@@ -138,9 +138,9 @@ export class AiBookingAssistService {
 
         // Append conversation history
         if (context.history && context.history.length > 0) {
-            userPrompt += "\n\nCONVERSATION HISTORY (Most recent first):";
-            // Take the last 5 messages, excluding the current one if it was somehow included
-            const recentHistory = context.history.slice(-5).reverse();
+            userPrompt += "\n\nCONVERSATION HISTORY:";
+            // Take the last 10 messages in chronological order
+            const recentHistory = context.history.slice(-10);
 
             for (const msg of recentHistory) {
                 userPrompt += `\n${msg.role.toUpperCase()}: ${msg.content}`;

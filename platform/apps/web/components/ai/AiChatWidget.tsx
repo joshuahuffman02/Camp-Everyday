@@ -64,6 +64,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
             // Handle booking action
             // Only redirect if we have actual booking details (specifically dates) to prevent empty redirects/loops
             if (data.action === 'book' && data.bookingDetails && data.bookingDetails.dates) {
+                console.log("AI triggered booking action:", data.bookingDetails);
                 const params = new URLSearchParams(window.location.search);
                 if (data.bookingDetails.dates) {
                     params.set('arrival', data.bookingDetails.dates.arrival);
@@ -83,9 +84,20 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                     params.set('siteClassId', data.bookingDetails.siteClassId);
                 }
 
-                // If on the park page, reload with params to pre-fill the form
-                // Using window.location to force a reload so the client component re-initializes from URL
-                window.location.href = `${window.location.pathname}?${params.toString()}`;
+                // Use Next.js router for soft navigation to prevent clearing chat state
+                // This updates the URL params which the parent page watches to pre-fill the form
+                const newUrl = `${window.location.pathname}?${params.toString()}`;
+                console.log("Redirecting to:", newUrl);
+                // We'll use window.history.pushState to update URL without reload if on the same page
+                // This handles the case where we just want to update the background form
+                window.history.pushState({}, '', newUrl);
+
+                // Trigger a custom event so the parent component knows to re-read params if needed
+                window.dispatchEvent(new Event('popstate'));
+
+                // Optional: If we want to actually navigate to a different page (like /book), use router
+                // But for now, we assume we want to stay on the page and just fill the form.
+                // If the user IS meant to go to a booking page, we should check the current path.
             }
         },
         onError: () => {
