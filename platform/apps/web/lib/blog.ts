@@ -2,18 +2,26 @@ import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 
-// In Docker (NEXT_PUBLIC_API_BASE set), we are at /app/platform/apps/web
-// Content is copied to /app/content
-// So we need to go up 3 levels: ../../../content/blog
-// const BLOG_DIR = path.join(process.cwd(), '../../../content/blog');
-// Let's try to be more robust by checking if we are in Docker
-const isDocker = process.env.NEXT_PUBLIC_IS_DOCKER === 'true' || process.env.NODE_ENV === 'production';
-const BLOG_DIR = path.join(process.cwd(), isDocker ? '../../../content/blog' : '../../../content/blog');
-// Actually, process.cwd() in Docker WORKDIR /app/platform/apps/web is exactly that.
-// And content is at /app/content.
-// So path.join('/app/platform/apps/web', '../../../content/blog') = '/app/content/blog'.
-// This SHOULD work if the content is copied there.
+// Robust directory finding
+function findBlogDir() {
+    const candidates = [
+        path.join(process.cwd(), 'content/blog'),           // Docker production COPY
+        path.join(process.cwd(), '../../../content/blog'),  // Local monorepo
+        path.join(process.cwd(), 'public/content/blog'),    // Alternative fallback
+    ];
 
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+            console.log(`[Blog] Found blog directory at: ${candidate}`);
+            return candidate;
+        }
+    }
+
+    console.warn(`[Blog] content/blog directory not found. Searched: ${candidates.join(', ')}`);
+    return null;
+}
+
+const BLOG_DIR = findBlogDir();
 
 export interface BlogPost {
     slug: string;
@@ -26,11 +34,7 @@ export interface BlogPost {
 }
 
 export function getAllPosts(): BlogPost[] {
-    // If the directory doesn't exist (e.g. in Vercel build without content), return empty
-    if (!fs.existsSync(BLOG_DIR)) {
-        console.warn(`Blog directory not found at: ${BLOG_DIR}`);
-        return [];
-    }
+    if (!BLOG_DIR) return [];
 
     const categories = fs.readdirSync(BLOG_DIR).filter(file =>
         fs.statSync(path.join(BLOG_DIR, file)).isDirectory()
@@ -47,11 +51,10 @@ export function getAllPosts(): BlogPost[] {
             const fileContent = fs.readFileSync(filePath, 'utf8');
             const { data, content } = matter(fileContent);
 
-            // Extract title from content if not in frontmatter (our current posts use H1 # Title)
+            // Extract title from content if not in frontmatter
             let title = data.title;
             let description = data.description;
 
-            // Parse H1 if title missing
             if (!title) {
                 const titleMatch = content.match(/^#\s+(.+)$/m);
                 if (titleMatch) {
@@ -59,7 +62,6 @@ export function getAllPosts(): BlogPost[] {
                 }
             }
 
-            // Parse Meta Description if description missing
             if (!description) {
                 const descMatch = content.match(/\*\*Meta Description:\*\*\s*(.+)$/m);
                 if (descMatch) {
@@ -91,7 +93,7 @@ export function getPostBySlug(category: string, slug: string): BlogPost | undefi
 }
 
 export function getCategories(): string[] {
-    if (!fs.existsSync(BLOG_DIR)) return [];
+    if (!BLOG_DIR) return [];
     return fs.readdirSync(BLOG_DIR).filter(file =>
         fs.statSync(path.join(BLOG_DIR, file)).isDirectory()
     );

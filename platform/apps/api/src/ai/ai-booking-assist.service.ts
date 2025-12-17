@@ -288,6 +288,11 @@ Guidelines:
 - Keep responses under 100 words
 - Don't make up policies or amenities not listed
 
+CRITICAL:
+- When the guest confirms they want to proceed with a booking (e.g. "yes", "book it", "sounds good"), you MUST use "ACTION: book" in your response.
+- Do NOT just say you will book it. You must trigger the action.
+- Only use "ACTION: book" if you have Dates and Party Size/RV Info.
+
 Response format:
 MESSAGE: <your response>
 ACTION: search|book|clarify|info
