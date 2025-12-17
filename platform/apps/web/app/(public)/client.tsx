@@ -111,7 +111,8 @@ export function HomeClient() {
             }
 
             // Determine NPS badge - priority order matters
-            let npsBadge: { type: "world-class" | "top-campground" | "top-1" | "top-5" | "top-10"; label: string } | undefined;
+            // Rising Star only shows if they don't have a higher-tier badge
+            let npsBadge: { type: "world-class" | "top-campground" | "top-1" | "top-5" | "top-10" | "rising-star"; label: string } | undefined;
             if (cg.isTopCampground) {
                 npsBadge = { type: "top-campground", label: "#1 Campground" };
             } else if (cg.isTop1PercentNps) {
@@ -122,6 +123,13 @@ export function HomeClient() {
                 npsBadge = { type: "top-10", label: "Top 10%" };
             } else if (cg.isWorldClassNps) {
                 npsBadge = { type: "world-class", label: "World Class Service" };
+            } else if (cg.isRisingStar) {
+                // Show Rising Star badge with improvement amount if available
+                const improvement = cg.npsImprovement ?? 0;
+                npsBadge = {
+                    type: "rising-star",
+                    label: improvement > 0 ? `Rising Star (+${improvement})` : "Rising Star"
+                };
             }
 
             return {
@@ -131,7 +139,8 @@ export function HomeClient() {
                 reviewCount,
                 pricePerNight: undefined,
                 ratingBadge: badge,
-                npsBadge
+                npsBadge,
+                pastAwards: cg.pastCampgroundOfYearAwards || []
             };
         });
 
@@ -139,7 +148,8 @@ export function HomeClient() {
             ...cg,
             isInternal: false,
             ratingBadge: cg.reviewCount && cg.reviewCount > 150 ? "Popular pick" : undefined,
-            npsBadge: undefined
+            npsBadge: undefined,
+            pastAwards: []
         }));
 
         const combined = [...internal, ...externalWithBadges];
@@ -294,6 +304,7 @@ export function HomeClient() {
                                     pricePerNight={pricePerNight}
                                     amenities={"amenities" in campground ? campground.amenities : []}
                                     npsBadge={campground.npsBadge}
+                                    pastAwards={"pastAwards" in campground ? campground.pastAwards : []}
                                     onExplore={() => trackEvent("site_card_view", { campgroundId: campground.id, page: "/" })}
                                 />
                             );

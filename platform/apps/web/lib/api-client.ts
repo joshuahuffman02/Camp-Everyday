@@ -315,7 +315,12 @@ const PublicCampgroundListSchema = z.array(
     isTopCampground: z.boolean().optional().default(false),
     isTop1PercentNps: z.boolean().optional().default(false),
     isTop5PercentNps: z.boolean().optional().default(false),
-    isTop10PercentNps: z.boolean().optional().default(false)
+    isTop10PercentNps: z.boolean().optional().default(false),
+    // Rising Star - most improved NPS
+    isRisingStar: z.boolean().optional().default(false),
+    npsImprovement: z.number().nullable().optional(),
+    // Past Campground of the Year awards
+    pastCampgroundOfYearAwards: z.array(z.number()).optional().default([])
   })
 );
 

@@ -292,7 +292,7 @@ export class CampgroundsService {
 
   // Public campgrounds (published only)
   async listPublic() {
-    // Fetch campgrounds
+    // Fetch campgrounds with historical awards
     const campgrounds = await this.prisma.campground.findMany({
       where: { OR: [{ isPublished: true }, { isExternal: true }] },
       select: {
@@ -312,17 +312,26 @@ export class CampgroundsService {
         reviewScore: true,
         reviewCount: true,
         reviewSources: true,
-        amenitySummary: true
+        amenitySummary: true,
+        campgroundAwards: {
+          where: { awardType: "campground_of_year" },
+          select: { year: true, npsScore: true },
+          orderBy: { year: "desc" }
+        }
       }
     });
 
-    // Fetch NPS responses for all campgrounds (last 12 months)
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    // Date ranges for NPS comparison
+    const now = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
 
-    const npsResponses = await this.prisma.npsResponse.findMany({
+    // Fetch NPS responses for current period (last 6 months)
+    const currentPeriodResponses = await this.prisma.npsResponse.findMany({
       where: {
-        createdAt: { gte: oneYearAgo },
+        createdAt: { gte: sixMonthsAgo },
         campgroundId: { in: campgrounds.map(c => c.id) }
       },
       select: {
@@ -331,30 +340,87 @@ export class CampgroundsService {
       }
     });
 
-    // Calculate NPS per campground
-    const npsData: Record<string, { score: number; responseCount: number }> = {};
-    const responsesByCampground: Record<string, number[]> = {};
-
-    for (const response of npsResponses) {
-      if (!responsesByCampground[response.campgroundId]) {
-        responsesByCampground[response.campgroundId] = [];
+    // Fetch NPS responses for previous period (6-12 months ago)
+    const previousPeriodResponses = await this.prisma.npsResponse.findMany({
+      where: {
+        createdAt: { gte: twelveMonthsAgo, lt: sixMonthsAgo },
+        campgroundId: { in: campgrounds.map(c => c.id) }
+      },
+      select: {
+        campgroundId: true,
+        score: true
       }
-      responsesByCampground[response.campgroundId].push(response.score);
+    });
+
+    // Calculate NPS for current period
+    const currentNps: Record<string, { score: number; responseCount: number }> = {};
+    const currentByCampground: Record<string, number[]> = {};
+
+    for (const response of currentPeriodResponses) {
+      if (!currentByCampground[response.campgroundId]) {
+        currentByCampground[response.campgroundId] = [];
+      }
+      currentByCampground[response.campgroundId].push(response.score);
     }
 
-    for (const [campgroundId, scores] of Object.entries(responsesByCampground)) {
-      if (scores.length >= 5) { // Only calculate NPS if we have enough responses
+    for (const [campgroundId, scores] of Object.entries(currentByCampground)) {
+      if (scores.length >= 5) {
         const promoters = scores.filter(s => s >= 9).length;
         const detractors = scores.filter(s => s <= 6).length;
         const nps = Math.round(((promoters - detractors) / scores.length) * 100);
-        npsData[campgroundId] = { score: nps, responseCount: scores.length };
+        currentNps[campgroundId] = { score: nps, responseCount: scores.length };
+      }
+    }
+
+    // Calculate NPS for previous period
+    const previousNps: Record<string, number> = {};
+    const previousByCampground: Record<string, number[]> = {};
+
+    for (const response of previousPeriodResponses) {
+      if (!previousByCampground[response.campgroundId]) {
+        previousByCampground[response.campgroundId] = [];
+      }
+      previousByCampground[response.campgroundId].push(response.score);
+    }
+
+    for (const [campgroundId, scores] of Object.entries(previousByCampground)) {
+      if (scores.length >= 5) {
+        const promoters = scores.filter(s => s >= 9).length;
+        const detractors = scores.filter(s => s <= 6).length;
+        previousNps[campgroundId] = Math.round(((promoters - detractors) / scores.length) * 100);
+      }
+    }
+
+    // Calculate NPS improvement (Rising Star candidates)
+    const npsImprovements: { id: string; improvement: number; currentNps: number }[] = [];
+    for (const [campgroundId, data] of Object.entries(currentNps)) {
+      if (previousNps[campgroundId] !== undefined) {
+        const improvement = data.score - previousNps[campgroundId];
+        if (improvement > 0) {
+          npsImprovements.push({ id: campgroundId, improvement, currentNps: data.score });
+        }
+      }
+    }
+
+    // Sort by improvement and get top improvers (Rising Stars)
+    npsImprovements.sort((a, b) => b.improvement - a.improvement);
+    const risingStars = new Set(
+      npsImprovements
+        .filter(item => item.improvement >= 10) // Must have improved by at least 10 points
+        .slice(0, 5) // Top 5 improvers
+        .map(item => item.id)
+    );
+    const risingStarData: Record<string, number> = {};
+    for (const item of npsImprovements) {
+      if (risingStars.has(item.id)) {
+        risingStarData[item.id] = item.improvement;
       }
     }
 
     // Compute percentile rankings
-    const npsScores = Object.entries(npsData)
+    const npsScores = Object.entries(currentNps)
       .map(([id, data]) => ({ id, score: data.score }))
-      .sort((a, b) => b.score - a.score); // Sort descending
+      .sort((a, b) => b.score - a.score);
 
     const totalWithNps = npsScores.length;
     const percentileRankings: Record<string, { rank: number; percentile: number; isTop1Percent: boolean; isTop5Percent: boolean; isTop10Percent: boolean; isTopCampground: boolean }> = {};
@@ -374,20 +440,31 @@ export class CampgroundsService {
 
     // Combine data
     return campgrounds.map(cg => {
-      const nps = npsData[cg.id];
+      const nps = currentNps[cg.id];
       const ranking = percentileRankings[cg.id];
+      const isRisingStar = risingStars.has(cg.id);
+      const npsImprovement = risingStarData[cg.id] ?? null;
+
+      // Get past Campground of the Year awards
+      const pastAwards = cg.campgroundAwards
+        .filter(a => a.year < new Date().getFullYear())
+        .map(a => ({ year: a.year, npsScore: a.npsScore }));
 
       return {
         ...cg,
+        campgroundAwards: undefined, // Remove raw data
         npsScore: nps?.score ?? null,
         npsResponseCount: nps?.responseCount ?? 0,
         npsRank: ranking?.rank ?? null,
         npsPercentile: ranking?.percentile ?? null,
+        npsImprovement,
         isWorldClassNps: nps && nps.score >= 70,
         isTopCampground: ranking?.isTopCampground ?? false,
         isTop1PercentNps: ranking?.isTop1Percent ?? false,
         isTop5PercentNps: ranking?.isTop5Percent ?? false,
-        isTop10PercentNps: ranking?.isTop10Percent ?? false
+        isTop10PercentNps: ranking?.isTop10Percent ?? false,
+        isRisingStar,
+        pastCampgroundOfYearAwards: pastAwards
       };
     });
   }

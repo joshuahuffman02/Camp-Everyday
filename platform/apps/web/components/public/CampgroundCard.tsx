@@ -21,9 +21,11 @@ interface CampgroundCardProps {
     ratingBadge?: string;
     // NPS recognition
     npsBadge?: {
-        type: "world-class" | "top-campground" | "top-1" | "top-5" | "top-10";
+        type: "world-class" | "top-campground" | "top-1" | "top-5" | "top-10" | "rising-star";
         label: string;
     } | null;
+    // Past awards (e.g., "2021 Campground of the Year")
+    pastAwards?: number[];
 }
 
 export function CampgroundCard({
@@ -42,7 +44,8 @@ export function CampgroundCard({
     amenities = [],
     onExplore,
     ratingBadge,
-    npsBadge
+    npsBadge,
+    pastAwards = []
 }: CampgroundCardProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [isFavorited, setIsFavorited] = useState(false);
@@ -125,6 +128,8 @@ export function CampgroundCard({
                         <div className={`px-3 py-1.5 text-white text-xs font-bold rounded-full shadow-lg flex items-center gap-1.5 ${
                             npsBadge.type === "top-campground"
                                 ? "bg-gradient-to-r from-amber-500 to-yellow-500"
+                                : npsBadge.type === "rising-star"
+                                ? "bg-gradient-to-r from-green-500 to-emerald-500"
                                 : npsBadge.type === "world-class"
                                 ? "bg-gradient-to-r from-purple-500 to-indigo-500"
                                 : npsBadge.type === "top-1"
@@ -137,12 +142,27 @@ export function CampgroundCard({
                                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                 </svg>
+                            ) : npsBadge.type === "rising-star" ? (
+                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                                </svg>
                             ) : (
                                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
                             )}
                             {npsBadge.label}
+                        </div>
+                    )}
+                    {/* Past Campground of the Year awards */}
+                    {pastAwards.length > 0 && (
+                        <div className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-orange-500 text-white text-xs font-bold rounded-full shadow-lg flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5 2a2 2 0 00-2 2v14l3.5-2 3.5 2 3.5-2 3.5 2V4a2 2 0 00-2-2H5zm2.5 3a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm6.207.293a1 1 0 00-1.414 0l-6 6a1 1 0 101.414 1.414l6-6a1 1 0 000-1.414zM12.5 10a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" clipRule="evenodd" />
+                            </svg>
+                            {pastAwards.length === 1
+                                ? `${pastAwards[0]} Campground of the Year`
+                                : `${pastAwards.length}x Campground of the Year`}
                         </div>
                     )}
                     {/* Verified badge for internal campgrounds */}

@@ -1071,6 +1071,7 @@ model Campground {
   analyticsShareLinks    AnalyticsShareLink[]
   analyticsExports       AnalyticsExport[]
   platformGoals          PlatformGoal[]
+  campgroundAwards       CampgroundAward[]
 
   @@index([dataSource, dataSourceId])
 }
@@ -5986,4 +5987,33 @@ model PlatformGoal {
   @@index([status])
   @@index([dueDate])
   @@index([campgroundId])
+}
+
+// Campground Awards - Historical recognition
+enum AwardType {
+  campground_of_year
+  rising_star
+  world_class
+  top_1_percent
+  top_5_percent
+  top_10_percent
+}
+
+model CampgroundAward {
+  id           String     @id @default(cuid())
+  campgroundId String
+  awardType    AwardType
+  year         Int        // Year the award was earned
+  npsScore     Int?       // NPS score at time of award
+  npsImprovement Int?     // For rising_star: points improved
+  rank         Int?       // Ranking position if applicable
+
+  createdAt    DateTime   @default(now())
+
+  campground   Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@unique([campgroundId, awardType, year])
+  @@index([campgroundId])
+  @@index([year])
+  @@index([awardType])
 }
