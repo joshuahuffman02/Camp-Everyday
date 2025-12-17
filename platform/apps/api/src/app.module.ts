@@ -93,6 +93,7 @@ import { AnomaliesModule } from "./anomalies/anomalies.module";
 import { IotModule } from "./iot/iot.module";
 import { CharityModule } from "./charity/charity.module";
 import { EarlyAccessModule } from "./early-access/early-access.module";
+import { OrgBillingModule } from "./org-billing/org-billing.module";
 
 @Module({
   imports: [
@@ -190,6 +191,7 @@ import { EarlyAccessModule } from "./early-access/early-access.module";
     IotModule,
     CharityModule,
     EarlyAccessModule,
+    OrgBillingModule,
   ],
   providers: []
 })

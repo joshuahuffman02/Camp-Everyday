@@ -814,6 +814,10 @@ model Organization {
   // Early access program
   earlyAccessEnrollment EarlyAccessEnrollment?
 
+  // Organization billing (what Camp Everyday charges them)
+  billingPeriods OrganizationBillingPeriod[]
+  usageEvents    UsageEvent[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 }
@@ -1085,6 +1089,10 @@ model Campground {
   campgroundAwards       CampgroundAward[]
   charitySettings        CampgroundCharity?
   charityDonations       CharityDonation[]
+
+  // Organization billing relations
+  orgBillingLineItems    OrganizationBillingLineItem[]
+  usageEvents            UsageEvent[]
 
   @@index([dataSource, dataSourceId])
 }
@@ -6221,4 +6229,131 @@ model EarlyAccessSpot {
   totalSpots     Int
   remainingSpots Int
   updatedAt      DateTime        @updatedAt
+}
+
+// =============================================================================
+// ORGANIZATION BILLING (What Camp Everyday charges campgrounds)
+// =============================================================================
+
+enum OrgBillingPeriodStatus {
+  open       // Currently accumulating charges
+  processing // Being finalized
+  invoiced   // Invoice sent to customer
+  paid       // Payment received
+  past_due   // Payment overdue
+  void       // Cancelled/voided
+}
+
+enum OrgBillingLineItemType {
+  subscription       // Monthly subscription fee
+  booking_fee        // Per-booking fee
+  sms_outbound       // Outbound SMS charges
+  sms_inbound        // Inbound SMS charges
+  ai_usage           // AI feature usage
+  overage            // Any overage charges
+  credit             // Credits/adjustments
+  discount           // Promotional discounts
+  early_access_discount // Early access tier discount
+}
+
+// Monthly billing period for an organization
+model OrganizationBillingPeriod {
+  id                 String                  @id @default(cuid())
+  organizationId     String
+  periodStart        DateTime                // Start of billing period
+  periodEnd          DateTime                // End of billing period
+  status             OrgBillingPeriodStatus  @default(open)
+
+  // Totals (in cents)
+  subtotalCents      Int                     @default(0)
+  discountCents      Int                     @default(0)
+  taxCents           Int                     @default(0)
+  totalCents         Int                     @default(0)
+
+  // Stripe integration
+  stripeInvoiceId    String?                 @unique
+  stripePaymentIntentId String?
+
+  // Timing
+  invoicedAt         DateTime?
+  paidAt             DateTime?
+  dueAt              DateTime?
+
+  // Metadata
+  notes              String?
+  metadata           Json?
+
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lineItems          OrganizationBillingLineItem[]
+
+  @@unique([organizationId, periodStart])
+  @@index([organizationId])
+  @@index([status])
+  @@index([periodStart])
+}
+
+// Individual line items on an organization's bill
+model OrganizationBillingLineItem {
+  id               String                   @id @default(cuid())
+  billingPeriodId  String
+  type             OrgBillingLineItemType
+  description      String
+
+  // Quantity and pricing
+  quantity         Int                      @default(1)
+  unitCents        Int                      // Price per unit in cents
+  totalCents       Int                      // quantity * unitCents
+
+  // Optional references
+  campgroundId     String?                  // If specific to a campground
+  reservationId    String?                  // If tied to a specific reservation
+
+  // Metadata for detail drill-down
+  metadata         Json?                    // { reservationIds: [...], smsMessageIds: [...] }
+
+  createdAt        DateTime                 @default(now())
+
+  billingPeriod    OrganizationBillingPeriod @relation(fields: [billingPeriodId], references: [id], onDelete: Cascade)
+  campground       Campground?              @relation(fields: [campgroundId], references: [id])
+
+  @@index([billingPeriodId])
+  @@index([type])
+  @@index([campgroundId])
+}
+
+// Track individual usage events for billing
+model UsageEvent {
+  id               String    @id @default(cuid())
+  organizationId   String
+  campgroundId     String?
+  eventType        String    // booking_created, sms_sent, sms_received, ai_tokens_used
+
+  // Quantification
+  quantity         Int       @default(1)
+  unitCents        Int?      // Cost per unit (calculated at event time)
+
+  // References
+  referenceType    String?   // reservation, communication, ai_request
+  referenceId      String?   // ID of the related entity
+
+  // Billing linkage
+  billingPeriodId  String?   // Linked when processed into billing
+  billed           Boolean   @default(false)
+  billedAt         DateTime?
+
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campground       Campground?  @relation(fields: [campgroundId], references: [id])
+
+  @@index([organizationId])
+  @@index([campgroundId])
+  @@index([eventType])
+  @@index([billed])
+  @@index([createdAt])
+  @@index([billingPeriodId])
 }
