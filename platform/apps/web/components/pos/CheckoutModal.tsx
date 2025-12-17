@@ -7,6 +7,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { CartItem } from "../../app/pos/page";
 import { recordTelemetry } from "../../lib/sync-telemetry";
+import { RoundUpInline } from "../checkout/RoundUpForCharity";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
@@ -50,9 +51,11 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, onSuccess, 
     const [deliveryInstructions, setDeliveryInstructions] = useState("");
     const [locationHint, setLocationHint] = useState("");
     const [error, setError] = useState<string | null>(null);
+    const [charityDonation, setCharityDonation] = useState<{ optedIn: boolean; amountCents: number; charityId: string | null }>({ optedIn: false, amountCents: 0, charityId: null });
     const offlineCardWarning = !isOnline && method === "card";
 
-    const totalCents = cart.reduce((sum, item) => sum + item.priceCents * item.qty, 0);
+    const subtotalCents = cart.reduce((sum, item) => sum + item.priceCents * item.qty, 0);
+    const totalCents = subtotalCents + (charityDonation.optedIn ? charityDonation.amountCents : 0);
 
     const handleSubmit = async () => {
         setLoading(true);
@@ -63,6 +66,10 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, onSuccess, 
                 paymentMethod: method,
                 channel: "pos",
                 fulfillmentType: fulfillment,
+                charityDonation: charityDonation.optedIn && charityDonation.charityId ? {
+                    charityId: charityDonation.charityId,
+                    amountCents: charityDonation.amountCents,
+                } : undefined,
             };
 
             if (method === "charge_to_site") {
@@ -218,6 +225,13 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, onSuccess, 
                             <span className="font-medium text-sm">Site Charge</span>
                         </button>
                     </div>
+
+                    {/* Round up for charity */}
+                    <RoundUpInline
+                        campgroundId={campgroundId}
+                        totalCents={subtotalCents}
+                        onChange={setCharityDonation}
+                    />
 
                     {offlineCardWarning && (
                         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">

@@ -110,6 +110,63 @@ export class CharityController {
   }
 }
 
+// Admin charity endpoints (platform-wide)
+@Controller("admin/charity")
+export class AdminCharityController {
+  constructor(private charityService: CharityService) {}
+
+  @Get("donations")
+  async listAllDonations(
+    @Query("charityId") charityId?: string,
+    @Query("campgroundId") campgroundId?: string,
+    @Query("status") status?: DonationStatus,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string
+  ) {
+    return this.charityService.listDonations({
+      charityId,
+      campgroundId,
+      status,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Get("payouts")
+  async listAllPayouts(
+    @Query("charityId") charityId?: string,
+    @Query("status") status?: CharityPayoutStatus,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string
+  ) {
+    return this.charityService.listPayouts({
+      charityId,
+      status,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Post("payouts")
+  async createPayout(
+    @Body() data: { charityId: string; createdBy?: string }
+  ) {
+    return this.charityService.createPayout(data.charityId, data.createdBy);
+  }
+
+  @Put("payouts/:id/complete")
+  async completePayout(
+    @Param("id") id: string,
+    @Body() data: { reference?: string; notes?: string }
+  ) {
+    return this.charityService.completePayout(id, data.reference, data.notes);
+  }
+}
+
 // Campground-specific charity endpoints
 @Controller("campgrounds/:campgroundId/charity")
 export class CampgroundCharityController {
@@ -165,10 +222,10 @@ export class CampgroundCharityController {
     });
   }
 
-  @Get("round-up")
+  @Get("calculate-roundup")
   async calculateRoundUp(
     @Param("campgroundId") campgroundId: string,
-    @Query("totalCents") totalCents: string
+    @Query("amountCents") amountCents: string
   ) {
     const settings = await this.charityService.getCampgroundCharity(campgroundId);
 
@@ -176,25 +233,30 @@ export class CampgroundCharityController {
       return { enabled: false };
     }
 
+    const amount = parseInt(amountCents, 10);
     const roundUp = this.charityService.calculateRoundUp(
-      parseInt(totalCents, 10),
+      amount,
       settings.roundUpType,
       settings.roundUpOptions as { values: number[] } | undefined
     );
 
     return {
-      enabled: true,
-      charity: {
-        id: settings.charity.id,
-        name: settings.charity.name,
-        description: settings.charity.description,
-        logoUrl: settings.charity.logoUrl,
-      },
-      customMessage: settings.customMessage,
-      roundUpType: settings.roundUpType,
-      roundUpOptions: settings.roundUpOptions,
-      defaultOptIn: settings.defaultOptIn,
-      ...roundUp,
+      originalAmountCents: amount,
+      roundedAmountCents: roundUp.newTotal,
+      donationAmountCents: roundUp.roundUpAmount,
+      charityName: settings.charity.name,
+      charityId: settings.charity.id,
     };
+  }
+
+  @Post("donations")
+  async createDonation(
+    @Param("campgroundId") campgroundId: string,
+    @Body() data: { reservationId: string; charityId: string; amountCents: number; guestId?: string }
+  ) {
+    return this.charityService.createDonation({
+      ...data,
+      campgroundId,
+    });
   }
 }

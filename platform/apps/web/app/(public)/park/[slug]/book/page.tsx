@@ -16,6 +16,7 @@ import {
     Check, Moon, CalendarDays, Caravan, Tent, Car, Home, Sparkles, Users, Lock,
     Frown, CheckCircle
 } from "lucide-react";
+import { RoundUpForCharity } from "@/components/checkout/RoundUpForCharity";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder");
 
@@ -1502,6 +1503,9 @@ function ReviewStep({
     // Tax waiver state
     const [taxWaiverSigned, setTaxWaiverSigned] = useState(false);
 
+    // Charity round-up state
+    const [charityDonation, setCharityDonation] = useState<{ optedIn: boolean; amountCents: number; charityId: string | null }>({ optedIn: false, amountCents: 0, charityId: null });
+
     const { data: quote, isLoading: isLoadingQuote, error: quoteError } = useQuery<Quote>({
         queryKey: [
             "public-quote",
@@ -1623,7 +1627,8 @@ function ReviewStep({
         ? quote.totalAfterDiscountCents ?? Math.max(0, (quote.totalCents ?? 0) - appliedDiscountCents)
         : 0;
     const totalWithTaxes = quote?.totalWithTaxesCents ?? totalAfterDiscount + taxesCents;
-    const finalTotalWithFees = Math.max(0, totalWithTaxes) + passThroughFeeCents;
+    const charityAmountCents = charityDonation.optedIn ? charityDonation.amountCents : 0;
+    const finalTotalWithFees = Math.max(0, totalWithTaxes) + passThroughFeeCents + charityAmountCents;
 
     // Check if waiver is required but not signed
     const waiverRequired = quote?.taxWaiverRequired ?? false;
@@ -1716,6 +1721,10 @@ function ReviewStep({
                 stayReasonOther: guestInfo.stayReasonPreset === "other" ? guestInfo.stayReasonOther : undefined,
                 taxWaiverSigned: waiverRequired ? taxWaiverSigned : undefined,
                 needsAccessible: guestInfo.needsAccessible || undefined,
+                charityDonation: charityDonation.optedIn && charityDonation.charityId ? {
+                    charityId: charityDonation.charityId,
+                    amountCents: charityDonation.amountCents
+                } : undefined,
                 equipment: guestInfo.equipment.type !== "tent" && guestInfo.equipment.type !== "car" ? {
                     type: guestInfo.equipment.type,
                     length: Number(guestInfo.equipment.length),
@@ -1913,6 +1922,15 @@ function ReviewStep({
                                 <span aria-hidden="true">—</span>
                             </div>
                         )}
+                        {charityAmountCents > 0 && (
+                            <div className="flex justify-between text-sm text-pink-600">
+                                <span className="flex items-center gap-1">
+                                    <span aria-hidden>💝</span>
+                                    Charity donation
+                                </span>
+                                <span className="font-medium">+${(charityAmountCents / 100).toFixed(2)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between text-lg font-bold pt-2 border-t border-slate-300">
                             <span className="text-slate-900">Total due</span>
                             <span className="text-emerald-600">${(finalTotalWithFees / 100).toFixed(2)}</span>
@@ -1993,6 +2011,15 @@ function ReviewStep({
                     </div>
                 </div>
             )}
+
+            {/* Round Up for Charity Section */}
+            <div className="mb-6">
+                <RoundUpForCharity
+                    campgroundId={campgroundId}
+                    totalCents={Math.max(0, totalWithTaxes) + passThroughFeeCents}
+                    onChange={setCharityDonation}
+                />
+            </div>
 
             {bookingError && (
                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">

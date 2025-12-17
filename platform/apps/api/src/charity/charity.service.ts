@@ -1,6 +1,14 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, DonationStatus, CharityPayoutStatus } from "@prisma/client";
+import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
+
+// GL Codes for charity accounting
+const GL_CODES = {
+  CHARITY_DONATIONS_PAYABLE: "2400", // Liability - money owed to charity
+  CHARITY_CASH_COLLECTED: "1010",    // Asset - cash received from guests
+  CHARITY_CASH_PAID_OUT: "1010",     // Asset - cash paid to charity
+};
 
 // DTOs
 export interface CreateCharityDto {
@@ -197,18 +205,61 @@ export class CharityService {
   // ==========================================================================
 
   async createDonation(data: CreateDonationDto) {
-    return this.prisma.charityDonation.create({
-      data: {
-        reservationId: data.reservationId,
-        charityId: data.charityId,
-        campgroundId: data.campgroundId,
-        guestId: data.guestId,
-        amountCents: data.amountCents,
-        status: "collected",
-      },
-      include: {
-        charity: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      // Create the donation record
+      const donation = await tx.charityDonation.create({
+        data: {
+          reservationId: data.reservationId,
+          charityId: data.charityId,
+          campgroundId: data.campgroundId,
+          guestId: data.guestId,
+          amountCents: data.amountCents,
+          status: "collected",
+        },
+        include: {
+          charity: true,
+        },
+      });
+
+      // Create balanced ledger entries:
+      // Debit Cash (asset increases) | Credit Charity Donations Payable (liability increases)
+      try {
+        const ledgerEntries = await postBalancedLedgerEntries(tx, [
+          {
+            campgroundId: data.campgroundId,
+            reservationId: data.reservationId,
+            glCode: GL_CODES.CHARITY_CASH_COLLECTED,
+            account: "Cash - Charity Collections",
+            description: `Charity donation collected for ${donation.charity.name}`,
+            amountCents: data.amountCents,
+            direction: "debit",
+            externalRef: `donation:${donation.id}:debit`,
+          },
+          {
+            campgroundId: data.campgroundId,
+            reservationId: data.reservationId,
+            glCode: GL_CODES.CHARITY_DONATIONS_PAYABLE,
+            account: "Charity Donations Payable",
+            description: `Charity donation payable to ${donation.charity.name}`,
+            amountCents: data.amountCents,
+            direction: "credit",
+            externalRef: `donation:${donation.id}:credit`,
+          },
+        ]);
+
+        // Update donation with journal entry reference
+        if (ledgerEntries.length > 0) {
+          await tx.charityDonation.update({
+            where: { id: donation.id },
+            data: { journalEntryId: ledgerEntries[0].id },
+          });
+        }
+      } catch (err) {
+        console.error("Failed to post charity donation ledger entries:", err);
+        // Continue without ledger entries for now - they can be reconciled later
+      }
+
+      return donation;
     });
   }
 
@@ -225,12 +276,48 @@ export class CharityService {
     const donation = await this.getDonationByReservation(reservationId);
     if (!donation) return null;
 
-    return this.prisma.charityDonation.update({
-      where: { reservationId },
-      data: {
-        status: "refunded",
-        refundedAt: new Date(),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const updatedDonation = await tx.charityDonation.update({
+        where: { reservationId },
+        data: {
+          status: "refunded",
+          refundedAt: new Date(),
+        },
+        include: {
+          charity: true,
+        },
+      });
+
+      // Create reversal ledger entries:
+      // Debit Charity Donations Payable (liability decreases) | Credit Cash (asset decreases)
+      try {
+        await postBalancedLedgerEntries(tx, [
+          {
+            campgroundId: donation.campgroundId,
+            reservationId,
+            glCode: GL_CODES.CHARITY_DONATIONS_PAYABLE,
+            account: "Charity Donations Payable",
+            description: `Charity donation refund - ${updatedDonation.charity.name}`,
+            amountCents: donation.amountCents,
+            direction: "debit",
+            externalRef: `donation-refund:${donation.id}:debit`,
+          },
+          {
+            campgroundId: donation.campgroundId,
+            reservationId,
+            glCode: GL_CODES.CHARITY_CASH_COLLECTED,
+            account: "Cash - Charity Collections",
+            description: `Charity donation refund - ${updatedDonation.charity.name}`,
+            amountCents: donation.amountCents,
+            direction: "credit",
+            externalRef: `donation-refund:${donation.id}:credit`,
+          },
+        ]);
+      } catch (err) {
+        console.error("Failed to post charity refund ledger entries:", err);
+      }
+
+      return updatedDonation;
     });
   }
 
@@ -444,6 +531,12 @@ export class CharityService {
   async completePayout(payoutId: string, reference?: string, notes?: string) {
     const payout = await this.prisma.charityPayout.findUnique({
       where: { id: payoutId },
+      include: {
+        charity: true,
+        donations: {
+          select: { campgroundId: true, amountCents: true },
+        },
+      },
     });
 
     if (!payout) {
@@ -470,6 +563,43 @@ export class CharityService {
         where: { payoutId },
         data: { status: "paid_out" },
       });
+
+      // Create ledger entries for each campground involved in this payout
+      // Group donations by campground
+      const byCampground = new Map<string, number>();
+      for (const donation of payout.donations) {
+        const current = byCampground.get(donation.campgroundId) ?? 0;
+        byCampground.set(donation.campgroundId, current + donation.amountCents);
+      }
+
+      // Post ledger entries for each campground
+      // Debit Charity Donations Payable (liability decreases) | Credit Cash (asset decreases)
+      for (const [campgroundId, amountCents] of byCampground) {
+        try {
+          await postBalancedLedgerEntries(tx, [
+            {
+              campgroundId,
+              glCode: GL_CODES.CHARITY_DONATIONS_PAYABLE,
+              account: "Charity Donations Payable",
+              description: `Charity payout to ${payout.charity.name} (ref: ${reference || payoutId})`,
+              amountCents,
+              direction: "debit",
+              externalRef: `payout:${payoutId}:${campgroundId}:debit`,
+            },
+            {
+              campgroundId,
+              glCode: GL_CODES.CHARITY_CASH_PAID_OUT,
+              account: "Cash - Charity Payouts",
+              description: `Charity payout to ${payout.charity.name} (ref: ${reference || payoutId})`,
+              amountCents,
+              direction: "credit",
+              externalRef: `payout:${payoutId}:${campgroundId}:credit`,
+            },
+          ]);
+        } catch (err) {
+          console.error(`Failed to post payout ledger entries for campground ${campgroundId}:`, err);
+        }
+      }
 
       return updatedPayout;
     });

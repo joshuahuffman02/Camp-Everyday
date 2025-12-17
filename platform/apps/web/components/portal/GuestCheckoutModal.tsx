@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
 import { Loader2, CreditCard, Tent } from "lucide-react";
 import { recordTelemetry } from "@/lib/sync-telemetry";
+import { RoundUpForCharity } from "@/components/checkout/RoundUpForCharity";
 
 type CartItem = {
     id: string;
@@ -35,8 +36,10 @@ export function GuestCheckoutModal({ isOpen, onClose, cart, campgroundId, guest,
     const [fulfillment, setFulfillment] = useState<"pickup" | "curbside" | "delivery" | "table_service">("delivery");
     const [instructions, setInstructions] = useState("");
     const [locationHint, setLocationHint] = useState("");
+    const [charityDonation, setCharityDonation] = useState<{ optedIn: boolean; amountCents: number; charityId: string | null }>({ optedIn: false, amountCents: 0, charityId: null });
 
-    const totalCents = cart.reduce((sum, item) => sum + item.priceCents * item.qty, 0);
+    const subtotalCents = cart.reduce((sum, item) => sum + item.priceCents * item.qty, 0);
+    const totalCents = subtotalCents + (charityDonation.optedIn ? charityDonation.amountCents : 0);
 
     // Find active reservation
     const currentReservation = guest?.reservations?.find(
@@ -54,6 +57,10 @@ export function GuestCheckoutModal({ isOpen, onClose, cart, campgroundId, guest,
                 paymentMethod: method,
                 channel: "online",
                 fulfillmentType: fulfillment,
+                charityDonation: charityDonation.optedIn && charityDonation.charityId ? {
+                    charityId: charityDonation.charityId,
+                    amountCents: charityDonation.amountCents,
+                } : undefined,
             };
 
             if (method === "charge_to_site") {
@@ -202,6 +209,13 @@ export function GuestCheckoutModal({ isOpen, onClose, cart, campgroundId, guest,
                             Card payments are mocked for this demo.
                         </div>
                     )}
+
+                    {/* Round up for charity */}
+                    <RoundUpForCharity
+                        campgroundId={campgroundId}
+                        totalCents={subtotalCents}
+                        onChange={setCharityDonation}
+                    />
 
                     {error && (
                         <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md">

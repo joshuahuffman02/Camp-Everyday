@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Heart,
   Plus,
@@ -14,6 +15,7 @@ import {
   Users,
   TrendingUp,
   Building2,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -217,10 +219,18 @@ export default function CharityAdminPage() {
             Manage charities and track donations across the platform
           </p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)} className="bg-rose-600 hover:bg-rose-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Charity
-        </Button>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/charity/reports">
+            <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
+              <FileText className="h-4 w-4 mr-2" />
+              View Reports
+            </Button>
+          </Link>
+          <Button onClick={() => setIsCreateOpen(true)} className="bg-rose-600 hover:bg-rose-700">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Charity
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

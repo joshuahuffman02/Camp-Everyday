@@ -7098,6 +7098,54 @@ export const apiClient = {
       totals: { interactions: number; tokensUsed: number; costCents: number };
     };
   },
+
+  // Charity / Round-Up for Donations
+  async getCampgroundCharity(campgroundId: string) {
+    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/charity`);
+    return data as {
+      id: string;
+      campgroundId: string;
+      charityId: string;
+      isEnabled: boolean;
+      customMessage: string | null;
+      roundUpType: string;
+      roundUpOptions: Record<string, unknown> | null;
+      defaultOptIn: boolean;
+      charity: {
+        id: string;
+        name: string;
+        description: string | null;
+        logoUrl: string | null;
+        category: string | null;
+        isVerified: boolean;
+      };
+    } | null;
+  },
+
+  async calculateRoundUp(campgroundId: string, amountCents: number) {
+    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/charity/calculate-roundup?amountCents=${amountCents}`);
+    return data as {
+      originalAmountCents: number;
+      roundedAmountCents: number;
+      donationAmountCents: number;
+      charityName: string;
+      charityId: string;
+    };
+  },
+
+  async createCharityDonation(campgroundId: string, payload: {
+    reservationId: string;
+    charityId: string;
+    amountCents: number;
+    guestId?: string;
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/charity/donations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{ id: string; amountCents: number; status: string }>(res);
+  },
 };
 
 export type PublicCampgroundList = z.infer<typeof PublicCampgroundListSchema>;
