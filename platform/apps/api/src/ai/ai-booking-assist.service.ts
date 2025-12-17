@@ -329,24 +329,16 @@ RECOMMENDATIONS: <optional comma-separated site class names>`;
             action: 'info',
         };
 
-        // Parse message
-        const messageMatch = content.match(/MESSAGE:\s*(.+?)(?=ACTION:|QUESTIONS:|RECOMMENDATIONS:|$)/is);
-        if (messageMatch) {
-            result.message = messageMatch[1].trim();
-        } else {
-            result.message = content.trim();
-        }
-
         // Parse action
         const actionMatch = content.match(/ACTION:\s*(search|book|clarify|info)/i);
         if (actionMatch) {
             result.action = actionMatch[1].toLowerCase() as any;
         }
 
-        // Parse questions
-        const questionsMatch = content.match(/QUESTIONS:\s*(.+?)(?=RECOMMENDATIONS:|$)/is);
+        // Parse clarifying questions
+        const questionsMatch = content.match(/QUESTIONS:\s*(.+)/i);
         if (questionsMatch) {
-            result.clarifyingQuestions = questionsMatch[1].split(',').map(q => q.trim()).filter(Boolean);
+            result.clarifyingQuestions = questionsMatch[1].split(',').map(q => q.trim());
         }
 
         // Parse recommendations
@@ -363,6 +355,20 @@ RECOMMENDATIONS: <optional comma-separated site class names>`;
                     reasons: ['AI recommended'],
                     available: true,
                 }));
+        }
+
+        // Parse message
+        const messageMatch = content.match(/MESSAGE:\s*(.+?)(?=ACTION:|QUESTIONS:|RECOMMENDATIONS:|$)/is);
+        if (messageMatch) {
+            result.message = messageMatch[1].trim();
+        } else {
+            // Fallback: Use content but strip out the metadata lines
+            result.message = content
+                .replace(/ACTION:.*(\n|$)/gi, '')
+                .replace(/QUESTIONS:.*(\n|$)/gi, '')
+                .replace(/RECOMMENDATIONS:.*(\n|$)/gi, '')
+                .replace(/MESSAGE:/gi, '')
+                .trim();
         }
 
         return result;
