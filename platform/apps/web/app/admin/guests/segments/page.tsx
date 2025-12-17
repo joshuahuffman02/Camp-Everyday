@@ -1,0 +1,683 @@
+"use client";
+
+import { useState } from "react";
+import { useWhoami } from "@/hooks/use-whoami";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Users,
+  Plus,
+  Search,
+  Filter,
+  Copy,
+  Archive,
+  Edit2,
+  MoreVertical,
+  MapPin,
+  Calendar,
+  Truck,
+  Baby,
+  Dog,
+  TrendingUp,
+  AlertTriangle,
+  Globe,
+  Building2,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// Segment types
+interface SegmentCriteria {
+  type: string;
+  operator: string;
+  value: string | string[] | number;
+}
+
+interface GuestSegment {
+  id: string;
+  name: string;
+  description: string;
+  scope: "global" | "organization" | "campground";
+  criteria: SegmentCriteria[];
+  guestCount: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  isTemplate: boolean;
+  status: "active" | "archived";
+}
+
+// Mock segments for initial development
+const mockSegments: GuestSegment[] = [
+  {
+    id: "seg-1",
+    name: "Canadian Snowbirds",
+    description: "Canadian guests who typically travel south during winter months",
+    scope: "global",
+    criteria: [
+      { type: "country", operator: "equals", value: "Canada" },
+      { type: "booking_month", operator: "in", value: ["10", "11", "12", "1", "2", "3"] },
+    ],
+    guestCount: 2156,
+    createdAt: "2024-08-15T10:00:00Z",
+    updatedAt: "2024-12-10T14:30:00Z",
+    createdBy: "System",
+    isTemplate: true,
+    status: "active",
+  },
+  {
+    id: "seg-2",
+    name: "Family Campers",
+    description: "Guests traveling with children",
+    scope: "global",
+    criteria: [
+      { type: "has_children", operator: "equals", value: "true" },
+    ],
+    guestCount: 5613,
+    createdAt: "2024-06-01T10:00:00Z",
+    updatedAt: "2024-11-20T09:15:00Z",
+    createdBy: "System",
+    isTemplate: true,
+    status: "active",
+  },
+  {
+    id: "seg-3",
+    name: "Long-Stay Remote Workers",
+    description: "Guests with stays of 7+ nights who may be working remotely",
+    scope: "global",
+    criteria: [
+      { type: "stay_length", operator: "gte", value: 7 },
+      { type: "stay_reason", operator: "equals", value: "work_remote" },
+    ],
+    guestCount: 765,
+    createdAt: "2024-09-10T10:00:00Z",
+    updatedAt: "2024-12-05T11:45:00Z",
+    createdBy: "System",
+    isTemplate: true,
+    status: "active",
+  },
+  {
+    id: "seg-4",
+    name: "Pet Travelers",
+    description: "Guests who travel with pets",
+    scope: "global",
+    criteria: [
+      { type: "has_pets", operator: "equals", value: "true" },
+    ],
+    guestCount: 4521,
+    createdAt: "2024-07-20T10:00:00Z",
+    updatedAt: "2024-11-15T16:20:00Z",
+    createdBy: "System",
+    isTemplate: true,
+    status: "active",
+  },
+  {
+    id: "seg-5",
+    name: "Class A Enthusiasts",
+    description: "Guests with Class A motorhomes",
+    scope: "global",
+    criteria: [
+      { type: "rig_type", operator: "equals", value: "class_a" },
+    ],
+    guestCount: 3421,
+    createdAt: "2024-05-15T10:00:00Z",
+    updatedAt: "2024-10-30T13:00:00Z",
+    createdBy: "System",
+    isTemplate: true,
+    status: "active",
+  },
+  {
+    id: "seg-6",
+    name: "Repeat Visitors",
+    description: "Guests who have stayed 2+ times",
+    scope: "global",
+    criteria: [
+      { type: "repeat_stays", operator: "gte", value: 2 },
+    ],
+    guestCount: 4521,
+    createdAt: "2024-04-01T10:00:00Z",
+    updatedAt: "2024-12-01T10:30:00Z",
+    createdBy: "System",
+    isTemplate: true,
+    status: "active",
+  },
+  {
+    id: "seg-7",
+    name: "Weekend Warriors",
+    description: "Guests who primarily book weekend stays (Fri-Sun)",
+    scope: "global",
+    criteria: [
+      { type: "arrival_day", operator: "in", value: ["Friday", "Saturday"] },
+      { type: "stay_length", operator: "lte", value: 3 },
+    ],
+    guestCount: 3876,
+    createdAt: "2024-08-01T10:00:00Z",
+    updatedAt: "2024-11-28T08:45:00Z",
+    createdBy: "System",
+    isTemplate: true,
+    status: "active",
+  },
+  {
+    id: "seg-8",
+    name: "Texas Locals",
+    description: "Guests from Texas",
+    scope: "organization",
+    criteria: [
+      { type: "state", operator: "equals", value: "TX" },
+    ],
+    guestCount: 1842,
+    createdAt: "2024-10-15T10:00:00Z",
+    updatedAt: "2024-12-08T15:00:00Z",
+    createdBy: "admin@campground.com",
+    isTemplate: false,
+    status: "active",
+  },
+];
+
+const criteriaTypeOptions = [
+  { value: "country", label: "Country", icon: Globe },
+  { value: "state", label: "State/Province", icon: MapPin },
+  { value: "city", label: "City", icon: Building2 },
+  { value: "has_children", label: "Has Children", icon: Baby },
+  { value: "has_pets", label: "Has Pets", icon: Dog },
+  { value: "rig_type", label: "RV/Equipment Type", icon: Truck },
+  { value: "stay_length", label: "Stay Length (nights)", icon: Calendar },
+  { value: "stay_reason", label: "Stay Reason", icon: TrendingUp },
+  { value: "repeat_stays", label: "Number of Stays", icon: Users },
+  { value: "booking_month", label: "Booking Month", icon: Calendar },
+  { value: "arrival_day", label: "Arrival Day", icon: Calendar },
+];
+
+function SegmentCard({ segment, onEdit, onCopy, onArchive }: {
+  segment: GuestSegment;
+  onEdit: (segment: GuestSegment) => void;
+  onCopy: (segment: GuestSegment) => void;
+  onArchive: (segment: GuestSegment) => void;
+}) {
+  const scopeColors = {
+    global: "bg-blue-600",
+    organization: "bg-purple-600",
+    campground: "bg-emerald-600",
+  };
+
+  const scopeLabels = {
+    global: "Global Template",
+    organization: "Organization",
+    campground: "Campground",
+  };
+
+  return (
+    <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-colors">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg">{segment.name}</CardTitle>
+              {segment.isTemplate && (
+                <Badge variant="outline" className="text-xs text-blue-400 border-blue-400/50">
+                  Template
+                </Badge>
+              )}
+            </div>
+            <CardDescription className="text-sm">{segment.description}</CardDescription>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(segment)}>
+                <Edit2 className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCopy(segment)}>
+                <Copy className="h-4 w-4 mr-2" />
+                Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onArchive(segment)}
+                className="text-rose-400"
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                Archive
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {/* Criteria pills */}
+          <div className="flex flex-wrap gap-2">
+            {segment.criteria.map((criterion, i) => {
+              const criteriaType = criteriaTypeOptions.find(c => c.value === criterion.type);
+              const Icon = criteriaType?.icon || Filter;
+              return (
+                <Badge
+                  key={i}
+                  variant="secondary"
+                  className="bg-slate-700/50 text-slate-300 flex items-center gap-1"
+                >
+                  <Icon className="h-3 w-3" />
+                  {criteriaType?.label || criterion.type}: {
+                    Array.isArray(criterion.value)
+                      ? criterion.value.slice(0, 2).join(", ") + (criterion.value.length > 2 ? "..." : "")
+                      : String(criterion.value)
+                  }
+                </Badge>
+              );
+            })}
+          </div>
+
+          {/* Stats row */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-700">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-emerald-500" />
+                <span className="text-sm font-medium text-white">
+                  {segment.guestCount.toLocaleString()}
+                </span>
+                <span className="text-xs text-slate-400">guests</span>
+              </div>
+              <Badge className={`${scopeColors[segment.scope]} text-xs`}>
+                {scopeLabels[segment.scope]}
+              </Badge>
+            </div>
+            <span className="text-xs text-slate-500">
+              Updated {new Date(segment.updatedAt).toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function GuestSegmentsPage() {
+  const { data: whoami, isLoading: whoamiLoading } = useWhoami();
+  const [segments, setSegments] = useState<GuestSegment[]>(mockSegments);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [scopeFilter, setScopeFilter] = useState<string>("all");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+  // New segment form state
+  const [newSegment, setNewSegment] = useState({
+    name: "",
+    description: "",
+    scope: "organization" as "global" | "organization" | "campground",
+    criteria: [] as SegmentCriteria[],
+  });
+
+  const platformRole = whoami?.user?.platformRole;
+  const canManageSegments = platformRole === "platform_admin" || platformRole === "platform_support";
+
+  const filteredSegments = segments.filter(segment => {
+    const matchesSearch = segment.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      segment.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesScope = scopeFilter === "all" || segment.scope === scopeFilter;
+    return matchesSearch && matchesScope && segment.status === "active";
+  });
+
+  const handleEdit = (segment: GuestSegment) => {
+    console.log("Edit segment:", segment.id);
+  };
+
+  const handleCopy = (segment: GuestSegment) => {
+    const newSeg: GuestSegment = {
+      ...segment,
+      id: `seg-${Date.now()}`,
+      name: `${segment.name} (Copy)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: whoami?.user?.email || "Unknown",
+      isTemplate: false,
+      scope: "organization",
+    };
+    setSegments([newSeg, ...segments]);
+  };
+
+  const handleArchive = (segment: GuestSegment) => {
+    setSegments(segments.map(s =>
+      s.id === segment.id ? { ...s, status: "archived" as const } : s
+    ));
+  };
+
+  const handleCreateSegment = () => {
+    if (!newSegment.name) return;
+
+    const segment: GuestSegment = {
+      id: `seg-${Date.now()}`,
+      name: newSegment.name,
+      description: newSegment.description,
+      scope: newSegment.scope,
+      criteria: newSegment.criteria,
+      guestCount: 0, // Will be calculated by backend
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: whoami?.user?.email || "Unknown",
+      isTemplate: false,
+      status: "active",
+    };
+
+    setSegments([segment, ...segments]);
+    setIsCreateDialogOpen(false);
+    setNewSegment({
+      name: "",
+      description: "",
+      scope: "organization",
+      criteria: [],
+    });
+  };
+
+  if (whoamiLoading) {
+    return (
+      <div className="p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-slate-800 rounded w-64" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="h-48 bg-slate-800 rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canManageSegments) {
+    return (
+      <div className="p-8">
+        <Card className="bg-amber-900/20 border-amber-700">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-6 w-6 text-amber-500" />
+              <div>
+                <h3 className="font-semibold text-amber-200">Access Restricted</h3>
+                <p className="text-sm text-amber-300/80">
+                  You need platform admin or support role to manage guest segments.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Guest Segments</h1>
+          <p className="text-slate-400 mt-1">
+            Create and manage guest segments for targeted messaging and insights
+          </p>
+        </div>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-emerald-600 hover:bg-emerald-700">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Segment
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-slate-900 border-slate-700 max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Create New Segment</DialogTitle>
+              <DialogDescription>
+                Define criteria to group guests for targeted messaging
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Segment Name</Label>
+                <Input
+                  id="name"
+                  value={newSegment.name}
+                  onChange={(e) => setNewSegment({ ...newSegment, name: e.target.value })}
+                  placeholder="e.g., Texas Family Campers"
+                  className="bg-slate-800 border-slate-700"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  value={newSegment.description}
+                  onChange={(e) => setNewSegment({ ...newSegment, description: e.target.value })}
+                  placeholder="Brief description of this segment"
+                  className="bg-slate-800 border-slate-700"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Scope</Label>
+                <Select
+                  value={newSegment.scope}
+                  onValueChange={(value: "global" | "organization" | "campground") =>
+                    setNewSegment({ ...newSegment, scope: value })
+                  }
+                >
+                  <SelectTrigger className="bg-slate-800 border-slate-700">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">Global (All Campgrounds)</SelectItem>
+                    <SelectItem value="organization">Organization</SelectItem>
+                    <SelectItem value="campground">Single Campground</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Criteria (select conditions to match)</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {criteriaTypeOptions.slice(0, 6).map(option => (
+                    <label
+                      key={option.value}
+                      className="flex items-center gap-2 p-2 rounded border border-slate-700 hover:border-slate-600 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={newSegment.criteria.some(c => c.type === option.value)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setNewSegment({
+                              ...newSegment,
+                              criteria: [
+                                ...newSegment.criteria,
+                                { type: option.value, operator: "equals", value: "" }
+                              ]
+                            });
+                          } else {
+                            setNewSegment({
+                              ...newSegment,
+                              criteria: newSegment.criteria.filter(c => c.type !== option.value)
+                            });
+                          }
+                        }}
+                      />
+                      <option.icon className="h-4 w-4 text-slate-400" />
+                      <span className="text-sm">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateSegment}
+                disabled={!newSegment.name}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                Create Segment
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <Users className="h-8 w-8 text-emerald-500" />
+              <Badge variant="outline" className="text-emerald-400 border-emerald-400/50">
+                Active
+              </Badge>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl font-bold text-white">
+                {segments.filter(s => s.status === "active").length}
+              </div>
+              <div className="text-sm text-slate-400">Active Segments</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <Globe className="h-8 w-8 text-blue-500" />
+              <Badge variant="outline" className="text-blue-400 border-blue-400/50">
+                Global
+              </Badge>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl font-bold text-white">
+                {segments.filter(s => s.scope === "global" && s.isTemplate).length}
+              </div>
+              <div className="text-sm text-slate-400">Global Templates</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <Building2 className="h-8 w-8 text-purple-500" />
+              <Badge variant="outline" className="text-purple-400 border-purple-400/50">
+                Custom
+              </Badge>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl font-bold text-white">
+                {segments.filter(s => !s.isTemplate).length}
+              </div>
+              <div className="text-sm text-slate-400">Custom Segments</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <TrendingUp className="h-8 w-8 text-amber-500" />
+              <Badge variant="outline" className="text-amber-400 border-amber-400/50">
+                Total
+              </Badge>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl font-bold text-white">
+                {segments.reduce((sum, s) => sum + s.guestCount, 0).toLocaleString()}
+              </div>
+              <div className="text-sm text-slate-400">Segmented Guests</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Search segments..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 bg-slate-800 border-slate-700"
+          />
+        </div>
+        <Select value={scopeFilter} onValueChange={setScopeFilter}>
+          <SelectTrigger className="w-44 bg-slate-800 border-slate-700">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Filter by scope" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Scopes</SelectItem>
+            <SelectItem value="global">Global Templates</SelectItem>
+            <SelectItem value="organization">Organization</SelectItem>
+            <SelectItem value="campground">Campground</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Segments Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredSegments.map((segment) => (
+          <SegmentCard
+            key={segment.id}
+            segment={segment}
+            onEdit={handleEdit}
+            onCopy={handleCopy}
+            onArchive={handleArchive}
+          />
+        ))}
+      </div>
+
+      {filteredSegments.length === 0 && (
+        <Card className="bg-slate-800/30 border-slate-700">
+          <CardContent className="p-12 text-center">
+            <Users className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-300 mb-2">No segments found</h3>
+            <p className="text-slate-400 mb-4">
+              {searchQuery || scopeFilter !== "all"
+                ? "Try adjusting your search or filters"
+                : "Create your first segment to start grouping guests"}
+            </p>
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Segment
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

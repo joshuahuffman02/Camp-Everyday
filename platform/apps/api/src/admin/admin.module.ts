@@ -7,6 +7,8 @@ import { FeatureFlagController } from "./feature-flag.controller";
 import { AnnouncementService } from "./announcement.service";
 import { AnnouncementController } from "./announcement.controller";
 import { AdminCampgroundController } from "./admin-campground.controller";
+import { GuestAnalyticsService } from "./guest-analytics.service";
+import { GuestAnalyticsController } from "./guest-analytics.controller";
 
 @Module({
     imports: [PrismaModule],
@@ -15,16 +17,19 @@ import { AdminCampgroundController } from "./admin-campground.controller";
         FeatureFlagController,
         AnnouncementController,
         AdminCampgroundController,
+        GuestAnalyticsController,
     ],
     providers: [
         AuditLogService,
         FeatureFlagService,
         AnnouncementService,
+        GuestAnalyticsService,
     ],
     exports: [
         AuditLogService,
         FeatureFlagService,
         AnnouncementService,
+        GuestAnalyticsService,
     ],
 })
 export class AdminModule { }
