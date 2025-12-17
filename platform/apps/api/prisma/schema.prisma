@@ -792,10 +792,13 @@ model Organization {
   billingState       String?
   billingPostalCode  String?
   billingCountry     String?
-  stripeCustomerId   String?          @unique
-  subscriptionStatus String? // active, past_due, canceled, trialing
-  trialEndsAt        DateTime?
-  dataRegion         String   @default("us-east-1")
+  stripeCustomerId     String?          @unique
+  stripeSubscriptionId String?          @unique
+  subscriptionStatus   String? // active, past_due, canceled, trialing
+  billingTier          String?          @default("standard") // founders_circle, pioneer, trailblazer, standard
+  billingStatus        String?          @default("active") // active, suspended, cancelled
+  trialEndsAt          DateTime?
+  dataRegion           String   @default("us-east-1")
 
   campgrounds              Campground[]
   analyticsEvents          AnalyticsEvent[]

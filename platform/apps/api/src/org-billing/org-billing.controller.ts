@@ -2,18 +2,23 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Query,
   Body,
   UseGuards,
 } from "@nestjs/common";
 import { OrgBillingService } from "./org-billing.service";
+import { SubscriptionService } from "./subscription.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 
 @Controller("organizations/:organizationId/billing")
 @UseGuards(JwtAuthGuard)
 export class OrgBillingController {
-  constructor(private billingService: OrgBillingService) {}
+  constructor(
+    private billingService: OrgBillingService,
+    private subscriptionService: SubscriptionService
+  ) {}
 
   /**
    * Get billing summary for current period
@@ -111,5 +116,97 @@ export class OrgBillingController {
     @Body() body: { stripePaymentIntentId?: string }
   ) {
     return this.billingService.markPeriodPaid(periodId, body.stripePaymentIntentId);
+  }
+
+  // ==========================================================================
+  // Stripe Subscription Endpoints
+  // ==========================================================================
+
+  /**
+   * Get Stripe subscription details
+   */
+  @Get("subscription")
+  async getSubscription(@Param("organizationId") organizationId: string) {
+    const subscription = await this.subscriptionService.getSubscription(organizationId);
+    if (!subscription) {
+      return { hasSubscription: false };
+    }
+    return {
+      hasSubscription: true,
+      id: subscription.id,
+      status: subscription.status,
+      currentPeriodStart: new Date(subscription.current_period_start * 1000),
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      items: subscription.items.data.map((item: any) => ({
+        id: item.id,
+        priceId: item.price.id,
+        nickname: item.price.nickname,
+        unitAmount: item.price.unit_amount,
+        recurring: item.price.recurring,
+      })),
+    };
+  }
+
+  /**
+   * Create a subscription for the organization
+   */
+  @Post("subscription")
+  async createSubscription(
+    @Param("organizationId") organizationId: string,
+    @Body() body: { tier?: string }
+  ) {
+    return this.subscriptionService.createSubscription(
+      organizationId,
+      body.tier || "standard"
+    );
+  }
+
+  /**
+   * Cancel subscription
+   */
+  @Delete("subscription")
+  async cancelSubscription(
+    @Param("organizationId") organizationId: string,
+    @Query("immediately") immediately?: string
+  ) {
+    return this.subscriptionService.cancelSubscription(
+      organizationId,
+      immediately === "true"
+    );
+  }
+
+  /**
+   * Get billing portal URL for self-service
+   */
+  @Post("portal")
+  async getBillingPortal(
+    @Param("organizationId") organizationId: string,
+    @Body() body: { returnUrl: string }
+  ) {
+    const url = await this.subscriptionService.getBillingPortalUrl(
+      organizationId,
+      body.returnUrl
+    );
+    return { url };
+  }
+
+  /**
+   * Get current Stripe usage (metered billing)
+   */
+  @Get("stripe-usage")
+  async getStripeUsage(@Param("organizationId") organizationId: string) {
+    return this.subscriptionService.getCurrentUsage(organizationId);
+  }
+
+  /**
+   * Change subscription tier
+   */
+  @Post("subscription/change-tier")
+  async changeTier(
+    @Param("organizationId") organizationId: string,
+    @Body() body: { tier: string }
+  ) {
+    return this.subscriptionService.changeTier(organizationId, body.tier);
   }
 }

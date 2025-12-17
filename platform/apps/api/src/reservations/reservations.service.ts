@@ -25,6 +25,7 @@ import { DepositPoliciesService, DepositCalculation } from "../deposit-policies/
 import { SignaturesService } from "../signatures/signatures.service";
 import { AuditService } from "../audit/audit.service";
 import { ApprovalsService } from "../approvals/approvals.service";
+import { UsageTrackerService } from "../org-billing/usage-tracker.service";
 
 @Injectable()
 export class ReservationsService {
@@ -45,7 +46,8 @@ export class ReservationsService {
     private readonly accessControl: AccessControlService,
     private readonly signaturesService: SignaturesService,
     private readonly audit: AuditService,
-    private readonly approvals: ApprovalsService
+    private readonly approvals: ApprovalsService,
+    private readonly usageTracker: UsageTrackerService
   ) { }
 
   async getMatchedSites(campgroundId: string, guestId: string) {
@@ -1465,6 +1467,13 @@ export class ReservationsService {
           // Auto-send failures should not block booking creation
           console.warn(`[Signatures] Auto-send failed for reservation ${reservation.id}:`, err);
         }
+
+        // Track usage for billing (non-blocking)
+        this.usageTracker.trackBookingCreated(reservation.id, data.campgroundId, {
+          totalAmount: totalAmount,
+          nights: this.computeNights(arrival, departure),
+          guestId: reservation.guestId,
+        });
 
         return reservation;
       });

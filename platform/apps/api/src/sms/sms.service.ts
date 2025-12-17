@@ -1,6 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import fetch from "node-fetch";
 import { AlertingService } from "../observability/alerting.service";
+import { UsageTrackerService } from "../org-billing/usage-tracker.service";
+import { PrismaService } from "../prisma/prisma.service";
 
 interface SmsSendResult {
   providerMessageId?: string;
@@ -27,7 +29,11 @@ export class SmsService {
     skipped: 0,
   };
 
-  constructor(private readonly alerting: AlertingService) {
+  constructor(
+    private readonly alerting: AlertingService,
+    private readonly usageTracker: UsageTrackerService,
+    private readonly prisma: PrismaService
+  ) {
     this.isConfigured = !!(this.twilioSid && this.twilioToken && this.fromNumber);
     if (this.isConfigured) {
       this.logger.log("SMS service initialized with Twilio credentials");
@@ -93,6 +99,10 @@ export class SmsService {
       }
       this.telemetry.sent++;
       this.logger.log(`SMS sent to ${opts.to} via Twilio (sid: ${data.sid})`);
+
+      // Track SMS usage for billing (non-blocking)
+      this.trackSmsUsageForBilling(opts.campgroundId, data.sid);
+
       return { providerMessageId: data.sid, provider: "twilio", success: true };
     };
 
@@ -134,6 +144,40 @@ export class SmsService {
       await this.alerting.dispatch(title, body, severity, dedupKey, details);
     } catch (err) {
       this.logger.debug(`SMS alert dispatch skipped: ${(err as any)?.message ?? err}`);
+    }
+  }
+
+  /**
+   * Track SMS usage for billing (non-blocking, fire-and-forget)
+   */
+  private async trackSmsUsageForBilling(campgroundId?: string, messageId?: string) {
+    try {
+      if (!campgroundId) {
+        this.logger.debug("Cannot track SMS usage: no campgroundId provided");
+        return;
+      }
+
+      // Look up organization from campground
+      const campground = await this.prisma.campground.findUnique({
+        where: { id: campgroundId },
+        select: { organizationId: true },
+      });
+
+      if (!campground?.organizationId) {
+        this.logger.debug(`Cannot track SMS usage: no organization for campground ${campgroundId}`);
+        return;
+      }
+
+      await this.usageTracker.trackSmsSent(
+        campground.organizationId,
+        campgroundId,
+        "outbound",
+        messageId,
+        1 // segment count - Twilio charges per segment
+      );
+    } catch (err) {
+      // Don't fail SMS send if usage tracking fails
+      this.logger.debug(`SMS usage tracking failed: ${(err as any)?.message ?? err}`);
     }
   }
 }

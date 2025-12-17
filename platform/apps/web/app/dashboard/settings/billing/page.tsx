@@ -147,7 +147,24 @@ const statusStyles: Record<string, { icon: React.ReactNode; color: string; bg: s
 
 export default function BillingPage() {
   const { selectedCampground } = useCampground();
-  const organizationId = selectedCampground?.organizationId;
+
+  // Fetch full campground data to get organizationId
+  const { data: campgroundData } = useQuery<{ organizationId: string }>({
+    queryKey: ["campground", selectedCampground?.id],
+    queryFn: async () => {
+      const res = await fetch(
+        `${API_BASE}/campgrounds/${selectedCampground?.id}`,
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+      if (!res.ok) throw new Error("Failed to fetch campground");
+      return res.json();
+    },
+    enabled: !!selectedCampground?.id,
+  });
+
+  const organizationId = campgroundData?.organizationId;
 
   const { data: summary, isLoading: summaryLoading } = useQuery<BillingSummary>({
     queryKey: ["billing-summary", organizationId],

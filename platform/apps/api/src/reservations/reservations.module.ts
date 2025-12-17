@@ -23,9 +23,10 @@ import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
 import { DepositPoliciesService } from "../deposit-policies/deposit-policies.service";
 import { SignaturesModule } from "../signatures/signatures.module";
 import { ApprovalsModule } from "../approvals/approvals.module";
+import { UsageTrackerModule } from "../org-billing/usage-tracker.module";
 
 @Module({
-  imports: [WaitlistModule, LoyaltyModule, SeasonalRatesModule, TaxRulesModule, GamificationModule, AuditModule, AccessControlModule, SignaturesModule, ApprovalsModule],
+  imports: [WaitlistModule, LoyaltyModule, SeasonalRatesModule, TaxRulesModule, GamificationModule, AuditModule, AccessControlModule, SignaturesModule, ApprovalsModule, UsageTrackerModule],
   controllers: [ReservationsController],
   providers: [
     ReservationsService,
