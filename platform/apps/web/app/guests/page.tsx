@@ -4,10 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "../../components/breadcrumbs";
 import { apiClient } from "../../lib/api-client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
-import { Trophy, Star, Car, Plus, Trash2, Download, Filter } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { Trophy, Star, Car, Plus, Trash2, Download, ChevronDown, ChevronUp, Users, Crown, UserPlus } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { TableEmpty } from "../../components/ui/table";
 import { useToast } from "../../components/ui/use-toast";
@@ -347,34 +348,8 @@ export default function GuestsPage() {
     marketingOptIn: false,
     repeatStays: ""
   });
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedRewardsId, setExpandedRewardsId] = useState<string | null>(null);
   const [expandedEquipmentId, setExpandedEquipmentId] = useState<string | null>(null);
-  const [tierFilter, setTierFilter] = useState<string>("all");
-
-  const filteredGuests = guestsQuery.data?.filter((g) => {
-    if (tierFilter === "all") return true;
-    // We need to know the tier to filter.
-    // The tier is not directly on the guest object, it's in the loyalty profile.
-    // However, fetching loyalty profile for ALL guests to filter might be expensive if done individually.
-    // Ideally the guest list endpoint should return the tier.
-    // Since I can't easily change the guest list endpoint return type without checking backend deeply,
-    // and `GuestLoyaltyBadge` fetches it individually, this is tricky.
-    // BUT, for now, let's assume we can't filter by tier easily on client side without fetching all loyalty profiles.
-    // OR, we can fetch all loyalty profiles? No that's bad.
-    // Let's check if `getGuests` returns loyalty info?
-    // The `GuestSchema` in `api-client.ts` doesn't seem to have it.
-    // Wait, the user request says "Add 'Tier' column to guest table".
-    // If I can't filter, I can't fulfill the request fully.
-    // Let's look at `GuestLoyaltyBadge` again. It uses `useQuery` for each guest.
-    // If I want to filter, I really should have the tier in the guest list.
-    // I'll skip the filter implementation for now or implement it as a "client-side after fetch" if I can get the data.
-    // Actually, I can just implement the CSV export and the column (badge is already there).
-    // The user asked for "Filter by tier".
-    // I will add the UI for filter, but maybe I can't implement it fully without backend changes to include tier in guest list.
-    // Let's try to implement the CSV export first.
-    return true;
-  });
 
   const handleExportCSV = async () => {
     if (!guestsQuery.data) return;
@@ -497,7 +472,6 @@ export default function GuestsPage() {
   const updateGuest = useMutation({
     mutationFn: (payload: { id: string; data: any }) => apiClient.updateGuest(payload.id, payload.data),
     onSuccess: () => {
-      setEditingId(null);
       queryClient.invalidateQueries({ queryKey: ["guests"] });
     }
   });
@@ -506,12 +480,43 @@ export default function GuestsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["guests"] })
   });
 
-  const [sortBy, setSortBy] = useState<"name" | "email" | "points">("name");
+  const [sortBy, setSortBy] = useState<"name" | "email" | "phone" | "vip">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [search, setSearch] = useState("");
+  const [vipFilter, setVipFilter] = useState<"all" | "vip" | "regular">("all");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [flash, setFlash] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const [expandedGuestId, setExpandedGuestId] = useState<string | null>(null);
 
-  const sortedGuests = useMemo(() => {
-    const data = filteredGuests ? [...filteredGuests] : [];
-    return data.sort((a, b) => {
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 4000);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  const filteredAndSortedGuests = useMemo(() => {
+    let data = guestsQuery.data ? [...guestsQuery.data] : [];
+
+    // Apply search filter
+    if (search) {
+      const term = search.toLowerCase();
+      data = data.filter((g) => {
+        const name = `${g.primaryFirstName} ${g.primaryLastName}`.toLowerCase();
+        const email = (g.email || "").toLowerCase();
+        const phone = (g.phone || "").toLowerCase();
+        return name.includes(term) || email.includes(term) || phone.includes(term);
+      });
+    }
+
+    // Apply VIP filter
+    if (vipFilter === "vip") {
+      data = data.filter((g) => (g as any).vip === true);
+    } else if (vipFilter === "regular") {
+      data = data.filter((g) => !(g as any).vip);
+    }
+
+    // Apply sorting
+    data.sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       switch (sortBy) {
         case "name":
@@ -520,49 +525,169 @@ export default function GuestsPage() {
           return dir * nameA.localeCompare(nameB);
         case "email":
           return dir * (a.email || "").localeCompare(b.email || "");
-        // Points sorting is tricky if we don't have it on the guest object directly.
-        // But since we can't easily access points here without fetching, let's skip or fetch.
-        // Actually, let's stick to name and email for now unless we have points.
-        // If we want points, we need to fetch loyalty.
-        // Let's just sort by what we have.
+        case "phone":
+          return dir * (a.phone || "").localeCompare(b.phone || "");
+        case "vip":
+          const vipA = (a as any).vip ? 1 : 0;
+          const vipB = (b as any).vip ? 1 : 0;
+          return dir * (vipB - vipA);
         default:
           return 0;
       }
     });
-  }, [filteredGuests, sortBy, sortDir]);
+
+    return data;
+  }, [guestsQuery.data, search, vipFilter, sortBy, sortDir]);
+
+  const hasFilters = search || vipFilter !== "all";
+  const totalGuests = guestsQuery.data?.length || 0;
+  const vipGuests = guestsQuery.data?.filter((g) => (g as any).vip).length || 0;
+  const optedInGuests = guestsQuery.data?.filter((g) => (g as any).marketingOptIn).length || 0;
+
+  const handleSort = (column: "name" | "email" | "phone" | "vip") => {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIndicator = ({ column }: { column: "name" | "email" | "phone" | "vip" }) => {
+    if (sortBy !== column) return null;
+    return <span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  };
 
   return (
     <DashboardShell>
       <div className="space-y-4">
         <Breadcrumbs items={[{ label: "Guests" }]} />
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-slate-900">Guests</h2>
-          <div className="flex gap-2">
-            <div className="flex items-center gap-1 border rounded-md px-2 bg-white">
-              <span className="text-xs text-slate-500 font-medium mr-1">Sort by:</span>
-              <select
-                className="text-sm border-none focus:ring-0 py-1 pl-0 pr-6 text-slate-700 font-medium bg-transparent"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-              >
-                <option value="name">Name</option>
-                <option value="email">Email</option>
-              </select>
-              <button
-                onClick={() => setSortDir(prev => prev === "asc" ? "desc" : "asc")}
-                className="p-1 hover:bg-slate-100 rounded"
-              >
-                {sortDir === "asc" ? <span className="text-slate-500">↑</span> : <span className="text-slate-500">↓</span>}
-              </button>
+
+        {flash && (
+          <div
+            className={`rounded-md border px-3 py-2 text-sm ${
+              flash.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : flash.type === "error"
+                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                  : "border-slate-200 bg-slate-50 text-slate-700"
+            }`}
+          >
+            {flash.message}
+          </div>
+        )}
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-slate-500">Total Guests</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-1">
+              <div className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+                <Users className="h-5 w-5 text-slate-400" />
+                {totalGuests}
+              </div>
+              <div className="text-xs text-slate-600">In database</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-slate-500">VIP Guests</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-1">
+              <div className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+                <Crown className="h-5 w-5 text-amber-500" />
+                {vipGuests}
+              </div>
+              <div className="text-xs text-slate-600">{totalGuests > 0 ? Math.round((vipGuests / totalGuests) * 100) : 0}% of total</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-slate-500">Marketing Opt-in</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-1">
+              <div className="text-2xl font-semibold text-slate-900">{optedInGuests}</div>
+              <div className="text-xs text-slate-600">Can receive marketing</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-slate-500">Showing</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-1">
+              <div className="text-2xl font-semibold text-slate-900">{filteredAndSortedGuests.length}</div>
+              <div className="text-xs text-slate-600">of {totalGuests} guests</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters & Actions Bar */}
+        <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
+              Filters & exports
+              {hasFilters && (
+                <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold">
+                  filters on
+                </span>
+              )}
             </div>
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-2" />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={!hasFilters}
+                onClick={() => {
+                  setSearch("");
+                  setVipFilter("all");
+                }}
+              >
+                Clear all filters
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className="rounded-md border border-slate-200 px-2 py-1 text-sm w-64"
+              placeholder="Search name, email, phone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <select
+              className="rounded-md border border-slate-200 px-2 py-1 text-sm"
+              value={vipFilter}
+              onChange={(e) => setVipFilter(e.target.value as any)}
+            >
+              <option value="all">All guests</option>
+              <option value="vip">VIP only</option>
+              <option value="regular">Regular only</option>
+            </select>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setVipFilter("vip")}
+            >
+              <Crown className="h-3 w-3 mr-1" />
+              VIP guests
+            </Button>
+            <div className="flex-1" />
+            <Button variant="outline" size="sm" onClick={handleExportCSV}>
+              <Download className="h-4 w-4 mr-1" />
               Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setShowAddForm(!showAddForm)}>
+              <UserPlus className="h-4 w-4 mr-1" />
+              {showAddForm ? "Hide form" : "Add guest"}
             </Button>
           </div>
         </div>
-        <div className="card p-4">
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Add guest</h3>
+
+        {/* Collapsible Add Guest Form */}
+        {showAddForm && (
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <h3 className="text-lg font-semibold text-slate-900 mb-3">Add new guest</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               className="rounded-md border border-slate-200 px-3 py-2"
@@ -703,7 +828,7 @@ export default function GuestsPage() {
               Marketing opt-in
             </label>
           </div>
-          <div className="mt-3">
+          <div className="mt-3 flex gap-2">
             <Button
               disabled={createGuest.isPending || !validateGuestForm()}
               onClick={() => {
@@ -720,286 +845,186 @@ export default function GuestsPage() {
             >
               {createGuest.isPending ? "Saving..." : "Save guest"}
             </Button>
+            <Button variant="ghost" onClick={() => setShowAddForm(false)}>
+              Cancel
+            </Button>
             {createGuest.isError && <span className="ml-3 text-sm text-red-600">Failed to save guest</span>}
           </div>
-        </div>
-        <div className="grid gap-3">
-          {guestsQuery.data?.map((g) => (
-            <div key={g.id} className="card p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="text-lg font-semibold text-slate-900">
-                  {g.primaryLastName}, {g.primaryFirstName}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => router.push(`/guests/${g.id}`)}>
-                    View Details
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setEditingId(g.id);
-                      setForm({
-                        primaryFirstName: g.primaryFirstName,
-                        primaryLastName: g.primaryLastName,
-                        email: g.email,
-                        phone: g.phone,
-                        notes: g.notes || "",
-                        preferredContact: (g as any).preferredContact || "",
-                        preferredLanguage: (g as any).preferredLanguage || "",
-                        address1: (g as any).address1 || "",
-                        address2: (g as any).address2 || "",
-                        city: (g as any).city || "",
-                        state: (g as any).state || "",
-                        postalCode: (g as any).postalCode || "",
-                        country: (g as any).country || "",
-                        rigType: (g as any).rigType || "",
-                        rigLength: (g as any).rigLength ? String((g as any).rigLength) : "",
-                        vehiclePlate: (g as any).vehiclePlate || "",
-                        vehicleState: (g as any).vehicleState || "",
-                        tags: Array.isArray((g as any).tags) ? (g as any).tags.join(", ") : "",
-                        vip: (g as any).vip || false,
-                        leadSource: (g as any).leadSource || "",
-                        marketingOptIn: (g as any).marketingOptIn || false,
-                        repeatStays: (g as any).repeatStays ? String((g as any).repeatStays) : ""
-                      });
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button variant="ghost" onClick={() => deleteGuest.mutate(g.id)} disabled={deleteGuest.isPending}>
-                    Delete
-                  </Button>
-                </div>
-              </div>
-              <div className="text-sm text-slate-600">
-                {g.email} • {g.phone}
-              </div>
-              <div className="text-xs text-slate-500 flex flex-wrap gap-2">
-                {(g as any).preferredContact && <span>Pref: {(g as any).preferredContact}</span>}
-                {(g as any).preferredLanguage && <span>Lang: {(g as any).preferredLanguage}</span>}
-                {(g as any).leadSource && <span>Source: {(g as any).leadSource}</span>}
-                {(g as any).vip && <span className="text-amber-700 font-semibold">VIP</span>}
-                {(g as any).marketingOptIn && <span>Opt-in</span>}
-              </div>
-              <GuestLoyaltyBadge guestId={g.id} />
-              <GuestRewardsSection
-                guestId={g.id}
-                expanded={expandedRewardsId === g.id}
-                onToggle={() => setExpandedRewardsId(expandedRewardsId === g.id ? null : g.id)}
-              />
-              <GuestEquipmentSection
-                guestId={g.id}
-                expanded={expandedEquipmentId === g.id}
-                onToggle={() => setExpandedEquipmentId(expandedEquipmentId === g.id ? null : g.id)}
-              />
-              {(g as any).tags && (g as any).tags.length > 0 && (
-                <div className="text-xs text-slate-500">Tags: {(g as any).tags.join(", ")}</div>
-              )}
-              {(g as any).rigType || (g as any).rigLength ? (
-                <div className="text-xs text-slate-500">
-                  Rig: {(g as any).rigType || "n/a"} {(g as any).rigLength ? `• ${(g as any).rigLength}ft` : ""}
-                </div>
-              ) : null}
-              {(g as any).vehiclePlate || (g as any).vehicleState ? (
-                <div className="text-xs text-slate-500">
-                  Vehicle: {(g as any).vehiclePlate || "n/a"} {(g as any).vehicleState ? `(${(g as any).vehicleState})` : ""}
-                </div>
-              ) : null}
-              {g.notes && <div className="text-xs text-slate-500">{g.notes}</div>}
-              {editingId === g.id && (
-                <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="First name"
-                      value={form.primaryFirstName}
-                      onChange={(e) => setForm((s) => ({ ...s, primaryFirstName: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Last name"
-                      value={form.primaryLastName}
-                      onChange={(e) => setForm((s) => ({ ...s, primaryLastName: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Email"
-                      value={form.email}
-                      onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Phone"
-                      value={form.phone}
-                      onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Preferred contact"
-                      value={form.preferredContact}
-                      onChange={(e) => setForm((s) => ({ ...s, preferredContact: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Preferred language"
-                      value={form.preferredLanguage}
-                      onChange={(e) => setForm((s) => ({ ...s, preferredLanguage: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Address 1"
-                      value={form.address1}
-                      onChange={(e) => setForm((s) => ({ ...s, address1: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Address 2"
-                      value={form.address2}
-                      onChange={(e) => setForm((s) => ({ ...s, address2: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="City"
-                      value={form.city}
-                      onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="State/Province"
-                      value={form.state}
-                      onChange={(e) => setForm((s) => ({ ...s, state: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Postal code"
-                      value={form.postalCode}
-                      onChange={(e) => setForm((s) => ({ ...s, postalCode: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Country"
-                      value={form.country}
-                      onChange={(e) => setForm((s) => ({ ...s, country: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Lead source"
-                      value={form.leadSource}
-                      onChange={(e) => setForm((s) => ({ ...s, leadSource: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Tags (comma separated)"
-                      value={form.tags}
-                      onChange={(e) => setForm((s) => ({ ...s, tags: e.target.value }))}
-                    />
-                    <input
-                      type="number"
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Repeat stays"
-                      value={form.repeatStays}
-                      onChange={(e) => setForm((s) => ({ ...s, repeatStays: e.target.value }))}
-                    />
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={form.vip}
-                        onChange={(e) => setForm((s) => ({ ...s, vip: e.target.checked }))}
-                      />
-                      VIP
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={form.marketingOptIn}
-                        onChange={(e) => setForm((s) => ({ ...s, marketingOptIn: e.target.checked }))}
-                      />
-                      Marketing opt-in
-                    </label>
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Rig type"
-                      value={form.rigType}
-                      onChange={(e) => setForm((s) => ({ ...s, rigType: e.target.value }))}
-                    />
-                    <input
-                      type="number"
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Rig length (ft)"
-                      value={form.rigLength}
-                      onChange={(e) => setForm((s) => ({ ...s, rigLength: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Vehicle plate"
-                      value={form.vehiclePlate}
-                      onChange={(e) => setForm((s) => ({ ...s, vehiclePlate: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2"
-                      placeholder="Vehicle state"
-                      value={form.vehicleState}
-                      onChange={(e) => setForm((s) => ({ ...s, vehicleState: e.target.value }))}
-                    />
-                    <input
-                      className="rounded-md border border-slate-200 px-3 py-2 md:col-span-2"
-                      placeholder="Notes (optional)"
-                      value={form.notes}
-                      onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() =>
-                        updateGuest.mutate({
-                          id: g.id,
-                          data: {
-                            primaryFirstName: form.primaryFirstName,
-                            primaryLastName: form.primaryLastName,
-                            email: form.email,
-                            phone: form.phone,
-                            notes: form.notes || undefined,
-                            preferredContact: form.preferredContact || undefined,
-                            preferredLanguage: form.preferredLanguage || undefined,
-                            address1: form.address1 || undefined,
-                            address2: form.address2 || undefined,
-                            city: form.city || undefined,
-                            state: form.state || undefined,
-                            postalCode: form.postalCode || undefined,
-                            country: form.country || undefined,
-                            rigType: form.rigType || undefined,
-                            rigLength: form.rigLength ? Number(form.rigLength) : undefined,
-                            vehiclePlate: form.vehiclePlate || undefined,
-                            vehicleState: form.vehicleState || undefined,
-                            tags: form.tags ? form.tags.split(",").map((t) => t.trim()) : undefined,
-                            vip: form.vip,
-                            leadSource: form.leadSource || undefined,
-                            marketingOptIn: form.marketingOptIn,
-                            repeatStays: form.repeatStays ? Number(form.repeatStays) : undefined
+          </div>
+        )}
+
+        {/* Guests Table */}
+        <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th
+                  className="px-3 py-2 text-left font-semibold cursor-pointer select-none"
+                  onClick={() => handleSort("name")}
+                >
+                  Name <SortIndicator column="name" />
+                </th>
+                <th
+                  className="px-3 py-2 text-left font-semibold cursor-pointer select-none"
+                  onClick={() => handleSort("email")}
+                >
+                  Email <SortIndicator column="email" />
+                </th>
+                <th
+                  className="px-3 py-2 text-left font-semibold cursor-pointer select-none"
+                  onClick={() => handleSort("phone")}
+                >
+                  Phone <SortIndicator column="phone" />
+                </th>
+                <th
+                  className="px-3 py-2 text-left font-semibold cursor-pointer select-none"
+                  onClick={() => handleSort("vip")}
+                >
+                  Status <SortIndicator column="vip" />
+                </th>
+                <th className="px-3 py-2 text-left font-semibold">Loyalty</th>
+                <th className="px-3 py-2 text-left font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredAndSortedGuests.map((g) => (
+                <Fragment key={g.id}>
+                <tr className="hover:bg-slate-50">
+                  <td className="px-3 py-2 text-slate-800">
+                    <div className="font-medium">{g.primaryLastName}, {g.primaryFirstName}</div>
+                    {(g as any).city && (g as any).state && (
+                      <div className="text-xs text-slate-500">{(g as any).city}, {(g as any).state}</div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-slate-800">{g.email}</td>
+                  <td className="px-3 py-2 text-slate-800">{g.phone}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {(g as any).vip && (
+                        <span className="rounded-full border border-amber-300 bg-amber-50 text-amber-800 px-2 py-0.5 text-xs font-medium flex items-center gap-1">
+                          <Crown className="h-3 w-3" /> VIP
+                        </span>
+                      )}
+                      {(g as any).marketingOptIn && (
+                        <span className="rounded-full border border-emerald-300 bg-emerald-50 text-emerald-800 px-2 py-0.5 text-xs">
+                          Opt-in
+                        </span>
+                      )}
+                      {!(g as any).vip && !(g as any).marketingOptIn && (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <GuestLoyaltyBadge guestId={g.id} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => router.push(`/guests/${g.id}`)}>
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setExpandedGuestId(expandedGuestId === g.id ? null : g.id)}
+                      >
+                        {expandedGuestId === g.id ? "Hide" : "Expand"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          if (confirm("Delete this guest?")) {
+                            deleteGuest.mutate(g.id);
                           }
-                        })
-                      }
-                      disabled={updateGuest.isPending}
-                    >
-                      {updateGuest.isPending ? "Saving…" : "Save changes"}
-                    </Button>
-                    <Button variant="ghost" onClick={() => setEditingId(null)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
+                        }}
+                        disabled={deleteGuest.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+                {/* Expanded row for additional details */}
+                {expandedGuestId === g.id && (
+                  <tr className="bg-slate-50">
+                    <td colSpan={6} className="px-3 py-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Contact Info</h4>
+                          <div className="text-sm space-y-1">
+                            {(g as any).preferredContact && (
+                              <div><span className="text-slate-500">Preferred:</span> {(g as any).preferredContact}</div>
+                            )}
+                            {(g as any).preferredLanguage && (
+                              <div><span className="text-slate-500">Language:</span> {(g as any).preferredLanguage}</div>
+                            )}
+                            {(g as any).address1 && (
+                              <div className="text-slate-600">
+                                {(g as any).address1}
+                                {(g as any).address2 && <>, {(g as any).address2}</>}
+                                {(g as any).city && <>, {(g as any).city}</>}
+                                {(g as any).state && <>, {(g as any).state}</>}
+                                {(g as any).postalCode && <> {(g as any).postalCode}</>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Equipment</h4>
+                          <div className="text-sm space-y-1">
+                            {(g as any).rigType && (
+                              <div><span className="text-slate-500">Rig:</span> {(g as any).rigType} {(g as any).rigLength ? `• ${(g as any).rigLength}ft` : ""}</div>
+                            )}
+                            {(g as any).vehiclePlate && (
+                              <div><span className="text-slate-500">Vehicle:</span> {(g as any).vehiclePlate} {(g as any).vehicleState ? `(${(g as any).vehicleState})` : ""}</div>
+                            )}
+                            {!(g as any).rigType && !(g as any).vehiclePlate && (
+                              <div className="text-slate-400">No equipment on file</div>
+                            )}
+                          </div>
+                          <GuestEquipmentSection
+                            guestId={g.id}
+                            expanded={expandedEquipmentId === g.id}
+                            onToggle={() => setExpandedEquipmentId(expandedEquipmentId === g.id ? null : g.id)}
+                          />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Other Info</h4>
+                          <div className="text-sm space-y-1">
+                            {(g as any).leadSource && (
+                              <div><span className="text-slate-500">Source:</span> {(g as any).leadSource}</div>
+                            )}
+                            {(g as any).tags && (g as any).tags.length > 0 && (
+                              <div><span className="text-slate-500">Tags:</span> {(g as any).tags.join(", ")}</div>
+                            )}
+                            {(g as any).repeatStays > 0 && (
+                              <div><span className="text-slate-500">Repeat stays:</span> {(g as any).repeatStays}</div>
+                            )}
+                            {g.notes && (
+                              <div><span className="text-slate-500">Notes:</span> {g.notes}</div>
+                            )}
+                          </div>
+                          <GuestRewardsSection
+                            guestId={g.id}
+                            expanded={expandedRewardsId === g.id}
+                            onToggle={() => setExpandedRewardsId(expandedRewardsId === g.id ? null : g.id)}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+              ))}
+              {filteredAndSortedGuests.length === 0 && (
+                <TableEmpty colSpan={6}>
+                  {guestsQuery.isLoading ? "Loading guests..." : hasFilters ? "No guests match the current filters." : "No guests yet."}
+                </TableEmpty>
               )}
-            </div>
-          ))}
-          {!guestsQuery.isLoading && !guestsQuery.data?.length && (
-            <div className="overflow-hidden rounded border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <tbody>
-                  <TableEmpty>No guests yet.</TableEmpty>
-                </tbody>
-              </table>
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
       </div>
     </DashboardShell>
