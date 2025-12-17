@@ -48,7 +48,8 @@ type Review = {
 };
 
 export default function ReviewsPage() {
-    const { campgroundId } = useCampground();
+    const { selectedCampground } = useCampground();
+    const campgroundId = selectedCampground?.id;
     const queryClient = useQueryClient();
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState("");
