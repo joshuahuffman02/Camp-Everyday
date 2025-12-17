@@ -308,15 +308,10 @@ export class CampgroundsService {
   }
 
   listAll(orgId?: string) {
-    const include = {
-      gamificationSetting: {
-        select: { enabled: true }
-      }
-    };
     if (orgId) {
-      return this.prisma.campground.findMany({ where: { organizationId: orgId }, include });
+      return this.prisma.campground.findMany({ where: { organizationId: orgId } });
     }
-    return this.prisma.campground.findMany({ include });
+    return this.prisma.campground.findMany();
   }
 
   // Public campgrounds (published only)

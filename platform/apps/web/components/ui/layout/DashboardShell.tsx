@@ -257,7 +257,7 @@ const Icon = ({ name, active }: { name: IconName; active?: boolean }) => {
 export function DashboardShell({ children, className, title, subtitle }: { children: ReactNode; className?: string; title?: string; subtitle?: string }) {
   const { data: session } = useSession();
   const { data: whoami } = useWhoami();
-  const [campgrounds, setCampgrounds] = useState<{ id: string; name: string; organizationId?: string; gamificationSetting?: { enabled: boolean } }[]>([]);
+  const [campgrounds, setCampgrounds] = useState<{ id: string; name: string; organizationId?: string }[]>([]);
   const [campgroundsLoading, setCampgroundsLoading] = useState(true);
   const [campgroundsError, setCampgroundsError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | "">("");
@@ -458,10 +458,6 @@ export function DashboardShell({ children, className, title, subtitle }: { child
   ], [selected]);
 
   const navSections = useMemo(() => {
-    // Check if gamification is enabled for the selected campground
-    const selectedCampground = campgrounds.find((cg) => cg.id === selected);
-    const gamificationEnabled = selectedCampground?.gamificationSetting?.enabled ?? false;
-
     // PRIMARY - Core daily operations (no accordion, always visible)
     const primaryItems: NavItem[] = [
       { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
@@ -469,13 +465,9 @@ export function DashboardShell({ children, className, title, subtitle }: { child
       { label: "Reservations", href: cgReservationsPath, icon: "reservation" },
       { label: "Guests", href: "/guests", icon: "guest" },
       { label: "Messages", href: "/messages", icon: "message", badge: unreadMessages },
-      { label: "Reports", href: "/reports", icon: "reports" }
+      { label: "Reports", href: "/reports", icon: "reports" },
+      { label: "Gamification", href: "/gamification", icon: "trophy", tooltip: "Staff leaderboards and rewards" }
     ];
-
-    // Add Gamification link when enabled for the campground
-    if (gamificationEnabled) {
-      primaryItems.push({ label: "Gamification", href: "/gamification", icon: "trophy", tooltip: "Staff leaderboards and rewards" });
-    }
 
     // Add Management link for managers (simplified - links to hub page)
     if (isManager) {
@@ -500,7 +492,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
     ];
 
     return sections;
-  }, [cgReservationsPath, unreadMessages, isManager, isAdmin, campgrounds, selected]);
+  }, [cgReservationsPath, unreadMessages, isManager, isAdmin]);
 
   const frontDeskShortcuts = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
