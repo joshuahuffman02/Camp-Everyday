@@ -91,6 +91,7 @@ import { TicketsModule } from "./tickets/tickets.module";
 import { AdminModule } from "./admin/admin.module";
 import { AnomaliesModule } from "./anomalies/anomalies.module";
 import { IotModule } from "./iot/iot.module";
+import { CharityModule } from "./charity/charity.module";
 
 @Module({
   imports: [
@@ -186,6 +187,7 @@ import { IotModule } from "./iot/iot.module";
     AdminModule,
     AnomaliesModule,
     IotModule,
+    CharityModule,
   ],
   providers: []
 })
