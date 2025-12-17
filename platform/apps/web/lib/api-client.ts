@@ -3966,6 +3966,10 @@ export const apiClient = {
     };
     needsAccessible?: boolean;
     holdId?: string;
+    charityDonation?: {
+      charityId: string;
+      amountCents: number;
+    };
   }) {
     const res = await fetch(`${API_BASE}/public/reservations`, {
       method: "POST",

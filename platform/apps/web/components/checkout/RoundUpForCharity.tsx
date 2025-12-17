@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Heart, Check, X } from "lucide-react";
+import { Heart, Check, DollarSign } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 
 interface CharityConfig {
@@ -37,10 +37,16 @@ interface RoundUpForCharityProps {
   onChange: (donation: { optedIn: boolean; amountCents: number; charityId: string | null }) => void;
 }
 
+type DonationType = "none" | "roundup" | "custom";
+
+const PRESET_AMOUNTS = [100, 500, 1000, 2500]; // $1, $5, $10, $25
+
 export function RoundUpForCharity({ campgroundId, totalCents, onChange }: RoundUpForCharityProps) {
   const [charityConfig, setCharityConfig] = useState<CharityConfig | null>(null);
   const [roundUp, setRoundUp] = useState<RoundUpCalculation | null>(null);
-  const [optedIn, setOptedIn] = useState(false);
+  const [donationType, setDonationType] = useState<DonationType>("none");
+  const [customAmountCents, setCustomAmountCents] = useState<number>(500); // Default $5
+  const [customInput, setCustomInput] = useState<string>("5.00");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +63,7 @@ export function RoundUpForCharity({ campgroundId, totalCents, onChange }: RoundU
 
           // Set default opt-in based on campground settings
           if (config.defaultOptIn && calculation.donationAmountCents > 0) {
-            setOptedIn(true);
+            setDonationType("roundup");
             onChange({
               optedIn: true,
               amountCents: calculation.donationAmountCents,
@@ -78,17 +84,55 @@ export function RoundUpForCharity({ campgroundId, totalCents, onChange }: RoundU
     }
   }, [campgroundId, totalCents]);
 
-  const handleToggle = () => {
-    const newOptedIn = !optedIn;
-    setOptedIn(newOptedIn);
-    onChange({
-      optedIn: newOptedIn,
-      amountCents: newOptedIn && roundUp ? roundUp.donationAmountCents : 0,
-      charityId: newOptedIn && roundUp ? roundUp.charityId : null,
-    });
+  const handleDonationTypeChange = (type: DonationType) => {
+    setDonationType(type);
+
+    if (type === "none") {
+      onChange({ optedIn: false, amountCents: 0, charityId: null });
+    } else if (type === "roundup" && roundUp) {
+      onChange({
+        optedIn: true,
+        amountCents: roundUp.donationAmountCents,
+        charityId: roundUp.charityId,
+      });
+    } else if (type === "custom" && charityConfig) {
+      onChange({
+        optedIn: true,
+        amountCents: customAmountCents,
+        charityId: charityConfig.charity.id,
+      });
+    }
   };
 
-  // Don't render if charity is not enabled or no round-up needed
+  const handleCustomAmountChange = (cents: number) => {
+    setCustomAmountCents(cents);
+    setCustomInput((cents / 100).toFixed(2));
+    if (donationType === "custom" && charityConfig) {
+      onChange({
+        optedIn: true,
+        amountCents: cents,
+        charityId: charityConfig.charity.id,
+      });
+    }
+  };
+
+  const handleCustomInputChange = (value: string) => {
+    setCustomInput(value);
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed) && parsed >= 0) {
+      const cents = Math.round(parsed * 100);
+      setCustomAmountCents(cents);
+      if (donationType === "custom" && charityConfig) {
+        onChange({
+          optedIn: true,
+          amountCents: cents,
+          charityId: charityConfig.charity.id,
+        });
+      }
+    }
+  };
+
+  // Don't render if charity is not enabled
   if (loading) {
     return (
       <div className="rounded-lg border border-slate-200 p-4 animate-pulse">
@@ -97,83 +141,177 @@ export function RoundUpForCharity({ campgroundId, totalCents, onChange }: RoundU
     );
   }
 
-  if (error || !charityConfig?.isEnabled || !roundUp || roundUp.donationAmountCents <= 0) {
+  if (error || !charityConfig?.isEnabled) {
     return null;
   }
 
-  const donationAmount = (roundUp.donationAmountCents / 100).toFixed(2);
-  const newTotal = ((totalCents + (optedIn ? roundUp.donationAmountCents : 0)) / 100).toFixed(2);
+  const currentDonationCents = donationType === "roundup"
+    ? (roundUp?.donationAmountCents || 0)
+    : donationType === "custom"
+      ? customAmountCents
+      : 0;
+  const newTotal = ((totalCents + currentDonationCents) / 100).toFixed(2);
 
   return (
-    <div
-      className={`rounded-lg border-2 p-4 transition-all cursor-pointer ${
-        optedIn
-          ? "border-pink-500 bg-pink-50"
-          : "border-slate-200 hover:border-slate-300 bg-white"
-      }`}
-      onClick={handleToggle}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-            optedIn ? "bg-pink-500 text-white" : "bg-slate-100 text-slate-400"
-          }`}
-        >
-          <Heart className={`h-5 w-5 ${optedIn ? "fill-current" : ""}`} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h4 className="font-semibold text-slate-900">Round up for charity</h4>
-            {charityConfig.charity.isVerified && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">
-                <Check className="h-3 w-3 mr-0.5" />
-                Verified
-              </span>
-            )}
+    <div className="rounded-xl border-2 border-slate-200 bg-white overflow-hidden">
+      {/* Header */}
+      <div className="p-4 bg-gradient-to-r from-pink-50 to-rose-50 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-pink-500 text-white">
+            <Heart className="h-5 w-5 fill-current" />
           </div>
-
-          <p className="text-sm text-slate-600 mt-1">
-            {charityConfig.customMessage || (
-              <>
-                Add <span className="font-semibold text-pink-600">${donationAmount}</span> to support{" "}
-                <span className="font-medium">{charityConfig.charity.name}</span>
-              </>
+          <div>
+            <h4 className="font-semibold text-slate-900 flex items-center gap-2">
+              Support {charityConfig.charity.name}
+              {charityConfig.charity.isVerified && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">
+                  <Check className="h-3 w-3 mr-0.5" />
+                  Verified
+                </span>
+              )}
+            </h4>
+            {charityConfig.charity.description && (
+              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                {charityConfig.charity.description}
+              </p>
             )}
-          </p>
-
-          {charityConfig.charity.description && (
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              {charityConfig.charity.description}
-            </p>
-          )}
-
-          {optedIn && (
-            <div className="mt-2 text-xs text-slate-500">
-              New total: <span className="font-medium text-slate-700">${newTotal}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex-shrink-0">
-          <div
-            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-              optedIn
-                ? "border-pink-500 bg-pink-500 text-white"
-                : "border-slate-300 bg-white"
-            }`}
-          >
-            {optedIn && <Check className="h-4 w-4" />}
           </div>
         </div>
       </div>
 
+      {/* Donation Options */}
+      <div className="p-4 space-y-3">
+        {charityConfig.customMessage && (
+          <p className="text-sm text-slate-600 mb-3">{charityConfig.customMessage}</p>
+        )}
+
+        {/* No Donation Option */}
+        <label
+          className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+            donationType === "none"
+              ? "border-slate-400 bg-slate-50"
+              : "border-slate-200 hover:border-slate-300"
+          }`}
+        >
+          <input
+            type="radio"
+            name="donationType"
+            checked={donationType === "none"}
+            onChange={() => handleDonationTypeChange("none")}
+            className="w-4 h-4 text-slate-600 focus:ring-slate-500"
+          />
+          <span className="text-sm text-slate-600">No donation this time</span>
+        </label>
+
+        {/* Round Up Option */}
+        {roundUp && roundUp.donationAmountCents > 0 && (
+          <label
+            className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+              donationType === "roundup"
+                ? "border-pink-500 bg-pink-50"
+                : "border-slate-200 hover:border-pink-300"
+            }`}
+          >
+            <input
+              type="radio"
+              name="donationType"
+              checked={donationType === "roundup"}
+              onChange={() => handleDonationTypeChange("roundup")}
+              className="w-4 h-4 text-pink-600 focus:ring-pink-500"
+            />
+            <div className="flex-1">
+              <span className="text-sm text-slate-900">
+                Round up to <span className="font-semibold">${(roundUp.roundedAmountCents / 100).toFixed(2)}</span>
+              </span>
+              <span className="ml-2 text-sm text-pink-600 font-medium">
+                (+${(roundUp.donationAmountCents / 100).toFixed(2)} donation)
+              </span>
+            </div>
+          </label>
+        )}
+
+        {/* Custom Amount Option */}
+        <div
+          className={`rounded-lg border-2 transition-all ${
+            donationType === "custom"
+              ? "border-pink-500 bg-pink-50"
+              : "border-slate-200"
+          }`}
+        >
+          <label
+            className="flex items-center gap-3 p-3 cursor-pointer"
+            onClick={() => handleDonationTypeChange("custom")}
+          >
+            <input
+              type="radio"
+              name="donationType"
+              checked={donationType === "custom"}
+              onChange={() => handleDonationTypeChange("custom")}
+              className="w-4 h-4 text-pink-600 focus:ring-pink-500"
+            />
+            <span className="text-sm text-slate-900">Custom donation amount</span>
+          </label>
+
+          {donationType === "custom" && (
+            <div className="px-3 pb-3 pt-1 space-y-3">
+              {/* Preset Amounts */}
+              <div className="flex flex-wrap gap-2">
+                {PRESET_AMOUNTS.map((cents) => (
+                  <button
+                    key={cents}
+                    type="button"
+                    onClick={() => handleCustomAmountChange(cents)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                      customAmountCents === cents
+                        ? "bg-pink-500 text-white"
+                        : "bg-white border border-slate-300 text-slate-700 hover:border-pink-400"
+                    }`}
+                  >
+                    ${(cents / 100).toFixed(0)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Input */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={customInput}
+                    onChange={(e) => handleCustomInputChange(e.target.value)}
+                    onFocus={() => handleDonationTypeChange("custom")}
+                    className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                    placeholder="Enter amount"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Summary */}
+        {donationType !== "none" && currentDonationCents > 0 && (
+          <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+            <span className="text-sm text-slate-600">
+              Donation: <span className="font-semibold text-pink-600">${(currentDonationCents / 100).toFixed(2)}</span>
+            </span>
+            <span className="text-sm text-slate-500">
+              New total: <span className="font-medium text-slate-900">${newTotal}</span>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Footer with charity logo */}
       {charityConfig.charity.logoUrl && (
-        <div className="mt-3 flex items-center gap-2 pt-3 border-t border-slate-200">
+        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
           <img
             src={charityConfig.charity.logoUrl}
             alt={charityConfig.charity.name}
-            className="h-6 w-auto object-contain"
+            className="h-5 w-auto object-contain"
           />
           <span className="text-xs text-slate-500">
             100% of your donation goes to {charityConfig.charity.name}
@@ -184,11 +322,13 @@ export function RoundUpForCharity({ campgroundId, totalCents, onChange }: RoundU
   );
 }
 
-// Simplified inline version for tight spaces
+// Simplified inline version for tight spaces (like POS)
 export function RoundUpInline({ campgroundId, totalCents, onChange }: RoundUpForCharityProps) {
   const [charityConfig, setCharityConfig] = useState<CharityConfig | null>(null);
   const [roundUp, setRoundUp] = useState<RoundUpCalculation | null>(null);
-  const [optedIn, setOptedIn] = useState(false);
+  const [donationType, setDonationType] = useState<DonationType>("none");
+  const [customAmountCents, setCustomAmountCents] = useState<number>(100);
+  const [showCustom, setShowCustom] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -203,7 +343,7 @@ export function RoundUpInline({ campgroundId, totalCents, onChange }: RoundUpFor
           setRoundUp(calculation);
 
           if (config.defaultOptIn && calculation.donationAmountCents > 0) {
-            setOptedIn(true);
+            setDonationType("roundup");
             onChange({
               optedIn: true,
               amountCents: calculation.donationAmountCents,
@@ -223,35 +363,120 @@ export function RoundUpInline({ campgroundId, totalCents, onChange }: RoundUpFor
     }
   }, [campgroundId, totalCents]);
 
-  const handleToggle = () => {
-    const newOptedIn = !optedIn;
-    setOptedIn(newOptedIn);
-    onChange({
-      optedIn: newOptedIn,
-      amountCents: newOptedIn && roundUp ? roundUp.donationAmountCents : 0,
-      charityId: newOptedIn && roundUp ? roundUp.charityId : null,
-    });
+  const handleRoundUpToggle = () => {
+    if (donationType === "roundup") {
+      setDonationType("none");
+      onChange({ optedIn: false, amountCents: 0, charityId: null });
+    } else {
+      setDonationType("roundup");
+      setShowCustom(false);
+      if (roundUp) {
+        onChange({
+          optedIn: true,
+          amountCents: roundUp.donationAmountCents,
+          charityId: roundUp.charityId,
+        });
+      }
+    }
   };
 
-  if (loading || !charityConfig?.isEnabled || !roundUp || roundUp.donationAmountCents <= 0) {
+  const handleCustomAmount = (cents: number) => {
+    setCustomAmountCents(cents);
+    setDonationType("custom");
+    if (charityConfig) {
+      onChange({
+        optedIn: true,
+        amountCents: cents,
+        charityId: charityConfig.charity.id,
+      });
+    }
+  };
+
+  if (loading || !charityConfig?.isEnabled) {
     return null;
   }
 
+  const currentAmount = donationType === "roundup"
+    ? (roundUp?.donationAmountCents || 0)
+    : donationType === "custom"
+      ? customAmountCents
+      : 0;
+
   return (
-    <label className="flex items-center gap-3 cursor-pointer select-none">
-      <input
-        type="checkbox"
-        checked={optedIn}
-        onChange={handleToggle}
-        className="w-4 h-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500"
-      />
-      <div className="flex items-center gap-2 text-sm">
-        <Heart className={`h-4 w-4 ${optedIn ? "text-pink-500 fill-current" : "text-slate-400"}`} />
-        <span className="text-slate-700">
-          Round up <span className="font-medium text-pink-600">${(roundUp.donationAmountCents / 100).toFixed(2)}</span> for{" "}
-          <span className="font-medium">{charityConfig.charity.name}</span>
-        </span>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={donationType !== "none"}
+            onChange={handleRoundUpToggle}
+            className="w-4 h-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500"
+          />
+          <div className="flex items-center gap-2 text-sm">
+            <Heart className={`h-4 w-4 ${donationType !== "none" ? "text-pink-500 fill-current" : "text-slate-400"}`} />
+            <span className="text-slate-700">
+              {roundUp && roundUp.donationAmountCents > 0 ? (
+                <>
+                  Round up <span className="font-medium text-pink-600">${(roundUp.donationAmountCents / 100).toFixed(2)}</span> for{" "}
+                </>
+              ) : (
+                <>Donate to </>
+              )}
+              <span className="font-medium">{charityConfig.charity.name}</span>
+            </span>
+          </div>
+        </label>
+
+        {donationType !== "none" && (
+          <button
+            type="button"
+            onClick={() => setShowCustom(!showCustom)}
+            className="text-xs text-pink-600 hover:text-pink-700 font-medium"
+          >
+            {showCustom ? "Hide" : "Custom amount"}
+          </button>
+        )}
       </div>
-    </label>
+
+      {showCustom && donationType !== "none" && (
+        <div className="flex items-center gap-2 pl-7">
+          {[100, 200, 500, 1000].map((cents) => (
+            <button
+              key={cents}
+              type="button"
+              onClick={() => handleCustomAmount(cents)}
+              className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                donationType === "custom" && customAmountCents === cents
+                  ? "bg-pink-500 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-pink-100"
+              }`}
+            >
+              ${(cents / 100).toFixed(0)}
+            </button>
+          ))}
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">$</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={(customAmountCents / 100).toFixed(0)}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 0;
+                handleCustomAmount(val * 100);
+              }}
+              className="w-16 pl-5 pr-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-pink-500"
+              placeholder="Other"
+            />
+          </div>
+        </div>
+      )}
+
+      {donationType !== "none" && currentAmount > 0 && (
+        <p className="text-xs text-slate-500 pl-7">
+          Adding <span className="font-medium text-pink-600">${(currentAmount / 100).toFixed(2)}</span> donation
+        </p>
+      )}
+    </div>
   );
 }
