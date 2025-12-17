@@ -8,8 +8,8 @@ import { useState } from 'react';
 const earlyAccessTiers = [
   {
     name: "Founder's Circle",
-    spots: 10,
-    spotsRemaining: 7, // Update this as spots fill
+    spots: 5,
+    spotsRemaining: 5, // Update this as spots fill
     icon: Crown,
     monthlyPrice: 0,
     monthlyDuration: "forever",
@@ -26,12 +26,12 @@ const earlyAccessTiers = [
       "First access to every new feature",
     ],
     cta: "Claim Founder Spot",
-    urgency: "Only 7 spots left",
+    urgency: "Only 5 spots",
   },
   {
     name: "Pioneer",
-    spots: 25,
-    spotsRemaining: 25,
+    spots: 15,
+    spotsRemaining: 15,
     icon: Rocket,
     monthlyPrice: 0,
     monthlyDuration: "for 12 months",
@@ -48,12 +48,12 @@ const earlyAccessTiers = [
       "Free data migration",
     ],
     cta: "Become a Pioneer",
-    urgency: "25 spots available",
+    urgency: "15 spots available",
   },
   {
     name: "Trailblazer",
-    spots: 50,
-    spotsRemaining: 50,
+    spots: 25,
+    spotsRemaining: 25,
     icon: Star,
     monthlyPrice: 14.50,
     monthlyDuration: "for 6 months",
@@ -70,7 +70,7 @@ const earlyAccessTiers = [
       "Onboarding call included",
     ],
     cta: "Join Trailblazers",
-    urgency: "50 spots available",
+    urgency: "25 spots available",
   },
 ];
 
@@ -216,7 +216,7 @@ export function PricingPreview() {
           </h2>
 
           <p className="text-xl text-slate-300 mb-8">
-            We're looking for our first 85 campgrounds to help us build the best platform in the industry.
+            We're looking for our first 45 campgrounds to help us build the best platform in the industry.
             In exchange, you get pricing that will never go up.
           </p>
 
