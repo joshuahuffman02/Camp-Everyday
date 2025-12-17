@@ -2,6 +2,7 @@
 
 import { Check, X, ArrowRight, Star, Clock, Users, Zap, Crown, Rocket, Gift, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { useState } from 'react';
 
 // Early Access Tiers - Real scarcity with limited spots
@@ -325,10 +326,13 @@ export function PricingPreview() {
 
                 {/* CTA */}
                 <Button
+                  asChild
                   className={`w-full py-6 text-lg font-semibold ${colorStyles.button} text-white shadow-lg`}
                 >
-                  {tier.cta}
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <Link href={`/signup?tier=${tier.name.toLowerCase().replace(/['\s]/g, '_').replace(/__/g, '_')}`}>
+                    {tier.cta}
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
                 </Button>
               </div>
             );
@@ -441,14 +445,17 @@ export function PricingPreview() {
         {/* Bottom CTA */}
         <div className="mt-16 text-center">
           <p className="text-slate-400 mb-6">
-            Not sure which tier is right for you?
+            Not sure which tier is right for you? Start with any tier - you can always upgrade.
           </p>
           <Button
+            asChild
             variant="outline"
             className="border-slate-600 text-white hover:bg-slate-700 px-8 py-6 text-lg"
           >
-            Book a Free Consultation
-            <ArrowRight className="ml-2 h-5 w-5" />
+            <Link href="/signup">
+              Get Started Now
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
           </Button>
         </div>
 

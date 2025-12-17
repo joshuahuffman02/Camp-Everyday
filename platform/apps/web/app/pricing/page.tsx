@@ -23,10 +23,10 @@ export default function PricingPage() {
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
             <Button asChild size="lg" className="px-8">
-              <Link href="/owners#pricing">Compare plans</Link>
+              <Link href="/signup">Get Started Free</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="px-8 border-2">
-              <Link href="/contact">Talk to sales</Link>
+              <Link href="#pricing">View Early Access Tiers</Link>
             </Button>
           </div>
           <div className="text-sm text-slate-500">

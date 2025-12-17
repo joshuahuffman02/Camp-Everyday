@@ -47,13 +47,13 @@ export function PublicHeader() {
                         href="/auth/signin"
                         className="px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all"
                     >
-                        Guest Sign In
+                        Sign In
                     </Link>
                     <Link
-                        href="/auth/signin?callbackUrl=/dashboard"
+                        href="/signup"
                         className="px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg hover:from-emerald-500 hover:to-teal-500 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30"
                     >
-                        Campground Owner
+                        Start Free Trial
                     </Link>
                 </>
             )}

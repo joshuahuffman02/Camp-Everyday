@@ -70,9 +70,11 @@ export function MarketingHeader() {
                 Sign In
               </Button>
             </Link>
-            <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
-              Get a Demo
-            </Button>
+            <Link href="/signup">
+              <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
+                Get Started Free
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile menu button */}
@@ -109,9 +111,11 @@ export function MarketingHeader() {
                   Sign In
                 </Button>
               </Link>
-              <Button className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
-                Get a Demo
-              </Button>
+              <Link href="/signup" className="block">
+                <Button className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
+                  Get Started Free
+                </Button>
+              </Link>
             </div>
           </div>
         )}
