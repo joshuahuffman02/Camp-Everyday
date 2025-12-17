@@ -1885,6 +1885,11 @@ export default function BookingPage() {
     const initialArrival = searchParams.get("arrivalDate") || "";
     const initialDeparture = searchParams.get("departureDate") || "";
     const initialSiteType = searchParams.get("siteType") || "all";
+    const initialAdults = parseInt(searchParams.get("adults") || "1");
+    const initialChildren = parseInt(searchParams.get("children") || "0");
+    const initialSiteClassId = searchParams.get("siteClassId") || null;
+    const initialRvLength = searchParams.get("rvLength") || "";
+    const initialRvType = searchParams.get("rvType") || "";
 
     const slug = params.slug as string;
     const [step, setStep] = useState<BookingStep>(initialArrival && initialDeparture ? 2 : 1);
@@ -1893,7 +1898,7 @@ export default function BookingPage() {
     const [departureDate, setDepartureDate] = useState(initialDeparture);
     const [selectedSiteType, setSelectedSiteType] = useState(normalizeSiteType(initialSiteType || "all"));
     const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
-    const [selectedSiteClassId, setSelectedSiteClassId] = useState<string | null>(null);
+    const [selectedSiteClassId, setSelectedSiteClassId] = useState<string | null>(initialSiteClassId);
     const [assignOnArrival, setAssignOnArrival] = useState(false);
     const [guestInfo, setGuestInfo] = useState<GuestInfo>({
         firstName: "",
@@ -1901,8 +1906,8 @@ export default function BookingPage() {
         email: "",
         phone: "",
         zipCode: "",
-        adults: 1,
-        children: 0,
+        adults: initialAdults,
+        children: initialChildren,
         additionalGuests: [],
         childrenDetails: [],
         stayReasonPreset: "vacation",
@@ -1910,8 +1915,8 @@ export default function BookingPage() {
         referralCode: "",
         needsAccessible: false,
         equipment: {
-            type: mapSiteTypeToEquipmentType(initialSiteType),
-            length: "",
+            type: initialRvType ? mapSiteTypeToEquipmentType(initialRvType) : mapSiteTypeToEquipmentType(initialSiteType),
+            length: initialRvLength,
             plateNumber: "",
             plateState: ""
         }
