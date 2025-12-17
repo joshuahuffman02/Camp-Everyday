@@ -68,6 +68,22 @@ const adminNavItems = [
         ],
     },
     {
+        title: "Analytics Hub",
+        icon: BarChart3,
+        children: [
+            { title: "Overview", href: "/admin/analytics" },
+            { title: "Revenue", href: "/admin/analytics/revenue" },
+            { title: "Guests", href: "/admin/analytics/guests" },
+            { title: "Accommodations", href: "/admin/analytics/accommodations" },
+            { title: "Geographic", href: "/admin/analytics/geographic" },
+            { title: "Booking", href: "/admin/analytics/booking" },
+            { title: "Length of Stay", href: "/admin/analytics/los" },
+            { title: "Amenities", href: "/admin/analytics/amenities" },
+            { title: "Benchmarks", href: "/admin/analytics/benchmarks" },
+            { title: "Export", href: "/admin/analytics/export" },
+        ],
+    },
+    {
         title: "System",
         icon: RefreshCw,
         children: [

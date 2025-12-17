@@ -17,9 +17,10 @@ import {
     AnalyticsExportController,
     SharedAnalyticsController,
 } from "./analytics-export.controller";
+import { PlatformAnalyticsModule } from "./platform-analytics/platform-analytics.module";
 
 @Module({
-    imports: [PrismaModule],
+    imports: [PrismaModule, PlatformAnalyticsModule],
     controllers: [
         AuditLogController,
         FeatureFlagController,
