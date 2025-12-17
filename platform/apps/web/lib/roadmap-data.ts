@@ -533,16 +533,16 @@ export const roadmapPhases: RoadmapPhase[] = [
         id: 'charity-roundup',
         name: 'Round Up for Charity',
         description: 'Enable guests to round up their reservation total to donate to campground-selected charities, with full accounting integration and reporting.',
-        status: 'planned',
+        status: 'completed',
         order: 26,
         icon: 'heart',
         color: 'rose',
         milestones: [
-            { id: 'charity-models', name: 'Charity data models', description: 'Charity registry, campground charity selection, donation tracking, and payout management', status: 'planned' },
-            { id: 'charity-admin', name: 'Charity admin UI', description: 'Platform charity management, campground charity settings, enable/disable round-up', status: 'planned' },
-            { id: 'roundup-checkout', name: 'Round-up at checkout', description: 'Guest opt-in UI during booking with charity info and round-up amount display', status: 'planned' },
-            { id: 'charity-accounting', name: 'Charity accounting', description: 'Separate GL code for donations, liability tracking, journal entries, and payout reconciliation', status: 'planned' },
-            { id: 'charity-reporting', name: 'Charity reporting', description: 'Donation totals, opt-in rates, per-charity breakdown, payout history, and tax exports', status: 'planned' },
+            { id: 'charity-models', name: 'Charity data models', description: 'Charity registry, campground charity selection, donation tracking, and payout management', status: 'completed' },
+            { id: 'charity-admin', name: 'Charity admin UI', description: 'Platform charity management, campground charity settings, enable/disable round-up', status: 'completed' },
+            { id: 'roundup-checkout', name: 'Round-up at checkout', description: 'Guest opt-in UI during booking with charity info, round-up amount, and custom donation options', status: 'completed' },
+            { id: 'charity-accounting', name: 'Charity accounting', description: 'Separate GL code for donations, liability tracking, journal entries, and payout reconciliation', status: 'completed' },
+            { id: 'charity-reporting', name: 'Charity reporting', description: 'Donation totals, opt-in rates, per-charity breakdown, payout history, and tax exports', status: 'completed' },
         ],
     },
 ];
@@ -552,6 +552,16 @@ export const roadmapPhases: RoadmapPhase[] = [
 // =============================================================================
 
 export const updates: Update[] = [
+    {
+        id: 'update-2025-12-17-charity-complete',
+        title: 'Round Up for Charity - Complete',
+        date: '2025-12-17',
+        body: 'Completed the Round Up for Charity feature. Guests can now donate to campground-selected charities during checkout via round-up or custom donation amounts ($1, $5, $10, $25, or any amount). Includes platform charity registry, campground charity settings, GL accounting integration (2400 Charity Donations Payable), donation tracking, payout management, and comprehensive reporting dashboard with CSV exports.',
+        tags: ['charity', 'donations', 'checkout', 'accounting', 'complete'],
+        category: 'feature',
+        phaseId: 'charity-roundup',
+        milestoneIds: ['charity-models', 'charity-admin', 'roundup-checkout', 'charity-accounting', 'charity-reporting'],
+    },
     {
         id: 'update-2025-12-17-ai-analytics-charity',
         title: 'AI Analytics Hub & Charity Round-Up planning',
