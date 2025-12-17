@@ -226,7 +226,9 @@ export class AutoCollectService {
     if (attemptCount >= maxAttempts) {
       this.logger.warn(`[AutoCollect] Max attempts reached for ${reservation.id}`);
       await this.clearNextAttempt(reservation.id);
-      // TODO: Send notification about failed collection
+
+      // Send notification about failed collection
+      await this.sendFailedCollectionNotification(reservation, reason);
       return;
     }
 
@@ -285,6 +287,56 @@ export class AutoCollectService {
 
     await this.attemptCollection(reservation);
     return { reservationId, attemptNo, status: "processed" };
+  }
+
+  /**
+   * Send notification when all auto-collect attempts have failed
+   */
+  private async sendFailedCollectionNotification(reservation: any, reason: string) {
+    try {
+      const balanceFormatted = (reservation.balanceAmount / 100).toFixed(2);
+
+      // Create guest notification
+      await this.prisma.communication.create({
+        data: {
+          campgroundId: reservation.campgroundId,
+          guestId: reservation.guestId,
+          reservationId: reservation.id,
+          type: 'email',
+          subject: 'Payment Required for Your Reservation',
+          body: `We were unable to automatically collect your outstanding balance of $${balanceFormatted}. Please update your payment method or contact us to resolve this before your arrival.`,
+          status: 'queued',
+          direction: 'outbound',
+          metadata: {
+            template: 'failed_auto_collect',
+            balanceAmount: reservation.balanceAmount,
+            reason
+          }
+        }
+      });
+
+      // Create internal alert for staff
+      await this.prisma.communication.create({
+        data: {
+          campgroundId: reservation.campgroundId,
+          reservationId: reservation.id,
+          type: 'internal_alert',
+          subject: 'Auto-Collect Failed - Manual Review Required',
+          body: `Auto-collect failed for reservation ${reservation.id} after maximum attempts. Outstanding balance: $${balanceFormatted}. Reason: ${reason}`,
+          status: 'queued',
+          direction: 'internal',
+          metadata: {
+            alertType: 'payment_failed',
+            balanceAmount: reservation.balanceAmount,
+            reason
+          }
+        }
+      });
+
+      this.logger.log(`[AutoCollect] Sent failed collection notifications for ${reservation.id}`);
+    } catch (err) {
+      this.logger.error(`[AutoCollect] Failed to send notification for ${reservation.id}: ${err}`);
+    }
   }
 }
 
