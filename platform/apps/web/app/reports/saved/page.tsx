@@ -102,6 +102,25 @@ export default function SavedReportsPage() {
                         Saved {new Date(r.updatedAt).toLocaleString()}
                         {r.dateRange && ` • ${r.dateRange.start} → ${r.dateRange.end}`}
                       </div>
+                      {r.filters && (r.filters.status !== "all" || r.filters.siteType !== "all" || r.filters.groupBy !== "none") && (
+                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                          {r.filters.status !== "all" && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                              {r.filters.status}
+                            </span>
+                          )}
+                          {r.filters.siteType !== "all" && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                              {r.filters.siteType}
+                            </span>
+                          )}
+                          {r.filters.groupBy !== "none" && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">
+                              Grouped by {r.filters.groupBy}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Link href={`/reports?tab=${r.tab}${r.subTab ? `&sub=${r.subTab}` : ""}${r.dateRange ? `&start=${r.dateRange.start}&end=${r.dateRange.end}` : ""}${r.filters?.status ? `&status=${r.filters.status}` : ""}${r.filters?.siteType ? `&siteType=${r.filters.siteType}` : ""}${r.filters?.groupBy ? `&groupBy=${r.filters.groupBy}` : ""}`}>

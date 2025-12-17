@@ -14,6 +14,8 @@ import { CalendarRow } from "./CalendarRow";
 import { ListView } from "./ListView";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { HelpAnchor } from "../../components/help/HelpAnchor";
+import { HelpTooltip, HelpTooltipContent, HelpTooltipSection } from "../../components/help/HelpTooltip";
+import { PageOnboardingHint } from "../../components/help/OnboardingHint";
 import {
   CheckCircle,
   Clock,
@@ -1129,23 +1131,82 @@ export default function CalendarPage() {
           <HelpAnchor topicId="calendar-availability" label="Calendar help" />
         </div>
 
+        <PageOnboardingHint
+          id="calendar-drag-to-book"
+          title="Drag to Book - Quick Reservations"
+          content={
+            <div>
+              <p className="mb-2">
+                Create reservations instantly by dragging across available dates:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>Click and drag across empty cells to select dates</li>
+                <li>Release to see a quick quote preview</li>
+                <li>Click "Book Now" to create the reservation</li>
+                <li>Use filters to find specific site types or amenities</li>
+              </ul>
+              <p className="mt-2 text-xs text-slate-600">
+                Tip: Hold Shift to extend existing reservations, or Ctrl/Cmd to move them to different sites.
+              </p>
+            </div>
+          }
+        />
+
         {/* Summary Statistics */}
         {selectedCampground && !sitesQuery.isLoading && !reservationsQuery.isLoading && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="card p-3">
-              <div className="text-xs text-slate-600 mb-1">Reservations</div>
+              <div className="flex items-center gap-1 text-xs text-slate-600 mb-1">
+                Reservations
+                <HelpTooltip
+                  content={<div>Total number of reservations visible in the current date range.</div>}
+                  side="top"
+                  maxWidth={220}
+                />
+              </div>
               <div className="text-2xl font-bold text-slate-900">{stats.totalReservations}</div>
             </div>
             <div className="card p-3">
-              <div className="text-xs text-slate-600 mb-1">Revenue</div>
+              <div className="flex items-center gap-1 text-xs text-slate-600 mb-1">
+                Revenue
+                <HelpTooltip
+                  content={<div>Total revenue from all reservations in the current date range, including deposits and outstanding balances.</div>}
+                  side="top"
+                  maxWidth={240}
+                />
+              </div>
               <div className="text-2xl font-bold text-emerald-600">${stats.totalRevenue.toFixed(0)}</div>
             </div>
             <div className="card p-3">
-              <div className="text-xs text-slate-600 mb-1">Occupancy</div>
+              <div className="flex items-center gap-1 text-xs text-slate-600 mb-1">
+                Occupancy
+                <HelpTooltip
+                  content={
+                    <div className="space-y-1">
+                      <p>Average occupancy rate across the date range.</p>
+                      <p className="text-xs text-slate-600">Calculated as: (occupied site-nights / total available site-nights) × 100</p>
+                    </div>
+                  }
+                  side="top"
+                  maxWidth={260}
+                />
+              </div>
               <div className="text-2xl font-bold text-blue-600">{stats.occupancyRate.toFixed(1)}%</div>
             </div>
             <div className="card p-3">
-              <div className="text-xs text-slate-600 mb-1">Avg Daily Rate</div>
+              <div className="flex items-center gap-1 text-xs text-slate-600 mb-1">
+                Avg Daily Rate
+                <HelpTooltip
+                  content={
+                    <div className="space-y-1">
+                      <p>Average revenue earned per occupied site per night.</p>
+                      <p className="text-xs text-slate-600">Formula: total revenue ÷ total occupied nights</p>
+                    </div>
+                  }
+                  side="top"
+                  maxWidth={260}
+                />
+              </div>
               <div className="text-2xl font-bold text-purple-600">${stats.averageDailyRate.toFixed(0)}</div>
             </div>
           </div>

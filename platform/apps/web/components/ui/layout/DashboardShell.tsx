@@ -10,6 +10,9 @@ import { AdminTopBar } from "./AdminTopBar";
 import { apiClient } from "@/lib/api-client";
 import { StaffChat } from "../../StaffChat";
 import { useWhoami } from "@/hooks/use-whoami";
+import { SyncStatus } from "../../sync/SyncStatus";
+import { SyncDetailsDrawer } from "../../sync/SyncDetailsDrawer";
+import { useSyncStatus } from "@/contexts/SyncStatusContext";
 
 type IconName =
   | "dashboard"
@@ -257,6 +260,8 @@ export function DashboardShell({ children, className, title, subtitle }: { child
   const [favorites, setFavorites] = useState<string[]>([]);
   const [visitCounts, setVisitCounts] = useState<Record<string, number>>({});
   const [pinEditMode, setPinEditMode] = useState(false);
+  const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
+  const { status } = useSyncStatus();
 
   // Permission helpers
   const memberships = whoami?.user?.memberships ?? [];
@@ -1112,6 +1117,19 @@ export function DashboardShell({ children, className, title, subtitle }: { child
           </div>
         </main>
       </div>
+
+      {/* Sync Status Footer */}
+      {(status.totalPending > 0 || status.totalConflicts > 0 || !status.isOnline) && (
+        <div className="fixed bottom-4 right-4 z-50 md:bottom-6 md:right-6">
+          <SyncStatus
+            variant="compact"
+            showDetails={false}
+            onClick={() => setSyncDrawerOpen(true)}
+          />
+        </div>
+      )}
+
+      <SyncDetailsDrawer open={syncDrawerOpen} onOpenChange={setSyncDrawerOpen} />
       <StaffChat />
     </div>
   );

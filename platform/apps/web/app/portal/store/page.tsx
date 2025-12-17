@@ -16,6 +16,9 @@ import { recordTelemetry } from "@/lib/sync-telemetry";
 import { loadQueue as loadQueueGeneric, saveQueue as saveQueueGeneric, registerBackgroundSync } from "@/lib/offline-queue";
 import { Button } from "@/components/ui/button";
 import { randomId } from "@/lib/random-id";
+import { SyncStatus } from "@/components/sync/SyncStatus";
+import { SyncDetailsDrawer } from "@/components/sync/SyncDetailsDrawer";
+import { useSyncStatus } from "@/contexts/SyncStatusContext";
 
 type GuestData = Awaited<ReturnType<typeof apiClient.getGuestMe>>;
 type Product = Awaited<ReturnType<typeof apiClient.getProducts>>[0];
@@ -42,6 +45,8 @@ export default function PortalStorePage() {
     const orderQueueKey = "campreserv:portal:orderQueue";
     const [queuedOrders, setQueuedOrders] = useState(0);
     const [conflicts, setConflicts] = useState<any[]>([]);
+    const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
+    const { status: syncStatus } = useSyncStatus();
 
     useEffect(() => {
         if (typeof window !== "undefined") {
@@ -301,32 +306,11 @@ export default function PortalStorePage() {
                         <h1 className="font-bold text-lg">Camp Store</h1>
                     </div>
                     <div className="flex items-center gap-2">
-                        {!isOnline && <Badge variant="outline">Offline</Badge>}
-                        {queuedOrders > 0 && (
-                            <Badge
-                                variant="secondary"
-                                title={
-                                    conflicts.length
-                                        ? `${queuedOrders - conflicts.length} queued, ${conflicts.length} conflicts${conflicts[0]?.lastError ? ` (last error: ${conflicts[0].lastError})` : ""}${
-                                              queuedOrders > conflicts.length
-                                                  ? ` • next retry ${new Date(
-                                                        Math.min(
-                                                            ...loadOrderQueue()
-                                                                .map((i) => i.nextAttemptAt)
-                                                                .filter((n) => typeof n === "number")
-                                                        )
-                                                    ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                                                  : ""
-                                          }`
-                                        : `${queuedOrders} queued`
-                                }
-                            >
-                                {queuedOrders} queued
-                            </Badge>
-                        )}
-                        <Button size="sm" variant="outline" asChild>
-                            <Link href="/pwa/sync-log">Sync log</Link>
-                        </Button>
+                        <SyncStatus
+                            variant="badge"
+                            showDetails={false}
+                            onClick={() => setSyncDrawerOpen(true)}
+                        />
                         <Button variant="outline" size="sm" className="relative" onClick={() => setIsCartOpen(true)}>
                             <ShoppingCart className="h-5 w-5" />
                             {totalItems > 0 && (
@@ -466,6 +450,8 @@ export default function PortalStorePage() {
                     }}
                 />
             )}
+
+            <SyncDetailsDrawer open={syncDrawerOpen} onOpenChange={setSyncDrawerOpen} />
         </div>
     );
 }

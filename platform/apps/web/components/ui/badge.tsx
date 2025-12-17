@@ -34,11 +34,34 @@ const badgeVariants = cva(
 
 export interface BadgeProps
     extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> { }
+    VariantProps<typeof badgeVariants> {
+    /**
+     * Screen reader text for the badge. If not provided, uses children.
+     * Use this to provide context beyond just color (WCAG 1.4.1)
+     */
+    srText?: string;
+    /**
+     * Status text that appears alongside the badge for non-color indicators
+     */
+    statusText?: string;
+}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
+function Badge({ className, variant, srText, statusText, children, ...props }: BadgeProps) {
+    const content = statusText || children;
+    const ariaLabel = srText || (typeof content === 'string' ? content : undefined);
+
     return (
-        <div className={cn(badgeVariants({ variant }), className)} {...props} />
+        <div
+            className={cn(badgeVariants({ variant }), className)}
+            role="status"
+            aria-label={ariaLabel}
+            {...props}
+        >
+            {content}
+            {srText && typeof content !== 'string' && (
+                <span className="sr-only">{srText}</span>
+            )}
+        </div>
     )
 }
 

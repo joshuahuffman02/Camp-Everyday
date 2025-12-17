@@ -4,15 +4,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-slate-900",
+  "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-white",
   {
     variants: {
       variant: {
-        default: "bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover",
-        secondary: "bg-action-secondary text-action-secondary-foreground hover:bg-action-secondary-hover",
-        ghost: "text-slate-700 hover:bg-slate-100",
-        outline: "border border-slate-200 bg-white hover:bg-slate-100 text-slate-900",
-        destructive: "bg-status-error text-status-error-foreground hover:bg-red-700"
+        default: "bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover focus-visible:ring-action-primary/50",
+        secondary: "bg-action-secondary text-action-secondary-foreground hover:bg-action-secondary-hover focus-visible:ring-action-secondary/50",
+        ghost: "text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-950/20",
+        outline: "border border-slate-200 bg-white hover:bg-slate-100 text-slate-900 focus-visible:ring-slate-950/20",
+        destructive: "bg-status-error text-status-error-foreground hover:bg-red-700 focus-visible:ring-status-error/50"
       },
       size: {
         default: "h-10 px-4 py-2",

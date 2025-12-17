@@ -10,6 +10,8 @@ import { Button } from "../../../components/ui/button";
 import { FormField } from "../../../components/ui/form-field";
 import { apiClient } from "../../../lib/api-client";
 import { Plus, Pencil, Trash2, Calendar, TrendingUp, Sun, Gift, BarChart3 } from "lucide-react";
+import { HelpTooltip, HelpTooltipContent, HelpTooltipSection, HelpTooltipList } from "../../../components/help/HelpTooltip";
+import { PageOnboardingHint } from "../../../components/help/OnboardingHint";
 
 type PricingRuleV2 = {
   id: string;
@@ -31,53 +33,65 @@ type PricingRuleV2 = {
 
 type SiteClass = { id: string; name: string };
 
-// Validation schema
+// Validation schema - simplified to avoid ZodEffects compatibility issues with zod v4
 const pricingRuleSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   type: z.enum(["season", "weekend", "holiday", "event", "demand"]),
   priority: z.number().min(0, "Priority must be 0 or greater").max(999, "Priority must be less than 1000"),
   stackMode: z.enum(["additive", "max", "override"]),
   adjustmentType: z.enum(["percent", "flat"]),
-  adjustmentValue: z.string().refine((val) => {
-    const num = parseFloat(val);
-    return !isNaN(num) && num !== 0;
-  }, "Adjustment value is required and cannot be zero"),
+  adjustmentValue: z.string().min(1, "Adjustment value is required"),
   siteClassId: z.string().optional(),
   dowMask: z.array(z.number()).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  minRateCap: z.string().optional().refine((val) => {
-    if (!val) return true;
-    const num = parseFloat(val);
-    return !isNaN(num) && num >= 0;
-  }, "Min rate cap must be a valid positive number"),
-  maxRateCap: z.string().optional().refine((val) => {
-    if (!val) return true;
-    const num = parseFloat(val);
-    return !isNaN(num) && num >= 0;
-  }, "Max rate cap must be a valid positive number"),
+  minRateCap: z.string().optional(),
+  maxRateCap: z.string().optional(),
   active: z.boolean(),
-}).refine((data) => {
-  // Validate that end date is after start date
-  if (data.startDate && data.endDate) {
-    return new Date(data.endDate) >= new Date(data.startDate);
+});
+
+// Custom validation function for cross-field validation
+function validateFormData(data: FormData): { field: string; message: string } | null {
+  // Validate adjustment value is not zero
+  const adjustmentNum = parseFloat(data.adjustmentValue);
+  if (isNaN(adjustmentNum) || adjustmentNum === 0) {
+    return { field: "adjustmentValue", message: "Adjustment value cannot be zero" };
   }
-  return true;
-}, {
-  message: "End date must be after start date",
-  path: ["endDate"]
-}).refine((data) => {
-  // Validate that max rate cap is greater than min rate cap
+
+  // Validate min rate cap is a valid number
+  if (data.minRateCap) {
+    const min = parseFloat(data.minRateCap);
+    if (isNaN(min) || min < 0) {
+      return { field: "minRateCap", message: "Min rate cap must be a valid positive number" };
+    }
+  }
+
+  // Validate max rate cap is a valid number
+  if (data.maxRateCap) {
+    const max = parseFloat(data.maxRateCap);
+    if (isNaN(max) || max < 0) {
+      return { field: "maxRateCap", message: "Max rate cap must be a valid positive number" };
+    }
+  }
+
+  // Validate end date is after start date
+  if (data.startDate && data.endDate) {
+    if (new Date(data.endDate) < new Date(data.startDate)) {
+      return { field: "endDate", message: "End date must be after start date" };
+    }
+  }
+
+  // Validate max rate cap >= min rate cap
   if (data.minRateCap && data.maxRateCap) {
     const min = parseFloat(data.minRateCap);
     const max = parseFloat(data.maxRateCap);
-    return max >= min;
+    if (max < min) {
+      return { field: "maxRateCap", message: "Max rate cap must be greater than or equal to min rate cap" };
+    }
   }
-  return true;
-}, {
-  message: "Max rate cap must be greater than or equal to min rate cap",
-  path: ["maxRateCap"]
-});
+
+  return null;
+}
 
 type FormData = z.infer<typeof pricingRuleSchema>;
 
@@ -211,6 +225,13 @@ export default function PricingRulesV2Page() {
   };
 
   const onSubmit = async (data: FormData) => {
+    // Run custom cross-field validation
+    const validationError = validateFormData(data);
+    if (validationError) {
+      alert(validationError.message);
+      return;
+    }
+
     const payload = {
       name: data.name.trim(),
       type: data.type,
@@ -289,6 +310,24 @@ export default function PricingRulesV2Page() {
             Add Rule
           </Button>
         </div>
+
+        <PageOnboardingHint
+          id="pricing-rules-intro"
+          title="Dynamic Pricing Made Easy"
+          content={
+            <div>
+              <p className="mb-2">
+                Use pricing rules to automatically adjust rates based on demand, seasons, and special events.
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>Rules run in priority order (lower numbers first)</li>
+                <li>Choose how rules stack: add together, use highest, or override</li>
+                <li>Set minimum and maximum rate caps to prevent extreme prices</li>
+                <li>Enable/disable rules without deleting them</li>
+              </ul>
+            </div>
+          }
+        />
 
         {rulesQuery.isLoading ? (
           <div className="text-center py-12 text-muted-foreground">Loading...</div>
@@ -399,22 +438,62 @@ export default function PricingRulesV2Page() {
                   </select>
                 </div>
                 <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="block text-sm font-medium text-slate-700">Priority</label>
+                    <HelpTooltip
+                      title="Priority Order"
+                      content={
+                        <HelpTooltipContent>
+                          <HelpTooltipSection>
+                            Rules are evaluated in priority order, with lower numbers running first.
+                          </HelpTooltipSection>
+                          <HelpTooltipSection title="Example">
+                            A rule with priority 1 runs before priority 10. If both apply to the same date, the stacking mode determines the final price.
+                          </HelpTooltipSection>
+                          <HelpTooltipSection title="Tip">
+                            Use priorities like 10, 20, 30 to leave room for future rules.
+                          </HelpTooltipSection>
+                        </HelpTooltipContent>
+                      }
+                      side="top"
+                      maxWidth={320}
+                    />
+                  </div>
                   <FormField
-                    label="Priority"
                     type="number"
                     min="0"
                     error={errors.priority?.message}
                     showSuccess
                     {...register("priority", { valueAsNumber: true })}
                   />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Lower numbers run first. If rules overlap, priority decides which wins (e.g., 1 beats 10).
-                  </p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Stacking Mode</label>
+                <div className="flex items-center gap-2 mb-1">
+                  <label className="block text-sm font-medium text-slate-700">Stacking Mode</label>
+                  <HelpTooltip
+                    title="How Rules Combine"
+                    content={
+                      <HelpTooltipContent>
+                        <HelpTooltipSection>
+                          When multiple rules apply to the same date, the stacking mode controls how they combine:
+                        </HelpTooltipSection>
+                        <HelpTooltipSection title="Additive">
+                          Add this adjustment to the base rate plus any other additive rules. Great for combining seasonal and weekend pricing.
+                        </HelpTooltipSection>
+                        <HelpTooltipSection title="Max">
+                          Use the highest adjustment among all rules. Prevents over-discounting or over-pricing.
+                        </HelpTooltipSection>
+                        <HelpTooltipSection title="Override">
+                          Ignore all other rules and use only this adjustment. Perfect for special events with fixed pricing.
+                        </HelpTooltipSection>
+                      </HelpTooltipContent>
+                    }
+                    side="right"
+                    maxWidth={360}
+                  />
+                </div>
                 <select
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   {...register("stackMode")}
@@ -502,26 +581,56 @@ export default function PricingRulesV2Page() {
               )}
 
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  label="Min Rate Cap ($)"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g., 25.00"
-                  error={errors.minRateCap?.message}
-                  showSuccess
-                  {...register("minRateCap")}
-                />
-                <FormField
-                  label="Max Rate Cap ($)"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g., 150.00"
-                  error={errors.maxRateCap?.message}
-                  showSuccess
-                  {...register("maxRateCap")}
-                />
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="block text-sm font-medium text-slate-700">Min Rate Cap ($)</label>
+                    <HelpTooltip
+                      title="Minimum Rate"
+                      content={
+                        <div className="space-y-2">
+                          <p>Set a floor price to prevent rates from going too low, even with discounts.</p>
+                          <p className="text-xs text-slate-600">Example: If your base rate is $50 and you have a -30% discount, a $40 minimum cap ensures the price never goes below $40.</p>
+                        </div>
+                      }
+                      side="top"
+                      maxWidth={300}
+                    />
+                  </div>
+                  <FormField
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g., 25.00"
+                    error={errors.minRateCap?.message}
+                    showSuccess
+                    {...register("minRateCap")}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="block text-sm font-medium text-slate-700">Max Rate Cap ($)</label>
+                    <HelpTooltip
+                      title="Maximum Rate"
+                      content={
+                        <div className="space-y-2">
+                          <p>Set a ceiling price to prevent rates from going too high, even with markups.</p>
+                          <p className="text-xs text-slate-600">Example: If your base rate is $50 and you have a +50% markup, a $70 maximum cap ensures the price never exceeds $70.</p>
+                        </div>
+                      }
+                      side="top"
+                      maxWidth={300}
+                    />
+                  </div>
+                  <FormField
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g., 150.00"
+                    error={errors.maxRateCap?.message}
+                    showSuccess
+                    {...register("maxRateCap")}
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-2">

@@ -7,6 +7,7 @@ import { PropsWithChildren, useState } from "react";
 import { KeyboardShortcutsProvider } from "@/contexts/KeyboardShortcutsContext";
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 import { KeyboardSequenceIndicator } from "@/components/ui/keyboard-sequence-indicator";
+import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
 
 export function Providers({ children }: PropsWithChildren) {
   const [client] = useState(() => new QueryClient());
@@ -14,12 +15,14 @@ export function Providers({ children }: PropsWithChildren) {
   return (
     <SessionProvider>
       <QueryClientProvider client={client}>
-        <KeyboardShortcutsProvider>
-          {children}
-          <KeyboardShortcutsDialog />
-          <KeyboardSequenceIndicator />
-          <ReactQueryDevtools initialIsOpen={false} />
-        </KeyboardShortcutsProvider>
+        <AccessibilityProvider>
+          <KeyboardShortcutsProvider>
+            {children}
+            <KeyboardShortcutsDialog />
+            <KeyboardSequenceIndicator />
+            <ReactQueryDevtools initialIsOpen={false} />
+          </KeyboardShortcutsProvider>
+        </AccessibilityProvider>
       </QueryClientProvider>
     </SessionProvider>
   );

@@ -9,10 +9,12 @@ import { useToast } from "../../components/ui/use-toast";
 import { HelpAnchor } from "../../components/help/HelpAnchor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { apiClient } from "../../lib/api-client";
-import { saveReport } from "@/components/reports/savedReports";
+import { saveReport, type SavedReport } from "@/components/reports/savedReports";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FileDown, Calendar, FileSpreadsheet, X, Info, ChevronDown, ChevronUp, LayoutList, TrendingUp, Users, BarChart3, Megaphone, LineChart, Calculator, ClipboardList, ExternalLink, SlidersHorizontal, Filter } from "lucide-react";
+import { SaveReportDialog } from "@/components/reports/SaveReportDialog";
+import { SavedReportsDropdown } from "@/components/reports/SavedReportsDropdown";
 
 import { BookingSourcesTab } from "../../components/reports/BookingSourcesTab";
 import { GuestOriginsTab } from "../../components/reports/GuestOriginsTab";
@@ -87,6 +89,9 @@ function ReportsPageInner() {
     siteType: 'all' as string,
     groupBy: 'none' as 'none' | 'site' | 'status' | 'date' | 'siteType'
   });
+
+  // Save report dialog state
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
 
   // Initialize export hook
   const { exportReport } = useReportExport(campgroundId, dateRange);
@@ -4263,24 +4268,21 @@ function ReportsPageInner() {
                     className="rounded-md border border-slate-200 px-2 py-1 text-sm"
                   />
                 </div>
+                <SavedReportsDropdown
+                  campgroundId={campgroundId}
+                  onLoadReport={(report) => {
+                    // Navigate to the report with all saved parameters
+                    const url = `/reports?tab=${report.tab}${report.subTab ? `&sub=${report.subTab}` : ""}${report.dateRange ? `&start=${report.dateRange.start}&end=${report.dateRange.end}` : ""}${report.filters?.status ? `&status=${report.filters.status}` : ""}${report.filters?.siteType ? `&siteType=${report.filters.siteType}` : ""}${report.filters?.groupBy ? `&groupBy=${report.filters.groupBy}` : ""}`;
+                    router.push(url);
+                  }}
+                />
                 <Link href="/reports/saved">
-                  <Button variant="outline" size="sm">Saved reports</Button>
+                  <Button variant="outline" size="sm">View all saved</Button>
                 </Link>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    if (!campgroundId) return;
-                    const saved = saveReport({
-                      name: `${activeTab} ${activeSubTab || ""}`.trim() || "Report",
-                      description: `Saved from ${activeTab}${activeSubTab ? ` / ${activeSubTab}` : ""}`,
-                      tab: activeTab,
-                      subTab: activeSubTab,
-                      dateRange,
-                      campgroundId
-                    });
-                    toast({ title: "Report saved", description: saved.name });
-                  }}
+                  onClick={() => setShowSaveDialog(true)}
                 >
                   Save report
                 </Button>
@@ -6899,6 +6901,27 @@ function ReportsPageInner() {
           }
         }}
       />
+
+      {/* Save Report Dialog */}
+      {campgroundId && (
+        <SaveReportDialog
+          open={showSaveDialog}
+          onOpenChange={setShowSaveDialog}
+          reportConfig={{
+            tab: activeTab,
+            subTab: activeSubTab,
+            dateRange,
+            filters: reportFilters,
+            campgroundId,
+          }}
+          onSaved={(report) => {
+            toast({
+              title: "Report saved successfully",
+              description: `"${report.name}" has been saved to your collection.`,
+            });
+          }}
+        />
+      )}
 
     </DashboardShell >
   );

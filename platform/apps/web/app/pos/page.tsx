@@ -23,6 +23,9 @@ import { Textarea } from "../../components/ui/textarea";
 import { Checkbox } from "../../components/ui/checkbox";
 import { apiClient } from "../../lib/api-client";
 import { randomId } from "@/lib/random-id";
+import { SyncStatus } from "../../components/sync/SyncStatus";
+import { SyncDetailsDrawer } from "../../components/sync/SyncDetailsDrawer";
+import { useSyncStatus } from "@/contexts/SyncStatusContext";
 
 const posApi = {
     getProducts: (campgroundId: string) => apiClient.getProducts(campgroundId),
@@ -278,6 +281,8 @@ export default function POSPage() {
     const [selectedOrderForRefund, setSelectedOrderForRefund] = useState<string | null>(null);
     const [savingRefund, setSavingRefund] = useState(false);
     const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+    const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
+    const { status: syncStatus } = useSyncStatus();
 
     const queueKey = "campreserv:pos:orderQueue";
 
@@ -500,28 +505,11 @@ export default function POSPage() {
                     <div className="flex items-center justify-between flex-wrap gap-3">
                         <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Point of Sale</h1>
                         <div className="flex items-center gap-2 flex-wrap">
-                            {!isOnline && <Badge variant="outline">Offline</Badge>}
-                            {queuedOrders > 0 && (
-                                <Badge
-                                    variant="secondary"
-                                    title={
-                                        conflicts.length
-                                            ? `${queuedOrders - conflicts.length} queued, ${conflicts.length} conflicts${conflicts[0]?.lastError ? ` (last error: ${conflicts[0].lastError})` : ""}${queuedOrders > conflicts.length
-                                                ? ` • next retry ${new Date(
-                                                    Math.min(
-                                                        ...loadQueue()
-                                                            .map((i) => i.nextAttemptAt)
-                                                            .filter((n) => typeof n === "number")
-                                                    )
-                                                ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                                                : ""
-                                            }`
-                                            : `${queuedOrders} queued`
-                                    }
-                                >
-                                    {queuedOrders} queued
-                                </Badge>
-                            )}
+                            <SyncStatus
+                                variant="badge"
+                                showDetails={false}
+                                onClick={() => setSyncDrawerOpen(true)}
+                            />
                             <Button asChild size="sm" variant="outline" className="hidden md:flex">
                                 <Link href="/pwa/sync-log">Sync log</Link>
                             </Button>
@@ -767,6 +755,8 @@ export default function POSPage() {
                     />
                 </div>
             )}
+
+            <SyncDetailsDrawer open={syncDrawerOpen} onOpenChange={setSyncDrawerOpen} />
         </DashboardShell>
     );
 }

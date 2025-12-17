@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { apiClient } from "@/lib/api-client";
+import { HelpTooltip, HelpTooltipContent, HelpTooltipSection } from "@/components/help/HelpTooltip";
+import { PageOnboardingHint } from "@/components/help/OnboardingHint";
 
 type Reservation = {
   id: string;
@@ -200,6 +202,32 @@ export default function Dashboard() {
           </div>
         ) : null}
 
+        {/* Onboarding Hint */}
+        <PageOnboardingHint
+          id="dashboard-overview"
+          title="Welcome to your Dashboard!"
+          content={
+            <div>
+              <p className="mb-2">
+                This is your command center for managing your campground. Here you'll find:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>Today's arrivals and departures at a glance</li>
+                <li>Current occupancy rates and key metrics</li>
+                <li>Outstanding balances that need attention</li>
+                <li>Quick actions to create bookings and process orders</li>
+              </ul>
+            </div>
+          }
+          actions={[
+            {
+              label: "View Calendar",
+              onClick: () => (window.location.href = "/calendar"),
+              variant: "ghost"
+            }
+          ]}
+        />
+
         {/* Hero */}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
@@ -237,6 +265,33 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
             <Calendar className="h-4 w-4" />
             Today's Numbers
+            <HelpTooltip
+              title="Daily Metrics"
+              content={
+                <HelpTooltipContent>
+                  <HelpTooltipSection>
+                    These cards show your most important daily metrics:
+                  </HelpTooltipSection>
+                  <HelpTooltipSection title="Arrivals">
+                    Guests checking in today. Click to view the check-in list.
+                  </HelpTooltipSection>
+                  <HelpTooltipSection title="Departures">
+                    Guests checking out today. Review to ensure checkout tasks are complete.
+                  </HelpTooltipSection>
+                  <HelpTooltipSection title="In-house">
+                    Total number of occupied sites right now.
+                  </HelpTooltipSection>
+                  <HelpTooltipSection title="Occupancy">
+                    Percentage of sites currently occupied. High occupancy (90%+) means you're nearly full!
+                  </HelpTooltipSection>
+                  <HelpTooltipSection title="Balance due">
+                    Total unpaid balances across all active reservations.
+                  </HelpTooltipSection>
+                </HelpTooltipContent>
+              }
+              side="bottom"
+              maxWidth={380}
+            />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
             <OpsCard label="Arrivals" value={todayArrivals.length} href="/check-in-out" icon={<UserCheck className="h-4 w-4" />} tone="emerald" />
@@ -265,6 +320,17 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
             <Plus className="h-4 w-4 text-action-primary" />
             Quick Actions
+            <HelpTooltip
+              title="Common Tasks"
+              content={
+                <div className="space-y-2">
+                  <p>Tap these buttons to quickly perform common front desk tasks without navigating through menus.</p>
+                  <p className="text-xs text-slate-600">Tip: Use keyboard shortcuts to speed up your workflow even more!</p>
+                </div>
+              }
+              side="right"
+              maxWidth={280}
+            />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
             <QuickActionButton
@@ -334,6 +400,19 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-status-warning pl-1">
             <DollarSign className="h-4 w-4" />
             Needs Attention
+            <HelpTooltip
+              title="Outstanding Balances"
+              content={
+                <div className="space-y-2">
+                  <p>This section highlights reservations with unpaid balances that require collection.</p>
+                  <p className="text-xs text-slate-600">
+                    Click "Resolve" to process payment, send a reminder, or adjust the balance.
+                  </p>
+                </div>
+              }
+              side="right"
+              maxWidth={300}
+            />
           </div>
           <div className="rounded-xl border-2 border-status-warning-border bg-status-warning-bg p-5 space-y-4">
             <div className="flex items-center justify-between">

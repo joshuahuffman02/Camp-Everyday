@@ -49,12 +49,55 @@ const DialogContent = React.forwardRef<
     DialogContentProps
 >(({ className, children, onRequestClose, ...props }, ref) => {
     const { open, onOpenChange } = React.useContext(DialogContext)
+    const contentRef = React.useRef<HTMLDivElement>(null)
+    const previousActiveElement = React.useRef<HTMLElement | null>(null)
 
     const attemptClose = () => {
         const result = onRequestClose?.()
         if (result === false) return
         onOpenChange(false)
     }
+
+    // Focus trap implementation
+    React.useEffect(() => {
+        if (!open || !contentRef.current) return
+
+        // Store previously focused element
+        previousActiveElement.current = document.activeElement as HTMLElement
+
+        // Focus the dialog
+        const firstFocusable = contentRef.current.querySelector<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+        firstFocusable?.focus()
+
+        // Trap focus within dialog
+        const handleTabKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Tab' || !contentRef.current) return
+
+            const focusableElements = contentRef.current.querySelectorAll<HTMLElement>(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            )
+            const firstElement = focusableElements[0]
+            const lastElement = focusableElements[focusableElements.length - 1]
+
+            if (e.shiftKey && document.activeElement === firstElement) {
+                e.preventDefault()
+                lastElement?.focus()
+            } else if (!e.shiftKey && document.activeElement === lastElement) {
+                e.preventDefault()
+                firstElement?.focus()
+            }
+        }
+
+        document.addEventListener('keydown', handleTabKey)
+
+        // Restore focus on unmount
+        return () => {
+            document.removeEventListener('keydown', handleTabKey)
+            previousActiveElement.current?.focus()
+        }
+    }, [open])
 
     React.useEffect(() => {
         if (!open) return
@@ -76,13 +119,20 @@ const DialogContent = React.forwardRef<
             <div
                 className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
                 onClick={attemptClose}
+                aria-hidden="true"
             />
             <div
-                ref={ref}
+                ref={(node) => {
+                    if (typeof ref === 'function') ref(node)
+                    else if (ref) ref.current = node
+                    contentRef.current = node
+                }}
                 className={cn(
                     "z-50 grid w-full max-w-lg gap-4 border border-slate-200 bg-white p-6 shadow-lg duration-200 sm:rounded-lg md:w-full",
                     className
                 )}
+                role="dialog"
+                aria-modal="true"
                 {...props}
             >
                 {children}
@@ -110,12 +160,13 @@ const DialogTitle = React.forwardRef<
     HTMLParagraphElement,
     React.HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
-    <h3
+    <h2
         ref={ref}
         className={cn(
             "text-lg font-semibold leading-none tracking-tight",
             className
         )}
+        id="dialog-title"
         {...props}
     />
 ))
@@ -149,6 +200,7 @@ const DialogDescription = React.forwardRef<
     <p
         ref={ref}
         className={cn("text-sm text-slate-500", className)}
+        id="dialog-description"
         {...props}
     />
 ))
