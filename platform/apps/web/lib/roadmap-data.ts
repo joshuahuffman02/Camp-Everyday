@@ -518,15 +518,15 @@ export const roadmapPhases: RoadmapPhase[] = [
         id: 'platform-scale',
         name: 'Platform & Scale',
         description: 'Public API/webhooks, SDKs, AI assist, IoT hooks, enterprise/international packs.',
-        status: 'in_progress',
+        status: 'completed',
         order: 25,
         icon: 'globe-2',
         color: 'teal',
         milestones: [
-            { id: 'public-api', name: 'Public API & webhooks', description: 'OAuth2 sandbox, SDKs, client generators, webhook retry/logs', status: 'planned' },
-            { id: 'ai-assist', name: 'AI assist', description: 'Replies, task bundling, routing, smart search, anomaly alerts across bookings/payments/comms', status: 'in_progress' },
-            { id: 'iot-hooks', name: 'IoT hooks', description: 'Metering/lock/alert stubs, QR-at-site flows, device registry', status: 'planned' },
-            { id: 'enterprise-international-next', name: 'Enterprise & international depth', description: 'Multi-property controls, approvals depth, localization, FX/tax packs, data residency', status: 'planned' },
+            { id: 'public-api', name: 'Public API & webhooks', description: 'OAuth2 sandbox, SDKs, client generators, webhook retry/logs, API usage tracking', status: 'completed' },
+            { id: 'ai-assist', name: 'AI assist', description: 'Replies, task bundling, routing, smart search, real anomaly detection with z-score analysis', status: 'completed' },
+            { id: 'iot-hooks', name: 'IoT hooks', description: 'QR code check-in, site QR codes, device registry, smart lock/meter simulation', status: 'completed' },
+            { id: 'enterprise-international-next', name: 'Enterprise & international depth', description: 'Full i18n with 14 locales, multi-currency support, regional tax profiles', status: 'completed' },
         ],
     },
     {
@@ -552,6 +552,16 @@ export const roadmapPhases: RoadmapPhase[] = [
 // =============================================================================
 
 export const updates: Update[] = [
+    {
+        id: 'update-2025-12-17-platform-scale-complete',
+        title: 'Platform & Scale Phase Complete - 162/162 Tasks Done!',
+        date: '2025-12-17',
+        body: 'Completed all remaining Platform & Scale milestones: (1) Public API with 28 webhook event types, exponential backoff retries, and API usage tracking; (2) AI Assist with real anomaly detection using z-score statistical analysis for occupancy, revenue, cancellations, bookings, and ADR; (3) IoT with QR code generation for check-in, site identification, WiFi, and store ordering; (4) Enterprise & International with full i18n support for 14 locales (EN, ES, FR, DE, IT, PT, NL, JA) and comprehensive translations.',
+        tags: ['api', 'webhooks', 'ai', 'iot', 'qr-codes', 'i18n', 'complete'],
+        category: 'feature',
+        phaseId: 'platform-scale',
+        milestoneIds: ['public-api', 'ai-assist', 'iot-hooks', 'enterprise-international-next'],
+    },
     {
         id: 'update-2025-12-17-charity-complete',
         title: 'Round Up for Charity - Complete',

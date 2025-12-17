@@ -8,6 +8,7 @@ import { PublicSitesController } from "./public-sites.controller";
 import { ApiAuthService } from "./api-auth.service";
 import { WebhookService } from "./webhook.service";
 import { PublicApiService } from "./public-api.service";
+import { ApiUsageService } from "./api-usage.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { GuestsService } from "../guests/guests.service";
 import { ApiTokenGuard } from "./guards/api-token.guard";
@@ -26,12 +27,13 @@ import { ApiScopeGuard } from "./guards/api-scope.guard";
     ApiAuthService,
     WebhookService,
     PublicApiService,
+    ApiUsageService,
     PrismaService,
     GuestsService,
     ApiTokenGuard,
     ApiScopeGuard
   ],
-  exports: [WebhookService, ApiAuthService]
+  exports: [WebhookService, ApiAuthService, ApiUsageService]
 })
 export class DeveloperApiModule { }
 

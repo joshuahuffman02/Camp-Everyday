@@ -997,6 +997,7 @@ model Campground {
   utilityRatePlans          UtilityRatePlan[]
   utilityMeters             UtilityMeter[]
   smartLocks                SmartLock[]
+  qrCodes                   QRCode[]
   lateFeeRules              LateFeeRule[]
   analyticsEvents           AnalyticsEvent[]
   analyticsDailyAggregates  AnalyticsDailyAggregate[]
@@ -1506,6 +1507,7 @@ model Site {
   documentTemplates  DocumentTemplate[]
   reservationSegments ReservationSegment[]
   smartLocks          SmartLock[]
+  qrCodes             QRCode[]
 
   @@unique([campgroundId, name])
   @@index([campgroundId])
@@ -1793,6 +1795,9 @@ model Reservation {
 
   // Charity donation (if guest opted to round up)
   charityDonation CharityDonation?
+
+  // QR codes for check-in
+  qrCodes QRCode[]
 
   @@index([campgroundId])
   @@index([siteId])
@@ -2191,6 +2196,33 @@ model SmartLock {
 
   @@index([campgroundId])
   @@index([siteId])
+}
+
+// QR Codes for check-in, site identification, amenities, etc.
+model QRCode {
+  id            String    @id @default(cuid())
+  campgroundId  String
+  reservationId String?
+  siteId        String?
+  type          String    // checkin, checkout, site, amenity, store, event, wifi, emergency
+  code          String    @unique // The unique code embedded in the QR
+  expiresAt     DateTime? // Null for permanent codes (like site QRs)
+  usedAt        DateTime? // For single-use codes
+  scanCount     Int       @default(0)
+  lastScannedAt DateTime?
+  metadata      Json?     // Additional data (wifi credentials, event info, etc.)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  campground  Campground   @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  site        Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([campgroundId])
+  @@index([type])
+  @@index([reservationId])
+  @@index([siteId])
+  @@index([expiresAt])
 }
 
 model UtilityMeterRead {
@@ -3800,12 +3832,14 @@ model ApiClient {
   clientSecretHash String
   scopes           String[]
   isActive         Boolean  @default(true)
+  rateLimit        Int      @default(1000) // requests per hour
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   campground       Campground        @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
   tokens           ApiToken[]
   webhookEndpoints WebhookEndpoint[]
+  apiUsage         ApiUsage[]
 
   @@index([campgroundId])
 }
@@ -3851,7 +3885,7 @@ model WebhookDelivery {
   id                String    @id @default(cuid())
   webhookEndpointId String
   eventType         String
-  status            String // pending | delivered | failed
+  status            String // pending | delivered | failed | retrying
   payload           Json
   responseStatus    Int?
   responseBody      String?
@@ -3861,12 +3895,35 @@ model WebhookDelivery {
   deliveredAt       DateTime?
   errorMessage      String?
   replayOfId        String?
+  nextRetryAt       DateTime? // For exponential backoff retry scheduling
 
   webhookEndpoint WebhookEndpoint @relation(fields: [webhookEndpointId], references: [id], onDelete: Cascade)
 
   @@index([webhookEndpointId, createdAt])
   @@index([eventType])
   @@index([status])
+  @@index([status, nextRetryAt]) // For retry processing
+}
+
+// API Usage Tracking - for rate limiting and analytics
+model ApiUsage {
+  id           String   @id @default(cuid())
+  apiClientId  String
+  endpoint     String   // e.g., "GET /api/v1/reservations"
+  method       String   // GET, POST, PUT, DELETE
+  statusCode   Int
+  responseTime Int      // milliseconds
+  requestSize  Int?     // bytes
+  responseSize Int?     // bytes
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  apiClient ApiClient @relation(fields: [apiClientId], references: [id], onDelete: Cascade)
+
+  @@index([apiClientId, createdAt])
+  @@index([createdAt])
+  @@index([endpoint])
 }
 
 // =============================================================================
