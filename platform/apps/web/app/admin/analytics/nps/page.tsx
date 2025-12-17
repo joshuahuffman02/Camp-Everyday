@@ -38,6 +38,11 @@ const mockNpsData = {
     responseRate: 28.5,
     previousScore: 38,
     scoreTrend: 4,
+    // YoY comparison
+    yoyScore: 35,
+    yoyChange: 7,
+    yoyResponses: 2156,
+    yoyResponsesChange: 32.1,
   },
   trends: [
     { period: "2024-01", score: 35, responses: 220, promoters: 110, passives: 55, detractors: 55 },
@@ -213,6 +218,27 @@ export default function NpsAnalyticsPage() {
                   <span className="text-slate-500 text-sm">vs previous period</span>
                 </div>
               )}
+              {/* YoY Comparison */}
+              {data.overview.yoyScore !== null && data.overview.yoyScore !== undefined && (
+                <div className="mt-4 pt-4 border-t border-slate-600/50">
+                  <p className="text-xs text-slate-500 mb-1">Year-over-Year</p>
+                  <div className="flex items-center justify-center gap-2">
+                    {data.overview.yoyChange !== null && data.overview.yoyChange > 0 ? (
+                      <TrendingUp className="h-4 w-4 text-green-400" />
+                    ) : data.overview.yoyChange !== null && data.overview.yoyChange < 0 ? (
+                      <TrendingDown className="h-4 w-4 text-red-400" />
+                    ) : (
+                      <Minus className="h-4 w-4 text-slate-400" />
+                    )}
+                    <span className={data.overview.yoyChange !== null && data.overview.yoyChange >= 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                      {data.overview.yoyChange !== null && data.overview.yoyChange > 0 ? "+" : ""}{data.overview.yoyChange} pts
+                    </span>
+                    <span className="text-slate-500 text-sm">
+                      (was {data.overview.yoyScore})
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -254,6 +280,14 @@ export default function NpsAnalyticsPage() {
                 <span className="text-slate-400">Response Rate</span>
                 <span className="text-white font-medium">{data.overview.responseRate.toFixed(1)}%</span>
               </div>
+              {data.overview.yoyResponses !== null && data.overview.yoyResponses !== undefined && (
+                <div className="flex justify-between text-sm mt-2">
+                  <span className="text-slate-400">YoY Response Growth</span>
+                  <span className={data.overview.yoyResponsesChange !== null && data.overview.yoyResponsesChange >= 0 ? "text-green-400 font-medium" : "text-red-400 font-medium"}>
+                    {data.overview.yoyResponsesChange !== null && data.overview.yoyResponsesChange > 0 ? "+" : ""}{data.overview.yoyResponsesChange?.toFixed(1)}%
+                  </span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

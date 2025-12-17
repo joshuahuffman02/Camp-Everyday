@@ -14,6 +14,11 @@ interface NpsOverview {
   responseRate: number;
   previousScore: number | null;
   scoreTrend: number | null;
+  // YoY comparison
+  yoyScore: number | null;
+  yoyChange: number | null;
+  yoyResponses: number | null;
+  yoyResponsesChange: number | null;
 }
 
 interface NpsBySegment {
@@ -111,10 +116,25 @@ export class NpsAnalyticsService {
       select: { score: true },
     });
 
+    // Calculate YoY comparison (same period last year)
+    const yoyStart = new Date(start);
+    yoyStart.setFullYear(yoyStart.getFullYear() - 1);
+    const yoyEnd = new Date(end);
+    yoyEnd.setFullYear(yoyEnd.getFullYear() - 1);
+
+    const yoyResponses = await this.prisma.npsResponse.findMany({
+      where: {
+        createdAt: { gte: yoyStart, lte: yoyEnd },
+      },
+      select: { score: true },
+    });
+
     const current = this.calculateNps(responses);
     const previous = this.calculateNps(previousResponses);
+    const yoy = this.calculateNps(yoyResponses);
 
     const total = responses.length;
+    const yoyTotal = yoyResponses.length;
 
     return {
       score: current.score,
@@ -128,6 +148,11 @@ export class NpsAnalyticsService {
       responseRate: totalInvites > 0 ? (total / totalInvites) * 100 : 0,
       previousScore: previousResponses.length > 0 ? previous.score : null,
       scoreTrend: previousResponses.length > 0 ? current.score - previous.score : null,
+      // YoY data
+      yoyScore: yoyTotal > 0 ? yoy.score : null,
+      yoyChange: yoyTotal > 0 ? current.score - yoy.score : null,
+      yoyResponses: yoyTotal > 0 ? yoyTotal : null,
+      yoyResponsesChange: yoyTotal > 0 ? ((total - yoyTotal) / yoyTotal) * 100 : null,
     };
   }
 
