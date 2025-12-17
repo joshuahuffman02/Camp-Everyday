@@ -11,9 +11,7 @@ import {
     Req,
 } from "@nestjs/common";
 import { GuestSegmentService } from "./guest-segment.service";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { PlatformRoles } from "../auth/platform-roles.decorator";
-import { PlatformRolesGuard } from "../auth/platform-roles.guard";
+import { JwtAuthGuard } from "../auth/guards";
 import { SegmentScope, SegmentStatus } from "@prisma/client";
 
 interface CreateSegmentBody {
@@ -34,8 +32,7 @@ interface UpdateSegmentBody {
 }
 
 @Controller("admin/guest-segments")
-@UseGuards(JwtAuthGuard, PlatformRolesGuard)
-@PlatformRoles("platform_admin", "platform_support")
+@UseGuards(JwtAuthGuard)
 export class GuestSegmentController {
     constructor(private readonly segmentService: GuestSegmentService) { }
 

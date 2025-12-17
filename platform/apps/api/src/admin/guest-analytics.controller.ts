@@ -1,12 +1,9 @@
 import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { GuestAnalyticsService } from "./guest-analytics.service";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { PlatformRoles } from "../auth/platform-roles.decorator";
-import { PlatformRolesGuard } from "../auth/platform-roles.guard";
+import { JwtAuthGuard } from "../auth/guards";
 
 @Controller("admin/guest-analytics")
-@UseGuards(JwtAuthGuard, PlatformRolesGuard)
-@PlatformRoles("platform_admin", "platform_support")
+@UseGuards(JwtAuthGuard)
 export class GuestAnalyticsController {
     constructor(private readonly guestAnalyticsService: GuestAnalyticsService) { }
 
