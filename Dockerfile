@@ -28,6 +28,7 @@ ENV AUTH_URL=$AUTH_URL
 ENV AUTH_SECRET=$AUTH_SECRET
 ENV AUTH_TRUST_HOST=$AUTH_TRUST_HOST
 COPY platform/apps/web ./platform/apps/web
+COPY content ./content
 RUN echo "Building with NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE" && \
     pnpm --filter @campreserv/web build
 
