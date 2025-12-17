@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 
 type Reservation = {
@@ -55,6 +56,9 @@ export default function CheckInOutPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "balance" | "unassigned">("all");
   const [tab, setTab] = useState<"arrivals" | "departures">("arrivals");
 
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Payment modal
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -80,6 +84,34 @@ export default function CheckInOutPage() {
       toast({ title: "Guest checked in" });
     },
     onError: () => toast({ title: "Failed to check in", description: "Please try again", variant: "destructive" })
+  });
+
+  const bulkCheckInMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => apiClient.checkInReservation(id))
+      );
+      return results;
+    },
+    onSuccess: (results) => {
+      queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
+      const successCount = results.filter((r) => r.status === "fulfilled").length;
+      const failCount = results.filter((r) => r.status === "rejected").length;
+
+      if (failCount === 0) {
+        toast({ title: `${successCount} guests checked in successfully` });
+      } else {
+        toast({
+          title: `${successCount} checked in, ${failCount} failed`,
+          description: "Some check-ins could not be completed",
+          variant: "destructive"
+        });
+      }
+      setSelectedIds(new Set());
+    },
+    onError: () => {
+      toast({ title: "Bulk check-in failed", description: "Please try again", variant: "destructive" });
+    }
   });
 
   const checkOutMutation = useMutation({
@@ -125,6 +157,40 @@ export default function CheckInOutPage() {
         return true;
       });
   }, [arrivals, departures, search, statusFilter, tab]);
+
+  // Get eligible reservations for bulk check-in (arrivals that are not yet checked in)
+  const eligibleForBulkCheckIn = useMemo(() => {
+    if (tab !== "arrivals") return [];
+    return filteredList.filter((r) => r.status !== "checked_in");
+  }, [filteredList, tab]);
+
+  const selectedCount = selectedIds.size;
+  const isAllSelected = eligibleForBulkCheckIn.length > 0 &&
+    eligibleForBulkCheckIn.every((r) => selectedIds.has(r.id));
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(eligibleForBulkCheckIn.map((r) => r.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBulkCheckIn = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    bulkCheckInMutation.mutate(ids);
+  };
 
   const formatMoney = (cents?: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format((cents ?? 0) / 100);
@@ -226,6 +292,33 @@ export default function CheckInOutPage() {
           </div>
         </div>
 
+        {/* Bulk actions bar */}
+        {tab === "arrivals" && eligibleForBulkCheckIn.length > 0 && (
+          <div className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                checked={isAllSelected}
+                onCheckedChange={toggleSelectAll}
+                id="select-all"
+              />
+              <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                Select all ({eligibleForBulkCheckIn.length})
+              </Label>
+            </div>
+            {selectedCount > 0 && (
+              <Button
+                onClick={handleBulkCheckIn}
+                disabled={bulkCheckInMutation.isPending}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {bulkCheckInMutation.isPending
+                  ? `Checking in ${selectedCount}...`
+                  : `Check In Selected (${selectedCount})`}
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* List */}
         <div className="space-y-3">
           {filteredList.length === 0 ? (
@@ -233,10 +326,29 @@ export default function CheckInOutPage() {
               <p className="text-slate-500">Nothing for this filter and date.</p>
             </div>
           ) : (
-            filteredList.map((res) => (
-              <Card key={res.id} className={`overflow-hidden border ${res.balanceAmount > 0 ? "border-amber-200 bg-amber-50/40" : "border-slate-200"} shadow-sm`}>
+            filteredList.map((res) => {
+              const isEligible = tab === "arrivals" && res.status !== "checked_in";
+              const isSelected = selectedIds.has(res.id);
+
+              return (
+              <Card key={res.id} className={`overflow-hidden border ${
+                isSelected
+                  ? "border-emerald-300 bg-emerald-50/40"
+                  : res.balanceAmount > 0
+                  ? "border-amber-200 bg-amber-50/40"
+                  : "border-slate-200"
+              } shadow-sm`}>
                 <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex items-start gap-3">
+                    {isEligible && (
+                      <div className="pt-1">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(res.id)}
+                          disabled={bulkCheckInMutation.isPending}
+                        />
+                      </div>
+                    )}
                     <div
                       className={`p-3 rounded-full ${
                         tab === "arrivals"
@@ -340,7 +452,8 @@ export default function CheckInOutPage() {
                   </div>
                 </div>
               </Card>
-            ))
+              );
+            })
           )}
         </div>
 

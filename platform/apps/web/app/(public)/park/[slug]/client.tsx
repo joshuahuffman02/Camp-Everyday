@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import { trackEvent } from "@/lib/analytics";
 import { AiChatWidget } from "@/components/ai/AiChatWidget";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import {
     Wifi, Waves, Flame, Droplets, Store, Fish, Ship, PlayCircle, ShowerHead, Dog,
     Footprints, Mountain, Bike, Check, Tent, Caravan, Home, Users, Sparkles,
@@ -682,8 +683,19 @@ export function CampgroundDetailClient({
                     {/* Availability Filter Overlay */}
                     {!viewOnly && <AvailabilityFilter slug={slug} />}
 
+                    {/* Breadcrumbs */}
+                    <div className="mt-8 mb-6">
+                        <Breadcrumbs
+                            items={[
+                                { label: "Home", href: "/" },
+                                { label: "Parks", href: "/" },
+                                { label: campground.name }
+                            ]}
+                        />
+                    </div>
+
                     {/* Header */}
-                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-12 mb-10">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-6 mb-10">
                         <div>
                             {campground.tagline && (
                                 <p className="text-emerald-600 font-medium mb-2">{campground.tagline}</p>

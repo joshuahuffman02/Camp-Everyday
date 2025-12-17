@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { trackEvent } from "@/lib/analytics";
 import { AiChatWidget } from "@/components/ai/AiChatWidget";
 
@@ -88,6 +89,17 @@ export function CampgroundV2Client({ slug, initialData }: { slug: string; initia
         </div>
         <div className="absolute inset-0 flex items-end">
           <div className="mx-auto max-w-6xl w-full px-6 pb-8 flex flex-col gap-4">
+            {/* Breadcrumbs */}
+            <div className="mb-2">
+              <Breadcrumbs
+                items={[
+                  { label: "Home", href: "/" },
+                  { label: "Parks", href: "/" },
+                  { label: campground?.name || "Park" }
+                ]}
+                className="flex items-center gap-2 text-sm text-white/80"
+              />
+            </div>
             <div className="flex flex-wrap items-center gap-3 text-white">
               <Badge variant="secondary" className="bg-white/15 border-white/20 text-white">
                 {campground?.city}, {campground?.state}

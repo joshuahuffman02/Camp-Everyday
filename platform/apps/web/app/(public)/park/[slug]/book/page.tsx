@@ -117,6 +117,165 @@ const getNightsBetween = (start: string, end: string) => {
     return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
 };
 
+// Price Estimate Component
+function PriceEstimate({
+    arrivalDate,
+    departureDate,
+    selectedSite,
+    availableSites,
+    selectedSiteType,
+    isLoadingSites,
+    step,
+    campgroundSiteClasses
+}: {
+    arrivalDate: string;
+    departureDate: string;
+    selectedSite: AvailableSite | null;
+    availableSites: AvailableSite[] | undefined;
+    selectedSiteType: string;
+    isLoadingSites: boolean;
+    step: BookingStep;
+    campgroundSiteClasses?: any[];
+}) {
+    const nights = arrivalDate && departureDate ? getNightsBetween(arrivalDate, departureDate) : 0;
+
+    // Calculate price estimate
+    const priceEstimate = useMemo(() => {
+        // If we have a selected site, use its exact rate
+        if (selectedSite?.siteClass?.defaultRate) {
+            return {
+                perNight: selectedSite.siteClass.defaultRate / 100,
+                total: (selectedSite.siteClass.defaultRate / 100) * nights,
+                isExact: true
+            };
+        }
+
+        // Otherwise, calculate a range from available sites
+        if (availableSites && availableSites.length > 0) {
+            const filteredSites = availableSites.filter(site => {
+                if (!site.siteClass?.defaultRate) return false;
+                if (selectedSiteType === "all") return true;
+                return matchesSiteType(selectedSiteType, site.siteClass?.siteType || site.siteType);
+            });
+
+            if (filteredSites.length > 0) {
+                const rates = filteredSites.map(s => s.siteClass!.defaultRate / 100);
+                const minRate = Math.min(...rates);
+                const maxRate = Math.max(...rates);
+
+                if (minRate === maxRate) {
+                    return {
+                        perNight: minRate,
+                        total: minRate * nights,
+                        isExact: false
+                    };
+                }
+
+                return {
+                    minPerNight: minRate,
+                    maxPerNight: maxRate,
+                    minTotal: minRate * nights,
+                    maxTotal: maxRate * nights,
+                    isRange: true
+                };
+            }
+        }
+
+        // Fall back to campground site classes if no sites loaded yet (step 1)
+        if (step === 1 && campgroundSiteClasses && campgroundSiteClasses.length > 0) {
+            const filteredClasses = campgroundSiteClasses.filter(sc => {
+                if (!sc.defaultRate) return false;
+                if (selectedSiteType === "all") return true;
+                return matchesSiteType(selectedSiteType, sc.siteType);
+            });
+
+            if (filteredClasses.length > 0) {
+                const rates = filteredClasses.map(sc => sc.defaultRate / 100);
+                const minRate = Math.min(...rates);
+                const maxRate = Math.max(...rates);
+
+                if (minRate === maxRate) {
+                    return {
+                        perNight: minRate,
+                        total: minRate * nights,
+                        isExact: false
+                    };
+                }
+
+                return {
+                    minPerNight: minRate,
+                    maxPerNight: maxRate,
+                    minTotal: minRate * nights,
+                    maxTotal: maxRate * nights,
+                    isRange: true
+                };
+            }
+        }
+
+        return null;
+    }, [selectedSite, availableSites, selectedSiteType, nights, step, campgroundSiteClasses]);
+
+    if (!arrivalDate || !departureDate || nights < 1) {
+        return null;
+    }
+
+    if (isLoadingSites && !selectedSite) {
+        return (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 mb-6">
+                <div className="flex items-center justify-between">
+                    <div className="text-sm text-slate-600">Calculating estimate...</div>
+                    <div className="animate-pulse h-6 w-20 bg-emerald-200 rounded"></div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!priceEstimate) {
+        return null;
+    }
+
+    return (
+        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <div className="text-sm text-slate-600 mb-1">
+                        {step === 1 ? "Estimated price" : step === 2 && !selectedSite ? "Price range" : "Your price"}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                        {nights} {nights === 1 ? "night" : "nights"}
+                    </div>
+                </div>
+                <div className="text-right">
+                    {priceEstimate.isRange ? (
+                        <>
+                            <div className="text-2xl font-bold text-emerald-700">
+                                ${priceEstimate.minTotal?.toFixed(0)} - ${priceEstimate.maxTotal?.toFixed(0)}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                                ${priceEstimate.minPerNight?.toFixed(0)} - ${priceEstimate.maxPerNight?.toFixed(0)}/night
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="text-2xl font-bold text-emerald-700">
+                                {priceEstimate.isExact ? "" : "From "}${priceEstimate.total?.toFixed(0)}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                                ${priceEstimate.perNight?.toFixed(0)}/night
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+            {(step === 1 || (step === 2 && !selectedSite)) && (
+                <div className="text-xs text-slate-500 mt-2">
+                    Final price shown at checkout (excludes fees and taxes)
+                </div>
+            )}
+        </div>
+    );
+}
+
 // Progress Indicator
 function BookingProgress({ currentStep }: { currentStep: BookingStep }) {
     const steps = [
@@ -2230,6 +2389,20 @@ export default function BookingPage() {
                 ) : (
                     <>
                         <BookingProgress currentStep={step} />
+
+                        {/* Price Estimate - Show from step 1 onwards, hide on step 4 */}
+                        {step < 4 && (
+                            <PriceEstimate
+                                arrivalDate={arrivalDate}
+                                departureDate={departureDate}
+                                selectedSite={selectedSite}
+                                availableSites={availableSites}
+                                selectedSiteType={selectedSiteType}
+                                isLoadingSites={isLoadingSites}
+                                step={step}
+                                campgroundSiteClasses={campground?.siteClasses || []}
+                            />
+                        )}
 
                         {step === 1 && (
                             <DateStep

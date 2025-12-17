@@ -259,6 +259,48 @@ export default function Dashboard() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* QUICK ACTIONS - Prominently displayed above the fold */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="rounded-2xl bg-white border-2 border-emerald-200 shadow-sm p-5 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+            <Plus className="h-4 w-4 text-emerald-600" />
+            Quick Actions
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            <QuickActionButton
+              href="/booking"
+              label="New booking"
+              icon={<Plus className="h-5 w-5" />}
+              tone="emerald"
+            />
+            <QuickActionButton
+              href="/reservations"
+              label="Extend / Move"
+              icon={<ArrowRight className="h-5 w-5" />}
+              tone="blue"
+            />
+            <QuickActionButton
+              href="/pos"
+              label="POS order"
+              icon={<ShoppingBag className="h-5 w-5" />}
+              tone="purple"
+            />
+            <QuickActionButton
+              href="/finance/gift-cards"
+              label="Credit / Refund"
+              icon={<DollarSign className="h-5 w-5" />}
+              tone="amber"
+            />
+            <QuickActionButton
+              href="/messages"
+              label="Pre-arrival message"
+              icon={<MessageCircle className="h-5 w-5" />}
+              tone="slate"
+            />
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* ARRIVALS & DEPARTURES - Detailed boards */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="space-y-3">
@@ -286,76 +328,63 @@ export default function Dashboard() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ATTENTION & ACTIONS - Needs action items alongside quick links */}
+        {/* ATTENTION - Needs action items */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-amber-600 pl-1">
             <DollarSign className="h-4 w-4" />
             Needs Attention
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-5 lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Balances Due</h3>
-                  <p className="text-sm text-slate-600">Outstanding amounts that need collection.</p>
-                </div>
-                <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 border border-amber-200">
-                  {attentionList.length} open
-                </span>
+          <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Balances Due</h3>
+                <p className="text-sm text-slate-600">Outstanding amounts that need collection.</p>
               </div>
-              {attentionList.length === 0 ? (
-                <div className="flex items-center gap-3 rounded-lg border border-dashed border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  <CheckCircle className="h-4 w-4" />
-                  All clear — no outstanding balances right now.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {attentionList.map((r) => (
-                    <div
-                      key={r.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2.5 shadow-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-amber-100 text-amber-700 font-semibold flex items-center justify-center text-xs border border-amber-200">
-                          {r.guest?.primaryFirstName?.[0] ?? "?"}
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">
-                            {r.guest?.primaryFirstName ?? "Guest"} {r.guest?.primaryLastName ?? ""}
-                          </div>
-                          <div className="text-xs text-slate-500">Site {r.siteId ?? "—"}</div>
-                        </div>
+              <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 border border-amber-200">
+                {attentionList.length} open
+              </span>
+            </div>
+            {attentionList.length === 0 ? (
+              <div className="flex items-center gap-3 rounded-lg border border-dashed border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <CheckCircle className="h-4 w-4" />
+                All clear — no outstanding balances right now.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {attentionList.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2.5 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-amber-100 text-amber-700 font-semibold flex items-center justify-center text-xs border border-amber-200">
+                        {r.guest?.primaryFirstName?.[0] ?? "?"}
                       </div>
-                      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                        <span className="text-sm font-bold text-amber-700 whitespace-nowrap">{formatMoney(r.balance)}</span>
-                        <Link
-                          href="/billing/repeat-charges"
-                          className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-                        >
-                          Resolve
-                        </Link>
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {r.guest?.primaryFirstName ?? "Guest"} {r.guest?.primaryLastName ?? ""}
+                        </div>
+                        <div className="text-xs text-slate-500">Site {r.siteId ?? "—"}</div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900">Quick Actions</h3>
-              <div className="space-y-2">
-                <QuickLink href="/booking" label="New booking" icon={<Plus className="h-4 w-4" />} />
-                <QuickLink href="/reservations" label="Extend stay / Move site" icon={<ArrowRight className="h-4 w-4" />} />
-                <QuickLink href="/pos" label="Open POS order" icon={<ShoppingBag className="h-4 w-4" />} />
-                <QuickLink href="/finance/gift-cards" label="Issue credit / refund" icon={<DollarSign className="h-4 w-4" />} />
-                <QuickLink href="/messages" label="Send pre-arrival" icon={<MessageCircle className="h-4 w-4" />} />
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                      <span className="text-sm font-bold text-amber-700 whitespace-nowrap">{formatMoney(r.balance)}</span>
+                      <Link
+                        href="/billing/repeat-charges"
+                        className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                      >
+                        Resolve
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Alerts & occupancy */}
+        {/* Alerts, Additional Metrics, and 14-day occupancy */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="card p-5 space-y-3">
             <div className="flex items-center justify-between">
@@ -378,6 +407,15 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
+            <div className="pt-3 border-t border-slate-200 space-y-2">
+              <StatCard label="Future bookings" value={futureReservations} hint="Upcoming arrivals" icon={<ClipboardList className="h-4 w-4" />} />
+              <StatCard
+                label="NPS"
+                value={npsQuery.data?.nps ?? "—"}
+                hint={`${npsQuery.data?.totalResponses ?? 0} responses · ${npsQuery.data?.responseRate ?? "—"}% rate`}
+                icon={<MessageCircle className="h-4 w-4" />}
+              />
+            </div>
           </div>
 
           <div className="card p-5 space-y-3 xl:col-span-2">
@@ -408,20 +446,6 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Snapshot strip */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
-          <StatCard label="Occupancy" value={`${occupancyRate}%`} hint={`${occupiedSites} of ${totalSites} sites`} icon={<Calendar className="h-4 w-4" />} />
-          <StatCard label="Future bookings" value={futureReservations} hint="Upcoming arrivals" icon={<ClipboardList className="h-4 w-4" />} />
-          <StatCard label="Balance due" value={formatMoney(outstandingBalanceCents)} hint="Outstanding across stays" icon={<DollarSign className="h-4 w-4" />} />
-          <StatCard label="On-site now" value={inHouse.length} hint="Currently in-house" icon={<Users className="h-4 w-4" />} />
-          <StatCard
-            label="NPS"
-            value={npsQuery.data?.nps ?? "—"}
-            hint={`${npsQuery.data?.totalResponses ?? 0} responses · ${npsQuery.data?.responseRate ?? "—"}% rate`}
-            icon={<MessageCircle className="h-4 w-4" />}
-          />
         </div>
 
         {/* Search */}
@@ -586,17 +610,59 @@ function BoardCard({
   );
 }
 
-function QuickLink({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
+function QuickActionButton({
+  href,
+  label,
+  icon,
+  tone
+}: {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  tone: "emerald" | "blue" | "purple" | "amber" | "slate";
+}) {
+  const toneMap: Record<typeof tone, { bg: string; hover: string; icon: string; border: string }> = {
+    emerald: {
+      bg: "bg-emerald-50",
+      hover: "hover:bg-emerald-100 hover:border-emerald-300",
+      icon: "text-emerald-600",
+      border: "border-emerald-200"
+    },
+    blue: {
+      bg: "bg-blue-50",
+      hover: "hover:bg-blue-100 hover:border-blue-300",
+      icon: "text-blue-600",
+      border: "border-blue-200"
+    },
+    purple: {
+      bg: "bg-purple-50",
+      hover: "hover:bg-purple-100 hover:border-purple-300",
+      icon: "text-purple-600",
+      border: "border-purple-200"
+    },
+    amber: {
+      bg: "bg-amber-50",
+      hover: "hover:bg-amber-100 hover:border-amber-300",
+      icon: "text-amber-600",
+      border: "border-amber-200"
+    },
+    slate: {
+      bg: "bg-slate-50",
+      hover: "hover:bg-slate-100 hover:border-slate-300",
+      icon: "text-slate-600",
+      border: "border-slate-200"
+    }
+  };
+
+  const colors = toneMap[tone];
+
   return (
     <Link
       href={href}
-      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 hover:border-emerald-200 hover:text-emerald-700"
+      className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 ${colors.border} ${colors.bg} ${colors.hover} px-4 py-5 text-center transition-all shadow-sm hover:shadow-md`}
     >
-      <span className="flex items-center gap-2">
-        <span className="text-slate-500">{icon}</span>
-        {label}
-      </span>
-      <ArrowRight className="h-4 w-4 text-slate-300" />
+      <span className={`${colors.icon}`}>{icon}</span>
+      <span className="text-sm font-semibold text-slate-900">{label}</span>
     </Link>
   );
 }
