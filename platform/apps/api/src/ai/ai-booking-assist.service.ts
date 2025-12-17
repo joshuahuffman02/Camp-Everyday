@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { AiProviderService } from './ai-provider.service';
 import { AiPrivacyService } from './ai-privacy.service';
 import { AiFeatureGateService } from './ai-feature-gate.service';
@@ -46,6 +46,7 @@ export class AiBookingAssistService {
         private readonly privacy: AiPrivacyService,
         private readonly gate: AiFeatureGateService,
         private readonly prisma: PrismaService,
+        @Inject(forwardRef(() => PublicReservationsService))
         private readonly publicReservations: PublicReservationsService,
     ) { }
 

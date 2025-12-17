@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AiPrivacyService } from './ai-privacy.service';
 import { AiProviderService } from './ai-provider.service';
 import { AiFeatureGateService } from './ai-feature-gate.service';
@@ -10,7 +10,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PublicReservationsModule } from '../public-reservations/public-reservations.module';
 
 @Module({
-  imports: [PrismaModule, PublicReservationsModule],
+  imports: [PrismaModule, forwardRef(() => PublicReservationsModule)],
   controllers: [AiController],
   providers: [
     AiPrivacyService,
