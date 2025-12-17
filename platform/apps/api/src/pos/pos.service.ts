@@ -580,7 +580,9 @@ export class PosService {
     });
   }
 
-  // TODO: Replace with full pricing/tax/fee engine
+  /**
+   * Reprice cart items and calculate totals with tax
+   */
   private reprice(cart: { items: { totalCents: number; qty?: number; unitPriceCents?: number; taxCents?: number; feeCents?: number }[] }) {
     let net = 0;
     let tax = 0;
@@ -592,6 +594,48 @@ export class PosService {
       fee += i.feeCents ?? 0;
     }
     return { netCents: net, taxCents: tax, feeCents: fee, totalCents: net + tax + fee };
+  }
+
+  /**
+   * Calculate tax for POS items using campground tax rules
+   */
+  async calculatePosTax(campgroundId: string, subtotalCents: number): Promise<{ taxCents: number; breakdown: Array<{ name: string; rate: number; amount: number }> }> {
+    const taxRules = await this.prisma.taxRule.findMany({
+      where: {
+        campgroundId,
+        isActive: true,
+        category: { in: ['general', 'goods', 'services'] }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    if (taxRules.length === 0) {
+      return { taxCents: 0, breakdown: [] };
+    }
+
+    let totalTax = 0;
+    const breakdown: Array<{ name: string; rate: number; amount: number }> = [];
+
+    for (const rule of taxRules) {
+      let taxAmount = 0;
+
+      if (rule.type === 'percentage' && rule.rate) {
+        const rate = Number(rule.rate);
+        taxAmount = Math.round(subtotalCents * rate);
+        if (taxAmount > 0) {
+          breakdown.push({ name: rule.name, rate: rate * 100, amount: taxAmount });
+        }
+      } else if (rule.type === 'flat' && rule.rate) {
+        taxAmount = Math.round(Number(rule.rate) * 100);
+        if (taxAmount > 0) {
+          breakdown.push({ name: rule.name, rate: 0, amount: taxAmount });
+        }
+      }
+
+      totalTax += taxAmount;
+    }
+
+    return { taxCents: totalTax, breakdown };
   }
 
   private extractTender(payload: any) {

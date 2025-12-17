@@ -9,9 +9,10 @@ import {
     UpdateAddOnDto,
     CreateOrderDto,
 } from "./dto/store.dto";
-import { AddOnPricingType, PaymentMethod, OrderChannel, ChannelInventoryMode } from "@prisma/client";
+import { AddOnPricingType, PaymentMethod, OrderChannel, ChannelInventoryMode, TaxRuleType } from "@prisma/client";
 import { EmailService } from "../email/email.service";
 import { randomUUID } from "crypto";
+import { Decimal } from "@prisma/client/runtime/library";
 
 @Injectable()
 export class StoreService {
@@ -432,8 +433,8 @@ export class StoreService {
             };
         });
 
-        // TODO: Calculate tax based on campground settings
-        const taxCents = 0;
+        // Calculate tax based on campground tax rules
+        const { taxCents } = await this.calculateStoreTax(data.campgroundId, subtotalCents);
         const totalCents = subtotalCents + taxCents;
 
         if (!isOpen && disallowedAfterHours) {
@@ -661,5 +662,67 @@ export class StoreService {
                 // ignore webhook errors
             }
         }
+    }
+
+    /**
+     * Calculate tax for store orders based on campground tax rules
+     */
+    private async calculateStoreTax(campgroundId: string, subtotalCents: number): Promise<{ taxCents: number; taxBreakdown: Array<{ name: string; rate: number; amount: number }> }> {
+        // Fetch active tax rules for the campground that apply to goods/services
+        const taxRules = await this.prisma.taxRule.findMany({
+            where: {
+                campgroundId,
+                isActive: true,
+                category: { in: ['general', 'goods', 'services'] }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        if (taxRules.length === 0) {
+            return { taxCents: 0, taxBreakdown: [] };
+        }
+
+        let totalTaxCents = 0;
+        const taxBreakdown: Array<{ name: string; rate: number; amount: number }> = [];
+
+        for (const rule of taxRules) {
+            let taxAmount = 0;
+
+            switch (rule.type) {
+                case TaxRuleType.percentage:
+                    // Rate is stored as decimal (e.g., 0.0825 for 8.25%)
+                    const rate = rule.rate ? Number(rule.rate) : 0;
+                    taxAmount = Math.round(subtotalCents * rate);
+                    if (taxAmount > 0) {
+                        taxBreakdown.push({
+                            name: rule.name,
+                            rate: rate * 100, // Convert to percentage for display
+                            amount: taxAmount
+                        });
+                    }
+                    break;
+
+                case TaxRuleType.flat:
+                    // Rate is stored as cents for flat taxes
+                    taxAmount = rule.rate ? Math.round(Number(rule.rate) * 100) : 0;
+                    if (taxAmount > 0) {
+                        taxBreakdown.push({
+                            name: rule.name,
+                            rate: 0,
+                            amount: taxAmount
+                        });
+                    }
+                    break;
+
+                case TaxRuleType.exemption:
+                    // Exemptions reduce tax - could be used for tax-exempt items
+                    // For now, we skip these as they'd need item-level logic
+                    break;
+            }
+
+            totalTaxCents += taxAmount;
+        }
+
+        return { taxCents: totalTaxCents, taxBreakdown };
     }
 }
