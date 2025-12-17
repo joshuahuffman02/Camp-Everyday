@@ -481,40 +481,9 @@ export function DashboardShell({ children, className, title, subtitle }: { child
     // NOTE: Support Queue / Analytics / Platform Users are accessed via /admin layout
     // They should NOT appear in the campground staff navigation
 
-    // SETTINGS - Admin configuration
+    // SETTINGS - Single link to settings hub (detailed items moved to /dashboard/settings)
     const settingsItems: NavItem[] = [
-      // Pricing & Revenue
-      { label: "Dynamic Pricing", href: "/settings/pricing-rules", icon: "pricing" },
-      { label: "Seasonal Rates", href: "/settings/seasonal-rates", icon: "calendar" },
-      { label: "Deposit Policies", href: "/settings/deposit-policies", icon: "payments" },
-      { label: "Upsells & Add-ons", href: "/settings/upsells", icon: "tag" },
-      { label: "Tax & Currency", href: "/settings/tax-rules", icon: "pricing" },
-      { label: "Blackout Dates", href: "/settings/blackout-dates", icon: "calendar" },
-      { label: "Memberships", href: "/settings/memberships", icon: "star" },
-      // Communications
-      { label: "Email & SMS Templates", href: "/settings/templates", icon: "message" },
-      { label: "Notification Triggers", href: "/settings/notification-triggers", icon: "message" },
-      // Access & Security
-      { label: "Users & Roles", href: "/settings/users", icon: "users" },
-      { label: "Permissions", href: "/settings/permissions", icon: "policy" },
-      { label: "Access Control", href: "/settings/access-control", icon: "lock" },
-      { label: "Security", href: "/settings/security", icon: "audit" },
-      { label: "Privacy & Consent", href: "/settings/privacy", icon: "audit" },
-      { label: "Developers", href: "/settings/developers", icon: "code" },
-      { label: "Webhooks", href: "/settings/webhooks", icon: "webhook" },
-      { label: "System Status", href: "/settings/status", icon: "activity" },
-      // Property Config
-      { label: "Campground Config", href: selected ? `/campgrounds/${selected}/settings` : "/campgrounds", icon: "policy" },
-      { label: "Photos", href: "/settings/photos", icon: "brand" },
-      { label: "Localization", href: "/settings/localization", icon: "brand" },
-      { label: "Utilities & Billing", href: selected ? `/campgrounds/${selected}/utilities-billing` : "/campgrounds", icon: "payments" },
-      { label: "Incidents & COIs", href: "/incidents", icon: "alert" },
-      // More
-      { label: "Saved Reports", href: "/reports/saved", icon: "star" },
-      { label: "Audit Log", href: "/reports/audit", icon: "audit" },
-      { label: "Analytics", href: "/analytics", icon: "reports" },
-      { label: "AI Settings", href: selected ? `/campgrounds/${selected}/ai` : "/campgrounds", icon: "sparkles" },
-      { label: "Roadmap", href: "/roadmap", icon: "sparkles" }
+      { label: "Settings", href: "/dashboard/settings", icon: "policy", tooltip: "All settings and configuration" },
     ];
 
     const sections = [
