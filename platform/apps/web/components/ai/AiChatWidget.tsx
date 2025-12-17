@@ -64,27 +64,28 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
             setMessages((prev) => [...prev, assistantMessage]);
 
             // Handle booking action
-            // Only redirect if we have actual booking details (specifically dates) to prevent empty redirects/loops
-            if (data.action === 'book' && data.bookingDetails && data.bookingDetails.dates) {
+            // Always redirect if action is 'book', filling whatever details we have
+            if (data.action === 'book') {
                 console.log("AI triggered booking action:", data.bookingDetails);
                 const params = new URLSearchParams(window.location.search);
-                if (data.bookingDetails.dates) {
+
+                if (data.bookingDetails?.dates) {
                     params.set('arrivalDate', data.bookingDetails.dates.arrival);
                     params.set('departureDate', data.bookingDetails.dates.departure);
                 }
-                if (data.bookingDetails.partySize) {
+                if (data.bookingDetails?.partySize) {
                     params.set('adults', data.bookingDetails.partySize.adults.toString());
                     params.set('children', data.bookingDetails.partySize.children.toString());
                     // Combined guests param for V2 client
                     params.set('guests', (data.bookingDetails.partySize.adults + data.bookingDetails.partySize.children).toString());
                 }
-                if (data.bookingDetails.rigInfo) {
+                if (data.bookingDetails?.rigInfo) {
                     params.set('rvLength', data.bookingDetails.rigInfo.length.toString());
                     params.set('rvType', data.bookingDetails.rigInfo.type);
                     // Infer siteType for the filter dropdown
                     params.set('siteType', 'rv');
                 }
-                if (data.bookingDetails.siteClassId) {
+                if (data.bookingDetails?.siteClassId) {
                     params.set('siteClassId', data.bookingDetails.siteClassId);
                 }
 
@@ -93,11 +94,11 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
 
                 // Use Next.js router for soft navigation to prevent clearing chat state
                 // This updates the URL params which the parent page watches to pre-fill the form
-                const newUrl = `${window.location.pathname}?${params.toString()}`;
+                // Redirect to the booking page with pre-filled parameters
+                const baseUrl = `${window.location.pathname}/book`;
+                const newUrl = `${baseUrl}?${params.toString()}`;
                 console.log("Redirecting to:", newUrl);
-                // Use Next.js router to update params without full reload
-                // scroll: false prevents jumping to top
-                router.push(newUrl, { scroll: false });
+                router.push(newUrl);
 
                 // Optional: If we want to actually navigate to a different page (like /book), use router
                 // But for now, we assume we want to stay on the page and just fill the form.
