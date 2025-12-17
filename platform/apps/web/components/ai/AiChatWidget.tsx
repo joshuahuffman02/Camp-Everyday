@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { MessageSquare, X, Send, Bot, User, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 
@@ -29,6 +30,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
     const [sessionId] = useState(() => generateSessionId());
     const [hasConsented, setHasConsented] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,6 +71,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                 if (data.bookingDetails.dates) {
                     params.set('arrival', data.bookingDetails.dates.arrival);
                     params.set('departure', data.bookingDetails.dates.departure);
+
                 }
                 if (data.bookingDetails.partySize) {
                     params.set('adults', data.bookingDetails.partySize.adults.toString());
@@ -88,12 +91,9 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                 // This updates the URL params which the parent page watches to pre-fill the form
                 const newUrl = `${window.location.pathname}?${params.toString()}`;
                 console.log("Redirecting to:", newUrl);
-                // We'll use window.history.pushState to update URL without reload if on the same page
-                // This handles the case where we just want to update the background form
-                window.history.pushState({}, '', newUrl);
-
-                // Trigger a custom event so the parent component knows to re-read params if needed
-                window.dispatchEvent(new Event('popstate'));
+                // Use Next.js router to update params without full reload
+                // scroll: false prevents jumping to top
+                router.push(newUrl, { scroll: false });
 
                 // Optional: If we want to actually navigate to a different page (like /book), use router
                 // But for now, we assume we want to stay on the page and just fill the form.
