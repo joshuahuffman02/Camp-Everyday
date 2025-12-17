@@ -38,7 +38,6 @@ import {
   Copy,
   Archive,
   Edit2,
-  MoreVertical,
   MapPin,
   Calendar,
   Truck,
@@ -49,12 +48,6 @@ import {
   Globe,
   Building2,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 // Segment types
 interface SegmentCriteria {
@@ -251,30 +244,35 @@ function SegmentCard({ segment, onEdit, onCopy, onArchive }: {
             </div>
             <CardDescription className="text-sm">{segment.description}</CardDescription>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEdit(segment)}>
-                <Edit2 className="h-4 w-4 mr-2" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onCopy(segment)}>
-                <Copy className="h-4 w-4 mr-2" />
-                Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => onArchive(segment)}
-                className="text-rose-400"
-              >
-                <Archive className="h-4 w-4 mr-2" />
-                Archive
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => onEdit(segment)}
+              title="Edit"
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => onCopy(segment)}
+              title="Duplicate"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-rose-400 hover:text-rose-300"
+              onClick={() => onArchive(segment)}
+              title="Archive"
+            >
+              <Archive className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
