@@ -20,6 +20,8 @@ import {
   DataTable,
   DateRangePicker,
   formatCurrency,
+  AiInsightCard,
+  AiInsightCardSkeleton,
 } from "@/components/analytics";
 
 interface AnalyticsOverview {
@@ -130,11 +132,24 @@ const mockTopCampgrounds = [
   { name: "Desert Oasis RV", state: "AZ", revenue: 298000, reservations: 1250 },
 ];
 
+interface AiInsights {
+  summary: string;
+  insights: Array<{
+    type: "positive" | "negative" | "neutral" | "warning";
+    title: string;
+    description: string;
+    metric?: { label: string; value: string | number; change?: number };
+  }>;
+  recommendations: string[];
+}
+
 export default function AnalyticsOverviewPage() {
   const [dateRange, setDateRange] = useState("last_12_months");
   const [data, setData] = useState<AnalyticsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [isUsingMockData, setIsUsingMockData] = useState(false);
+  const [aiInsights, setAiInsights] = useState<AiInsights | null>(null);
+  const [aiLoading, setAiLoading] = useState(true);
 
   const fetchData = async () => {
     setLoading(true);
@@ -163,8 +178,94 @@ export default function AnalyticsOverviewPage() {
     }
   };
 
+  const fetchAiInsights = async () => {
+    setAiLoading(true);
+    try {
+      const [suggestionsRes, anomaliesRes] = await Promise.all([
+        fetch(`/api/admin/platform-analytics/ai/suggestions?range=${dateRange}`),
+        fetch(`/api/admin/platform-analytics/ai/anomalies?range=${dateRange}`),
+      ]);
+
+      const suggestions = suggestionsRes.ok ? await suggestionsRes.json() : [];
+      const anomalies = anomaliesRes.ok ? await anomaliesRes.json() : [];
+
+      // Build insights from anomalies and suggestions
+      const insights: AiInsights["insights"] = [];
+
+      // Add anomaly-based insights
+      for (const anomaly of anomalies.slice(0, 2)) {
+        insights.push({
+          type: anomaly.severity === "critical" ? "negative" : "warning",
+          title: anomaly.campgroundName
+            ? `${anomaly.campgroundName}: ${anomaly.type.replace("_", " ")}`
+            : anomaly.type.replace("_", " "),
+          description: anomaly.message,
+          metric: {
+            label: "Current",
+            value: anomaly.currentValue,
+            change: -Math.round(anomaly.deviationPercent),
+          },
+        });
+      }
+
+      // Add suggestion-based insights for struggling parks
+      if (suggestions.length > 0) {
+        const worstPark = suggestions[0];
+        insights.push({
+          type: worstPark.npsScore < 0 ? "negative" : "warning",
+          title: `${worstPark.campgroundName} needs attention`,
+          description: `NPS score of ${worstPark.npsScore} with ${worstPark.detractorCount} detractors. Top issues: ${worstPark.primaryIssues.join(", ")}`,
+          metric: { label: "NPS", value: worstPark.npsScore },
+        });
+      }
+
+      // Generate summary
+      const summary =
+        anomalies.length > 0 || suggestions.length > 0
+          ? `Detected ${anomalies.length} anomalies and ${suggestions.length} campgrounds needing improvement. ${
+              anomalies.some((a: { severity: string }) => a.severity === "critical")
+                ? "Critical issues require immediate attention."
+                : suggestions.length > 0
+                ? "Focus on the lowest-performing properties to improve platform health."
+                : "Platform metrics are within normal ranges."
+            }`
+          : "Platform performance is healthy. No critical anomalies detected and guest satisfaction metrics are stable.";
+
+      // Gather recommendations
+      const recommendations: string[] = [];
+      for (const anomaly of anomalies.slice(0, 2)) {
+        if (anomaly.recommendations?.[0]) {
+          recommendations.push(anomaly.recommendations[0]);
+        }
+      }
+      if (suggestions[0]?.suggestions?.[0]) {
+        recommendations.push(
+          `${suggestions[0].campgroundName}: ${suggestions[0].suggestions[0].title}`
+        );
+      }
+
+      setAiInsights({
+        summary,
+        insights,
+        recommendations: recommendations.slice(0, 3),
+      });
+    } catch (error) {
+      console.error("Failed to fetch AI insights:", error);
+      // Set default insights
+      setAiInsights({
+        summary:
+          "Unable to load AI insights at this time. Platform analytics are still available below.",
+        insights: [],
+        recommendations: [],
+      });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchAiInsights();
   }, [dateRange]);
 
   return (
@@ -205,6 +306,20 @@ export default function AnalyticsOverviewPage() {
           </Button>
         </div>
       </div>
+
+      {/* AI Insights */}
+      {aiLoading ? (
+        <AiInsightCardSkeleton />
+      ) : aiInsights ? (
+        <AiInsightCard
+          title="Platform Health Summary"
+          summary={aiInsights.summary}
+          insights={aiInsights.insights}
+          recommendations={aiInsights.recommendations}
+          onRefresh={fetchAiInsights}
+          isLoading={aiLoading}
+        />
+      ) : null}
 
       {/* Revenue KPIs */}
       <div>
