@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Param, Body, Res } from "@nestjs/common";
+import { Controller, Get, Post, Put, Delete, Query, Param, Body, Res } from "@nestjs/common";
 import { Response } from "express";
 import { PlatformAnalyticsService, AnalyticsQueryParams } from "./platform-analytics.service";
 import { RevenueIntelligenceService } from "./services/revenue-intelligence.service";
@@ -13,6 +13,7 @@ import { NpsAnalyticsService } from "./services/nps-analytics.service";
 import { AnalyticsExportService, ExportOptions } from "./export/analytics-export.service";
 import { ExecutiveDashboardService } from "./services/executive-dashboard.service";
 import { AiSuggestionsService } from "./services/ai-suggestions.service";
+import { GoalsService, CreateGoalDto, UpdateGoalDto } from "./services/goals.service";
 
 @Controller("admin/platform-analytics")
 export class PlatformAnalyticsController {
@@ -29,7 +30,8 @@ export class PlatformAnalyticsController {
     private npsService: NpsAnalyticsService,
     private exportService: AnalyticsExportService,
     private executiveService: ExecutiveDashboardService,
-    private aiSuggestionsService: AiSuggestionsService
+    private aiSuggestionsService: AiSuggestionsService,
+    private goalsService: GoalsService
   ) {}
 
   /**
@@ -320,5 +322,50 @@ export class PlatformAnalyticsController {
       res.setHeader("Content-Disposition", `attachment; filename="${filename}.md"`);
       return res.send(exportData.data);
     }
+  }
+
+  // ============================================
+  // Goals
+  // ============================================
+
+  @Get("goals")
+  async getGoals(
+    @Query("category") category?: string,
+    @Query("status") status?: string,
+    @Query("campgroundId") campgroundId?: string
+  ) {
+    return this.goalsService.getGoals({ category, status, campgroundId });
+  }
+
+  @Get("goals/summary")
+  async getGoalsSummary() {
+    return this.goalsService.getGoalSummary();
+  }
+
+  @Get("goals/:id")
+  async getGoal(@Param("id") id: string) {
+    return this.goalsService.getGoal(id);
+  }
+
+  @Post("goals")
+  async createGoal(@Body() data: CreateGoalDto) {
+    return this.goalsService.createGoal(data);
+  }
+
+  @Put("goals/:id")
+  async updateGoal(@Param("id") id: string, @Body() data: UpdateGoalDto) {
+    return this.goalsService.updateGoal(id, data);
+  }
+
+  @Delete("goals/:id")
+  async deleteGoal(@Param("id") id: string) {
+    return this.goalsService.deleteGoal(id);
+  }
+
+  @Post("goals/sync")
+  async syncGoals(@Query() params: AnalyticsQueryParams) {
+    const dateRange = this.analyticsService.parseDateRange(params);
+    await this.goalsService.syncGoalProgress(dateRange);
+    return { success: true };
   }
 }

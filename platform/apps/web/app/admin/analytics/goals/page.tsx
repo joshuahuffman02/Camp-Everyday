@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Target,
   TrendingUp,
@@ -14,6 +14,8 @@ import {
   Plus,
   Edit2,
   Trash2,
+  X,
+  Loader2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface Goal {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
   metric: string;
   target: number;
   current: number;
@@ -29,103 +31,43 @@ interface Goal {
   period: string;
   category: "revenue" | "bookings" | "guests" | "satisfaction";
   status: "on_track" | "at_risk" | "behind" | "achieved";
+  progress: number;
+  daysRemaining: number;
   trend: "up" | "down" | "flat";
-  dueDate: Date;
-  createdAt: Date;
+  dueDate: string;
+  createdAt: string;
 }
 
-// Mock goals data
-const mockGoals: Goal[] = [
-  {
-    id: "1",
-    name: "Q4 Revenue Target",
-    description: "Achieve $3M in revenue for Q4 2024",
-    metric: "Total Revenue",
-    target: 3000000,
-    current: 2847500,
-    unit: "currency",
-    period: "Q4 2024",
-    category: "revenue",
-    status: "on_track",
-    trend: "up",
-    dueDate: new Date("2024-12-31"),
-    createdAt: new Date("2024-10-01"),
-  },
-  {
-    id: "2",
-    name: "NPS Excellence",
-    description: "Achieve platform-wide NPS of 50+",
-    metric: "NPS Score",
-    target: 50,
-    current: 42,
-    unit: "score",
-    period: "2024",
-    category: "satisfaction",
-    status: "at_risk",
-    trend: "up",
-    dueDate: new Date("2024-12-31"),
-    createdAt: new Date("2024-01-01"),
-  },
-  {
-    id: "3",
-    name: "Reduce Cancellations",
-    description: "Reduce cancellation rate below 5%",
-    metric: "Cancellation Rate",
-    target: 5,
-    current: 6.2,
-    unit: "percentage",
-    period: "Q4 2024",
-    category: "bookings",
-    status: "at_risk",
-    trend: "down",
-    dueDate: new Date("2024-12-31"),
-    createdAt: new Date("2024-10-01"),
-  },
-  {
-    id: "4",
-    name: "10K Reservations",
-    description: "Reach 10,000 reservations for the year",
-    metric: "Total Reservations",
-    target: 10000,
-    current: 8742,
-    unit: "number",
-    period: "2024",
-    category: "bookings",
-    status: "on_track",
-    trend: "up",
-    dueDate: new Date("2024-12-31"),
-    createdAt: new Date("2024-01-01"),
-  },
-  {
-    id: "5",
-    name: "Guest Loyalty",
-    description: "Achieve 40% repeat guest rate",
-    metric: "Repeat Guest Rate",
-    target: 40,
-    current: 34.5,
-    unit: "percentage",
-    period: "Q4 2024",
-    category: "guests",
-    status: "behind",
-    trend: "up",
-    dueDate: new Date("2024-12-31"),
-    createdAt: new Date("2024-10-01"),
-  },
-  {
-    id: "6",
-    name: "ADR Growth",
-    description: "Increase ADR to $90",
-    metric: "Average Daily Rate",
-    target: 90,
-    current: 85.50,
-    unit: "currency",
-    period: "Q4 2024",
-    category: "revenue",
-    status: "on_track",
-    trend: "up",
-    dueDate: new Date("2024-12-31"),
-    createdAt: new Date("2024-10-01"),
-  },
+interface CreateGoalForm {
+  name: string;
+  description: string;
+  metric: string;
+  target: string;
+  unit: "currency" | "percentage" | "number" | "score";
+  period: string;
+  category: "revenue" | "bookings" | "guests" | "satisfaction";
+  dueDate: string;
+}
+
+const metricOptions = [
+  { value: "Total Revenue", unit: "currency", category: "revenue" },
+  { value: "Average Daily Rate", unit: "currency", category: "revenue" },
+  { value: "NPS Score", unit: "score", category: "satisfaction" },
+  { value: "Total Reservations", unit: "number", category: "bookings" },
+  { value: "Cancellation Rate", unit: "percentage", category: "bookings" },
+  { value: "Repeat Guest Rate", unit: "percentage", category: "guests" },
+  { value: "Occupancy Rate", unit: "percentage", category: "bookings" },
+  { value: "RevPAN", unit: "currency", category: "revenue" },
+];
+
+const periodOptions = [
+  "Q1 2025",
+  "Q2 2025",
+  "Q3 2025",
+  "Q4 2025",
+  "2025",
+  "H1 2025",
+  "H2 2025",
 ];
 
 function formatValue(value: number, unit: string): string {
@@ -224,10 +166,296 @@ function ProgressBar({ current, target, status }: { current: number; target: num
   );
 }
 
+function CreateGoalModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  isSubmitting,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: CreateGoalForm) => Promise<void>;
+  isSubmitting: boolean;
+}) {
+  const [form, setForm] = useState<CreateGoalForm>({
+    name: "",
+    description: "",
+    metric: "Total Revenue",
+    target: "",
+    unit: "currency",
+    period: "Q1 2025",
+    category: "revenue",
+    dueDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+  });
+
+  const handleMetricChange = (metric: string) => {
+    const option = metricOptions.find((m) => m.value === metric);
+    if (option) {
+      setForm({
+        ...form,
+        metric,
+        unit: option.unit as CreateGoalForm["unit"],
+        category: option.category as CreateGoalForm["category"],
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onSubmit(form);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-lg mx-4 border border-slate-700">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-white">Create New Goal</h2>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-slate-700 rounded-lg transition-colors"
+          >
+            <X className="h-5 w-5 text-slate-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Goal Name
+            </label>
+            <input
+              type="text"
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., Q1 Revenue Target"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Description
+            </label>
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={2}
+              placeholder="Describe this goal..."
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Metric
+              </label>
+              <select
+                value={form.metric}
+                onChange={(e) => handleMetricChange(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {metricOptions.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.value}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Target Value
+              </label>
+              <input
+                type="number"
+                required
+                value={form.target}
+                onChange={(e) => setForm({ ...form, target: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder={form.unit === "currency" ? "1000000" : "50"}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Period
+              </label>
+              <select
+                value={form.period}
+                onChange={(e) => setForm({ ...form, period: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {periodOptions.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Due Date
+              </label>
+              <input
+                type="date"
+                required
+                value={form.dueDate}
+                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <div className="flex items-center gap-2 px-3 py-1 bg-slate-700/50 rounded-lg">
+              {getCategoryIcon(form.category)}
+              <span className="text-sm text-slate-300 capitalize">{form.category}</span>
+            </div>
+            <div className="text-sm text-slate-400">
+              Unit: <span className="text-slate-300">{form.unit}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Create Goal
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function GoalsPage() {
-  const [goals, setGoals] = useState(mockGoals);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
-  const [isUsingMockData] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUsingMockData, setIsUsingMockData] = useState(false);
+
+  const fetchGoals = async () => {
+    try {
+      const res = await fetch("/api/admin/platform-analytics/goals");
+      if (!res.ok) {
+        throw new Error("Failed to fetch goals");
+      }
+      const data = await res.json();
+      setGoals(data);
+      setIsUsingMockData(false);
+    } catch (err) {
+      console.error("Error fetching goals:", err);
+      // Fall back to demo data if API fails
+      setGoals([
+        {
+          id: "demo-1",
+          name: "Q1 2025 Revenue Target",
+          description: "Achieve $1M in revenue for Q1 2025",
+          metric: "Total Revenue",
+          target: 1000000,
+          current: 0,
+          unit: "currency",
+          period: "Q1 2025",
+          category: "revenue",
+          status: "on_track",
+          progress: 0,
+          daysRemaining: 90,
+          trend: "flat",
+          dueDate: "2025-03-31",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      setIsUsingMockData(true);
+      setError("Unable to connect to API. Showing demo data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGoals();
+  }, []);
+
+  const handleCreateGoal = async (data: CreateGoalForm) => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/platform-analytics/goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.name,
+          description: data.description || undefined,
+          metric: data.metric,
+          target: parseFloat(data.target),
+          unit: data.unit,
+          period: data.period,
+          category: data.category,
+          dueDate: data.dueDate,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create goal");
+      }
+
+      await fetchGoals();
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error("Error creating goal:", err);
+      alert("Failed to create goal. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteGoal = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this goal?")) return;
+
+    try {
+      const res = await fetch(`/api/admin/platform-analytics/goals/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete goal");
+      }
+
+      await fetchGoals();
+    } catch (err) {
+      console.error("Error deleting goal:", err);
+      alert("Failed to delete goal. Please try again.");
+    }
+  };
 
   const filteredGoals =
     filter === "all" ? goals : goals.filter((g) => g.status === filter || g.category === filter);
@@ -238,6 +466,14 @@ export default function GoalsPage() {
     at_risk: goals.filter((g) => g.status === "at_risk").length,
     behind: goals.filter((g) => g.status === "behind").length,
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -253,8 +489,12 @@ export default function GoalsPage() {
             )}
           </div>
           <p className="text-slate-400 mt-1">Track progress toward platform objectives</p>
+          {error && <p className="text-amber-400 text-sm mt-1">{error}</p>}
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
           <Plus className="h-4 w-4" />
           New Goal
         </button>
@@ -322,91 +562,124 @@ export default function GoalsPage() {
 
       {/* Goals List */}
       <div className="space-y-4">
-        {filteredGoals.map((goal) => {
-          const progress = (goal.current / goal.target) * 100;
-          const daysRemaining = Math.ceil(
-            (goal.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-          );
+        {filteredGoals.length === 0 ? (
+          <Card className="bg-slate-800/50 border-slate-700">
+            <CardContent className="p-8 text-center">
+              <Target className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-white mb-2">No goals yet</h3>
+              <p className="text-slate-400 mb-4">
+                Create your first goal to start tracking platform objectives.
+              </p>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Create Goal
+              </button>
+            </CardContent>
+          </Card>
+        ) : (
+          filteredGoals.map((goal) => {
+            const dueDate = new Date(goal.dueDate);
+            const daysRemaining = Math.ceil(
+              (dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+            );
 
-          return (
-            <Card key={goal.id} className="bg-slate-800/50 border-slate-700">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-4">
-                    <div className="p-2 bg-slate-700 rounded-lg">
-                      {getCategoryIcon(goal.category)}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-white">{goal.name}</h3>
-                        {getStatusBadge(goal.status)}
+            return (
+              <Card key={goal.id} className="bg-slate-800/50 border-slate-700">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start gap-4">
+                      <div className="p-2 bg-slate-700 rounded-lg">
+                        {getCategoryIcon(goal.category)}
                       </div>
-                      <p className="text-sm text-slate-400">{goal.description}</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {goal.period} • Due {goal.dueDate.toLocaleDateString()} ({daysRemaining} days remaining)
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-white">{goal.name}</h3>
+                          {getStatusBadge(goal.status)}
+                        </div>
+                        {goal.description && (
+                          <p className="text-sm text-slate-400">{goal.description}</p>
+                        )}
+                        <p className="text-xs text-slate-500 mt-1">
+                          {goal.period} • Due {dueDate.toLocaleDateString()} ({daysRemaining} days remaining)
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button className="p-2 hover:bg-slate-700 rounded-lg transition-colors">
+                        <Edit2 className="h-4 w-4 text-slate-400" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGoal(goal.id)}
+                        className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4 text-slate-400" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button className="p-2 hover:bg-slate-700 rounded-lg transition-colors">
-                      <Edit2 className="h-4 w-4 text-slate-400" />
-                    </button>
-                    <button className="p-2 hover:bg-slate-700 rounded-lg transition-colors">
-                      <Trash2 className="h-4 w-4 text-slate-400" />
-                    </button>
-                  </div>
-                </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Progress</span>
-                    <span className={`font-medium ${getStatusColor(goal.status)}`}>
-                      {formatValue(goal.current, goal.unit)} / {formatValue(goal.target, goal.unit)}
-                    </span>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Progress</span>
+                      <span className={`font-medium ${getStatusColor(goal.status)}`}>
+                        {formatValue(goal.current, goal.unit)} / {formatValue(goal.target, goal.unit)}
+                      </span>
+                    </div>
+                    <ProgressBar current={goal.current} target={goal.target} status={goal.status} />
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span>{goal.progress.toFixed(1)}% complete</span>
+                      <span>
+                        {goal.unit === "percentage"
+                          ? `${(goal.target - goal.current).toFixed(1)}% to go`
+                          : goal.unit === "currency"
+                          ? `$${((goal.target - goal.current) / 1000).toFixed(0)}K to go`
+                          : goal.unit === "score"
+                          ? `${goal.target - goal.current} points to go`
+                          : `${(goal.target - goal.current).toLocaleString()} to go`}
+                      </span>
+                    </div>
                   </div>
-                  <ProgressBar current={goal.current} target={goal.target} status={goal.status} />
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>{progress.toFixed(1)}% complete</span>
-                    <span>
-                      {goal.unit === "percentage"
-                        ? `${(goal.target - goal.current).toFixed(1)}% to go`
-                        : goal.unit === "currency"
-                        ? `$${((goal.target - goal.current) / 1000).toFixed(0)}K to go`
-                        : goal.unit === "score"
-                        ? `${goal.target - goal.current} points to go`
-                        : `${(goal.target - goal.current).toLocaleString()} to go`}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
 
       {/* Quick Add Goals Suggestions */}
       <Card className="bg-slate-800/50 border-slate-700">
         <CardHeader>
           <CardTitle className="text-lg text-white">Suggested Goals</CardTitle>
-          <p className="text-sm text-slate-400">Based on your current performance</p>
+          <p className="text-sm text-slate-400">Based on common industry objectives</p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-blue-500/50 cursor-pointer transition-colors">
+            <div
+              onClick={() => setIsModalOpen(true)}
+              className="p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-blue-500/50 cursor-pointer transition-colors"
+            >
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign className="h-4 w-4 text-green-400" />
                 <span className="font-medium text-white">Revenue Stretch Goal</span>
               </div>
               <p className="text-xs text-slate-400">Increase Q1 2025 revenue by 20% YoY</p>
             </div>
-            <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-blue-500/50 cursor-pointer transition-colors">
+            <div
+              onClick={() => setIsModalOpen(true)}
+              className="p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-blue-500/50 cursor-pointer transition-colors"
+            >
               <div className="flex items-center gap-2 mb-2">
                 <Star className="h-4 w-4 text-amber-400" />
                 <span className="font-medium text-white">NPS Improvement</span>
               </div>
               <p className="text-xs text-slate-400">Get 3 struggling campgrounds above NPS 30</p>
             </div>
-            <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-blue-500/50 cursor-pointer transition-colors">
+            <div
+              onClick={() => setIsModalOpen(true)}
+              className="p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-blue-500/50 cursor-pointer transition-colors"
+            >
               <div className="flex items-center gap-2 mb-2">
                 <Users className="h-4 w-4 text-purple-400" />
                 <span className="font-medium text-white">Guest Retention</span>
@@ -416,6 +689,14 @@ export default function GoalsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Create Goal Modal */}
+      <CreateGoalModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleCreateGoal}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { NpsAnalyticsService } from "./services/nps-analytics.service";
 import { AnalyticsExportService } from "./export/analytics-export.service";
 import { ExecutiveDashboardService } from "./services/executive-dashboard.service";
 import { AiSuggestionsService } from "./services/ai-suggestions.service";
+import { GoalsService } from "./services/goals.service";
 
 @Module({
   imports: [PrismaModule],
@@ -32,6 +33,7 @@ import { AiSuggestionsService } from "./services/ai-suggestions.service";
     AnalyticsExportService,
     ExecutiveDashboardService,
     AiSuggestionsService,
+    GoalsService,
   ],
   exports: [
     PlatformAnalyticsService,
@@ -47,6 +49,7 @@ import { AiSuggestionsService } from "./services/ai-suggestions.service";
     AnalyticsExportService,
     ExecutiveDashboardService,
     AiSuggestionsService,
+    GoalsService,
   ],
 })
 export class PlatformAnalyticsModule {}

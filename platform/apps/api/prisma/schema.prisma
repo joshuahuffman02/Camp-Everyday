@@ -1070,6 +1070,7 @@ model Campground {
   guestSegments          GuestSegment[]
   analyticsShareLinks    AnalyticsShareLink[]
   analyticsExports       AnalyticsExport[]
+  platformGoals          PlatformGoal[]
 
   @@index([dataSource, dataSourceId])
 }
@@ -5934,4 +5935,55 @@ model AnalyticsExport {
   @@index([requestedBy])
   @@index([status])
   @@index([createdAt])
+}
+
+// Platform Goals for tracking objectives
+enum GoalStatus {
+  on_track
+  at_risk
+  behind
+  achieved
+}
+
+enum GoalCategory {
+  revenue
+  bookings
+  guests
+  satisfaction
+}
+
+enum GoalUnit {
+  currency
+  percentage
+  number
+  score
+}
+
+model PlatformGoal {
+  id           String       @id @default(cuid())
+  name         String
+  description  String?
+  metric       String       // e.g., "Total Revenue", "NPS Score"
+
+  target       Float
+  current      Float        @default(0)
+  unit         GoalUnit
+
+  period       String       // e.g., "Q4 2024", "2024"
+  category     GoalCategory
+  status       GoalStatus   @default(on_track)
+
+  dueDate      DateTime
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  createdBy    String?      // User ID
+
+  // Optional targeting
+  campgroundId String?
+  campground   Campground?  @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([status])
+  @@index([dueDate])
+  @@index([campgroundId])
 }
