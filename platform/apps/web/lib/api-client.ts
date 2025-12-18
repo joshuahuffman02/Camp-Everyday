@@ -2622,8 +2622,17 @@ export const apiClient = {
     if (!res.ok) throw new Error("Failed to delete site class");
     return true;
   },
-  async getGuests() {
-    const data = await fetchJSON<unknown>("/guests");
+  async getGuests(campgroundId?: string) {
+    let resolvedCampgroundId = campgroundId;
+    if (!resolvedCampgroundId && typeof window !== "undefined") {
+      try {
+        resolvedCampgroundId = localStorage.getItem("campreserv:selectedCampground") || undefined;
+      } catch {
+        resolvedCampgroundId = undefined;
+      }
+    }
+    const query = resolvedCampgroundId ? `?campgroundId=${resolvedCampgroundId}` : "";
+    const data = await fetchJSON<unknown>(`/guests${query}`);
     return GuestArray.parse(data);
   },
   async getGuest(id: string) {

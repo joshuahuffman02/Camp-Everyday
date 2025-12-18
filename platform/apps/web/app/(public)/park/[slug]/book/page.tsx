@@ -2442,9 +2442,10 @@ export default function BookingPage() {
     const searchParams = useSearchParams();
 
     // Initial state from URL params
-    const initialArrival = searchParams.get("arrivalDate") || "";
-    const initialDeparture = searchParams.get("departureDate") || "";
+    const initialArrival = searchParams.get("arrivalDate") || searchParams.get("arrival") || "";
+    const initialDeparture = searchParams.get("departureDate") || searchParams.get("departure") || "";
     const initialSiteType = searchParams.get("siteType") || "all";
+    const initialSiteId = searchParams.get("siteId") || null;
     // Support both "adults"/"children" params and combined "guests" param
     const guestsParam = searchParams.get("guests");
     const adultsParam = searchParams.get("adults");
@@ -2460,7 +2461,7 @@ export default function BookingPage() {
     const [arrivalDate, setArrivalDate] = useState(initialArrival);
     const [departureDate, setDepartureDate] = useState(initialDeparture);
     const [selectedSiteType, setSelectedSiteType] = useState(normalizeSiteType(initialSiteType || "all"));
-    const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+    const [selectedSiteId, setSelectedSiteId] = useState<string | null>(initialSiteId);
     const [selectedSiteClassId, setSelectedSiteClassId] = useState<string | null>(initialSiteClassId);
     const [assignOnArrival, setAssignOnArrival] = useState(false);
     const [guestInfo, setGuestInfo] = useState<GuestInfo>({
@@ -2687,6 +2688,14 @@ export default function BookingPage() {
     }, [arrivalDate, departureDate, filteredSites.length, guestInfo.equipment.length, guestInfo.equipment.type, isLoadingSites, slug, step]);
 
     const selectedSite = availableSites?.find((s) => s.id === selectedSiteId) || null;
+
+    useEffect(() => {
+        if (!selectedSite) return;
+        setSelectedSiteClassId((prev) => prev || selectedSite.siteClass?.id || null);
+        if (selectedSiteType === "all") {
+            setSelectedSiteType(normalizeSiteType(selectedSite.siteClass?.siteType || selectedSite.siteType || "all"));
+        }
+    }, [selectedSite, selectedSiteType]);
 
     // Abandoned cart: fire once after 15 minutes idle before completion
     useEffect(() => {

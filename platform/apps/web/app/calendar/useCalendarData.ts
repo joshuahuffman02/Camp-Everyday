@@ -110,6 +110,14 @@ export function useCalendarData() {
         refetchInterval: 60_000
     });
 
+    const guestsQuery = useQuery({
+        queryKey: ["calendar-guests", selectedCampground],
+        queryFn: () => apiClient.getGuests(selectedCampground),
+        enabled: !!selectedCampground,
+        staleTime: 60_000,
+        refetchInterval: 5 * 60_000
+    });
+
     const blackoutsQuery = useQuery({
         queryKey: ["calendar-blackouts", selectedCampground],
         queryFn: () => {
@@ -167,6 +175,19 @@ export function useCalendarData() {
         [reservationsQuery.data]
     );
 
+    const guestLookup = useMemo(() => {
+        const map = new Map<string, { firstName: string; lastName: string; email: string; phone: string; fullName: string }>();
+        (guestsQuery.data || []).forEach((guest: any) => {
+            const firstName = (guest.primaryFirstName || "").toLowerCase();
+            const lastName = (guest.primaryLastName || "").toLowerCase();
+            const email = (guest.email || "").toLowerCase();
+            const phone = (guest.phone || "").toLowerCase();
+            const fullName = `${firstName} ${lastName}`.trim();
+            map.set(guest.id, { firstName, lastName, email, phone, fullName });
+        });
+        return map;
+    }, [guestsQuery.data]);
+
     const filteredReservations = useMemo(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -193,20 +214,31 @@ export function useCalendarData() {
                 const siteName = (res.site?.name || "").toLowerCase();
                 const fullName = `${firstName} ${lastName}`.toLowerCase();
 
-                if (
+                let noMatch =
                     !firstName.includes(searchLower) &&
                     !lastName.includes(searchLower) &&
                     !email.includes(searchLower) &&
                     !phone.includes(searchLower) &&
                     !fullName.includes(searchLower) &&
-                    !siteName.includes(searchLower)
-                ) {
-                    return false;
+                    !siteName.includes(searchLower);
+
+                if (noMatch && res.guestId) {
+                    const lookup = guestLookup.get(res.guestId);
+                    if (lookup) {
+                        noMatch =
+                            !lookup.firstName.includes(searchLower) &&
+                            !lookup.lastName.includes(searchLower) &&
+                            !lookup.email.includes(searchLower) &&
+                            !lookup.phone.includes(searchLower) &&
+                            !lookup.fullName.includes(searchLower);
+                    }
                 }
+
+                if (noMatch) return false;
             }
             return true;
         });
-    }, [reservationsActive, statusFilter, assignmentFilter, channelFilter, arrivalsNowOnly, guestSearch]);
+    }, [reservationsActive, statusFilter, assignmentFilter, channelFilter, arrivalsNowOnly, guestSearch, guestLookup]);
 
     const reservationsBySite = useMemo(() => {
         const grouped: Record<string, typeof filteredReservations> = {};
@@ -346,6 +378,7 @@ export function useCalendarData() {
             campgrounds: campgroundsQuery,
             sites: sitesQuery,
             reservations: reservationsQuery,
+            guests: guestsQuery,
             blackouts: blackoutsQuery,
             maintenance: maintenanceQuery,
             housekeeping: housekeepingTasksQuery

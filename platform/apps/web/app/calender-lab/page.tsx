@@ -35,6 +35,15 @@ const DAY_RANGES = [7, 14, 21, 30];
 const SITE_COL_WIDTH = 240;
 const DAY_MIN_WIDTH = 104;
 
+const SITE_TYPE_STYLES: Record<string, { label: string; badge: string; border: string }> = {
+  rv: { label: "RV", badge: "bg-emerald-100 text-emerald-700", border: "border-l-emerald-400" },
+  tent: { label: "Tent", badge: "bg-amber-100 text-amber-800", border: "border-l-amber-400" },
+  cabin: { label: "Cabin", badge: "bg-rose-100 text-rose-700", border: "border-l-rose-400" },
+  group: { label: "Group", badge: "bg-indigo-100 text-indigo-700", border: "border-l-indigo-400" },
+  glamping: { label: "Glamp", badge: "bg-cyan-100 text-cyan-700", border: "border-l-cyan-400" },
+  default: { label: "Site", badge: "bg-slate-100 text-slate-600", border: "border-l-slate-300" }
+};
+
 interface ActiveSelection {
   siteId: string;
   startIdx: number;
@@ -54,18 +63,54 @@ export default function CalendarLabPage() {
   const data = useCalendarData();
   const { state, actions, queries, derived } = data;
 
-  const campgrounds = queries.campgrounds.data || [];
   const sites = queries.sites.data || [];
+  const guests = queries.guests.data || [];
   const reservations = derived.filteredReservations;
-  const visibleSites = useMemo(() => {
+  const typeFilteredSites = useMemo(() => {
     if (state.siteTypeFilter === "all") return sites;
     return sites.filter((site) => site.siteType === state.siteTypeFilter);
   }, [sites, state.siteTypeFilter]);
+  const searchFilteredSiteIds = useMemo(
+    () => new Set(reservations.map((res) => res.siteId).filter(Boolean) as string[]),
+    [reservations]
+  );
+  const visibleSites = useMemo(() => {
+    if (!state.guestSearch.trim()) return typeFilteredSites;
+    return typeFilteredSites.filter((site) => searchFilteredSiteIds.has(site.id));
+  }, [typeFilteredSites, state.guestSearch, searchFilteredSiteIds]);
   const visibleSiteIds = useMemo(() => new Set(visibleSites.map((site) => site.id)), [visibleSites]);
   const visibleReservations = useMemo(
     () => reservations.filter((res) => (res.siteId ? visibleSiteIds.has(res.siteId) : false)),
     [reservations, visibleSiteIds]
   );
+  const guestSearchStats = useMemo(() => {
+    const search = state.guestSearch.trim().toLowerCase();
+    if (!search) return { count: 0, samples: [] as string[] };
+    let count = 0;
+    const samples: string[] = [];
+    for (const guest of guests) {
+      const first = (guest.primaryFirstName || "").toLowerCase();
+      const last = (guest.primaryLastName || "").toLowerCase();
+      const email = (guest.email || "").toLowerCase();
+      const phone = (guest.phone || "").toLowerCase();
+      const fullName = `${first} ${last}`.trim();
+      if (!first.includes(search) && !last.includes(search) && !email.includes(search) && !phone.includes(search) && !fullName.includes(search)) {
+        continue;
+      }
+      count += 1;
+      if (samples.length < 2) {
+        samples.push(fullName || guest.email || "Guest");
+      }
+    }
+    return { count, samples };
+  }, [guests, state.guestSearch]);
+  const visibleSiteTypes = useMemo(() => {
+    const types = new Set<string>();
+    visibleSites.forEach((site) => {
+      if (site.siteType) types.add(site.siteType);
+    });
+    return Array.from(types);
+  }, [visibleSites]);
 
   const rangeLabel = useMemo(() => {
     const start = parseLocalDateInput(state.startDate);
@@ -108,23 +153,6 @@ export default function CalendarLabPage() {
     actions.setStartDate(formatLocalDateInput(d));
   }, [state.startDate, state.dayCount, actions]);
 
-  const handleCampgroundChange = useCallback(
-    (value: string) => {
-      actions.setSelectedCampground(value);
-      if (typeof window === "undefined") return;
-      try {
-        localStorage.setItem("campreserv:selectedCampground", value);
-        const selected = campgrounds.find((cg) => cg.id === value);
-        if (selected?.name) {
-          localStorage.setItem("campreserv:selectedCampgroundName", selected.name);
-        }
-      } catch {
-        // ignore storage errors
-      }
-    },
-    [actions, campgrounds]
-  );
-
   const bookingDraft = state.reservationDraft;
   const selectedCampground = derived.selectedCampgroundDetails;
 
@@ -133,8 +161,8 @@ export default function CalendarLabPage() {
     const slug = selectedCampground?.slug || "";
     const params = new URLSearchParams({
       siteId: bookingDraft.siteId,
-      arrival: bookingDraft.arrival,
-      departure: bookingDraft.departure
+      arrivalDate: bookingDraft.arrival,
+      departureDate: bookingDraft.departure
     });
     if (slug) {
       router.push(`/park/${slug}/book?${params.toString()}`);
@@ -143,7 +171,7 @@ export default function CalendarLabPage() {
 
   return (
     <DashboardShell>
-      <div className="px-6 py-6 max-w-[1680px] mx-auto space-y-6">
+      <div className="px-6 py-6 w-full max-w-none space-y-6">
         <Breadcrumbs
           items={[
             { label: "Dashboard", href: "/dashboard" },
@@ -213,67 +241,60 @@ export default function CalendarLabPage() {
           </div>
 
           <Card className="p-4 border-slate-200 shadow-sm">
-            <div className="grid gap-4 md:grid-cols-[minmax(220px,320px)_1fr]">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Campground</Label>
-                <Select value={state.selectedCampground} onValueChange={handleCampgroundChange}>
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Search guests</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    className="h-10 pl-9"
+                    placeholder="Name, phone, email..."
+                    value={state.guestSearch}
+                    onChange={(e) => actions.setGuestSearch(e.target.value)}
+                  />
+                </div>
+                {state.guestSearch && (
+                  <div className="text-[11px] text-slate-500">
+                    {queries.guests.isLoading
+                      ? "Searching guests..."
+                      : guestSearchStats.count > 0
+                        ? `Matches ${guestSearchStats.count} guests`
+                        : "No guests found"}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status</Label>
+                <Select value={state.statusFilter} onValueChange={actions.setStatusFilter}>
                   <SelectTrigger className="h-10">
-                    <SelectValue placeholder={queries.campgrounds.isLoading ? "Loading campgrounds..." : "Select campground"} />
+                    <SelectValue placeholder="All statuses" />
                   </SelectTrigger>
                   <SelectContent>
-                    {campgrounds.map((cg) => (
-                      <SelectItem key={cg.id} value={cg.id}>{cg.name}</SelectItem>
-                    ))}
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="checked_in">Checked In</SelectItem>
+                    <SelectItem value="pending">Pending / Hold</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Search guests</Label>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                      className="h-10 pl-9"
-                      placeholder="Name, phone, email..."
-                      value={state.guestSearch}
-                      onChange={(e) => actions.setGuestSearch(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status</Label>
-                  <Select value={state.statusFilter} onValueChange={actions.setStatusFilter}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="All statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="checked_in">Checked In</SelectItem>
-                      <SelectItem value="pending">Pending / Hold</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Site type</Label>
-                  <Select value={state.siteTypeFilter} onValueChange={actions.setSiteTypeFilter}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="All types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="rv">RV</SelectItem>
-                      <SelectItem value="tent">Tent</SelectItem>
-                      <SelectItem value="cabin">Cabin</SelectItem>
-                      <SelectItem value="group">Group</SelectItem>
-                      <SelectItem value="glamping">Glamping</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Site type</Label>
+                <Select value={state.siteTypeFilter} onValueChange={actions.setSiteTypeFilter}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="rv">RV</SelectItem>
+                    <SelectItem value="tent">Tent</SelectItem>
+                    <SelectItem value="cabin">Cabin</SelectItem>
+                    <SelectItem value="group">Group</SelectItem>
+                    <SelectItem value="glamping">Glamping</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -299,27 +320,77 @@ export default function CalendarLabPage() {
                   </Button>
                 )}
               </div>
-              <div className="text-xs text-slate-500 font-medium">{visibleReservations.length} stays in view</div>
+              <div className="text-xs text-slate-500 font-medium">
+                {state.guestSearch || state.statusFilter !== "all" || state.siteTypeFilter !== "all" || state.arrivalsNowOnly
+                  ? `${visibleReservations.length} stays match filters`
+                  : `${visibleReservations.length} stays in view`}
+              </div>
             </div>
           </Card>
         </div>
 
         {!state.selectedCampground && (
           <Card className="p-6 border-dashed border-slate-200 text-center text-slate-500">
-            Select a campground to load the booking grid.
+            Choose a campground from the global selector to load the booking grid.
           </Card>
         )}
 
         {state.selectedCampground && (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-4">
-                <StatCard label="Occupied tonight" value={`${occupiedToday}`} sub={`${availableToday} open sites`} icon={<Users className="h-4 w-4" />} />
-                <StatCard label="Arrivals today" value={`${arrivalsToday}`} sub={`${departuresToday} departures`} icon={<CalendarCheck className="h-4 w-4" />} />
-                <StatCard label="Maintenance" value={`${maintenanceCount}`} sub="Open tickets" icon={<Wrench className="h-4 w-4" />} />
-                <StatCard label="Housekeeping" value={`${housekeepingCount}`} sub="Active tasks" icon={<Sparkles className="h-4 w-4" />} />
-              </div>
+          <div className="space-y-4">
+            {bookingDraft ? (
+              <Card className="p-4 border-blue-200 shadow-[0_20px_50px_-30px_rgba(37,99,235,0.35)]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-blue-700">Draft booking</div>
+                    <div className="text-sm font-semibold text-slate-900">{bookingDraft.siteName}</div>
+                    <div className="text-xs text-slate-500">
+                      {bookingDraft.arrival} → {bookingDraft.departure} · {bookingDraft.nights} nights
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-xl font-black text-slate-900">${(bookingDraft.total / 100).toFixed(2)}</div>
+                    <Button className="gap-2" onClick={handleBookNow}>
+                      Continue booking
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => actions.setReservationDraft(null)}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Card className="p-4 border-dashed border-slate-200 text-sm text-slate-500">
+                Drag across dates to create a selection and see a booking draft here.
+              </Card>
+            )}
 
+            <div className="grid gap-4 md:grid-cols-4">
+              <StatCard label="Occupied tonight" value={`${occupiedToday}`} sub={`${availableToday} open sites`} icon={<Users className="h-4 w-4" />} />
+              <StatCard label="Arrivals today" value={`${arrivalsToday}`} sub={`${departuresToday} departures`} icon={<CalendarCheck className="h-4 w-4" />} />
+              <StatCard label="Maintenance" value={`${maintenanceCount}`} sub="Open tickets" icon={<Wrench className="h-4 w-4" />} />
+              <StatCard label="Housekeeping" value={`${housekeepingCount}`} sub="Active tasks" icon={<Sparkles className="h-4 w-4" />} />
+            </div>
+
+            {visibleSiteTypes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Site types</span>
+                {visibleSiteTypes.map((type) => {
+                  const meta = SITE_TYPE_STYLES[type] || SITE_TYPE_STYLES.default;
+                  return (
+                    <span key={type} className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold", meta.badge)}>
+                      {meta.label}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {state.guestSearch && visibleSites.length === 0 ? (
+              <Card className="p-6 border-dashed border-slate-200 text-center text-slate-500">
+                No sites match that guest search in this view.
+              </Card>
+            ) : (
               <CalendarLabGrid
                 days={derived.days}
                 dayCount={state.dayCount}
@@ -330,49 +401,7 @@ export default function CalendarLabPage() {
                 onSelectionComplete={actions.selectRange}
                 onReservationClick={actions.setSelectedReservationId}
               />
-            </div>
-
-            <div className="space-y-4">
-              <Card className="p-5 border-slate-200 shadow-sm">
-                <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Selected campground</div>
-                  <div className="text-lg font-black text-slate-900">{selectedCampground?.name || "Campground"}</div>
-                  <div className="text-xs text-slate-500">Manage availability, holds, and arrivals in one flow.</div>
-                </div>
-              </Card>
-
-              {bookingDraft ? (
-                <Card className="p-5 border-blue-200 shadow-[0_20px_50px_-30px_rgba(37,99,235,0.55)]">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-bold uppercase tracking-widest text-blue-700">Draft booking</div>
-                    <Badge variant="secondary" className="text-[10px]">Ready</Badge>
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-700">{bookingDraft.siteName}</div>
-                      <div className="text-xs text-slate-500">{bookingDraft.arrival} to {bookingDraft.departure}</div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-slate-500">{bookingDraft.nights} nights</div>
-                      <div className="text-xl font-black text-slate-900">${(bookingDraft.total / 100).toFixed(2)}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button className="flex-1 gap-2" onClick={handleBookNow}>
-                        Continue booking
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => actions.setReservationDraft(null)}>
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ) : (
-                <Card className="p-5 border-dashed border-slate-200 text-sm text-slate-500">
-                  Drag across dates to create a selection and see a booking draft here.
-                </Card>
-              )}
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -624,6 +653,8 @@ function CalendarLabRow({
   onReservationClick
 }: CalendarLabRowProps) {
   const active = activeSelection && activeSelection.siteId === site.id ? activeSelection : null;
+  const typeKey = (site.siteType || "").toLowerCase();
+  const typeMeta = SITE_TYPE_STYLES[typeKey] || SITE_TYPE_STYLES.default;
 
   const activeStart = active ? Math.min(active.startIdx, active.endIdx) : null;
   const activeEnd = active ? Math.max(active.startIdx, active.endIdx) : null;
@@ -636,10 +667,11 @@ function CalendarLabRow({
       style={{ gridTemplateColumns: gridTemplate }}
       data-site-id={site.id}
     >
-      <div className={cn("px-4 py-3 sticky left-0 z-10 border-r border-slate-200", zebra)}>
+      <div className={cn("px-4 py-3 sticky left-0 z-10 border-r border-l-4 border-slate-200", zebra, typeMeta.border)}>
         <div className="text-sm font-bold text-slate-900 truncate" title={site.name}>{site.name}</div>
-        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-          {site.siteType || "Site"} {site.siteNumber || ""}
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-wider">
+          <span className={cn("px-2 py-0.5 rounded-full font-bold", typeMeta.badge)}>{typeMeta.label}</span>
+          {site.siteNumber && <span className="text-slate-400">#{site.siteNumber}</span>}
         </div>
       </div>
 
