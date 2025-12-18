@@ -22,7 +22,7 @@ export const RowSelectionOverlay = ({ siteId, siteName, dayCount }: RowSelection
 
     return (
         <div
-            className="absolute inset-y-1 mx-0.5 rounded-lg bg-blue-500/30 border-2 border-blue-500 z-30 pointer-events-none flex items-center justify-center overflow-hidden transition-all duration-75 shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+            className="absolute inset-y-1 mx-0.5 rounded-lg bg-blue-500/30 border-2 border-blue-500 z-30 pointer-events-none flex items-center justify-center overflow-hidden shadow-[0_0_15px_rgba(59,130,246,0.3)]"
             style={{
                 gridColumn: `${selStart + 1} / span ${span}`,
             }}

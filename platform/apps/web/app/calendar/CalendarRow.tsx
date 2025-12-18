@@ -139,7 +139,7 @@ export const CalendarRow = memo(function CalendarRow({
                         return (
                             <div
                                 key={res.id}
-                                className="relative h-full w-full pointer-events-auto"
+                                className="relative h-full w-full pointer-events-auto reservation-wrapper"
                                 style={{
                                     gridColumn: `${startIdx + 1} / span ${span}`,
                                     zIndex: 20

@@ -17,6 +17,7 @@ interface CalendarGridProps {
 
 export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
     const { setDragVisual, dragRef } = useCalendarContext();
+    const [localIsDragging, setLocalIsDragging] = React.useState(false);
     const { queries, derived, state, actions } = data;
     const { sites, reservations, blackouts } = queries;
     const { days, dayCount, reservationsBySite, ganttSelection } = derived;
@@ -26,6 +27,7 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
     const handleDragStart = useCallback((siteId: string, dayIdx: number) => {
         dragRef.current = { siteId, startIdx: dayIdx, endIdx: dayIdx, isDragging: true };
         setDragVisual({ siteId, startIdx: dayIdx, endIdx: dayIdx });
+        setLocalIsDragging(true);
     }, [setDragVisual, dragRef]);
 
     const handleDragEnter = useCallback((siteId: string, dayIdx: number) => {
@@ -55,6 +57,7 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
 
         dragRef.current = { siteId: null, startIdx: null, endIdx: null, isDragging: false };
         setDragVisual(null);
+        setLocalIsDragging(false);
     }, [days, onSelectionComplete, setDragVisual, dragRef]);
 
     useEffect(() => {
@@ -78,7 +81,13 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
     }
 
     return (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden select-none">
+        <div
+            id="calendar-grid-root"
+            className={cn(
+                "rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden select-none",
+                state.viewMode === ("timeline" as any) ? "cursor-crosshair" : ""
+            )}
+        >
             <div className="overflow-x-auto">
                 {/* Header Row */}
                 <div
@@ -99,11 +108,19 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
                     ))}
                 </div>
 
-                {/* Rows */}
                 <div
-                    className="divide-y divide-slate-100"
+                    className={cn(
+                        "divide-y divide-slate-100",
+                        localIsDragging && "dragging-active"
+                    )}
                     onPointerUp={() => handleDragEnd(null, null)}
                 >
+                    <style>{`
+                        .dragging-active .reservation-wrapper {
+                            pointer-events: none !important;
+                            opacity: 0.6;
+                        }
+                    `}</style>
                     {(sites.data || []).map((site, idx) => (
                         <CalendarRow
                             key={site.id}
