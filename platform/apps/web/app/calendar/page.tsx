@@ -610,14 +610,15 @@ export default function CalendarPage() {
 
   // Memoized map of reservations by siteId for O(1) lookup instead of O(n) filtering
   const reservationsBySite = useMemo(() => {
-    const map: Map<string, typeof filteredReservations> = new Map();
+    const grouped: Record<string, typeof filteredReservations> = {};
     for (const res of filteredReservations) {
       if (!res.siteId) continue;
-      const existing = map.get(res.siteId) || [];
-      existing.push(res);
-      map.set(res.siteId, existing);
+      if (!grouped[res.siteId]) {
+        grouped[res.siteId] = [];
+      }
+      grouped[res.siteId].push(res);
     }
-    return map;
+    return grouped;
   }, [filteredReservations]);
 
   const visibleEnd = useMemo(() => {
@@ -1988,7 +1989,7 @@ export default function CalendarPage() {
             <div className="divide-y divide-slate-200 min-w-[960px]">
               {(sitesQuery.data || []).map((site, rowIdx) => {
                 const zebra = rowIdx % 2 === 0 ? "bg-white" : "bg-slate-50";
-                const siteReservations = reservationsBySite.get(site.id) || [];
+                const siteReservations = reservationsBySite[site.id] || [];
                 return (
                   <div key={site.id} className={`grid grid-cols-8 ${zebra}`}>
                     <div className="px-3 py-2 sticky left-0 z-20 border-r border-slate-200 flex flex-col gap-1">
