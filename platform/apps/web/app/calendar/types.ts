@@ -14,9 +14,20 @@ export interface DayMeta {
 }
 
 // Calendar reservation with guest and site info
+// Using explicit types instead of Pick to handle nullable API responses
 export interface CalendarReservation extends Reservation {
-  guest?: Pick<Guest, "primaryFirstName" | "primaryLastName" | "email" | "phone"> | null;
-  site?: Pick<Site, "id" | "name" | "siteNumber" | "siteType"> | null;
+  guest?: {
+    primaryFirstName?: string | null;
+    primaryLastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
+  site?: {
+    id: string;
+    name?: string | null;
+    siteNumber?: string | null;
+    siteType?: string | null;
+  } | null;
 }
 
 // Calendar site with display properties
