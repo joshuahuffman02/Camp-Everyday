@@ -70,15 +70,11 @@ export const CalendarRow = memo(function CalendarRow({
 
             {/* Grid Cells Container */}
             <div className="relative" style={{ gridColumn: "2 / -1" }}>
-                {/* Background Grid - use data-day-idx for global tracking */}
-                <div
-                    className="grid h-full"
-                    style={{ gridTemplateColumns: `repeat(${dayCount}, minmax(94px, 1fr))` }}
-                >
+                {/* Background Grid */}
+                <div className="grid h-full" style={{ gridTemplateColumns: `repeat(${dayCount}, minmax(94px, 1fr))` }}>
                     {days.map((d, i) => (
                         <div
                             key={i}
-                            data-day-idx={i}
                             className={cn(
                                 "border-r border-slate-100 cursor-crosshair transition-colors h-16 touch-none",
                                 zebra,
@@ -87,10 +83,11 @@ export const CalendarRow = memo(function CalendarRow({
                                 "hover:bg-blue-50/30"
                             )}
                             onPointerDown={(e) => {
-                                // Explicitly release capture to allow window pointermove to see other targets
+                                // Important: do not let this element capture pointer
                                 (e.target as HTMLElement).releasePointerCapture(e.pointerId);
                                 onDragStart(site.id, i);
                             }}
+                            onPointerEnter={() => onDragEnter(site.id, i)}
                             onPointerUp={() => onDragEnd(site.id, i)}
                         />
                     ))}

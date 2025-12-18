@@ -67,28 +67,9 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
             }
         };
 
-        const handleGlobalPointerMove = (e: PointerEvent) => {
-            const drag = dragRef.current;
-            if (drag.isDragging) {
-                // Nuclear tracking: find cell under pointer regardless of capture/z-index
-                const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
-                const cell = target?.closest("[data-day-idx]") as HTMLElement | null;
-                const dayIdxAttr = cell?.getAttribute("data-day-idx");
-
-                if (dayIdxAttr !== null && dayIdxAttr !== undefined) {
-                    const idx = parseInt(dayIdxAttr, 10);
-                    handleDragEnter(drag.siteId!, idx);
-                }
-            }
-        };
-
         window.addEventListener("pointerup", handleGlobalPointerUp);
-        window.addEventListener("pointermove", handleGlobalPointerMove);
-        return () => {
-            window.removeEventListener("pointerup", handleGlobalPointerUp);
-            window.removeEventListener("pointermove", handleGlobalPointerMove);
-        };
-    }, [handleDragEnd, handleDragEnter, dragRef]);
+        return () => window.removeEventListener("pointerup", handleGlobalPointerUp);
+    }, [handleDragEnd, dragRef]);
 
     if (sites.isLoading || reservations.isLoading) {
         return (
