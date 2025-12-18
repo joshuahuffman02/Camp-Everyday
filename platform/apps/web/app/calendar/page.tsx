@@ -92,10 +92,28 @@ export default function CalendarPage() {
   const [startDate, setStartDate] = useState(() => formatLocalDateInput(new Date()));
   const [viewMode, setViewMode] = useState<"day" | "week" | "month" | "list">("week");
   const [dayCount, setDayCount] = useState(14);
-  const [dragSiteId, setDragSiteId] = useState<string | null>(null);
-  const [dragStartIdx, setDragStartIdx] = useState<number | null>(null);
-  const [dragEndIdx, setDragEndIdx] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+
+  // Consolidated drag state - single ref for immediate tracking, single state for visual
+  const dragRef = useRef<{
+    siteId: string | null;
+    startIdx: number | null;
+    endIdx: number | null;
+    active: boolean;
+  }>({ siteId: null, startIdx: null, endIdx: null, active: false });
+
+  // Visual state - only updated on meaningful changes
+  const [dragVisual, setDragVisual] = useState<{
+    siteId: string | null;
+    startIdx: number | null;
+    endIdx: number | null;
+  } | null>(null);
+
+  // Derived values for backwards compatibility
+  const dragSiteId = dragVisual?.siteId ?? null;
+  const dragStartIdx = dragVisual?.startIdx ?? null;
+  const dragEndIdx = dragVisual?.endIdx ?? null;
+  // isDragging is true when we have a visual drag with different start/end indices
+  const isDragging = dragVisual !== null && dragVisual.startIdx !== dragVisual.endIdx;
   const [quotePreview, setQuotePreview] = useState<{
     siteId: string;
     siteName: string;
@@ -902,25 +920,28 @@ export default function CalendarPage() {
   );
 
   const handleMouseDown = (siteId: string, dayIdx: number) => {
-    // Clear any existing state from different site
+    // Clear any existing click state from different site
     if (clickStart && clickStart.siteId !== siteId) {
       setClickStart(null);
     }
-    // Batch state updates to reduce re-renders
-    setDragSiteId(siteId);
-    setDragStartIdx(dayIdx);
-    setDragEndIdx(dayIdx);
-    setIsDragging(false);
-    // Clear any highlighted reservation when starting a new drag
+    // Update ref immediately (no re-render)
+    dragRef.current = { siteId, startIdx: dayIdx, endIdx: dayIdx, active: false };
+    // Single state update for visual
+    setDragVisual({ siteId, startIdx: dayIdx, endIdx: dayIdx });
+    // Clear any highlighted reservation
     setStoreSelection({ highlightedId: null, openDetailsId: null });
   };
+
   const handleMouseEnter = (siteId: string, dayIdx: number) => {
-    // Only update if we're on the same site we started dragging on
-    if (dragSiteId === siteId && dragStartIdx !== null) {
-      setDragEndIdx(dayIdx);
-      if (dayIdx !== dragStartIdx) {
-        setIsDragging(true);
+    const drag = dragRef.current;
+    // Only update if we're on the same site we started on
+    if (drag.siteId === siteId && drag.startIdx !== null) {
+      drag.endIdx = dayIdx;
+      if (dayIdx !== drag.startIdx) {
+        drag.active = true;
       }
+      // Update visual state
+      setDragVisual({ siteId: drag.siteId, startIdx: drag.startIdx, endIdx: dayIdx });
     }
   };
   const selectRange = async (siteId: string, startIdx: number, endIdx: number) => {
@@ -1135,61 +1156,41 @@ export default function CalendarPage() {
     const selectRangeFn = selectRangeRef.current;
     if (!selectRangeFn) return;
 
+    const drag = dragRef.current;
+
     // Full drag flow - user dragged across multiple cells
-    if (isDragging && dragSiteId !== null && dragStartIdx !== null && dragEndIdx !== null && siteId !== undefined && dayIdx !== undefined) {
+    if (drag.active && drag.siteId !== null && drag.startIdx !== null && drag.endIdx !== null) {
       isProcessingSelection.current = true;
       try {
-        await selectRangeFn(siteId, dragStartIdx, dayIdx);
+        await selectRangeFn(drag.siteId, drag.startIdx, drag.endIdx);
       } finally {
         isProcessingSelection.current = false;
       }
     }
     // Single-cell click-and-release: user clicked a cell and released without dragging
-    // This creates a 1-night selection from that day
-    else if (!isDragging && dragSiteId !== null && dragStartIdx !== null && siteId === dragSiteId && dayIdx === dragStartIdx) {
+    else if (!drag.active && drag.siteId !== null && drag.startIdx !== null && siteId === drag.siteId && dayIdx === drag.startIdx) {
       isProcessingSelection.current = true;
       try {
-        await selectRangeFn(siteId, dragStartIdx, dragStartIdx);
+        await selectRangeFn(drag.siteId, drag.startIdx, drag.startIdx);
       } finally {
         isProcessingSelection.current = false;
       }
     }
-    // Two-click flow for range selection
-    else if (siteId && typeof dayIdx === "number") {
-      if (!clickStart || clickStart.siteId !== siteId) {
-        setClickStart({ siteId, idx: dayIdx });
-      } else {
-        isProcessingSelection.current = true;
-        try {
-          await selectRangeFn(siteId, clickStart.idx, dayIdx);
-          setClickStart(null);
-        } finally {
-          isProcessingSelection.current = false;
-        }
-      }
-    }
 
-    // reset drag state immediately to prevent hover from extending selection
-    setDragSiteId(null);
-    setDragStartIdx(null);
-    setDragEndIdx(null);
-    setIsDragging(false);
-  }, [isDragging, dragSiteId, dragStartIdx, dragEndIdx, clickStart]);
+    // Reset drag state immediately
+    dragRef.current = { siteId: null, startIdx: null, endIdx: null, active: false };
+    setDragVisual(null);
+  }, []);
 
   useEffect(() => {
     const onUp = () => {
-      if (isDragging) {
+      if (dragRef.current.active || dragRef.current.siteId) {
         handleMouseUp();
-      } else {
-        // when not dragging and mouseup happens outside, just clear drag markers
-        setDragSiteId(null);
-        setDragStartIdx(null);
-        setDragEndIdx(null);
       }
     };
     window.addEventListener("mouseup", onUp);
     return () => window.removeEventListener("mouseup", onUp);
-  }, [isDragging, handleMouseUp]);
+  }, [handleMouseUp]);
 
   // Keyboard navigation
   useEffect(() => {
