@@ -24,6 +24,29 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
 
     const gridTemplate = `180px repeat(${dayCount}, minmax(94px, 1fr))`;
 
+    const resolveDragTarget = useCallback((clientX: number, clientY: number) => {
+        const grid = gridRef.current;
+        if (!grid) return null;
+
+        const elements = typeof document.elementsFromPoint === "function"
+            ? document.elementsFromPoint(clientX, clientY)
+            : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+
+        const cell = elements.find((el) =>
+            el instanceof HTMLElement && (el as HTMLElement).dataset.dayIdx !== undefined
+        ) as HTMLElement | undefined;
+
+        if (!cell) return null;
+        const row = cell.closest<HTMLElement>("[data-site-id]");
+        const siteId = row?.dataset.siteId;
+        if (!siteId || !grid.contains(row)) return null;
+
+        const dayIdx = Number(cell.dataset.dayIdx);
+        if (Number.isNaN(dayIdx)) return null;
+
+        return { siteId, dayIdx };
+    }, []);
+
     const handleDragStart = useCallback((siteId: string, dayIdx: number) => {
         dragRef.current = { siteId, startIdx: dayIdx, endIdx: dayIdx, isDragging: true };
         setDragVisual({ siteId, startIdx: dayIdx, endIdx: dayIdx });
@@ -74,6 +97,13 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
         if (gridRef.current) gridRef.current.classList.remove("dragging-active");
     }, [days, onSelectionComplete, setDragVisual, dragRef]);
 
+    const handleGridPointerMove = useCallback((e: React.PointerEvent) => {
+        if (!dragRef.current.isDragging) return;
+        const target = resolveDragTarget(e.clientX, e.clientY);
+        if (!target) return;
+        handleDragEnter(target.siteId, target.dayIdx);
+    }, [dragRef, resolveDragTarget, handleDragEnter]);
+
     useEffect(() => {
         const handleGlobalPointerUp = () => {
             if (dragRef.current.isDragging) {
@@ -83,26 +113,9 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
 
         const handleGlobalPointerMove = (e: PointerEvent) => {
             if (!dragRef.current.isDragging) return;
-            const grid = gridRef.current;
-            if (!grid) return;
-
-            const elements = typeof document.elementsFromPoint === "function"
-                ? document.elementsFromPoint(e.clientX, e.clientY)
-                : [document.elementFromPoint(e.clientX, e.clientY)].filter(Boolean);
-
-            const cell = elements.find((el) =>
-                el instanceof HTMLElement && (el as HTMLElement).dataset.dayIdx !== undefined
-            ) as HTMLElement | undefined;
-
-            if (!cell) return;
-            const row = cell.closest<HTMLElement>("[data-site-id]");
-            const siteId = row?.dataset.siteId;
-            if (!siteId || !grid.contains(row)) return;
-
-            const dayIdx = Number(cell.dataset.dayIdx);
-            if (Number.isNaN(dayIdx)) return;
-
-            handleDragEnter(siteId, dayIdx);
+            const target = resolveDragTarget(e.clientX, e.clientY);
+            if (!target) return;
+            handleDragEnter(target.siteId, target.dayIdx);
         };
 
         window.addEventListener("pointerup", handleGlobalPointerUp);
@@ -111,7 +124,7 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
             window.removeEventListener("pointerup", handleGlobalPointerUp);
             window.removeEventListener("pointermove", handleGlobalPointerMove);
         };
-    }, [handleDragEnd, handleDragEnter, dragRef]);
+    }, [handleDragEnd, handleDragEnter, resolveDragTarget, dragRef]);
 
     if (sites.isLoading || reservations.isLoading) {
         return (
@@ -155,6 +168,7 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
                     ref={gridRef}
                     className="divide-y divide-slate-100"
                     onPointerUp={() => handleDragEnd(null, null)}
+                    onPointerMove={handleGridPointerMove}
                 >
                     <style>{`
                         .dragging-active .reservation-wrapper {
