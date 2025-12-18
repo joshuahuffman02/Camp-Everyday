@@ -610,7 +610,7 @@ export default function CalendarPage() {
 
   // Memoized map of reservations by siteId for O(1) lookup instead of O(n) filtering
   const reservationsBySite = useMemo(() => {
-    const map = new Map<string, typeof filteredReservations>();
+    const map: Map<string, typeof filteredReservations> = new Map();
     for (const res of filteredReservations) {
       if (!res.siteId) continue;
       const existing = map.get(res.siteId) || [];
