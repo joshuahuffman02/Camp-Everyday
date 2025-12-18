@@ -82,8 +82,27 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
         };
 
         const handleGlobalPointerMove = (e: PointerEvent) => {
-            // Deprecating global tracker in favor of Atomic cell-level tracking
-            // but keeping it as a fallback if needed for boundary cases.
+            if (!dragRef.current.isDragging) return;
+            const grid = gridRef.current;
+            if (!grid) return;
+
+            const elements = typeof document.elementsFromPoint === "function"
+                ? document.elementsFromPoint(e.clientX, e.clientY)
+                : [document.elementFromPoint(e.clientX, e.clientY)].filter(Boolean);
+
+            const cell = elements.find((el) =>
+                el instanceof HTMLElement && (el as HTMLElement).dataset.dayIdx !== undefined
+            ) as HTMLElement | undefined;
+
+            if (!cell) return;
+            const row = cell.closest<HTMLElement>("[data-site-id]");
+            const siteId = row?.dataset.siteId;
+            if (!siteId || !grid.contains(row)) return;
+
+            const dayIdx = Number(cell.dataset.dayIdx);
+            if (Number.isNaN(dayIdx)) return;
+
+            handleDragEnter(siteId, dayIdx);
         };
 
         window.addEventListener("pointerup", handleGlobalPointerUp);
@@ -92,7 +111,7 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
             window.removeEventListener("pointerup", handleGlobalPointerUp);
             window.removeEventListener("pointermove", handleGlobalPointerMove);
         };
-    }, [handleDragEnd, dragRef]);
+    }, [handleDragEnd, handleDragEnter, dragRef]);
 
     if (sites.isLoading || reservations.isLoading) {
         return (

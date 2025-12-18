@@ -52,6 +52,7 @@ export const CalendarRow = memo(function CalendarRow({
         <div
             className="grid relative group hover:bg-slate-50/50 transition-colors"
             style={{ gridTemplateColumns: gridTemplate }}
+            data-site-id={site.id}
             onDragStart={(e) => e.preventDefault()}
         >
             {/* Site Info Column */}
@@ -85,7 +86,10 @@ export const CalendarRow = memo(function CalendarRow({
                             )}
                             onPointerDown={(e) => {
                                 // Important: release pointer capture so pointerenter/enter triggers on other cells
-                                (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+                                const target = e.currentTarget as HTMLElement;
+                                if (target.hasPointerCapture?.(e.pointerId)) {
+                                    target.releasePointerCapture(e.pointerId);
+                                }
                                 onDragStart(site.id, i);
                             }}
                             onPointerEnter={() => onDragEnter(site.id, i)}
