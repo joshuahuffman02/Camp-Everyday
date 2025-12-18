@@ -40,6 +40,7 @@ export class EmailService {
     private readonly logger = new Logger(EmailService.name);
     private transporter: nodemailer.Transporter | null = null;
     private postmarkToken: string | null = null;
+    private resendApiKey: string | null = null;
 
     constructor() {
         const host = process.env.SMTP_HOST;
@@ -48,8 +49,11 @@ export class EmailService {
         const pass = process.env.SMTP_PASS;
         const secure = process.env.SMTP_SECURE === "true";
         this.postmarkToken = process.env.POSTMARK_SERVER_TOKEN || null;
+        this.resendApiKey = process.env.RESEND_API_KEY || null;
 
-        if (host && port && user && pass) {
+        if (this.resendApiKey) {
+            this.logger.log("EmailService using Resend");
+        } else if (host && port && user && pass) {
             this.transporter = nodemailer.createTransport({
                 host,
                 port,
@@ -58,12 +62,34 @@ export class EmailService {
             });
             this.logger.log(`EmailService using SMTP: ${host}:${port} secure=${secure}`);
         } else if (!this.postmarkToken) {
-            this.logger.warn("SMTP and Postmark not configured; falling back to console logging emails.");
+            this.logger.warn("Resend, SMTP, and Postmark not configured; falling back to console logging emails.");
         }
     }
 
     async sendEmail(options: EmailOptions): Promise<{ providerMessageId?: string; provider?: string; fallback?: string }> {
         const fromEmail = process.env.SMTP_FROM || "no-reply@campreserv.com";
+
+        const tryResend = async () => {
+            const res = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${this.resendApiKey}`
+                },
+                body: JSON.stringify({
+                    from: fromEmail,
+                    to: options.to,
+                    subject: options.subject,
+                    html: options.html
+                })
+            });
+            const data: any = await res.json();
+            if (!res.ok) {
+                throw new Error(`Resend send failed: ${res.status} ${JSON.stringify(data)}`);
+            }
+            this.logger.log(`Email sent via Resend to ${options.to} (${options.subject})`);
+            return { providerMessageId: data.id, provider: "resend" };
+        };
 
         const tryPostmark = async () => {
             const res = await fetch("https://api.postmarkapp.com/email", {
@@ -88,7 +114,21 @@ export class EmailService {
             return { providerMessageId: data.MessageID, provider: "postmark" };
         };
 
-        // Prefer Postmark API if token is set, with one retry/backoff before failing over
+        // Prefer Resend, then Postmark, then SMTP, then console log
+        if (this.resendApiKey) {
+            try {
+                return await tryResend();
+            } catch (err) {
+                this.logger.warn(`Resend send attempt 1 failed, retrying: ${err}`);
+                try {
+                    await new Promise((resolve) => setTimeout(resolve, 250));
+                    return await tryResend();
+                } catch (err2) {
+                    this.logger.warn(`Resend retry failed, falling back to Postmark/SMTP/console: ${err2}`);
+                }
+            }
+        }
+
         if (this.postmarkToken) {
             try {
                 return await tryPostmark();
@@ -117,7 +157,7 @@ export class EmailService {
         // Fallback to console log
         this.logger.log(`
 ================================================================================
-SENDING EMAIL (LOG ONLY - configure SMTP or POSTMARK to send)
+SENDING EMAIL (LOG ONLY - configure RESEND_API_KEY, POSTMARK, or SMTP to send)
 To: ${options.to}
 Subject: ${options.subject}
 --------------------------------------------------------------------------------
