@@ -12,6 +12,15 @@ import { useToast } from "../../../../components/ui/use-toast";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { Input } from "../../../../components/ui/input";
 
+// Standard power amp options for RV sites
+const POWER_AMP_OPTIONS = [
+  { value: "", label: "None" },
+  { value: "15", label: "15 amp" },
+  { value: "20", label: "20 amp" },
+  { value: "30", label: "30 amp" },
+  { value: "50", label: "50 amp" },
+] as const;
+
 type SiteFormState = {
   name: string;
   siteNumber: string;
@@ -21,7 +30,7 @@ type SiteFormState = {
   hookupsPower: boolean;
   hookupsWater: boolean;
   hookupsSewer: boolean;
-  powerAmps: number | "";
+  powerAmps: string;
   petFriendly: boolean;
   accessible: boolean;
   minNights: number | "";
@@ -102,7 +111,7 @@ export default function SitesPage() {
       hookupsPower: state.hookupsPower,
       hookupsWater: state.hookupsWater,
       hookupsSewer: state.hookupsSewer,
-      powerAmps: parseOptionalNumber(state.powerAmps),
+      powerAmps: state.powerAmps ? parseInt(state.powerAmps, 10) : (opts?.clearEmptyAsNull ? null : undefined),
       petFriendly: state.petFriendly,
       accessible: state.accessible,
       minNights: parseOptionalNumber(state.minNights),
@@ -492,13 +501,15 @@ export default function SitesPage() {
                       Sewer
                     </label>
                     {formState.hookupsPower && (
-                      <input
-                        type="number"
-                        className="rounded-md border border-slate-200 px-2 py-1 w-24 text-sm"
-                        placeholder="Amps"
+                      <select
+                        className="rounded-md border border-slate-200 px-2 py-1 text-sm"
                         value={formState.powerAmps}
-                        onChange={(e) => setFormState((s) => ({ ...s, powerAmps: e.target.value === "" ? "" : Number(e.target.value) }))}
-                      />
+                        onChange={(e) => setFormState((s) => ({ ...s, powerAmps: e.target.value }))}
+                      >
+                        {POWER_AMP_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-3 md:col-span-2">
@@ -626,18 +637,41 @@ export default function SitesPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-lg font-semibold text-slate-900">{site.name}</span>
+                          <span className="text-sm text-slate-400">#{site.siteNumber}</span>
                           {isInactive && (
                             <span className="px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600">Inactive</span>
                           )}
                         </div>
-                        <div className="text-sm text-slate-600">
-                          #{site.siteNumber} • {site.siteType} • Max {site.maxOccupancy} guests
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-600 mt-1">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-slate-400">Type:</span> {site.siteType.toUpperCase()}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-slate-400">Guests:</span> {site.maxOccupancy} max
+                          </span>
+                          {site.rigMaxLength && (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="text-slate-400">Rig:</span> {site.rigMaxLength}ft max
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          Hookups: {site.hookupsPower ? "Power" : ""}{site.hookupsPower && site.hookupsWater ? ", " : ""}{site.hookupsWater ? "Water" : ""}{(site.hookupsPower || site.hookupsWater) && site.hookupsSewer ? ", " : ""}{site.hookupsSewer ? "Sewer" : ""}{!site.hookupsPower && !site.hookupsWater && !site.hookupsSewer ? "None" : ""}
-                          {" • "}
-                          {site.petFriendly ? "Pet OK" : "No pets"}{" • "}
-                          {site.accessible ? "Accessible" : ""}
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 mt-1">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-slate-400">Hookups:</span>
+                            {site.hookupsPower || site.hookupsWater || site.hookupsSewer ? (
+                              <>
+                                {site.hookupsPower && <span>Power{site.powerAmps ? ` (${site.powerAmps}A)` : ""}</span>}
+                                {site.hookupsPower && site.hookupsWater && ", "}
+                                {site.hookupsWater && "Water"}
+                                {(site.hookupsPower || site.hookupsWater) && site.hookupsSewer && ", "}
+                                {site.hookupsSewer && "Sewer"}
+                              </>
+                            ) : (
+                              "None"
+                            )}
+                          </span>
+                          <span>{site.petFriendly ? "🐕 Pets OK" : "No pets"}</span>
+                          {site.accessible && <span>♿ Accessible</span>}
                         </div>
                       </div>
 
@@ -709,7 +743,7 @@ export default function SitesPage() {
                               hookupsPower: !!site.hookupsPower,
                               hookupsWater: !!site.hookupsWater,
                               hookupsSewer: !!site.hookupsSewer,
-                              powerAmps: site.powerAmps ?? "",
+                              powerAmps: site.powerAmps?.toString() ?? "",
                               petFriendly: !!site.petFriendly,
                               accessible: !!site.accessible,
                               minNights: site.minNights ?? "",
@@ -779,13 +813,16 @@ export default function SitesPage() {
                         value={editForm.rigMaxLength}
                         onChange={(e) => setEditForm((s) => (s ? { ...s, rigMaxLength: e.target.value === "" ? "" : Number(e.target.value) } : s))}
                       />
-                      <input
-                        type="number"
+                      <select
                         className="rounded-md border border-slate-200 px-3 py-2"
-                        placeholder="Power amps"
                         value={editForm.powerAmps}
-                        onChange={(e) => setEditForm((s) => (s ? { ...s, powerAmps: e.target.value === "" ? "" : Number(e.target.value) } : s))}
-                      />
+                        onChange={(e) => setEditForm((s) => (s ? { ...s, powerAmps: e.target.value } : s))}
+                      >
+                        <option value="">Power amps</option>
+                        {POWER_AMP_OPTIONS.filter(o => o.value).map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
                       <select
                         className="rounded-md border border-slate-200 px-3 py-2"
                         value={editForm.siteClassId ?? ""}

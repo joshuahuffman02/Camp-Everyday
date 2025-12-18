@@ -15,6 +15,7 @@ function CampgroundsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const skipRedirect = searchParams.get("all") === "true";
+  const goto = searchParams.get("goto"); // Support redirect to specific sub-page
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["campgrounds"],
@@ -25,9 +26,10 @@ function CampgroundsPageContent() {
   // Auto-redirect to single campground for better UX
   useEffect(() => {
     if (!isLoading && !skipRedirect && data?.length === 1) {
-      router.replace(`/campgrounds/${data[0].id}/sites`);
+      const subPage = goto || "sites";
+      router.replace(`/campgrounds/${data[0].id}/${subPage}`);
     }
-  }, [data, isLoading, skipRedirect, router]);
+  }, [data, isLoading, skipRedirect, router, goto]);
   const depositMutation = useMutation({
     mutationFn: ({ id, rule }: { id: string; rule: z.infer<typeof CampgroundSchema>["depositRule"] }) =>
       apiClient.updateCampgroundDeposit(id, rule),
