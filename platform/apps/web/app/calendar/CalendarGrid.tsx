@@ -17,7 +17,7 @@ interface CalendarGridProps {
 
 export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
     const { setDragVisual, dragRef } = useCalendarContext();
-    const [localIsDragging, setLocalIsDragging] = React.useState(false);
+    const gridRef = React.useRef<HTMLDivElement>(null);
     const { queries, derived, state, actions } = data;
     const { sites, reservations, blackouts } = queries;
     const { days, dayCount, reservationsBySite, ganttSelection } = derived;
@@ -27,7 +27,7 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
     const handleDragStart = useCallback((siteId: string, dayIdx: number) => {
         dragRef.current = { siteId, startIdx: dayIdx, endIdx: dayIdx, isDragging: true };
         setDragVisual({ siteId, startIdx: dayIdx, endIdx: dayIdx });
-        setLocalIsDragging(true);
+        if (gridRef.current) gridRef.current.classList.add("dragging-active");
     }, [setDragVisual, dragRef]);
 
     const handleDragEnter = useCallback((siteId: string, dayIdx: number) => {
@@ -57,7 +57,7 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
 
         dragRef.current = { siteId: null, startIdx: null, endIdx: null, isDragging: false };
         setDragVisual(null);
-        setLocalIsDragging(false);
+        if (gridRef.current) gridRef.current.classList.remove("dragging-active");
     }, [days, onSelectionComplete, setDragVisual, dragRef]);
 
     useEffect(() => {
@@ -109,10 +109,8 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
                 </div>
 
                 <div
-                    className={cn(
-                        "divide-y divide-slate-100",
-                        localIsDragging && "dragging-active"
-                    )}
+                    ref={gridRef}
+                    className="divide-y divide-slate-100"
                     onPointerUp={() => handleDragEnd(null, null)}
                 >
                     <style>{`

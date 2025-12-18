@@ -48,6 +48,15 @@ export const CalendarRow = memo(function CalendarRow({
         );
     };
 
+    // Use onPointerMove for highly responsive tracking during drag
+    const handlePointerMove = (e: React.PointerEvent) => {
+        const target = e.target as HTMLElement;
+        const dayIdx = target.getAttribute("data-day-idx");
+        if (dayIdx !== null) {
+            onDragEnter(site.id, parseInt(dayIdx, 10));
+        }
+    };
+
     return (
         <div
             className="grid relative group hover:bg-slate-50/50 transition-colors"
@@ -69,12 +78,17 @@ export const CalendarRow = memo(function CalendarRow({
             </div>
 
             {/* Grid Cells Container */}
-            <div className="relative" style={{ gridColumn: "2 / -1" }}>
+            <div
+                className="relative"
+                style={{ gridColumn: "2 / -1" }}
+                onPointerMove={handlePointerMove}
+            >
                 {/* Background Grid */}
                 <div className="grid h-full" style={{ gridTemplateColumns: `repeat(${dayCount}, minmax(94px, 1fr))` }}>
                     {days.map((d, i) => (
                         <div
                             key={i}
+                            data-day-idx={i}
                             className={cn(
                                 "border-r border-slate-100 cursor-crosshair transition-colors h-16 touch-none",
                                 zebra,
@@ -83,10 +97,9 @@ export const CalendarRow = memo(function CalendarRow({
                                 "hover:bg-blue-50/30"
                             )}
                             onPointerDown={(e) => {
-                                (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+                                // Explicitly DO NOT capture pointer to allow pointerenter/move on other cells
                                 onDragStart(site.id, i);
                             }}
-                            onPointerEnter={() => onDragEnter(site.id, i)}
                             onPointerUp={() => onDragEnd(site.id, i)}
                         />
                     ))}
