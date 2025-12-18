@@ -11,7 +11,7 @@ import { DashboardShell } from "../../../../components/ui/layout/DashboardShell"
 import { ImageUpload } from "../../../../components/ui/image-upload";
 import { useToast } from "../../../../components/ui/use-toast";
 import { ToastAction } from "../../../../components/ui/toast";
-import { ChevronDown, ChevronUp, Search, X, MoreHorizontal, Pencil, Trash2, Copy } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, X, MoreHorizontal, Pencil, Trash2, Copy } from "lucide-react";
 import { Input } from "../../../../components/ui/input";
 import {
   Table,
@@ -104,6 +104,10 @@ export default function SitesPage() {
   // Bulk selection state
   const [selectedSites, setSelectedSites] = useState<Set<string>>(new Set());
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
   // Track last click for shift+click range selection
   const lastClickedIndex = useRef<number | null>(null);
 
@@ -192,12 +196,28 @@ export default function SitesPage() {
     });
   }, [data, searchQuery, filterType, filterClass, filterActive]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterType, filterClass, filterActive]);
+
+  // Paginated sites for display
+  const totalPages = Math.ceil(filteredSites.length / itemsPerPage);
+  const paginatedSites = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredSites.slice(start, start + itemsPerPage);
+  }, [filteredSites, currentPage, itemsPerPage]);
+
   // Toggle site selection for bulk operations (supports shift+click for range)
   const toggleSiteSelection = (siteId: string, index: number, event?: React.MouseEvent) => {
+    // Calculate the actual index in paginatedSites for range selection
+    const pageOffset = (currentPage - 1) * itemsPerPage;
+    const actualIndex = pageOffset + index;
+
     // Shift+click for range selection
     if (event?.shiftKey && lastClickedIndex.current !== null) {
-      const start = Math.min(lastClickedIndex.current, index);
-      const end = Math.max(lastClickedIndex.current, index);
+      const start = Math.min(lastClickedIndex.current, actualIndex);
+      const end = Math.max(lastClickedIndex.current, actualIndex);
       const rangeIds = filteredSites.slice(start, end + 1).map(s => s.id);
 
       setSelectedSites((prev) => {
@@ -218,15 +238,24 @@ export default function SitesPage() {
       });
     }
 
-    lastClickedIndex.current = index;
+    lastClickedIndex.current = actualIndex;
   };
 
-  // Select/deselect all visible sites
+  // Select/deselect all visible sites on current page
   const toggleSelectAll = () => {
-    if (selectedSites.size === filteredSites.length) {
-      setSelectedSites(new Set());
+    const pageIds = paginatedSites.map((s) => s.id);
+    const allPageSelected = pageIds.every((id) => selectedSites.has(id));
+
+    if (allPageSelected) {
+      // Deselect all on current page
+      setSelectedSites((prev) => {
+        const next = new Set(prev);
+        pageIds.forEach((id) => next.delete(id));
+        return next;
+      });
     } else {
-      setSelectedSites(new Set(filteredSites.map((s) => s.id)));
+      // Select all on current page
+      setSelectedSites((prev) => new Set([...prev, ...pageIds]));
     }
   };
 
@@ -681,15 +710,18 @@ export default function SitesPage() {
           </div>
         )}
         {/* Select All checkbox when there are sites */}
-        {filteredSites.length > 0 && (
+        {paginatedSites.length > 0 && (
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <input
               type="checkbox"
-              checked={selectedSites.size === filteredSites.length && filteredSites.length > 0}
+              checked={paginatedSites.length > 0 && paginatedSites.every((s) => selectedSites.has(s.id))}
               onChange={toggleSelectAll}
               className="rounded border-slate-300"
             />
-            <span>Select all ({filteredSites.length} sites)</span>
+            <span>
+              Select page ({paginatedSites.length} of {filteredSites.length} sites)
+              {selectedSites.size > 0 && ` · ${selectedSites.size} selected`}
+            </span>
           </div>
         )}
 
@@ -701,7 +733,7 @@ export default function SitesPage() {
                 <TableHead className="w-10">
                   <input
                     type="checkbox"
-                    checked={selectedSites.size === filteredSites.length && filteredSites.length > 0}
+                    checked={paginatedSites.length > 0 && paginatedSites.every((s) => selectedSites.has(s.id))}
                     onChange={toggleSelectAll}
                     className="rounded border-slate-300"
                   />
@@ -716,7 +748,7 @@ export default function SitesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSites.map((site, index) => {
+              {paginatedSites.map((site, index) => {
                 const cls = classesQuery.data?.find((c) => c.id === (site as any).siteClassId) || null;
                 const isEditing = editingId === site.id;
                 const isSelected = selectedSites.has(site.id);
@@ -1025,6 +1057,74 @@ export default function SitesPage() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination Controls */}
+        {filteredSites.length > itemsPerPage && (
+          <div className="flex items-center justify-between px-2 py-3 border-t border-slate-100">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <span>Show</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="rounded-md border border-slate-200 px-2 py-1 text-sm"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span>per page</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4 -ml-2" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="px-3 text-sm text-slate-600">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 -ml-2" />
+              </Button>
+            </div>
+            <div className="text-sm text-slate-500">
+              {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredSites.length)} of {filteredSites.length}
+            </div>
+          </div>
+        )}
       </div>
     </DashboardShell>
   );
