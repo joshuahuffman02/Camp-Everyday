@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../lib/api-client";
 import { Button } from "../../components/ui/button";
@@ -10,11 +12,22 @@ import { CampgroundSchema } from "@campreserv/shared";
 import type { z } from "zod";
 
 export default function CampgroundsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const skipRedirect = searchParams.get("all") === "true";
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds()
   });
   const qc = useQueryClient();
+
+  // Auto-redirect to single campground for better UX
+  useEffect(() => {
+    if (!isLoading && !skipRedirect && data?.length === 1) {
+      router.replace(`/campgrounds/${data[0].id}/sites`);
+    }
+  }, [data, isLoading, skipRedirect, router]);
   const depositMutation = useMutation({
     mutationFn: ({ id, rule }: { id: string; rule: z.infer<typeof CampgroundSchema>["depositRule"] }) =>
       apiClient.updateCampgroundDeposit(id, rule),

@@ -138,6 +138,9 @@ export default function SiteClassesPage() {
               onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
             />
             <input
+              type="number"
+              step="0.01"
+              min="0"
               className="rounded-md border border-slate-200 px-3 py-2"
               placeholder="Default rate ($)"
               value={form.defaultRate}
@@ -379,6 +382,9 @@ export default function SiteClassesPage() {
                         onChange={(e) => setEditForm((s) => (s ? { ...s, name: e.target.value } : s))}
                       />
                       <input
+                        type="number"
+                        step="0.01"
+                        min="0"
                         className="rounded-md border border-slate-200 px-3 py-2"
                         placeholder="Default rate ($)"
                         value={editForm.defaultRate}
