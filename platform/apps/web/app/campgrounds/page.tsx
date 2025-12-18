@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +11,7 @@ import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { CampgroundSchema } from "@campreserv/shared";
 import type { z } from "zod";
 
-export default function CampgroundsPage() {
+function CampgroundsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const skipRedirect = searchParams.get("all") === "true";
@@ -89,5 +89,20 @@ export default function CampgroundsPage() {
         </div>
       </div>
     </DashboardShell>
+  );
+}
+
+export default function CampgroundsPage() {
+  return (
+    <Suspense fallback={
+      <DashboardShell>
+        <div className="space-y-4">
+          <Breadcrumbs items={[{ label: "Campgrounds" }]} />
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </DashboardShell>
+    }>
+      <CampgroundsPageContent />
+    </Suspense>
   );
 }
