@@ -4399,9 +4399,11 @@ function ReportsPageInner() {
 
 
               <>
-                {/* OVERVIEW TAB */}
+                {/* OVERVIEW TAB - Admin Analytics Style */}
                 {activeTab === 'overview' && campgroundId && (
-                  <OverviewReport campgroundId={campgroundId} />
+                  <div className="rounded-xl bg-slate-900 p-6 -mx-2">
+                    <OverviewReport campgroundId={campgroundId} />
+                  </div>
                 )}
 
                 {/* DYNAMIC REPORT RENDERER for non-overview tabs */}

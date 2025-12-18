@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-
+import { KpiCard, TrendChart, BreakdownPie, formatCurrency } from "@/components/analytics";
+import { DollarSign, TrendingUp, Percent, Calendar, Home, AlertTriangle, Wrench, Users, Star } from "lucide-react";
 
 interface OverviewReportProps {
     campgroundId: string;
@@ -132,13 +133,63 @@ export function OverviewReport({ campgroundId }: OverviewReportProps) {
         }));
     }, [reservationsQuery.data]);
 
-    if (summaryQuery.isLoading) {
-        return <div className="text-sm text-slate-500">Loading metrics…</div>;
-    }
+    // Monthly revenue trend data for charts
+    const monthlyRevenueTrend = useMemo(() => {
+        if (!reservationsQuery.data) return [];
+
+        const now = new Date();
+        const months: Record<string, number> = {};
+
+        // Initialize last 6 months
+        for (let i = 5; i >= 0; i--) {
+            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = date.toLocaleDateString('en-US', { month: 'short' });
+            months[key] = 0;
+        }
+
+        reservationsQuery.data.forEach((r: any) => {
+            if (r.status === 'cancelled') return;
+            const arrival = new Date(r.arrivalDate);
+            const key = arrival.toLocaleDateString('en-US', { month: 'short' });
+            if (key in months) {
+                months[key] += (r.totalAmount || 0) / 100;
+            }
+        });
+
+        return Object.entries(months).map(([month, revenue]) => ({ month, revenue }));
+    }, [reservationsQuery.data]);
+
+    // Status breakdown for pie chart
+    const statusBreakdown = useMemo(() => {
+        if (!reservationsQuery.data) return [];
+
+        const statusCounts: Record<string, number> = {};
+        reservationsQuery.data.forEach((r: any) => {
+            const status = r.status || 'unknown';
+            statusCounts[status] = (statusCounts[status] || 0) + 1;
+        });
+
+        const colors: Record<string, string> = {
+            confirmed: '#10b981',
+            checked_in: '#3b82f6',
+            checked_out: '#8b5cf6',
+            pending: '#f59e0b',
+            cancelled: '#ef4444',
+            unknown: '#6b7280',
+        };
+
+        return Object.entries(statusCounts).map(([name, value]) => ({
+            name: name.charAt(0).toUpperCase() + name.slice(1).replace('_', ' '),
+            value,
+            color: colors[name] || '#6b7280',
+        }));
+    }, [reservationsQuery.data]);
+
+    const isLoading = summaryQuery.isLoading;
 
     if (summaryQuery.error) {
         return (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="rounded-lg border border-amber-600/50 bg-amber-900/20 px-4 py-3 text-sm text-amber-400">
                 Some report data failed to load. Try again or refresh.
             </div>
         );
@@ -146,85 +197,174 @@ export function OverviewReport({ campgroundId }: OverviewReportProps) {
 
     return (
         <div className="space-y-6">
-            {/* Overview Cards */}
-            {summaryQuery.data && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {cards.map((card) => (
-                        <div
-                            key={card.label}
-                            className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-2"
-                        >
-                            <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">
-                                {card.label}
-                            </div>
-                            <div className="text-xl font-semibold text-slate-900">{card.value}</div>
-                        </div>
-                    ))}
-                </div>
-            )}
+            {/* Overview KPI Cards - Admin Analytics Style */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                <KpiCard
+                    title="Revenue (30d)"
+                    value={summaryQuery.data?.revenue ?? 0}
+                    format="currency"
+                    loading={isLoading}
+                    icon={<DollarSign className="h-5 w-5 text-green-400" />}
+                />
+                <KpiCard
+                    title="ADR"
+                    value={summaryQuery.data?.adr ?? 0}
+                    format="currency"
+                    loading={isLoading}
+                    icon={<TrendingUp className="h-5 w-5 text-blue-400" />}
+                    subtitle="Average Daily Rate"
+                />
+                <KpiCard
+                    title="RevPAR"
+                    value={summaryQuery.data?.revpar ?? 0}
+                    format="currency"
+                    loading={isLoading}
+                    subtitle="Revenue per Available"
+                />
+                <KpiCard
+                    title="Occupancy"
+                    value={summaryQuery.data?.occupancy ?? 0}
+                    format="percent"
+                    loading={isLoading}
+                    icon={<Percent className="h-5 w-5 text-amber-400" />}
+                />
+                <KpiCard
+                    title="Future Reservations"
+                    value={summaryQuery.data?.futureReservations ?? 0}
+                    format="number"
+                    loading={isLoading}
+                    icon={<Calendar className="h-5 w-5 text-purple-400" />}
+                />
+            </div>
 
-            {/* NPS Metrics */}
+            {/* Secondary KPIs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <KpiCard
+                    title="Total Sites"
+                    value={summaryQuery.data?.sites ?? 0}
+                    format="number"
+                    loading={isLoading}
+                    icon={<Home className="h-5 w-5 text-slate-400" />}
+                />
+                <KpiCard
+                    title="Overdue Balance"
+                    value={summaryQuery.data?.overdueBalance ?? 0}
+                    format="currency"
+                    loading={isLoading}
+                    icon={<AlertTriangle className="h-5 w-5 text-red-400" />}
+                />
+                <KpiCard
+                    title="Maintenance Open"
+                    value={summaryQuery.data?.maintenanceOpen ?? 0}
+                    format="number"
+                    loading={isLoading}
+                    icon={<Wrench className="h-5 w-5 text-amber-400" />}
+                />
+                <KpiCard
+                    title="Maintenance Overdue"
+                    value={summaryQuery.data?.maintenanceOverdue ?? 0}
+                    format="number"
+                    loading={isLoading}
+                    icon={<Wrench className="h-5 w-5 text-red-400" />}
+                />
+            </div>
+
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <TrendChart
+                        title="Revenue Trend"
+                        description="Monthly revenue over the last 6 months"
+                        data={monthlyRevenueTrend}
+                        dataKeys={[{ key: "revenue", color: "#10b981", name: "Revenue" }]}
+                        xAxisKey="month"
+                        type="area"
+                        height={300}
+                        formatYAxis={(v) => `$${(v / 1000).toFixed(0)}K`}
+                        formatTooltip={(v) => formatCurrency(v)}
+                        loading={reservationsQuery.isLoading}
+                    />
+                </div>
+                <BreakdownPie
+                    title="Reservations by Status"
+                    description="Current status distribution"
+                    data={statusBreakdown}
+                    height={300}
+                    formatValue={(v) => `${v} reservations`}
+                    loading={reservationsQuery.isLoading}
+                />
+            </div>
+
+            {/* NPS Metrics - Updated to dark theme */}
             {npsMetricsQuery.data && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                        <div className="text-[11px] uppercase tracking-wide text-emerald-700 font-semibold">NPS</div>
-                        <div className="text-3xl font-bold text-emerald-900 mt-1">{npsMetricsQuery.data.nps ?? "—"}</div>
-                        <div className="text-xs text-emerald-700">Promoters {npsMetricsQuery.data.promoters} · Detractors {npsMetricsQuery.data.detractors}</div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Responses</div>
-                        <div className="text-3xl font-bold text-slate-900 mt-1">{npsMetricsQuery.data.totalResponses}</div>
-                        <div className="text-xs text-slate-500">Response rate {npsMetricsQuery.data.responseRate ?? "—"}%</div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Passives</div>
-                        <div className="text-3xl font-bold text-slate-900 mt-1">{npsMetricsQuery.data.passives}</div>
-                        <div className="text-xs text-slate-500">Balanced feedback</div>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <KpiCard
+                        title="NPS Score"
+                        value={npsMetricsQuery.data.nps ?? 0}
+                        format="number"
+                        loading={npsMetricsQuery.isLoading}
+                        icon={<Star className="h-5 w-5 text-yellow-400" />}
+                        subtitle={`Promoters ${npsMetricsQuery.data.promoters} · Detractors ${npsMetricsQuery.data.detractors}`}
+                    />
+                    <KpiCard
+                        title="Survey Responses"
+                        value={npsMetricsQuery.data.totalResponses ?? 0}
+                        format="number"
+                        loading={npsMetricsQuery.isLoading}
+                        icon={<Users className="h-5 w-5 text-blue-400" />}
+                        subtitle={`${npsMetricsQuery.data.responseRate ?? 0}% response rate`}
+                    />
+                    <KpiCard
+                        title="Passives"
+                        value={npsMetricsQuery.data.passives ?? 0}
+                        format="number"
+                        loading={npsMetricsQuery.isLoading}
+                        subtitle="Balanced feedback"
+                    />
                 </div>
             )}
 
-            {/* Year-over-Year Comparison */}
+            {/* Year-over-Year Comparison - Dark Theme */}
             {yearOverYearStats && (
-                <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
+                <div className="rounded-xl border border-slate-700 bg-slate-800/50 shadow-sm p-4 space-y-3">
                     <div>
-                        <div className="text-sm font-semibold text-slate-900">Year-over-Year Comparison</div>
-                        <div className="text-xs text-slate-500">{new Date().getFullYear()} vs {new Date().getFullYear() - 1}</div>
+                        <div className="text-lg font-semibold text-white">Year-over-Year Comparison</div>
+                        <div className="text-sm text-slate-400">{new Date().getFullYear()} vs {new Date().getFullYear() - 1}</div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                            <div className="text-xs font-semibold text-slate-700 uppercase">This Year</div>
-                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 shadow-inner">
-                                <div className="text-xs text-blue-700 mb-1">Bookings</div>
-                                <div className="text-2xl font-bold text-blue-900">{yearOverYearStats.thisYear.bookings}</div>
+                            <div className="text-xs font-semibold text-slate-400 uppercase">This Year</div>
+                            <div className="rounded-lg border border-blue-600/30 bg-blue-900/20 p-3">
+                                <div className="text-xs text-blue-400 mb-1">Bookings</div>
+                                <div className="text-2xl font-bold text-white">{yearOverYearStats.thisYear.bookings}</div>
                             </div>
-                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 shadow-inner">
-                                <div className="text-xs text-emerald-700 mb-1">Revenue</div>
-                                <div className="text-2xl font-bold text-emerald-900">{formatCurrencyLocal(yearOverYearStats.thisYear.revenue, 0)}</div>
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <div className="text-xs font-semibold text-slate-700 uppercase">Last Year</div>
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
-                                <div className="text-xs text-slate-600 mb-1">Bookings</div>
-                                <div className="text-2xl font-bold text-slate-900">{yearOverYearStats.lastYear.bookings}</div>
-                            </div>
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
-                                <div className="text-xs text-slate-600 mb-1">Revenue</div>
-                                <div className="text-2xl font-bold text-slate-900">{formatCurrencyLocal(yearOverYearStats.lastYear.revenue, 0)}</div>
+                            <div className="rounded-lg border border-emerald-600/30 bg-emerald-900/20 p-3">
+                                <div className="text-xs text-emerald-400 mb-1">Revenue</div>
+                                <div className="text-2xl font-bold text-white">{formatCurrencyLocal(yearOverYearStats.thisYear.revenue, 0)}</div>
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <div className="text-xs font-semibold text-slate-700 uppercase">Growth</div>
-                            <div className={`rounded-lg border p-3 ${yearOverYearStats.change.bookings >= 0 ? 'bg-green-50 border-green-200' : 'bg-rose-50 border-rose-200'}`}>
-                                <div className={`text-xs mb-1 ${yearOverYearStats.change.bookings >= 0 ? 'text-green-700' : 'text-rose-700'}`}>Bookings</div>
-                                <div className={`text-2xl font-bold ${yearOverYearStats.change.bookings >= 0 ? 'text-green-900' : 'text-rose-900'}`}>
+                            <div className="text-xs font-semibold text-slate-400 uppercase">Last Year</div>
+                            <div className="rounded-lg border border-slate-600/30 bg-slate-700/30 p-3">
+                                <div className="text-xs text-slate-400 mb-1">Bookings</div>
+                                <div className="text-2xl font-bold text-slate-200">{yearOverYearStats.lastYear.bookings}</div>
+                            </div>
+                            <div className="rounded-lg border border-slate-600/30 bg-slate-700/30 p-3">
+                                <div className="text-xs text-slate-400 mb-1">Revenue</div>
+                                <div className="text-2xl font-bold text-slate-200">{formatCurrencyLocal(yearOverYearStats.lastYear.revenue, 0)}</div>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="text-xs font-semibold text-slate-400 uppercase">Growth</div>
+                            <div className={`rounded-lg border p-3 ${yearOverYearStats.change.bookings >= 0 ? 'bg-green-900/20 border-green-600/30' : 'bg-red-900/20 border-red-600/30'}`}>
+                                <div className={`text-xs mb-1 ${yearOverYearStats.change.bookings >= 0 ? 'text-green-400' : 'text-red-400'}`}>Bookings</div>
+                                <div className={`text-2xl font-bold ${yearOverYearStats.change.bookings >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {yearOverYearStats.change.bookings >= 0 ? '+' : ''}{yearOverYearStats.change.bookings}
                                 </div>
                             </div>
-                            <div className={`rounded-lg border p-3 ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'bg-green-50 border-green-200' : 'bg-rose-50 border-rose-200'}`}>
-                                <div className={`text-xs mb-1 ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'text-green-700' : 'text-rose-700'}`}>Revenue</div>
-                                <div className={`text-2xl font-bold ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'text-green-900' : 'text-rose-900'}`}>
+                            <div className={`rounded-lg border p-3 ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'bg-green-900/20 border-green-600/30' : 'bg-red-900/20 border-red-600/30'}`}>
+                                <div className={`text-xs mb-1 ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>Revenue</div>
+                                <div className={`text-2xl font-bold ${parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {parseFloat(yearOverYearStats.change.revenuePercent) >= 0 ? '+' : ''}{yearOverYearStats.change.revenuePercent}%
                                 </div>
                             </div>
@@ -233,42 +373,42 @@ export function OverviewReport({ campgroundId }: OverviewReportProps) {
                 </div>
             )}
 
-            {/* Seasonal Performance */}
+            {/* Seasonal Performance - Dark Theme */}
             {seasonalStats && (
-                <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
+                <div className="rounded-xl border border-slate-700 bg-slate-800/50 shadow-sm p-4 space-y-3">
                     <div>
-                        <div className="text-sm font-semibold text-slate-900">Seasonal Performance</div>
-                        <div className="text-xs text-slate-500">Revenue and bookings by season</div>
+                        <div className="text-lg font-semibold text-white">Seasonal Performance</div>
+                        <div className="text-sm text-slate-400">Revenue and bookings by season</div>
                     </div>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         {seasonalStats.map(({ season, revenue, bookings, avgNights }) => {
                             const colorMap: Record<string, string> = {
-                                'Spring': 'bg-green-50 border-green-200',
-                                'Summer': 'bg-orange-50 border-orange-200',
-                                'Fall': 'bg-amber-50 border-amber-200',
-                                'Winter': 'bg-blue-50 border-blue-200'
+                                'Spring': 'bg-green-900/20 border-green-600/30',
+                                'Summer': 'bg-orange-900/20 border-orange-600/30',
+                                'Fall': 'bg-amber-900/20 border-amber-600/30',
+                                'Winter': 'bg-blue-900/20 border-blue-600/30'
                             };
                             const textColorMap: Record<string, string> = {
-                                'Spring': 'text-green-900',
-                                'Summer': 'text-orange-900',
-                                'Fall': 'text-amber-900',
-                                'Winter': 'text-blue-900'
+                                'Spring': 'text-green-400',
+                                'Summer': 'text-orange-400',
+                                'Fall': 'text-amber-400',
+                                'Winter': 'text-blue-400'
                             };
                             return (
                                 <div key={season} className={`rounded-xl border shadow-sm ${colorMap[season]} p-3 space-y-2`}>
                                     <div className={`text-sm font-bold ${textColorMap[season]}`}>{season}</div>
                                     <div className="space-y-1">
-                                        <div className="text-xs text-slate-600">Revenue</div>
-                                        <div className="text-lg font-bold text-slate-900">{formatCurrencyLocal(revenue, 0)}</div>
+                                        <div className="text-xs text-slate-400">Revenue</div>
+                                        <div className="text-lg font-bold text-white">{formatCurrencyLocal(revenue, 0)}</div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 text-xs">
                                         <div>
-                                            <div className="text-slate-500">Bookings</div>
-                                            <div className="font-semibold text-slate-900">{bookings}</div>
+                                            <div className="text-slate-400">Bookings</div>
+                                            <div className="font-semibold text-slate-200">{bookings}</div>
                                         </div>
                                         <div>
-                                            <div className="text-slate-500">Avg Nights</div>
-                                            <div className="font-semibold text-slate-900">{avgNights}</div>
+                                            <div className="text-slate-400">Avg Nights</div>
+                                            <div className="font-semibold text-slate-200">{avgNights}</div>
                                         </div>
                                     </div>
                                 </div>
