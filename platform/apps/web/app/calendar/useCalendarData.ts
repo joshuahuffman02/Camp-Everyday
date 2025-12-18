@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../lib/api-client";
-import { useGanttStore } from "./store";
-import { useWhoami } from "../../lib/auth/hooks";
-import { recordError, recordMetric, startTiming } from "../../lib/telemetry";
+import { useGanttStore } from "../../lib/gantt-store";
+import { useWhoami } from "@/hooks/use-whoami";
+import { recordError, recordMetric, startTiming } from "../../lib/calendar-metrics";
 import { computeDepositDue } from "@campreserv/shared";
 import { format, parseISO } from "date-fns";
 import {
@@ -255,13 +255,13 @@ export function useCalendarData() {
                 total: base,
                 nights,
                 base,
-                perNight: site.siteClass?.defaultRate || 5000,
+                perNight: site.siteClassId ? 5000 : 5000,
                 rulesDelta: 0,
                 depositRule: null
             };
             setSelection(quote);
         } catch (err) {
-            recordError(err as Error, { context: "calendar.selectRange" });
+            recordError("calendar.selectRange", err);
         }
     };
 

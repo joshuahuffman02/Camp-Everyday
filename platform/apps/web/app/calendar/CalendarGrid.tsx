@@ -1,9 +1,10 @@
-import React, { useMemo, useCallback } from "react";
-import { CalendarRow } from "./CalendarRow";
-import { useCalendarContext } from "./CalendarContext";
-import { useCalendarData } from "./useCalendarData";
 import { formatLocalDateInput, toLocalDate } from "./utils";
-import { Skeleton } from "../../components/ui/skeleton";
+
+function Skeleton({ className }: { className?: string }) {
+    return <div className={cn("animate-pulse bg-slate-200 rounded", className)} />;
+}
+
+import { cn } from "../../lib/utils";
 
 interface CalendarGridProps {
     data: ReturnType<typeof useCalendarData>;
