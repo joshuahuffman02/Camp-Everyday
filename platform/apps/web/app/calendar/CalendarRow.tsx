@@ -75,6 +75,7 @@ export const CalendarRow = memo(function CalendarRow({
                     {days.map((d, i) => (
                         <div
                             key={i}
+                            data-day-idx={i}
                             className={cn(
                                 "border-r border-slate-100 cursor-crosshair transition-colors h-16 touch-none",
                                 zebra,
@@ -83,7 +84,7 @@ export const CalendarRow = memo(function CalendarRow({
                                 "hover:bg-blue-50/30"
                             )}
                             onPointerDown={(e) => {
-                                // Important: do not let this element capture pointer
+                                // Important: release pointer capture so pointerenter/enter triggers on other cells
                                 (e.target as HTMLElement).releasePointerCapture(e.pointerId);
                                 onDragStart(site.id, i);
                             }}

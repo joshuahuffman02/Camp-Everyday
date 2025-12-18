@@ -27,7 +27,11 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
     const handleDragStart = useCallback((siteId: string, dayIdx: number) => {
         dragRef.current = { siteId, startIdx: dayIdx, endIdx: dayIdx, isDragging: true };
         setDragVisual({ siteId, startIdx: dayIdx, endIdx: dayIdx });
-        if (gridRef.current) gridRef.current.classList.add("dragging-active");
+        if (gridRef.current) {
+            gridRef.current.classList.add("dragging-active");
+            gridRef.current.style.setProperty("--drag-start-col", (dayIdx + 1).toString());
+            gridRef.current.style.setProperty("--drag-span", "1");
+        }
     }, [setDragVisual, dragRef]);
 
     const handleDragEnter = useCallback((siteId: string, dayIdx: number) => {
@@ -35,6 +39,16 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
         if (drag.siteId && drag.startIdx !== null && drag.endIdx !== dayIdx) {
             drag.endIdx = dayIdx;
             drag.isDragging = true;
+
+            // Atomic visual update via CSS variables for 60fps
+            if (gridRef.current) {
+                const minIdx = Math.min(drag.startIdx, dayIdx);
+                const maxIdx = Math.max(drag.startIdx, dayIdx);
+                const span = maxIdx - minIdx + 1;
+                gridRef.current.style.setProperty("--drag-start-col", (minIdx + 1).toString());
+                gridRef.current.style.setProperty("--drag-span", span.toString());
+            }
+
             setDragVisual({ siteId: drag.siteId, startIdx: drag.startIdx, endIdx: dayIdx });
         }
     }, [setDragVisual, dragRef]);
@@ -68,27 +82,8 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
         };
 
         const handleGlobalPointerMove = (e: PointerEvent) => {
-            const drag = dragRef.current;
-            if (drag.isDragging && gridRef.current) {
-                const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
-                const cell = target?.closest("[data-day-idx]") as HTMLElement | null;
-                const dayIdxAttr = cell?.getAttribute("data-day-idx");
-
-                if (dayIdxAttr !== null && dayIdxAttr !== undefined) {
-                    const idx = parseInt(dayIdxAttr, 10);
-                    // Update visual state WITHOUT React re-render for 60fps
-                    const startIdx = drag.startIdx ?? idx;
-                    const minIdx = Math.min(startIdx, idx);
-                    const maxIdx = Math.max(startIdx, idx);
-                    const span = maxIdx - minIdx + 1;
-
-                    gridRef.current.style.setProperty("--drag-start-col", (minIdx + 1).toString());
-                    gridRef.current.style.setProperty("--drag-span", span.toString());
-
-                    // Still call the handler for the final state, but throttle or just let it update ref
-                    drag.endIdx = idx;
-                }
-            }
+            // Deprecating global tracker in favor of Atomic cell-level tracking
+            // but keeping it as a fallback if needed for boundary cases.
         };
 
         window.addEventListener("pointerup", handleGlobalPointerUp);
