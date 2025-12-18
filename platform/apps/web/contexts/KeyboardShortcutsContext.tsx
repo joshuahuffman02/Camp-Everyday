@@ -268,6 +268,9 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
         target.tagName === "SELECT" ||
         target.isContentEditable;
 
+      // Guard against undefined key (can happen with some keyboard events)
+      if (!e.key) return;
+
       // Check for "?" to show shortcuts dialog
       if (e.key === "?" && !isTyping) {
         e.preventDefault();
