@@ -103,6 +103,41 @@ export default function SitesPage() {
   // Bulk selection state
   const [selectedSites, setSelectedSites] = useState<Set<string>>(new Set());
 
+  // Track last click for shift+click range selection
+  const lastClickedIndex = useRef<number | null>(null);
+
+  // Keyboard shortcuts (Cmd+S to save, Escape to cancel)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+S to save
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (editingId && editForm) {
+          // Save the edit form
+          updateSite.mutate({
+            id: editingId,
+            data: mapFormToPayload(editForm, { clearEmptyAsNull: true })
+          });
+        } else if (showCreateForm && formState.name && formState.siteNumber) {
+          // Save the create form
+          createSite.mutate();
+        }
+      }
+      // Escape to cancel
+      if (e.key === "Escape") {
+        if (editingId) {
+          setEditingId(null);
+          setEditForm(null);
+        } else if (showCreateForm) {
+          setShowCreateForm(false);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [editingId, editForm, showCreateForm, formState]);
+
   const mapFormToPayload = (state: SiteFormState, opts?: { clearEmptyAsNull?: boolean }) => {
     const parseOptionalNumber = (value: number | "" | undefined | null) => {
       if (value === "" || value === null || value === undefined) {
@@ -156,17 +191,33 @@ export default function SitesPage() {
     });
   }, [data, searchQuery, filterType, filterClass, filterActive]);
 
-  // Toggle site selection for bulk operations
-  const toggleSiteSelection = (siteId: string) => {
-    setSelectedSites((prev) => {
-      const next = new Set(prev);
-      if (next.has(siteId)) {
-        next.delete(siteId);
-      } else {
-        next.add(siteId);
-      }
-      return next;
-    });
+  // Toggle site selection for bulk operations (supports shift+click for range)
+  const toggleSiteSelection = (siteId: string, index: number, event?: React.MouseEvent) => {
+    // Shift+click for range selection
+    if (event?.shiftKey && lastClickedIndex.current !== null) {
+      const start = Math.min(lastClickedIndex.current, index);
+      const end = Math.max(lastClickedIndex.current, index);
+      const rangeIds = filteredSites.slice(start, end + 1).map(s => s.id);
+
+      setSelectedSites((prev) => {
+        const next = new Set(prev);
+        rangeIds.forEach(id => next.add(id));
+        return next;
+      });
+    } else {
+      // Normal click - toggle single selection
+      setSelectedSites((prev) => {
+        const next = new Set(prev);
+        if (next.has(siteId)) {
+          next.delete(siteId);
+        } else {
+          next.add(siteId);
+        }
+        return next;
+      });
+    }
+
+    lastClickedIndex.current = index;
   };
 
   // Select/deselect all visible sites
@@ -642,7 +693,7 @@ export default function SitesPage() {
         )}
 
         <div className="grid gap-3">
-          {filteredSites.map((site) => {
+          {filteredSites.map((site, index) => {
             const cls =
               classesQuery.data?.find((c) => c.id === (site as any).siteClassId) ||
               (site as any).siteClass ||
@@ -653,12 +704,13 @@ export default function SitesPage() {
             return (
               <div key={site.id} className={`card p-4 ${isInactive ? "opacity-60 bg-slate-50" : ""}`}>
                 <div className="flex items-start gap-3">
-                  {/* Checkbox for bulk selection */}
+                  {/* Checkbox for bulk selection (shift+click for range) */}
                   <input
                     type="checkbox"
                     checked={isSelected}
-                    onChange={() => toggleSiteSelection(site.id)}
-                    className="mt-1 rounded border-slate-300"
+                    onClick={(e) => toggleSiteSelection(site.id, index, e)}
+                    onChange={() => {}} // Handled by onClick for shift-key support
+                    className="mt-1 rounded border-slate-300 cursor-pointer"
                   />
 
                   <div className="flex-1">
