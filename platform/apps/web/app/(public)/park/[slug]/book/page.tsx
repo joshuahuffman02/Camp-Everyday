@@ -879,7 +879,8 @@ function GuestStep({
         guestInfo.firstName.trim() &&
         guestInfo.lastName.trim() &&
         guestInfo.email.includes("@") &&
-        guestInfo.phone.trim();
+        guestInfo.phone.trim() &&
+        guestInfo.zipCode.trim().length >= 5;
 
     const lengthError = maxRigLength && guestInfo.equipment.length && Number(guestInfo.equipment.length) > maxRigLength
         ? `Equipment length exceeds site maximum of ${maxRigLength}ft`
@@ -998,15 +999,26 @@ function GuestStep({
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Zip Code</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Zip Code <span className="text-red-500">*</span>
+                                </label>
                                 <input
                                     type="text"
                                     value={guestInfo.zipCode}
                                     onChange={(e) => onChange({ ...guestInfo, zipCode: e.target.value })}
-                                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                        guestInfo.zipCode.length > 0 && guestInfo.zipCode.length < 5
+                                            ? 'border-red-300 bg-red-50'
+                                            : 'border-slate-300'
+                                    }`}
                                     placeholder="12345"
                                     maxLength={10}
+                                    required
+                                    minLength={5}
                                 />
+                                {guestInfo.zipCode.length > 0 && guestInfo.zipCode.length < 5 && (
+                                    <p className="text-xs text-red-500 mt-1">Zip code must be at least 5 characters</p>
+                                )}
                             </div>
 
                             {/* Additional Guests Section */}
@@ -2136,8 +2148,8 @@ function ReviewStep({
                         <span className="text-xs font-medium text-slate-700">Stripe Secure</span>
                     </div>
                     <div className="flex flex-col items-center text-center p-3 bg-white rounded-lg border border-slate-100">
-                        <Users className="h-6 w-6 text-pink-600 mb-2" />
-                        <span className="text-xs font-medium text-slate-700">10K+ Bookings</span>
+                        <CheckCircle className="h-6 w-6 text-pink-600 mb-2" />
+                        <span className="text-xs font-medium text-slate-700">Instant Confirm</span>
                     </div>
                 </div>
 
