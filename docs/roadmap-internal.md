@@ -1,6 +1,54 @@
 # RV Hospitality Roadmap (Internal)
-Last updated: 2025-12-21 (perf & reliability shipped)  
+Last updated: 2025-12-17 (emotional design shipped)
 Audience: product, engineering, GTM. Structure: Foundations → Differentiators → Moats. Owners are placeholders until staffed.
+
+## Update — Dec 17, 2025: Emotional Design & UX Polish (SHIPPED)
+Comprehensive emotional design improvements deployed to all public-facing pages:
+
+### Booking Flow
+- Trust badges before payment (SSL, PCI, Stripe Secure, Instant Confirm)
+- Enhanced error messages with recovery guidance
+- Celebration success screen with animations
+- "What happens next" section with numbered steps
+- Copy/print/share buttons for confirmation
+- Improved loading states with friendly messages
+- **Bug fix**: Zip code now required (5+ chars) with visual validation
+
+### Gamification (Staff)
+- Level-up modal with celebration animations
+- XP toast notification system
+- Demo button for testing
+
+### Campground Public Page
+- Photo gallery with emotional overlay (name, tagline, reviews, location)
+- Mobile swipe gestures for photos
+- Social proof notifications (RecentBookingNotification component)
+- Improved loading state
+
+### Home Page
+- Scroll animations with framer-motion
+- Animated blog section
+- Shimmer loading skeleton
+- Emotional CTA language throughout
+
+### CTA Language Updates
+- "Check Availability" → "Find Your Perfect Spot" / "Reserve This Site"
+- "Book Now" → "Reserve Your Stay"
+- "Claim Deal" → "Grab This Deal"
+- "View Availability" → "See Available Sites"
+- "Search" → "Explore" with arrow animation
+
+### Files Modified
+```
+platform/apps/web/app/(public)/client.tsx
+platform/apps/web/app/(public)/park/[slug]/client.tsx
+platform/apps/web/app/(public)/park/[slug]/book/page.tsx
+platform/apps/web/app/gamification/page.tsx
+platform/apps/web/components/public/CampgroundCard.tsx
+platform/apps/web/components/public/SearchBar.tsx
+platform/apps/web/components/public/RecentBookingNotification.tsx (NEW)
+platform/apps/web/tailwind.config.ts
+```
 
 ## Scope & principles
 - RV-native journeys first: rig-fit accuracy, site assignment, seasonal/long-stay rules, add-ons, and POS tied to reservations.

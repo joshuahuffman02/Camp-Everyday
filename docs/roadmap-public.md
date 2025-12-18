@@ -1,5 +1,14 @@
 # Product Roadmap (Public)
-Living view of what’s shipping for RV hospitality operators and guests. Themes only—details may change as we learn.
+Living view of what's shipping for RV hospitality operators and guests. Themes only—details may change as we learn.
+
+## Update — Dec 17, 2025: Guest Experience Polish (SHIPPED)
+We've shipped a comprehensive update to the guest booking experience:
+- **Trust & Security**: Clear security badges during checkout (SSL, PCI compliant, Stripe secure)
+- **Booking Confirmation**: Celebration screen with next steps, copy/print/share options
+- **Smoother Navigation**: Scroll animations and improved loading states throughout
+- **Clearer CTAs**: Action-oriented language ("Reserve Your Stay", "Find Your Perfect Spot")
+- **Mobile Improvements**: Swipe gestures in photo galleries, better touch targets
+- **Form Validation**: Real-time feedback on required fields
 
 ## Planning Update — Dec 09, 2025
 - Focus: revenue reliability first, then operations, then distribution and sales, with insights and monetization trailing.
