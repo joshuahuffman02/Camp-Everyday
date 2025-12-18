@@ -1031,10 +1031,12 @@ export class PublicReservationsService {
                     ? `<p><strong>Cancellation</strong><br/>${policyLines.join("<br/>")}</p>`
                     : "";
 
-                await this.emailService.sendEmail({
-                    to: reservation.guest.email,
-                    subject: `Reservation Confirmed: ${reservation.campground.name}`,
-                    html: `
+                // Send confirmation email (don't fail booking if email fails)
+                try {
+                    await this.emailService.sendEmail({
+                        to: reservation.guest.email,
+                        subject: `Reservation Confirmed: ${reservation.campground.name}`,
+                        html: `
     <h1>Reservation Confirmed</h1>
     <p>Dear ${reservation.guest.primaryFirstName},</p>
     <p>Your reservation at ${reservation.campground.name} has been confirmed.</p>
@@ -1043,8 +1045,11 @@ export class PublicReservationsService {
     <p><strong>Departure:</strong> ${reservation.departureDate.toISOString().split('T')[0]}</p>
     ${policyBlock}
     <p>Thank you for booking with us!</p>
-                    `
-                });
+                        `
+                    });
+                } catch (emailError) {
+                    console.error('[Booking] Failed to send confirmation email:', emailError);
+                }
 
                 if (dto.holdId) {
                     await (this.prisma as any).siteHold.update({

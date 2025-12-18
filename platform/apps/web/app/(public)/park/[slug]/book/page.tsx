@@ -934,16 +934,40 @@ function GuestStep({
                         required
                     />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                    <input
-                        type="tel"
-                        value={guestInfo.phone}
-                        onChange={(e) => onChange({ ...guestInfo, phone: e.target.value })}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        placeholder="(555) 123-4567"
-                        required
-                    />
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                        <input
+                            type="tel"
+                            value={guestInfo.phone}
+                            onChange={(e) => onChange({ ...guestInfo, phone: e.target.value })}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="(555) 123-4567"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Zip Code <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={guestInfo.zipCode}
+                            onChange={(e) => onChange({ ...guestInfo, zipCode: e.target.value })}
+                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                                guestInfo.zipCode.length > 0 && guestInfo.zipCode.length < 5
+                                    ? 'border-red-300 bg-red-50'
+                                    : 'border-slate-300'
+                            }`}
+                            placeholder="12345"
+                            maxLength={10}
+                            required
+                            minLength={5}
+                        />
+                        {guestInfo.zipCode.length > 0 && guestInfo.zipCode.length < 5 && (
+                            <p className="text-xs text-red-500 mt-1">Min 5 characters</p>
+                        )}
+                    </div>
                 </div>
 
                 {/* Note about optional details */}
@@ -997,28 +1021,6 @@ function GuestStep({
                                         ))}
                                     </select>
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Zip Code <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={guestInfo.zipCode}
-                                    onChange={(e) => onChange({ ...guestInfo, zipCode: e.target.value })}
-                                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
-                                        guestInfo.zipCode.length > 0 && guestInfo.zipCode.length < 5
-                                            ? 'border-red-300 bg-red-50'
-                                            : 'border-slate-300'
-                                    }`}
-                                    placeholder="12345"
-                                    maxLength={10}
-                                    required
-                                    minLength={5}
-                                />
-                                {guestInfo.zipCode.length > 0 && guestInfo.zipCode.length < 5 && (
-                                    <p className="text-xs text-red-500 mt-1">Zip code must be at least 5 characters</p>
-                                )}
                             </div>
 
                             {/* Additional Guests Section */}
@@ -2442,7 +2444,10 @@ export default function BookingPage() {
     const initialArrival = searchParams.get("arrivalDate") || "";
     const initialDeparture = searchParams.get("departureDate") || "";
     const initialSiteType = searchParams.get("siteType") || "all";
-    const initialAdults = parseInt(searchParams.get("adults") || "1");
+    // Support both "adults"/"children" params and combined "guests" param
+    const guestsParam = searchParams.get("guests");
+    const adultsParam = searchParams.get("adults");
+    const initialAdults = adultsParam ? parseInt(adultsParam) : (guestsParam ? parseInt(guestsParam) : 1);
     const initialChildren = parseInt(searchParams.get("children") || "0");
     const initialSiteClassId = searchParams.get("siteClassId") || null;
     const initialRvLength = searchParams.get("rvLength") || "";
