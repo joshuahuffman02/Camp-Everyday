@@ -15,7 +15,7 @@ interface CalendarRowProps {
     ganttSelection: GanttSelection;
     handlers: {
         onMouseDown: (siteId: string, dayIdx: number) => void;
-        onMouseEnter: (dayIdx: number) => void;
+        onMouseEnter: (siteId: string, dayIdx: number) => void;
         onMouseUp: (siteId: string, dayIdx: number) => void;
         onReservationClick: (resId: string) => void;
         onQuickCheckIn?: (reservationId: string) => void;
@@ -97,7 +97,7 @@ export const CalendarRow = memo(function CalendarRow({
                                     "hover:bg-slate-100"
                                 )}
                                 onMouseDown={() => onMouseDown(site.id, i)}
-                                onMouseEnter={() => onMouseEnter(i)}
+                                onMouseEnter={() => onMouseEnter(site.id, i)}
                                 onMouseUp={() => onMouseUp(site.id, i)}
                             />
                         );

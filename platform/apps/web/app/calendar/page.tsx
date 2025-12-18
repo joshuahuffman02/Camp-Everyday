@@ -902,16 +902,21 @@ export default function CalendarPage() {
   );
 
   const handleMouseDown = (siteId: string, dayIdx: number) => {
+    // Clear any existing state from different site
     if (clickStart && clickStart.siteId !== siteId) {
       setClickStart(null);
     }
+    // Batch state updates to reduce re-renders
     setDragSiteId(siteId);
     setDragStartIdx(dayIdx);
     setDragEndIdx(dayIdx);
     setIsDragging(false);
+    // Clear any highlighted reservation when starting a new drag
+    setStoreSelection({ highlightedId: null, openDetailsId: null });
   };
-  const handleMouseEnter = (dayIdx: number) => {
-    if (dragSiteId !== null && dragStartIdx !== null) {
+  const handleMouseEnter = (siteId: string, dayIdx: number) => {
+    // Only update if we're on the same site we started dragging on
+    if (dragSiteId === siteId && dragStartIdx !== null) {
       setDragEndIdx(dayIdx);
       if (dayIdx !== dragStartIdx) {
         setIsDragging(true);
@@ -2472,13 +2477,15 @@ export default function CalendarPage() {
                               const resEnd = toLocalDate(res.departureDate);
                               return d.date >= resStart && d.date < resEnd;
                             });
+                            // During drag: all cells handle events. When not dragging: cells with reservations pass through
+                            const shouldHandleEvents = isDragging || !hasReservation;
                             return (
                               <div
                                 key={i}
-                                className={`h-full ${isBlackedOut ? "cursor-not-allowed" : "cursor-pointer"}`}
-                                style={{ pointerEvents: hasReservation && !isDragging ? "none" : "auto" }}
+                                className={`h-full ${isBlackedOut ? "cursor-not-allowed" : "cursor-crosshair"}`}
+                                style={{ pointerEvents: shouldHandleEvents ? "auto" : "none" }}
                                 onMouseDown={() => !isBlackedOut && handleMouseDown(site.id, i)}
-                                onMouseEnter={() => handleMouseEnter(i)}
+                                onMouseEnter={() => handleMouseEnter(site.id, i)}
                                 onMouseUp={() => !isBlackedOut && handleMouseUp(site.id, i)}
                               />
                             );
