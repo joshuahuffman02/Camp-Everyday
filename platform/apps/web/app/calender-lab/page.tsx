@@ -154,20 +154,16 @@ export default function CalendarLabPage() {
   }, [state.startDate, state.dayCount, actions]);
 
   const bookingDraft = state.reservationDraft;
-  const selectedCampground = derived.selectedCampgroundDetails;
 
   const handleBookNow = useCallback(() => {
     if (!bookingDraft) return;
-    const slug = selectedCampground?.slug || "";
     const params = new URLSearchParams({
       siteId: bookingDraft.siteId,
       arrivalDate: bookingDraft.arrival,
       departureDate: bookingDraft.departure
     });
-    if (slug) {
-      router.push(`/park/${slug}/book?${params.toString()}`);
-    }
-  }, [bookingDraft, router, selectedCampground]);
+    router.push(`/booking?${params.toString()}`);
+  }, [bookingDraft, router]);
 
   return (
     <DashboardShell>
@@ -175,7 +171,7 @@ export default function CalendarLabPage() {
         <Breadcrumbs
           items={[
             { label: "Dashboard", href: "/dashboard" },
-            { label: "Calendar Lab", href: "/calender-lab" }
+            { label: "Calendar", href: "/calendar" }
           ]}
         />
 
@@ -189,7 +185,6 @@ export default function CalendarLabPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-3xl font-black tracking-tight text-slate-900">Booking Calendar</h1>
-                    <Badge variant="secondary" className="uppercase text-[10px] tracking-widest">Lab</Badge>
                   </div>
                   <p className="text-sm text-slate-500 font-medium">
                     Drag across dates to build a stay. Release to preview pricing and availability.

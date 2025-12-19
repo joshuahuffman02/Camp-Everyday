@@ -42,6 +42,33 @@ const SITE_TYPE_STYLES: Record<string, { label: string; badge: string; border: s
   default: { label: "Site", badge: "bg-slate-100 text-slate-600", border: "border-slate-300" }
 };
 
+const RIG_TYPE_OPTIONS = [
+  { value: "class-a", label: "Class A Motorhome" },
+  { value: "class-b", label: "Class B Camper Van" },
+  { value: "class-c", label: "Class C Motorhome" },
+  { value: "travel-trailer", label: "Travel Trailer" },
+  { value: "fifth-wheel", label: "Fifth Wheel" },
+  { value: "toy-hauler", label: "Toy Hauler" },
+  { value: "pop-up", label: "Pop-up Camper" },
+  { value: "truck-camper", label: "Truck Camper" },
+  { value: "rv-other", label: "Other RV" },
+  { value: "tent", label: "Tent" },
+  { value: "cabin", label: "Cabin" },
+  { value: "other", label: "Other" }
+];
+
+const RV_RIG_TYPES = new Set([
+  "class-a",
+  "class-b",
+  "class-c",
+  "travel-trailer",
+  "fifth-wheel",
+  "toy-hauler",
+  "pop-up",
+  "truck-camper",
+  "rv-other"
+]);
+
 const PAYMENT_METHODS = [
   { value: "card", label: "Card" },
   { value: "cash", label: "Cash" },
@@ -108,6 +135,13 @@ function BookingLabPageInner() {
     enabled: !!selectedCampground?.id
   });
 
+  const reservationsQuery = useQuery({
+    queryKey: ["booking-lab-reservations", selectedCampground?.id],
+    queryFn: () => apiClient.getReservations(selectedCampground!.id),
+    enabled: !!selectedCampground?.id,
+    staleTime: 30_000
+  });
+
   const [guestSearch, setGuestSearch] = useState("");
   const [showGuestResults, setShowGuestResults] = useState(false);
   const [showNewGuest, setShowNewGuest] = useState(false);
@@ -172,6 +206,12 @@ function BookingLabPageInner() {
   const [siteTypeFilter, setSiteTypeFilter] = useState("all");
   const [siteClassFilter, setSiteClassFilter] = useState("all");
   const [availableOnly, setAvailableOnly] = useState(true);
+  const siteClassById = useMemo(() => {
+    return new Map((siteClassesQuery.data || []).map((siteClass) => [siteClass.id, siteClass]));
+  }, [siteClassesQuery.data]);
+  const rigLengthValue = Number(formData.rigLength);
+  const hasRigLength = Number.isFinite(rigLengthValue) && rigLengthValue > 0;
+  const isRvRigType = RV_RIG_TYPES.has(formData.rigType);
 
   const filteredSites = useMemo(() => {
     const sites = siteStatusQuery.data || [];
@@ -179,9 +219,26 @@ function BookingLabPageInner() {
       if (availableOnly && site.status !== "available") return false;
       if (siteTypeFilter !== "all" && site.siteType !== siteTypeFilter) return false;
       if (siteClassFilter !== "all" && site.siteClassId !== siteClassFilter) return false;
+      if (isRvRigType && (site.siteType === "tent" || site.siteType === "cabin")) return false;
+      if (hasRigLength) {
+        const siteMaxLength =
+          (site as { rigMaxLength?: number | null }).rigMaxLength ??
+          siteClassById.get(site.siteClassId ?? "")?.rigMaxLength ??
+          null;
+        if (siteMaxLength && rigLengthValue > siteMaxLength) return false;
+      }
       return true;
     });
-  }, [siteStatusQuery.data, availableOnly, siteTypeFilter, siteClassFilter]);
+  }, [
+    siteStatusQuery.data,
+    availableOnly,
+    siteTypeFilter,
+    siteClassFilter,
+    isRvRigType,
+    hasRigLength,
+    rigLengthValue,
+    siteClassById
+  ]);
 
   const selectedSite = useMemo(() => {
     const all = siteStatusQuery.data || [];
@@ -207,7 +264,13 @@ function BookingLabPageInner() {
   });
 
   const lockFeeCents = formData.lockSite && siteLockFeeCents > 0 ? siteLockFeeCents : 0;
-  const totalCents = (quoteQuery.data?.totalCents ?? 0) + lockFeeCents;
+  const fallbackSubtotalCents =
+    selectedSite?.defaultRate && nights ? selectedSite.defaultRate * nights : null;
+  const pricingSubtotalCents = quoteQuery.data?.baseSubtotalCents ?? fallbackSubtotalCents;
+  const pricingRulesDeltaCents = quoteQuery.data?.rulesDeltaCents ?? null;
+  const pricingTotalCents = quoteQuery.data?.totalCents ?? fallbackSubtotalCents;
+  const pricingIsEstimate = !quoteQuery.data && fallbackSubtotalCents !== null;
+  const totalCents = (pricingTotalCents ?? 0) + lockFeeCents;
   const paymentAmountDefault = totalCents > 0 ? (totalCents / 100).toFixed(2) : "";
 
   useEffect(() => {
@@ -217,6 +280,20 @@ function BookingLabPageInner() {
   }, [formData.collectPayment, paymentAmountDefault]);
 
   const guests = guestsQuery.data || [];
+  const guestStayedSet = useMemo(() => {
+    if (!reservationsQuery.data) return null;
+    const today = parseLocalDateInput(formatLocalDateInput(new Date()));
+    return new Set(
+      reservationsQuery.data
+        .filter((reservation) => {
+          if (reservation.status === "cancelled") return false;
+          if (reservation.status === "checked_in" || reservation.status === "checked_out") return true;
+          const departure = parseLocalDateInput(reservation.departureDate);
+          return departure <= today;
+        })
+        .map((reservation) => reservation.guestId)
+    );
+  }, [reservationsQuery.data]);
   const guestMatches = useMemo(() => {
     const search = guestSearch.trim().toLowerCase();
     if (!search) return [];
@@ -319,12 +396,13 @@ function BookingLabPageInner() {
     }
   });
 
+  const hasPricing = pricingSubtotalCents !== null;
   const canCreate =
     !!selectedCampground?.id &&
     !!formData.guestId &&
     !!formData.siteId &&
     dateRangeValid &&
-    !!quoteQuery.data &&
+    hasPricing &&
     (!formData.collectPayment || (!!formData.paymentMethod && Number(formData.paymentAmount) > 0));
 
   return (
@@ -333,7 +411,7 @@ function BookingLabPageInner() {
         <Breadcrumbs
           items={[
             { label: "Dashboard", href: "/dashboard" },
-            { label: "Booking Lab", href: "/booking-lab" }
+            { label: "Booking", href: "/booking" }
           ]}
         />
 
@@ -346,7 +424,6 @@ function BookingLabPageInner() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-3xl font-black tracking-tight text-slate-900">New Booking</h1>
-                  <Badge variant="secondary" className="uppercase text-[10px] tracking-widest">Lab</Badge>
                 </div>
                 <p className="text-sm text-slate-500 font-medium">
                   Build a reservation in one flow - guest, stay, site, pricing, and payment.
@@ -402,23 +479,31 @@ function BookingLabPageInner() {
                         {guestMatches.length === 0 && (
                           <div className="p-3 text-xs text-slate-500">No matching guests.</div>
                         )}
-                        {guestMatches.map((guest) => (
+                        {guestMatches.map((guest) => {
+                          const hasStayed = !guestStayedSet || guestStayedSet.has(guest.id);
+                          return (
                           <button
                             key={guest.id}
                             type="button"
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                            className={cn(
+                              "w-full px-3 py-2 text-left text-sm hover:bg-slate-50",
+                              !hasStayed && "text-slate-400"
+                            )}
                             onClick={() => {
                               setFormData((prev) => ({ ...prev, guestId: guest.id }));
                               setGuestSearch(`${guest.primaryFirstName} ${guest.primaryLastName}`.trim());
                               setShowGuestResults(false);
                             }}
                           >
-                            <div className="font-semibold text-slate-800">
+                            <div className={cn("font-semibold", hasStayed ? "text-slate-800" : "text-slate-400")}>
                               {guest.primaryFirstName} {guest.primaryLastName}
                             </div>
-                            <div className="text-xs text-slate-500">{guest.email}</div>
+                            <div className={cn("text-xs", hasStayed ? "text-slate-500" : "text-slate-400")}>
+                              {guest.email}
+                            </div>
                           </button>
-                        ))}
+                        );
+                      })}
                       </div>
                     )}
                   </div>
@@ -430,6 +515,9 @@ function BookingLabPageInner() {
                         <div className="font-semibold">{selectedGuest.primaryFirstName} {selectedGuest.primaryLastName}</div>
                       </div>
                       <div className="mt-1 text-emerald-700">{selectedGuest.email}</div>
+                      {guestStayedSet && !guestStayedSet.has(selectedGuest.id) && (
+                        <div className="mt-1 text-[11px] text-emerald-700/80">No prior stays at this campground</div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-xs text-slate-500">Select a guest to unlock personalized recommendations.</div>
@@ -532,15 +620,27 @@ function BookingLabPageInner() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="space-y-1">
                       <Label className="text-xs text-slate-500">Rig type</Label>
-                      <Input
-                        placeholder="RV / Trailer / Tent"
+                      <Select
                         value={formData.rigType}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, rigType: e.target.value }))}
-                      />
+                        onValueChange={(value) => setFormData((prev) => ({ ...prev, rigType: value }))}
+                      >
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="Select rig type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RIG_TYPE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-slate-500">Rig length</Label>
                       <Input
+                        type="number"
+                        min={0}
                         placeholder="ft"
                         value={formData.rigLength}
                         onChange={(e) => setFormData((prev) => ({ ...prev, rigLength: e.target.value }))}
@@ -716,17 +816,25 @@ function BookingLabPageInner() {
                   </div>
                 </div>
 
+                {(quoteQuery.isError || pricingIsEstimate) && (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                    {quoteQuery.isError
+                      ? "Quote unavailable right now. Showing default rate estimate."
+                      : "Estimate from default rate; final pricing may vary."}
+                  </div>
+                )}
+
                 <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Subtotal</span>
                     <span className="font-semibold text-slate-800">
-                      {quoteQuery.data ? `$${(quoteQuery.data.baseSubtotalCents / 100).toFixed(2)}` : "-"}
+                      {pricingSubtotalCents !== null ? `$${(pricingSubtotalCents / 100).toFixed(2)}` : "-"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Rules delta</span>
                     <span className="font-semibold text-slate-800">
-                      {quoteQuery.data ? `$${(quoteQuery.data.rulesDeltaCents / 100).toFixed(2)}` : "-"}
+                      {pricingRulesDeltaCents !== null ? `$${(pricingRulesDeltaCents / 100).toFixed(2)}` : "—"}
                     </span>
                   </div>
                   {lockFeeCents > 0 && (
@@ -738,7 +846,7 @@ function BookingLabPageInner() {
                   <div className="flex items-center justify-between text-base">
                     <span className="font-semibold text-slate-700">Total</span>
                     <span className="font-black text-slate-900">
-                      {quoteQuery.data ? `$${(totalCents / 100).toFixed(2)}` : "-"}
+                      {pricingSubtotalCents !== null ? `$${(totalCents / 100).toFixed(2)}` : "-"}
                     </span>
                   </div>
                 </div>
