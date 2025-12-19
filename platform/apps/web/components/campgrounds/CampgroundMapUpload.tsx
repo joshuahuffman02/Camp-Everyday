@@ -18,6 +18,7 @@ export function CampgroundMapUpload({
   onUploaded?: (url: string) => void;
 }) {
   const { toast } = useToast();
+  const MAX_FILE_SIZE = 18 * 1024 * 1024;
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(initialUrl || null);
   const [isUploading, setIsUploading] = useState(false);
@@ -35,21 +36,28 @@ export function CampgroundMapUpload({
     }
   }, [initialUrl, file]);
 
+  const readAsDataUrl = (input: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(input);
+    });
+
   const handleUpload = async () => {
     if (!file) return;
+    if (file.size > MAX_FILE_SIZE) {
+      toast({ title: "Upload failed", description: "File is too large. Max 18MB.", variant: "destructive" });
+      return;
+    }
     setIsUploading(true);
     try {
-      const contentType = file.type || "application/octet-stream";
-      const signed = await apiClient.signUpload({ filename: file.name, contentType });
-      const uploadRes = await fetch(signed.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": contentType },
-        body: file
+      const dataUrl = await readAsDataUrl(file);
+      const res = await apiClient.uploadCampgroundMap(campgroundId, {
+        dataUrl,
+        contentType: file.type || "application/octet-stream",
+        filename: file.name
       });
-      if (!uploadRes.ok) {
-        throw new Error("Upload failed");
-      }
-      const res = await apiClient.uploadCampgroundMap(campgroundId, { url: signed.publicUrl });
       setPreview(res.url);
       toast({ title: "Map uploaded" });
       onUploaded?.(res.url);
@@ -60,6 +68,8 @@ export function CampgroundMapUpload({
     }
   };
 
+  const isPdf = file?.type === "application/pdf" || (!file && !!preview && preview.toLowerCase().endsWith(".pdf"));
+
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -69,10 +79,10 @@ export function CampgroundMapUpload({
       </div>
       {preview && (
         <div className="relative h-48 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-          {preview.endsWith(".pdf") ? (
+          {isPdf ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-600">PDF uploaded</div>
           ) : (
-            <Image src={preview} alt="Campground map preview" fill className="object-contain" />
+            <Image src={preview} alt="Campground map preview" fill className="object-contain" unoptimized />
           )}
         </div>
       )}

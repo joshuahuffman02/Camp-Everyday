@@ -6977,7 +6977,10 @@ export const apiClient = {
     });
     return parseResponse<unknown>(res);
   },
-  async uploadCampgroundMap(campgroundId: string, payload: { url: string }) {
+  async uploadCampgroundMap(
+    campgroundId: string,
+    payload: { url?: string; dataUrl?: string; contentType?: string; filename?: string }
+  ) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/map`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
