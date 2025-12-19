@@ -53,6 +53,13 @@ type NavItem = {
   dataTour?: string;
 };
 
+type CommandItem = {
+  id: string;
+  label: string;
+  href: string;
+  subtitle?: string;
+};
+
 type NavSection = {
   heading: string;
   items: NavItem[];
@@ -574,6 +581,33 @@ export function DashboardShell({ children, className, title, subtitle }: { child
     return sorted.map(([href]) => allNavItems.get(href)).filter(Boolean) as NavItem[];
   }, [visitCounts, allNavItems, favorites]);
 
+  const toCommandItem = useCallback((item: NavItem, subtitle?: string): CommandItem => ({
+    id: item.href,
+    label: item.label,
+    href: item.href,
+    subtitle: subtitle ?? item.tooltip ?? item.href
+  }), []);
+
+  const navigationCommandItems = useMemo(
+    () => navSections.flatMap((section) => section.items.map((item) => toCommandItem(item))),
+    [navSections, toCommandItem]
+  );
+
+  const actionCommandItems = useMemo(
+    () => operationsItems.map((item) => toCommandItem(item, "Quick action")),
+    [operationsItems, toCommandItem]
+  );
+
+  const favoriteCommandItems = useMemo(
+    () => favoritesItems.map((item) => toCommandItem(item, "Favorite")),
+    [favoritesItems, toCommandItem]
+  );
+
+  const recentCommandItems = useMemo(
+    () => mostVisitedItems.map((item) => toCommandItem(item, "Recently visited")),
+    [mostVisitedItems, toCommandItem]
+  );
+
   const toggleFavorite = useCallback((href: string) => {
     setFavorites((prev) => {
       if (prev.includes(href)) {
@@ -638,7 +672,14 @@ export function DashboardShell({ children, className, title, subtitle }: { child
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* Admin Top Bar */}
-      <AdminTopBar onToggleNav={() => setMobileNavOpen((v) => !v)} mobileNavOpen={mobileNavOpen} />
+      <AdminTopBar
+        onToggleNav={() => setMobileNavOpen((v) => !v)}
+        mobileNavOpen={mobileNavOpen}
+        navigationItems={navigationCommandItems}
+        actionItems={actionCommandItems}
+        favoriteItems={favoriteCommandItems}
+        recentItems={recentCommandItems}
+      />
 
       {/* Mobile nav drawer */}
       <div

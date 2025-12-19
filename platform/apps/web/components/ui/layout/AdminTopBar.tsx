@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -10,6 +10,10 @@ import { useKeyboardShortcuts } from "@/contexts/KeyboardShortcutsContext";
 type AdminTopBarProps = {
     onToggleNav?: () => void;
     mobileNavOpen?: boolean;
+    navigationItems?: CommandItem[];
+    actionItems?: CommandItem[];
+    favoriteItems?: CommandItem[];
+    recentItems?: CommandItem[];
 };
 
 // Click outside hook for closing dropdowns
@@ -30,19 +34,23 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () =
     }, [ref, handler]);
 }
 
-interface SearchResult {
-    type: "guest" | "site" | "reservation" | "report";
+type CommandItem = {
     id: string;
-    title: string;
-    subtitle?: string;
+    label: string;
     href: string;
-}
+    subtitle?: string;
+};
 
-export function AdminTopBar({ onToggleNav, mobileNavOpen }: AdminTopBarProps) {
+export function AdminTopBar({
+    onToggleNav,
+    mobileNavOpen,
+    navigationItems = [],
+    actionItems = [],
+    favoriteItems = [],
+    recentItems = []
+}: AdminTopBarProps) {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -79,70 +87,83 @@ export function AdminTopBar({ onToggleNav, mobileNavOpen }: AdminTopBarProps) {
         }
     }, [isSearchOpen]);
 
-    // Simulate search results
-    const performSearch = useCallback((query: string) => {
-        if (!query.trim()) {
-            setSearchResults([]);
-            return;
-        }
-
-        setIsSearching(true);
-
-        // Simulate API call delay
-        setTimeout(() => {
-            const mockResults: SearchResult[] = [
-                { type: "guest" as const, id: "g1", title: "John Smith", subtitle: "john@example.com", href: "/guests" },
-                { type: "guest" as const, id: "g2", title: "Jane Doe", subtitle: "jane@example.com", href: "/guests" },
-                { type: "site" as const, id: "s1", title: "Site A-12", subtitle: "Full hookup site", href: "/campgrounds" },
-                { type: "reservation" as const, id: "r1", title: "Reservation #1234", subtitle: "Dec 15 - Dec 20, 2024", href: "/reservations" },
-                { type: "report" as const, id: "rp1", title: "Revenue Report", subtitle: "Daily financial summary", href: "/reports" }
-            ].filter(
-                (r) =>
-                    r.title.toLowerCase().includes(query.toLowerCase()) ||
-                    r.subtitle?.toLowerCase().includes(query.toLowerCase())
-            );
-
-            setSearchResults(mockResults);
-            setIsSearching(false);
-        }, 200);
-    }, []);
-
-    useEffect(() => {
-        const debounce = setTimeout(() => performSearch(searchQuery), 150);
-        return () => clearTimeout(debounce);
-    }, [searchQuery, performSearch]);
-
-    const handleResultClick = (result: SearchResult) => {
+    const handleResultClick = (result: CommandItem) => {
         setIsSearchOpen(false);
         setSearchQuery("");
         router.push(result.href);
     };
 
-    const getTypeIcon = (type: SearchResult["type"]) => {
-        switch (type) {
-            case "guest":
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const searchSections = useMemo(() => {
+        const sections = [
+            { title: "Favorites", items: favoriteItems },
+            { title: "Recent", items: recentItems },
+            { title: "Actions", items: actionItems },
+            { title: "Navigation", items: navigationItems }
+        ];
+
+        const matchesQuery = (item: CommandItem) => {
+            if (!normalizedQuery) return true;
+            const label = item.label.toLowerCase();
+            const subtitle = item.subtitle?.toLowerCase() ?? "";
+            return label.includes(normalizedQuery) || subtitle.includes(normalizedQuery);
+        };
+
+        let filtered = normalizedQuery
+            ? sections.map((section) => ({
+                ...section,
+                items: section.items.filter(matchesQuery)
+            }))
+            : sections.filter((section) => section.title !== "Navigation");
+
+        const seen = new Set<string>();
+        filtered = filtered
+            .map((section) => ({
+                ...section,
+                items: section.items.filter((item) => {
+                    if (seen.has(item.href)) return false;
+                    seen.add(item.href);
+                    return true;
+                })
+            }))
+            .filter((section) => section.items.length > 0);
+
+        if (!normalizedQuery && filtered.length === 0) {
+            const fallback = navigationItems.slice(0, 6);
+            if (fallback.length > 0) {
+                filtered = [{ title: "Navigation", items: fallback }];
+            }
+        }
+
+        const totalCount = filtered.reduce((sum, section) => sum + section.items.length, 0);
+        return { sections: filtered, totalCount };
+    }, [actionItems, favoriteItems, navigationItems, recentItems, normalizedQuery]);
+
+    const getSectionIcon = (title: string) => {
+        switch (title) {
+            case "Favorites":
                 return (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <circle cx="12" cy="7" r="4" />
-                        <path d="M5.5 21a6.5 6.5 0 0 1 13 0" />
+                        <path d="M12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z" />
                     </svg>
                 );
-            case "site":
+            case "Recent":
+                return (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 7v5l3 3" />
+                    </svg>
+                );
+            case "Actions":
+                return (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
+                    </svg>
+                );
+            default:
                 return (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path d="m4 20 8-14 8 14M2 20h20M9 15h6" />
-                    </svg>
-                );
-            case "reservation":
-                return (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path d="M6 3h12a2 2 0 0 1 2 2v16l-5-3-5 3-5-3V5a2 2 0 0 1 2-2Z" />
-                    </svg>
-                );
-            case "report":
-                return (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path d="M4 20h16M4 4h5v16H4zM11 8h4v12h-4zM17 12h3v8h-3z" />
                     </svg>
                 );
         }
@@ -226,7 +247,7 @@ export function AdminTopBar({ onToggleNav, mobileNavOpen }: AdminTopBarProps) {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        <span>Search guests, sites, reservations...</span>
+                        <span>Search pages and actions...</span>
                         <kbd className="ml-auto px-2 py-0.5 bg-white rounded text-xs text-slate-400 border border-slate-200">
                             ⌘K
                         </kbd>
@@ -487,7 +508,7 @@ export function AdminTopBar({ onToggleNav, mobileNavOpen }: AdminTopBarProps) {
                             <input
                                 ref={searchInputRef}
                                 type="text"
-                                placeholder="Search guests, sites, reservations, reports..."
+                                placeholder="Search pages, actions, reports..."
                                 className="flex-1 text-lg text-slate-900 placeholder:text-slate-400 focus:outline-none"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -499,41 +520,45 @@ export function AdminTopBar({ onToggleNav, mobileNavOpen }: AdminTopBarProps) {
 
                         {/* Results */}
                         <div className="max-h-96 overflow-y-auto">
-                            {isSearching ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                                </div>
-                            ) : searchQuery && searchResults.length === 0 ? (
+                            {normalizedQuery && searchSections.totalCount === 0 ? (
                                 <div className="py-12 text-center">
                                     <svg className="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                     <div className="text-sm text-slate-500">No results found for "{searchQuery}"</div>
                                 </div>
-                            ) : searchResults.length > 0 ? (
+                            ) : searchSections.sections.length > 0 ? (
                                 <div className="py-2">
-                                    {searchResults.map((result) => (
-                                        <button
-                                            key={`${result.type}-${result.id}`}
-                                            onClick={() => handleResultClick(result)}
-                                            className="w-full flex items-center gap-3 px-5 py-3 hover:bg-slate-50 text-left"
-                                        >
-                                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500">
-                                                {getTypeIcon(result.type)}
+                                    {searchSections.sections.map((section) => (
+                                        <div key={section.title} className="py-2">
+                                            <div className="px-5 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                                                <span className="text-slate-400">{getSectionIcon(section.title)}</span>
+                                                {section.title}
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-slate-900">{result.title}</div>
-                                                {result.subtitle && (
-                                                    <div className="text-xs text-slate-500">{result.subtitle}</div>
-                                                )}
-                                            </div>
-                                            <span className="px-2 py-1 bg-slate-100 rounded text-xs text-slate-500 capitalize">
-                                                {result.type}
-                                            </span>
-                                        </button>
+                                            {section.items.map((item) => (
+                                                <button
+                                                    key={item.id}
+                                                    onClick={() => handleResultClick(item)}
+                                                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-slate-50 text-left"
+                                                >
+                                                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500">
+                                                        {getSectionIcon(section.title)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-sm font-medium text-slate-900">{item.label}</div>
+                                                        {item.subtitle && (
+                                                            <div className="text-xs text-slate-500">{item.subtitle}</div>
+                                                        )}
+                                                    </div>
+                                                    <span className="px-2 py-1 bg-slate-100 rounded text-xs text-slate-500">
+                                                        {section.title}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
                                     ))}
                                 </div>
-                            ) : !searchQuery ? (
+                            ) : !normalizedQuery ? (
                                 <div className="py-6 px-5">
                                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
                                         Quick Actions

@@ -109,6 +109,9 @@ export function ReservationPill({
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
         >
+            {reservation.siteLocked && (
+                <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-200/90 rounded-l-lg" aria-hidden="true" />
+            )}
             <div className="flex items-center min-w-0 w-full">
                 <Icon className="w-3 h-3 mr-2 flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity" />
                 <div className="flex flex-col leading-none min-w-0 flex-1">
@@ -119,7 +122,11 @@ export function ReservationPill({
                 </div>
                 {showSignals && (
                     <div className="ml-2 flex gap-1 items-center flex-shrink-0">
-                        {reservation.siteLocked && <Lock className="h-2.5 w-2.5 text-white/90" aria-label="Site locked" />}
+                        {reservation.siteLocked && (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-200/30 ring-1 ring-amber-200/60">
+                                <Lock className="h-2.5 w-2.5 text-white/90" aria-label="Site locked" />
+                            </span>
+                        )}
                         {hasMaintenance && <Wrench className="h-2.5 w-2.5 text-amber-100/80" />}
                         {needsCleaning && <Sparkles className="h-2.5 w-2.5 text-cyan-100/80" />}
                         {hasConflict && <AlertTriangle className="h-2.5 w-2.5 text-rose-100/80" aria-label="Conflict" />}

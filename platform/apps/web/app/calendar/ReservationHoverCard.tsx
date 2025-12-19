@@ -2,7 +2,7 @@
 
 import { HoverCard, HoverCardHeader, HoverCardContent, HoverCardFooter } from "../../components/ui/hover-card";
 import { formatDate, formatCurrency, calculateNights, getRelativeTime } from "@/lib/format";
-import { CheckCircle, Clock, XCircle, HelpCircle, Calendar, User, Mail, Phone, CreditCard, Tent, LogIn } from "lucide-react";
+import { CheckCircle, Clock, XCircle, HelpCircle, Calendar, User, Mail, Phone, CreditCard, Tent, LogIn, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ReservationHoverCardProps {
@@ -13,6 +13,7 @@ interface ReservationHoverCardProps {
     departureDate: string | Date;
     totalAmount?: number | null;
     paidAmount?: number | null;
+    siteLocked?: boolean | null;
     guest?: {
       primaryFirstName?: string | null;
       primaryLastName?: string | null;
@@ -90,9 +91,17 @@ export function ReservationHoverCard({
             </div>
           )}
         </div>
-        <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs font-medium", config.color)}>
-          <StatusIcon className={cn("h-3 w-3", config.iconColor)} />
-          {config.label}
+        <div className="flex items-center gap-2">
+          {reservation.siteLocked && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-amber-200 bg-amber-50 text-xs font-medium text-amber-700">
+              <Lock className="h-3 w-3 text-amber-600" />
+              Site Locked
+            </div>
+          )}
+          <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs font-medium", config.color)}>
+            <StatusIcon className={cn("h-3 w-3", config.iconColor)} />
+            {config.label}
+          </div>
         </div>
       </HoverCardHeader>
 

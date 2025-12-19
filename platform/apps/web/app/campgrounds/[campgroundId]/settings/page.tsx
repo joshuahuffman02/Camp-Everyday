@@ -8,6 +8,8 @@ import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { DepositSettings } from "@/components/campgrounds/DepositSettings";
 import { CampgroundProfileForm } from "@/components/campgrounds/CampgroundProfileForm";
+import { CampgroundMapUpload } from "@/components/campgrounds/CampgroundMapUpload";
+import { SiteMapCanvas } from "@/components/maps/SiteMapCanvas";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -137,6 +139,16 @@ export default function CampgroundSettingsPage() {
     const cg = campgroundQuery.data;
     const referralBaseUrl = useMemo(() => (typeof window !== "undefined" ? window.location.origin : "https://campeveryday.com"), []);
     const formatMoney = (cents: number | null | undefined) => `$${(((cents ?? 0) as number) / 100).toFixed(2)}`;
+
+    const mapBaseImageUrl = useMemo(() => {
+        const layers = mapQuery.data?.config?.layers as any;
+        if (!layers || typeof layers !== "object") return null;
+        if (typeof layers.baseImageUrl === "string") return layers.baseImageUrl;
+        if (typeof layers.baseImage?.url === "string") return layers.baseImage.url;
+        if (typeof layers.background?.url === "string") return layers.background.url;
+        if (typeof layers.image === "string") return layers.image;
+        return null;
+    }, [mapQuery.data?.config?.layers]);
 
     const sites = mapQuery.data?.sites ?? [];
     const adaCount = useMemo(() => sites.filter((s) => s.ada).length, [sites]);
@@ -815,7 +827,28 @@ export default function CampgroundSettingsPage() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-3">
+                                <div className="space-y-4">
+                                    <div className="space-y-3">
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-800">Site map preview</div>
+                                            <p className="text-xs text-slate-500">
+                                                Upload a base map image and review layout geometry + conflicts.
+                                            </p>
+                                        </div>
+                                        <CampgroundMapUpload
+                                            campgroundId={campgroundId}
+                                            initialUrl={mapBaseImageUrl}
+                                            onUploaded={() => mapQuery.refetch()}
+                                        />
+                                        <SiteMapCanvas
+                                            map={mapQuery.data}
+                                            isLoading={mapQuery.isLoading}
+                                            showLabels
+                                        />
+                                        {mapQuery.isError && (
+                                            <p className="text-xs text-rose-600">Failed to load map preview.</p>
+                                        )}
+                                    </div>
                                     <div className="grid gap-2">
                                         <Label>Eligibility preview</Label>
                                         {previewMutation.isPending && <p className="text-sm text-slate-600">Checking...</p>}

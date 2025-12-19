@@ -110,13 +110,13 @@ export function AiPartnerPanel({ campgroundId, enabled = true }: { campgroundId:
       setMessages((prev) => [...prev, assistantMessage]);
     },
     onError: (error) => {
-      console.error("AI partner chat failed:", error);
+      console.error("Host chat failed:", error);
       setMessages((prev) => [
         ...prev,
         {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: "I couldn't reach the AI partner right now. Try again in a moment.",
+          content: "I couldn't reach Host right now. Try again in a moment.",
         },
       ]);
     },
@@ -164,7 +164,7 @@ export function AiPartnerPanel({ campgroundId, enabled = true }: { campgroundId:
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <ShieldCheck className="h-5 w-5 text-emerald-600" />
-          AI Partner (Staff)
+          Host (Staff)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -174,9 +174,9 @@ export function AiPartnerPanel({ campgroundId, enabled = true }: { campgroundId:
 
         {!enabled && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Enable Reply Assist to activate the AI partner for staff.
-          </div>
-        )}
+          Enable Reply Assist to activate Host for staff.
+        </div>
+      )}
 
         <div className="h-[420px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4">
           <div className="space-y-4">
@@ -336,7 +336,7 @@ export function AiPartnerPanel({ campgroundId, enabled = true }: { campgroundId:
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask the AI partner to check availability, place a hold, or draft a change..."
+            placeholder="Ask Host to check availability, place a hold, or draft a change..."
             className="min-h-[84px] bg-white"
             disabled={chatMutation.isPending || !enabled}
           />

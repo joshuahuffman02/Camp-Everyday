@@ -8,7 +8,15 @@ import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/components/ui/use-toast";
 
-export function CampgroundMapUpload({ campgroundId, initialUrl }: { campgroundId: string; initialUrl?: string | null }) {
+export function CampgroundMapUpload({
+  campgroundId,
+  initialUrl,
+  onUploaded
+}: {
+  campgroundId: string;
+  initialUrl?: string | null;
+  onUploaded?: (url: string) => void;
+}) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(initialUrl || null);
@@ -21,6 +29,12 @@ export function CampgroundMapUpload({ campgroundId, initialUrl }: { campgroundId
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
+  useEffect(() => {
+    if (!file) {
+      setPreview(initialUrl || null);
+    }
+  }, [initialUrl, file]);
+
   const handleUpload = async () => {
     if (!file) return;
     setIsUploading(true);
@@ -30,6 +44,7 @@ export function CampgroundMapUpload({ campgroundId, initialUrl }: { campgroundId
       const res = await apiClient.uploadCampgroundMap(campgroundId, formData);
       setPreview(res.url);
       toast({ title: "Map uploaded" });
+      onUploaded?.(res.url);
     } catch (e) {
       toast({ title: "Upload failed", variant: "destructive" });
     } finally {
@@ -62,4 +77,3 @@ export function CampgroundMapUpload({ campgroundId, initialUrl }: { campgroundId
     </div>
   );
 }
-

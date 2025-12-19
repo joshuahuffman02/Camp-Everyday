@@ -198,6 +198,20 @@ export class SiteMapService {
     return { eligible, ineligible };
   }
 
+  async setBaseImage(campgroundId: string, url: string) {
+    const existing = await this.prisma.campgroundMapConfig.findUnique({ where: { campgroundId } });
+    const existingLayers = existing?.layers && typeof existing.layers === "object" ? existing.layers : {};
+    const layers = { ...(existingLayers as Record<string, any>), baseImageUrl: url };
+
+    await this.prisma.campgroundMapConfig.upsert({
+      where: { campgroundId },
+      update: { layers },
+      create: { campgroundId, layers }
+    });
+
+    return { url };
+  }
+
   private evaluateSiteFit(site: any, dto: CheckAssignmentDto | PreviewAssignmentsDto): AssignmentReason[] {
     const reasons: AssignmentReason[] = [];
     const rig = dto.rig ?? {};
