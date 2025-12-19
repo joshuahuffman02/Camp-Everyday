@@ -10,15 +10,6 @@ const nextConfig = {
       },
     ],
   },
-  async redirects() {
-    return [
-      {
-        source: '/ai',
-        destination: '/campguide',
-        permanent: true,
-      },
-    ];
-  },
 
   // Ensure external workspace packages are bundled correctly
   transpilePackages: ["@campreserv/shared"],

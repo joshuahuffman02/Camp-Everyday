@@ -170,7 +170,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                 type="button"
                 onClick={() => setIsOpen(true)}
                 className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all flex items-center justify-center z-[9999]"
-                aria-label="Open AI booking assistant"
+                aria-label="Open Host booking assistant"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
@@ -188,8 +188,8 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                         <Bot className="w-5 h-5" />
                     </div>
                     <div>
-                        <div className="font-semibold">Booking Assistant</div>
-                        <div className="text-xs text-white/80">Powered by AI</div>
+                        <div className="font-semibold">Host</div>
+                        <div className="text-xs text-white/80">Booking guide</div>
                     </div>
                 </div>
                 <button
@@ -207,9 +207,9 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                     <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
                         <Sparkles className="w-8 h-8 text-emerald-600" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-2">AI Booking Assistant</h3>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Host</h3>
                     <p className="text-sm text-slate-600 mb-4">
-                        I can help you find the perfect campsite. Just describe what you're looking for!
+                        I can help you find the perfect campsite. Just describe what you're looking for.
                     </p>
                     <div className="text-xs text-slate-500 mb-6 p-3 bg-slate-50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
@@ -218,7 +218,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white text-[10px]">✓</span>
-                            <span>No personal info shared with AI</span>
+                            <span>No personal info shared with Host</span>
                         </div>
                     </div>
                     <button
@@ -226,7 +226,7 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
                         onClick={handleConsent}
                         className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all"
                     >
-                        Start Chatting
+                        Chat with Host
                     </button>
                 </div>
             )}
