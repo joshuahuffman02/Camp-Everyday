@@ -179,8 +179,12 @@ function BookingLabPageInner() {
     paymentMethod: "card",
     cardEntryMode: "manual",
     cashReceived: "",
-    transactionId: "",
-    paymentNotes: ""
+    paymentNotes: "",
+    // Guest address fields
+    guestAddress1: "",
+    guestCity: "",
+    guestState: "",
+    guestPostalCode: ""
   });
   const [paymentModal, setPaymentModal] = useState<{ reservationId: string; amountCents: number } | null>(null);
   const paymentCompletedRef = useRef(false);
@@ -387,6 +391,19 @@ function BookingLabPageInner() {
     [guests, formData.guestId]
   );
 
+  // Pre-populate address fields when guest is selected
+  useEffect(() => {
+    if (selectedGuest) {
+      setFormData((prev) => ({
+        ...prev,
+        guestAddress1: selectedGuest.address1 || "",
+        guestCity: selectedGuest.city || "",
+        guestState: selectedGuest.state || "",
+        guestPostalCode: selectedGuest.postalCode || ""
+      }));
+    }
+  }, [selectedGuest?.id]);
+
   const matchesQuery = useQuery({
     queryKey: ["booking-lab-matches", selectedCampground?.id, formData.guestId],
     queryFn: () => apiClient.getMatchedSites(selectedCampground!.id, formData.guestId),
@@ -451,6 +468,24 @@ function BookingLabPageInner() {
 
   const createReservationMutation = useMutation({
     mutationFn: async () => {
+      // Update guest address if it changed
+      if (selectedGuest) {
+        const addressChanged =
+          formData.guestAddress1 !== (selectedGuest.address1 || "") ||
+          formData.guestCity !== (selectedGuest.city || "") ||
+          formData.guestState !== (selectedGuest.state || "") ||
+          formData.guestPostalCode !== (selectedGuest.postalCode || "");
+
+        if (addressChanged) {
+          await apiClient.updateGuest(selectedGuest.id, {
+            address1: formData.guestAddress1 || undefined,
+            city: formData.guestCity || undefined,
+            state: formData.guestState || undefined,
+            postalCode: formData.guestPostalCode || undefined
+          });
+        }
+      }
+
       const isCardPayment = formData.paymentMethod === "card";
       // For card payments, paid amount starts at 0 until payment modal confirms
       const paidAmountCents = isCardPayment ? 0 : paymentAmountCents;
@@ -479,7 +514,6 @@ function BookingLabPageInner() {
         // Card payments start as "pending" until payment completes
         status: isCardPayment ? "pending" : "confirmed",
         paymentMethod: !isCardPayment ? formData.paymentMethod : undefined,
-        transactionId: !isCardPayment ? formData.transactionId : undefined,
         paymentNotes: !isCardPayment ? paymentNotes : undefined,
         siteLocked: formData.lockSite,
         overrideReason: lockFeeCents > 0 ? "Site lock fee" : undefined,
@@ -635,15 +669,45 @@ function BookingLabPageInner() {
                   </div>
 
                   {selectedGuest ? (
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                      <div className="flex items-center gap-2">
-                        <BadgeCheck className="h-4 w-4" />
-                        <div className="font-semibold">{selectedGuest.primaryFirstName} {selectedGuest.primaryLastName}</div>
+                    <div className="space-y-3">
+                      <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                        <div className="flex items-center gap-2">
+                          <BadgeCheck className="h-4 w-4" />
+                          <div className="font-semibold">{selectedGuest.primaryFirstName} {selectedGuest.primaryLastName}</div>
+                        </div>
+                        <div className="mt-1 text-emerald-700">{selectedGuest.email}</div>
+                        {selectedGuest.phone && (
+                          <div className="mt-1 text-emerald-700">{selectedGuest.phone}</div>
+                        )}
+                        {guestStayedSet && !guestStayedSet.has(selectedGuest.id) && (
+                          <div className="mt-1 text-[11px] text-emerald-700/80">No prior stays at this campground</div>
+                        )}
                       </div>
-                      <div className="mt-1 text-emerald-700">{selectedGuest.email}</div>
-                      {guestStayedSet && !guestStayedSet.has(selectedGuest.id) && (
-                        <div className="mt-1 text-[11px] text-emerald-700/80">No prior stays at this campground</div>
-                      )}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-slate-500">Address</Label>
+                        <Input
+                          placeholder="Street address"
+                          value={formData.guestAddress1}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, guestAddress1: e.target.value }))}
+                        />
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <Input
+                            placeholder="City"
+                            value={formData.guestCity}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, guestCity: e.target.value }))}
+                          />
+                          <Input
+                            placeholder="State"
+                            value={formData.guestState}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, guestState: e.target.value }))}
+                          />
+                          <Input
+                            placeholder="ZIP"
+                            value={formData.guestPostalCode}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, guestPostalCode: e.target.value }))}
+                          />
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-xs text-slate-500">Select a guest to unlock personalized recommendations.</div>
@@ -1147,11 +1211,6 @@ function BookingLabPageInner() {
                       )}
                     </div>
                   )}
-                  <Input
-                    placeholder="Transaction ID (optional)"
-                    value={formData.transactionId}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, transactionId: e.target.value }))}
-                  />
                   <Textarea
                     rows={2}
                     placeholder="Payment notes"

@@ -1330,6 +1330,9 @@ export class ReservationsService {
           siteClassId,
           rvType,
           pets,
+          holdId: _holdId,
+          requiresAccessible: _requiresAccessible,
+          requiredAmenities: _requiredAmenities,
           overrideReason: _overrideReason,
           overrideApprovedBy: _overrideApprovedBy,
           ...reservationData
@@ -1594,6 +1597,12 @@ export class ReservationsService {
           paymentMethod,
           transactionId,
           paymentNotes,
+          siteClassId: _siteClassId,
+          rvType: _rvType,
+          pets: _pets,
+          holdId: _holdId,
+          requiresAccessible: _requiresAccessible,
+          requiredAmenities: _requiredAmenities,
           overrideReason: _overrideReason,
           overrideApprovedBy: _overrideApprovedBy,
           ...reservationData
