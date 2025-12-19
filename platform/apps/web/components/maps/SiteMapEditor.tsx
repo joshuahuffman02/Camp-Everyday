@@ -104,6 +104,13 @@ const pointsToPath = (points: Point[], close = true) => {
   return close ? `${parts.join(" ")} Z` : parts.join(" ");
 };
 
+const cloneGeometry = <T,>(value: T): T => {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value));
+};
+
 const centroidFromPoints = (points: Point[]): Point | null => {
   if (points.length < 3) {
     if (points.length === 1) return points[0];
@@ -145,6 +152,21 @@ const getBoundsFromConfig = (bounds: any): Bounds | null => {
 };
 
 const roundPoint = (value: number) => Math.round(value * 100) / 100;
+const clampGrid = (value: number) => Math.min(200, Math.max(1, value));
+
+const snapToAngle = (point: Point, anchor: Point): Point => {
+  const dx = point.x - anchor.x;
+  const dy = point.y - anchor.y;
+  if (dx === 0 && dy === 0) return point;
+  const angle = Math.atan2(dy, dx);
+  const step = Math.PI / 4;
+  const snapped = Math.round(angle / step) * step;
+  const distance = Math.hypot(dx, dy);
+  return {
+    x: anchor.x + Math.cos(snapped) * distance,
+    y: anchor.y + Math.sin(snapped) * distance
+  };
+};
 
 export function SiteMapEditor({
   campgroundId,
@@ -165,6 +187,11 @@ export function SiteMapEditor({
   const [saving, setSaving] = useState(false);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [draftLayouts, setDraftLayouts] = useState<Record<string, { geometry: any; centroid?: any }>>({});
+  const [templateShape, setTemplateShape] = useState<{ geometry: any; centroid?: any } | null>(null);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+  const [gridSize, setGridSize] = useState(10);
+  const [editingPoints, setEditingPoints] = useState<Point[] | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!baseImageUrl) {
@@ -187,6 +214,8 @@ export function SiteMapEditor({
     setIsDrawing(false);
     setDraftPoints([]);
     setHoverPoint(null);
+    setEditingPoints(null);
+    setDragIndex(null);
   }, [selectedSiteId]);
 
   const existingLayouts = useMemo(() => {
@@ -245,6 +274,7 @@ export function SiteMapEditor({
 
   const selectedGeometry = selectedSiteId ? mergedLayouts.get(selectedSiteId)?.geometry : undefined;
   const selectedPoints = selectedGeometry ? geometryToPoints(selectedGeometry) : [];
+  const activePoints = editingPoints ?? selectedPoints;
 
   const draftLine = useMemo(() => {
     if (!isDrawing || draftPoints.length === 0) return "";
@@ -257,29 +287,54 @@ export function SiteMapEditor({
     return pointsToPath(draftPoints, true);
   }, [draftPoints, isDrawing]);
 
-  const getSvgPoint = (event: React.PointerEvent<SVGSVGElement>) => {
+  const getSvgPoint = (event: React.PointerEvent<SVGSVGElement>, anchor?: Point | null) => {
     const svg = svgRef.current;
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * viewBox.width + viewBox.minX;
-    const y = ((event.clientY - rect.top) / rect.height) * viewBox.height + viewBox.minY;
-    return { x: roundPoint(x), y: roundPoint(y) };
+    let x = ((event.clientX - rect.left) / rect.width) * viewBox.width + viewBox.minX;
+    let y = ((event.clientY - rect.top) / rect.height) * viewBox.height + viewBox.minY;
+    let point = { x, y };
+    if (event.shiftKey && anchor) {
+      point = snapToAngle(point, anchor);
+    }
+    if (snapToGrid) {
+      const size = clampGrid(gridSize);
+      point = {
+        x: Math.round(point.x / size) * size,
+        y: Math.round(point.y / size) * size
+      };
+    }
+    return { x: roundPoint(point.x), y: roundPoint(point.y) };
   };
 
   const handleCanvasClick = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawing) return;
+    if (dragIndex !== null) return;
     if (!selectedSiteId) {
       toast({ title: "Select a site first", description: "Pick a site before drawing its boundary.", variant: "destructive" });
       return;
     }
-    const point = getSvgPoint(event);
+    const anchor = draftPoints.length ? draftPoints[draftPoints.length - 1] : null;
+    const point = getSvgPoint(event, anchor);
     if (!point) return;
     setDraftPoints((prev) => [...prev, point]);
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (dragIndex !== null && editingPoints) {
+      const point = getSvgPoint(event);
+      if (!point) return;
+      setEditingPoints((prev) => {
+        if (!prev) return prev;
+        const next = [...prev];
+        next[dragIndex] = point;
+        return next;
+      });
+      return;
+    }
     if (!isDrawing) return;
-    const point = getSvgPoint(event);
+    const anchor = draftPoints.length ? draftPoints[draftPoints.length - 1] : null;
+    const point = getSvgPoint(event, anchor);
     setHoverPoint(point);
   };
 
@@ -298,6 +353,7 @@ export function SiteMapEditor({
       ...prev,
       [selectedSiteId]: { geometry, centroid }
     }));
+    setTemplateShape({ geometry: cloneGeometry(geometry), centroid });
     setIsDrawing(false);
     setDraftPoints([]);
     setHoverPoint(null);
@@ -311,6 +367,79 @@ export function SiteMapEditor({
     setDraftPoints([]);
     setHoverPoint(null);
   };
+
+  const handleApplyTemplate = () => {
+    if (!selectedSiteId || !templateShape) return;
+    const geometry = cloneGeometry(templateShape.geometry);
+    const centroid = templateShape.centroid ?? centroidFromPoints(geometryToPoints(geometry)) ?? undefined;
+    setDraftLayouts((prev) => ({
+      ...prev,
+      [selectedSiteId]: { geometry, centroid }
+    }));
+  };
+
+  const handleCopySelected = () => {
+    if (!selectedGeometry) {
+      toast({ title: "No shape to copy", description: "Select a mapped site first.", variant: "destructive" });
+      return;
+    }
+    const centroid = mergedLayouts.get(selectedSiteId)?.centroid ?? centroidFromPoints(geometryToPoints(selectedGeometry)) ?? undefined;
+    setTemplateShape({ geometry: cloneGeometry(selectedGeometry), centroid });
+    toast({ title: "Shape copied", description: "Select another site and apply the template." });
+  };
+
+  const commitEditing = (points: Point[]) => {
+    if (!selectedSiteId || points.length < 3) return;
+    const geometry = {
+      type: "Polygon",
+      coordinates: [points.map((p) => [p.x, p.y])]
+    };
+    const centroid = centroidFromPoints(points);
+    setDraftLayouts((prev) => ({
+      ...prev,
+      [selectedSiteId]: { geometry, centroid }
+    }));
+    setEditingPoints(null);
+    setDragIndex(null);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (dragIndex === null || !editingPoints) return;
+    event.preventDefault();
+    commitEditing(editingPoints);
+  };
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      if (event.key === "Escape") {
+        if (isDrawing) {
+          setIsDrawing(false);
+          setDraftPoints([]);
+          setHoverPoint(null);
+        }
+        if (dragIndex !== null) {
+          setEditingPoints(null);
+          setDragIndex(null);
+        }
+        return;
+      }
+      if (!isDrawing) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleFinish();
+      }
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        handleUndo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [dragIndex, handleFinish, handleUndo, isDrawing]);
 
   const handleSave = async () => {
     if (!campgroundId) return;
@@ -376,6 +505,7 @@ export function SiteMapEditor({
           <p className="text-xs text-slate-500">
             Select a site, click to drop polygon points, then finish and save.
           </p>
+          <p className="text-[11px] text-slate-400">Tip: hold Shift to lock 45-degree angles while drawing.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setIsDrawing(true)} disabled={!selectedSiteId || isDrawing}>
@@ -390,12 +520,30 @@ export function SiteMapEditor({
           <Button size="sm" onClick={handleFinish} disabled={!isDrawing}>
             Finish
           </Button>
+          <Button size="sm" variant="outline" onClick={handleCopySelected} disabled={!selectedGeometry}>
+            Copy shape
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleApplyTemplate} disabled={!templateShape || !selectedSiteId}>
+            Duplicate last
+          </Button>
+          <Button size="sm" variant={snapToGrid ? "default" : "outline"} onClick={() => setSnapToGrid((prev) => !prev)}>
+            Snap {snapToGrid ? "On" : "Off"}
+          </Button>
+          <Input
+            type="number"
+            min={1}
+            max={200}
+            value={gridSize}
+            onChange={(e) => setGridSize(clampGrid(Number(e.target.value) || 1))}
+            className="h-8 w-20"
+          />
           <Button size="sm" variant="default" onClick={handleSave} disabled={saving || Object.keys(draftLayouts).length === 0}>
             {saving ? "Saving..." : "Save"}
           </Button>
           {Object.keys(draftLayouts).length > 0 && (
             <Badge variant="secondary">{Object.keys(draftLayouts).length} pending</Badge>
           )}
+          {templateShape && <Badge variant="outline">Template ready</Badge>}
         </div>
       </div>
 
@@ -439,6 +587,7 @@ export function SiteMapEditor({
             viewBox={`${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}`}
             className="h-[480px] w-full"
             onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
             onPointerLeave={() => setHoverPoint(null)}
             onClick={handleCanvasClick}
             role="img"
@@ -470,8 +619,8 @@ export function SiteMapEditor({
                 );
               })}
 
-            {selectedPoints.length >= 3 && (
-              <path d={pointsToPath(selectedPoints, true)} fill="rgba(16,185,129,0.16)" stroke="#10b981" strokeWidth={2.4} />
+            {activePoints.length >= 3 && (
+              <path d={pointsToPath(activePoints, true)} fill="rgba(16,185,129,0.16)" stroke="#10b981" strokeWidth={2.4} />
             )}
 
             {draftPolygon && (
@@ -483,6 +632,25 @@ export function SiteMapEditor({
             {draftPoints.map((point, idx) => (
               <circle key={`${point.x}-${point.y}-${idx}`} cx={point.x} cy={point.y} r={3.2} fill="#2563eb" />
             ))}
+            {!isDrawing &&
+              activePoints.map((point, idx) => (
+                <circle
+                  key={`handle-${point.x}-${point.y}-${idx}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={4}
+                  fill="#10b981"
+                  stroke="#0f766e"
+                  strokeWidth={1}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    if (!activePoints.length) return;
+                    setEditingPoints([...activePoints]);
+                    setDragIndex(idx);
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  }}
+                />
+              ))}
           </svg>
         </div>
       </div>
