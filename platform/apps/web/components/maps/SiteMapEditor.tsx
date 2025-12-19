@@ -21,7 +21,7 @@ type EditorSite = {
 type SiteMapData = {
   config?: any | null;
   sites?: Array<{ siteId: string; shapeId?: string | null; geometry?: any; centroid?: any; label?: string | null; rotation?: number | null }>;
-  shapes?: Array<{ id: string; name?: string | null; geometry: any; centroid?: any; metadata?: any; assignedSiteId?: string | null }>;
+  shapes?: Array<{ id: string; name?: string | null; geometry?: any; centroid?: any; metadata?: any; assignedSiteId?: string | null }>;
 };
 
 type SiteMapEditorProps = {
