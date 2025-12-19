@@ -12,6 +12,11 @@ export class RepeatChargesController {
         return this.repeatChargesService.getAllCharges(campgroundId);
     }
 
+    @Get('reservation/:id')
+    findByReservation(@Param('id') id: string) {
+        return this.repeatChargesService.getCharges(id);
+    }
+
     @Post('reservation/:id/generate')
     generate(@Param('id') id: string) {
         return this.repeatChargesService.generateCharges(id);

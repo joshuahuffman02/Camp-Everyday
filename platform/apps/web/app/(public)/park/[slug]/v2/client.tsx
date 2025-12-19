@@ -20,6 +20,12 @@ import { FeaturedReview } from "@/components/public/FeaturedReview";
 import { WhyBookDirect } from "@/components/public/WhyBookDirect";
 import { StickyBookingBar } from "@/components/public/StickyBookingBar";
 import { ScarcityBadge } from "@/components/public/ScarcityIndicator";
+import dynamic from "next/dynamic";
+
+const BookingMap = dynamic(() => import("@/components/maps/BookingMap"), {
+  ssr: false,
+  loading: () => <div className="h-[400px] w-full bg-slate-100 animate-pulse rounded-xl" />
+});
 
 type PublicCampgroundDetail = Awaited<ReturnType<typeof apiClient.getPublicCampground>>;
 
@@ -60,6 +66,17 @@ export function CampgroundV2Client({ slug, initialData }: { slug: string; initia
 
   const [guests, setGuests] = useState(totalGuests);
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [selectedSiteId, setSelectedSiteId] = useState<string | undefined>(undefined);
+
+  const { data: sitesStatus, isLoading: sitesLoading } = useQuery({
+    queryKey: ["sites-status", campground?.id, arrivalDate, departureDate],
+    queryFn: () =>
+      apiClient.getSitesWithStatus(campground!.id, {
+        arrivalDate,
+        departureDate,
+      }),
+    enabled: !!campground?.id && !!arrivalDate && !!departureDate,
+  });
 
   const events = campground?.events ?? [];
   const promotions = campground?.promotions ?? [];
@@ -181,6 +198,78 @@ export function CampgroundV2Client({ slug, initialData }: { slug: string; initia
 
             {/* Trust badges */}
             <TrustBadges variant="compact" className="mt-4 justify-center text-white/90" />
+          </div>
+        </div>
+      </section>
+
+      {/* Immersive Map Explorer */}
+      <section className="w-full bg-slate-900 overflow-hidden">
+        <div className="relative h-[500px] group">
+          <BookingMap
+            sites={(sitesStatus || []).map(s => ({
+              ...s,
+              latitude: s.latitude ?? null,
+              longitude: s.longitude ?? null
+            }))}
+            campgroundCenter={{
+              latitude: campground?.latitude ? Number(campground.latitude) : null,
+              longitude: campground?.longitude ? Number(campground.longitude) : null
+            }}
+            isLoading={sitesLoading}
+            selectedSiteId={selectedSiteId}
+            onSelectSite={(id) => {
+              setSelectedSiteId(id);
+              const element = document.getElementById("availability");
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth" });
+              }
+            }}
+            className="h-full rounded-none border-none"
+          />
+          <div className="absolute top-6 left-6 z-10 pointer-events-none max-w-sm">
+            <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-2xl border border-white/20 pointer-events-auto">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-emerald-600" />
+                Explore the Grounds
+              </h3>
+              <p className="text-sm text-slate-600 mt-1">
+                Tap pins to view site details and availability for your selected dates.
+              </p>
+              {selectedSiteId && (
+                <div className="mt-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
+                  <div className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Currently Selection</div>
+                  <div className="font-semibold text-slate-900 mt-0.5">
+                    {sitesStatus?.find(s => s.id === selectedSiteId)?.siteNumber} ({sitesStatus?.find(s => s.id === selectedSiteId)?.siteClassName})
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => {
+                      const site = sitesStatus?.find(s => s.id === selectedSiteId);
+                      if (site) {
+                        trackEvent("map_site_book_click", { siteId: selectedSiteId, campgroundId: campground?.id });
+                        const q = new URLSearchParams({
+                          arrivalDate,
+                          departureDate,
+                          siteType: site.siteType || "all",
+                          siteId: site.id,
+                          guests
+                        }).toString();
+                        window.location.href = `/park/${slug}/book?${q}`;
+                      }
+                    }}
+                  >
+                    Reserve This Spot
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="absolute bottom-6 right-6 z-10 hidden md:block">
+            <Badge className="bg-slate-900/80 text-white backdrop-blur-md border-white/10 px-3 py-1.5 text-xs">
+              Live Availability Powered by Camp Everyday
+            </Badge>
           </div>
         </div>
       </section>
@@ -399,61 +488,61 @@ export function CampgroundV2Client({ slug, initialData }: { slug: string; initia
               // Stub scarcity data - in production this would come from availability API
               const stubbedAvailability = [3, 5, 2, 8, 4, 1, 6, 7][idx % 8];
               return (
-              <Card key={sc.id} className="overflow-hidden border-slate-200 hover:shadow-lg transition">
-                <div className="relative h-48 w-full bg-slate-100">
-                  <Image src={sc.photoUrl || hero || "/placeholder.png"} alt={`${sc.name} site`} fill className="object-cover" />
-                  <div className="absolute top-3 left-3 flex gap-2">
-                    <Badge variant="secondary" className="bg-black/60 text-white border-white/10">
-                      {sc.siteType?.toUpperCase() || "STAY"}
-                    </Badge>
-                    {sc.petFriendly && <Badge variant="secondary" className="bg-emerald-600 text-white border-emerald-500">Pet friendly</Badge>}
-                  </div>
-                  {/* Scarcity badge for limited availability */}
-                  {stubbedAvailability <= 5 && (
-                    <div className="absolute top-3 right-3">
-                      <ScarcityBadge sitesLeft={stubbedAvailability} />
+                <Card key={sc.id} className="overflow-hidden border-slate-200 hover:shadow-lg transition">
+                  <div className="relative h-48 w-full bg-slate-100">
+                    <Image src={sc.photoUrl || hero || "/placeholder.png"} alt={`${sc.name} site`} fill className="object-cover" />
+                    <div className="absolute top-3 left-3 flex gap-2">
+                      <Badge variant="secondary" className="bg-black/60 text-white border-white/10">
+                        {sc.siteType?.toUpperCase() || "STAY"}
+                      </Badge>
+                      {sc.petFriendly && <Badge variant="secondary" className="bg-emerald-600 text-white border-emerald-500">Pet friendly</Badge>}
                     </div>
-                  )}
-                </div>
-                <div className="p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">{sc.name}</h3>
-                      <p className="text-sm text-slate-600 line-clamp-2">{sc.description}</p>
+                    {/* Scarcity badge for limited availability */}
+                    {stubbedAvailability <= 5 && (
+                      <div className="absolute top-3 right-3">
+                        <ScarcityBadge sitesLeft={stubbedAvailability} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">{sc.name}</h3>
+                        <p className="text-sm text-slate-600 line-clamp-2">{sc.description}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-emerald-600">${((sc.defaultRate || 0) / 100).toFixed(0)}</div>
+                        <div className="text-xs text-slate-500">per night</div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-emerald-600">${((sc.defaultRate || 0) / 100).toFixed(0)}</div>
-                      <div className="text-xs text-slate-500">per night</div>
+                    <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                      {sc.maxOccupancy && <Badge variant="outline">Up to {sc.maxOccupancy} guests</Badge>}
+                      {sc.hookupsPower && <Badge variant="outline">Power</Badge>}
+                      {sc.hookupsWater && <Badge variant="outline">Water</Badge>}
+                      {sc.hookupsSewer && <Badge variant="outline">Sewer</Badge>}
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <MapPin className="h-4 w-4" />
+                        <span>{campground?.city}, {campground?.state}</span>
+                      </div>
+                      <Button
+                        className="bg-slate-900 hover:bg-slate-800"
+                        onClick={() => {
+                          const q = new URLSearchParams({
+                            arrivalDate,
+                            departureDate,
+                            siteType: sc.siteType || "all",
+                            guests
+                          }).toString();
+                          window.location.href = `/park/${slug}/book?${q}`;
+                        }}
+                      >
+                        Book
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                    {sc.maxOccupancy && <Badge variant="outline">Up to {sc.maxOccupancy} guests</Badge>}
-                    {sc.hookupsPower && <Badge variant="outline">Power</Badge>}
-                    {sc.hookupsWater && <Badge variant="outline">Water</Badge>}
-                    {sc.hookupsSewer && <Badge variant="outline">Sewer</Badge>}
-                  </div>
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <MapPin className="h-4 w-4" />
-                      <span>{campground?.city}, {campground?.state}</span>
-                    </div>
-                    <Button
-                      className="bg-slate-900 hover:bg-slate-800"
-                      onClick={() => {
-                        const q = new URLSearchParams({
-                          arrivalDate,
-                          departureDate,
-                          siteType: sc.siteType || "all",
-                          guests
-                        }).toString();
-                        window.location.href = `/park/${slug}/book?${q}`;
-                      }}
-                    >
-                      Book
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+                </Card>
               );
             })}
             {filteredSiteClasses.length === 0 && (

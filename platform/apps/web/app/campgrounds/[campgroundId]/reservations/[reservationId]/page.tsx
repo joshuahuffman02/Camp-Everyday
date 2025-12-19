@@ -106,6 +106,12 @@ export default function ReservationDetailPage() {
     enabled: !!campgroundId && !!reservation?.guestId
   });
 
+  const chargesQuery = useQuery({
+    queryKey: ["reservation-charges", reservationId],
+    queryFn: () => apiClient.getRepeatChargesByReservation(reservationId),
+    enabled: !!reservationId
+  });
+
   const updateReservation = useMutation({
     mutationFn: (data: any) => apiClient.updateReservation(reservationId, data),
     onSuccess: (data, variables) => {
@@ -425,6 +431,79 @@ export default function ReservationDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {((reservation as any).seasonalRateId || (chargesQuery.data?.length ?? 0) > 0) && (
+            <Card className="md:col-span-2">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="flex items-center gap-2 text-blue-700">
+                  <Calculator className="h-4 w-4" />
+                  Billing Schedule
+                </CardTitle>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => {
+                    apiClient.fetchJSON(`/repeat-charges/reservation/${reservationId}/generate`, { method: 'POST' })
+                      .then(() => queryClient.invalidateQueries({ queryKey: ["reservation-charges", reservationId] }));
+                  }}
+                >
+                  Regenerate
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {chargesQuery.isLoading ? (
+                    <p className="text-slate-500 text-xs py-4 text-center">Loading schedule...</p>
+                  ) : chargesQuery.data?.length === 0 ? (
+                    <p className="text-slate-500 text-xs italic py-4 text-center border rounded-md">No recurring charges scheduled.</p>
+                  ) : (
+                    <div className="rounded-md border border-slate-200 overflow-hidden shadow-sm">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 uppercase tracking-tight font-semibold">
+                          <tr>
+                            <th className="px-3 py-2.5">Due Date</th>
+                            <th className="px-3 py-2.5">Amount</th>
+                            <th className="px-3 py-2.5">Status</th>
+                            <th className="px-3 py-2.5 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">
+                          {chargesQuery.data?.map((charge) => (
+                            <tr key={charge.id} className="hover:bg-slate-50/50">
+                              <td className="px-3 py-2 text-slate-900 font-medium">{formatDate(charge.dueDate)}</td>
+                              <td className="px-3 py-2 text-slate-700 font-semibold">${(charge.amount / 100).toFixed(2)}</td>
+                              <td className="px-3 py-2">
+                                <Badge
+                                  className={`text-[10px] px-2 py-0 border capitalize ${charge.status === "paid" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                      charge.status === "failed" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                                        "bg-amber-50 text-amber-700 border-amber-200"
+                                    }`}
+                                  variant="outline"
+                                >
+                                  {charge.status}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                {charge.status !== "paid" && (
+                                  <Button size="xs" variant="secondary" className="h-7" onClick={() => {
+                                    apiClient.fetchJSON(`/repeat-charges/${charge.id}/process`, { method: 'POST' })
+                                      .then(() => {
+                                        queryClient.invalidateQueries({ queryKey: ["reservation-charges", reservationId] });
+                                        queryClient.invalidateQueries({ queryKey: ["reservation", reservationId] });
+                                      });
+                                  }}>Process</Button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

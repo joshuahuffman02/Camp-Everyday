@@ -24,9 +24,10 @@ import { DepositPoliciesService } from "../deposit-policies/deposit-policies.ser
 import { SignaturesModule } from "../signatures/signatures.module";
 import { ApprovalsModule } from "../approvals/approvals.module";
 import { UsageTrackerModule } from "../org-billing/usage-tracker.module";
+import { RepeatChargesModule } from "../repeat-charges/repeat-charges.module";
 
 @Module({
-  imports: [WaitlistModule, LoyaltyModule, SeasonalRatesModule, TaxRulesModule, GamificationModule, AuditModule, AccessControlModule, SignaturesModule, ApprovalsModule, UsageTrackerModule],
+  imports: [WaitlistModule, LoyaltyModule, SeasonalRatesModule, TaxRulesModule, GamificationModule, AuditModule, AccessControlModule, SignaturesModule, ApprovalsModule, UsageTrackerModule, RepeatChargesModule],
   controllers: [ReservationsController],
   providers: [
     ReservationsService,

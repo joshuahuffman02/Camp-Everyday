@@ -319,6 +319,8 @@ export const ReservationSchema = z.object({
   checkInAt: z.string().nullish(),
   checkOutAt: z.string().nullish(),
   notes: z.string().nullish(),
+  seasonalRateId: z.string().cuid().nullish(),
+  pricingType: z.enum(["transient", "seasonal"]).optional().default("transient"),
   taxWaiverSigned: z.boolean().optional().default(false),
   taxWaiverDate: z.string().nullish(),
   stayReasonPreset: z.string().nullish(),
@@ -454,7 +456,9 @@ export const CreateReservationSchema = z.object({
   updatedBy: z.string().optional(),
   checkInAt: z.string().optional(),
   checkOutAt: z.string().optional(),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  seasonalRateId: z.string().cuid().optional(),
+  pricingType: z.enum(["transient", "seasonal"]).optional()
 }).refine(
   (data) => data.siteId || data.siteClassId,
   { message: "Either siteId or siteClassId must be provided" }

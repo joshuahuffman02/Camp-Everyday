@@ -58,6 +58,8 @@ type ReservationPayload = {
   children: number;
   pets: number;
   notes?: string;
+  seasonalRateId?: string;
+  pricingType: "transient" | "seasonal";
 };
 
 export default function BookingV2Page() {
@@ -107,6 +109,12 @@ function BookingV2Content() {
     enabled: !!campgroundId
   });
 
+  const seasonalRatesQuery = useQuery({
+    queryKey: ["seasonal-rates", campgroundId],
+    queryFn: () => apiClient.getSeasonalRates(campgroundId),
+    enabled: !!campgroundId
+  });
+
   const [form, setForm] = useState<ReservationPayload>({
     campgroundId: "",
     siteId: "",
@@ -117,7 +125,8 @@ function BookingV2Content() {
     adults: 2,
     children: 0,
     pets: 0,
-    notes: ""
+    notes: "",
+    pricingType: "transient"
   });
 
   const [guestSearch, setGuestSearch] = useState("");
@@ -222,6 +231,20 @@ function BookingV2Content() {
     return () => document.removeEventListener("mousedown", handler);
   }, [showGuestDropdown]);
 
+  const selectedSeasonalRate = seasonalRatesQuery.data?.find(r => r.id === form.seasonalRateId);
+
+  useEffect(() => {
+    if (selectedSeasonalRate && form.pricingType === "seasonal") {
+      if (selectedSeasonalRate.startDate && selectedSeasonalRate.endDate) {
+        setForm(p => ({
+          ...p,
+          arrivalDate: selectedSeasonalRate.startDate!.split("T")[0],
+          departureDate: selectedSeasonalRate.endDate!.split("T")[0]
+        }));
+      }
+    }
+  }, [form.seasonalRateId, form.pricingType, selectedSeasonalRate]);
+
   return (
     <DashboardShell>
       <div className="space-y-6">
@@ -249,11 +272,64 @@ function BookingV2Content() {
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="xl:col-span-2 space-y-4">
-            {/* Guest & party */}
+            {/* Stay Type */}
             <Card className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs uppercase font-semibold text-slate-500">Step 1</div>
+                  <h3 className="text-lg font-semibold text-slate-900">Stay Type</h3>
+                  <p className="text-xs text-slate-500">Choose between a short-term or a long-term seasonal stay.</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, pricingType: "transient", seasonalRateId: undefined }))}
+                  className={`flex-1 p-3 rounded-lg border text-center transition-all ${form.pricingType === "transient" ? "border-emerald-500 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500/20" : "border-slate-200 hover:border-slate-300"}`}
+                >
+                  <div className="font-semibold">Transient</div>
+                  <div className="text-xs opacity-70">Short-term/Nightly</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, pricingType: "seasonal" }))}
+                  className={`flex-1 p-3 rounded-lg border text-center transition-all ${form.pricingType === "seasonal" ? "border-emerald-500 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500/20" : "border-slate-200 hover:border-slate-300"}`}
+                >
+                  <div className="font-semibold">Seasonal</div>
+                  <div className="text-xs opacity-70">Long-term (Monthly/Weekly)</div>
+                </button>
+              </div>
+
+              {form.pricingType === "seasonal" && (
+                <div className="space-y-3 pt-2">
+                  <Label>Select Seasonal Rate Plan</Label>
+                  <Select
+                    value={form.seasonalRateId}
+                    onValueChange={(v) => setForm(p => ({ ...p, seasonalRateId: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chose a plan..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {seasonalRatesQuery.data?.map(rate => (
+                        <SelectItem key={rate.id} value={rate.id}>
+                          {rate.name} — ${(rate.amount / 100).toFixed(2)} ({rate.rateType})
+                        </SelectItem>
+                      ))}
+                      {seasonalRatesQuery.data?.length === 0 && (
+                        <div className="p-2 text-sm text-slate-500">No seasonal rates configured for this park.</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </Card>
+
+            {/* Guest & party */}
+            <Card className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase font-semibold text-slate-500">Step 2</div>
                   <h3 className="text-lg font-semibold text-slate-900">Guest & party</h3>
                 </div>
               </div>
@@ -372,7 +448,7 @@ function BookingV2Content() {
             <Card className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs uppercase font-semibold text-slate-500">Step 2</div>
+                  <div className="text-xs uppercase font-semibold text-slate-500">Step 3</div>
                   <h3 className="text-lg font-semibold text-slate-900">Dates</h3>
                 </div>
                 {nights > 0 ? <Badge variant="secondary">{nights} nights</Badge> : null}
@@ -393,7 +469,7 @@ function BookingV2Content() {
             <Card className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs uppercase font-semibold text-slate-500">Step 3</div>
+                  <div className="text-xs uppercase font-semibold text-slate-500">Step 4</div>
                   <h3 className="text-lg font-semibold text-slate-900">Site</h3>
                   <p className="text-xs text-slate-500">
                     Showing available sites for the selected dates.
@@ -460,7 +536,7 @@ function BookingV2Content() {
             <Card className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs uppercase font-semibold text-slate-500">Step 4</div>
+                  <div className="text-xs uppercase font-semibold text-slate-500">Step 5</div>
                   <h3 className="text-lg font-semibold text-slate-900">Notes & requests</h3>
                 </div>
                 <Badge variant="outline" className="text-emerald-700 border-emerald-200">
@@ -506,6 +582,18 @@ function BookingV2Content() {
                   <Sparkles className="h-4 w-4 text-slate-400" />
                   <span>{selectedClass ? selectedClass.name : "Any class"}</span>
                 </div>
+                {form.pricingType === "seasonal" && selectedSeasonalRate && (
+                  <div className="mt-2 pt-2 border-t border-slate-100">
+                    <div className="text-xs uppercase font-semibold text-slate-500 mb-1">Seasonal Plan</div>
+                    <div className="flex items-center gap-2 text-emerald-700 font-medium">
+                      <CreditCard className="h-4 w-4" />
+                      <span>{selectedSeasonalRate.name}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      Billing: {selectedSeasonalRate.paymentSchedule} · {selectedSeasonalRate.pricingStructure}
+                    </div>
+                  </div>
+                )}
               </div>
               <Button className="w-full" onClick={handleCreate} disabled={!readyToSubmit || createReservation.isPending}>
                 {createReservation.isPending ? "Creating..." : "Create reservation"}

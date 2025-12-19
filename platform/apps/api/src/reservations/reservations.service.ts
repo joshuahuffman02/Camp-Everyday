@@ -26,6 +26,7 @@ import { SignaturesService } from "../signatures/signatures.service";
 import { AuditService } from "../audit/audit.service";
 import { ApprovalsService } from "../approvals/approvals.service";
 import { UsageTrackerService } from "../org-billing/usage-tracker.service";
+import { RepeatChargesService } from "../repeat-charges/repeat-charges.service";
 
 @Injectable()
 export class ReservationsService {
@@ -47,7 +48,8 @@ export class ReservationsService {
     private readonly signaturesService: SignaturesService,
     private readonly audit: AuditService,
     private readonly approvals: ApprovalsService,
-    private readonly usageTracker: UsageTrackerService
+    private readonly usageTracker: UsageTrackerService,
+    private readonly repeatChargesService: RepeatChargesService
   ) { }
 
   async getMatchedSites(campgroundId: string, guestId: string) {
@@ -1344,12 +1346,16 @@ export class ReservationsService {
           requiredAmenities: _requiredAmenities,
           overrideReason: _overrideReason,
           overrideApprovedBy: _overrideApprovedBy,
+          seasonalRateId: _seasonalRateId,
+          pricingType: _pricingType,
           ...reservationData
         } = data;
 
         const reservation = await this.prisma.reservation.create({
           data: {
             ...reservationData,
+            seasonalRateId: data.seasonalRateId ?? null,
+            pricingType: data.pricingType ?? "transient",
             rigType: data.rigType || rvType,
             siteId: siteId, // Use the determined siteId (either from data or found from siteClassId)
             children: data.children ?? 0,
@@ -1394,6 +1400,14 @@ export class ReservationsService {
         });
 
         await this.enqueuePlaybooksForReservation("arrival", reservation.id);
+
+        if (reservation.seasonalRateId) {
+          try {
+            await this.repeatChargesService.generateCharges(reservation.id);
+          } catch (err) {
+            console.error(`Failed to generate repeat charges for reservation ${reservation.id}:`, err);
+          }
+        }
 
         if (hold?.id) {
           await (this.prisma as any).siteHold.update({

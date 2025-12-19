@@ -4794,6 +4794,19 @@ export const apiClient = {
     });
     return parseResponse<{ id: string }>(res);
   },
+  async getRepeatChargesByReservation(reservationId: string) {
+    const data = await fetchJSON<unknown>(`/repeat-charges/reservation/${reservationId}`);
+    return z.array(z.object({
+      id: z.string(),
+      reservationId: z.string(),
+      dueDate: z.string(),
+      amount: z.number(),
+      status: z.enum(["pending", "paid", "failed", "cancelled"]),
+      paidAt: z.string().nullable(),
+      createdAt: z.string(),
+      updatedAt: z.string()
+    })).parse(data);
+  },
 
   // Guest Equipment
   async getGuestEquipment(guestId: string) {
