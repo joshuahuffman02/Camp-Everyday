@@ -1,6 +1,6 @@
 import { Reservation, Site } from "@campreserv/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Tent, Users } from "lucide-react";
+import { Calendar, Caravan, Tent, Users } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 
 interface StayDetailsProps {
@@ -70,7 +70,7 @@ export function StayDetails({ reservation, site }: StayDetailsProps) {
                     {reservation.rigType && (
                         <div className="flex justify-between items-start py-2 border-b border-slate-100">
                             <div className="flex items-center gap-2 text-slate-600">
-                                <span className="text-lg">🚐</span>
+                                <Caravan className="w-4 h-4" />
                                 <span>Equipment</span>
                             </div>
                             <div className="text-right">

@@ -1033,8 +1033,18 @@ export class PublicReservationsService {
                     policyLines.push(cg.cancellationNotes);
                 }
                 const policyBlock = policyLines.length
-                    ? `<p><strong>Cancellation</strong><br/>${policyLines.join("<br/>")}</p>`
+                    ? `
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                        <h3 style="margin: 0 0 8px 0; color: #92400e; font-size: 14px;">Cancellation Policy</h3>
+                        <p style="margin: 0; color: #78350f; font-size: 13px;">${policyLines.join("<br/>")}</p>
+                    </div>`
                     : "";
+
+                // Format dates nicely
+                const arrivalFormatted = reservation.arrivalDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+                const departureFormatted = reservation.departureDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+                const nights = Math.ceil((reservation.departureDate.getTime() - reservation.arrivalDate.getTime()) / (1000 * 60 * 60 * 24));
+                const baseUrl = (process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_BASE || "http://localhost:3000").replace(/\/+$/, "");
 
                 // Send confirmation email (don't fail booking if email fails)
                 try {
@@ -1042,14 +1052,58 @@ export class PublicReservationsService {
                         to: reservation.guest.email,
                         subject: `Reservation Confirmed: ${reservation.campground.name}`,
                         html: `
-    <h1>Reservation Confirmed</h1>
-    <p>Dear ${reservation.guest.primaryFirstName},</p>
-    <p>Your reservation at ${reservation.campground.name} has been confirmed.</p>
-    <p><strong>Site:</strong> ${reservation.site.siteNumber}</p>
-    <p><strong>Arrival:</strong> ${reservation.arrivalDate.toISOString().split('T')[0]}</p>
-    <p><strong>Departure:</strong> ${reservation.departureDate.toISOString().split('T')[0]}</p>
-    ${policyBlock}
-    <p>Thank you for booking with us!</p>
+                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                                <div style="text-align: center; margin-bottom: 30px;">
+                                    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px; padding: 32px; margin-bottom: 24px;">
+                                        <h1 style="color: white; margin: 0 0 8px 0; font-size: 28px;">Reservation Confirmed!</h1>
+                                        <p style="color: rgba(255,255,255,0.9); margin: 0; font-size: 16px;">${reservation.campground.name}</p>
+                                    </div>
+                                </div>
+
+                                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 20px;">
+                                    <p style="margin: 0 0 20px 0; color: #475569; font-size: 16px;">
+                                        Hi ${reservation.guest.primaryFirstName},<br/>
+                                        Great news! Your reservation has been confirmed. Here are your stay details:
+                                    </p>
+
+                                    <div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; border-bottom: 1px solid #e2e8f0;">Site</td>
+                                                <td style="padding: 8px 0; color: #0f172a; text-align: right; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${reservation.site.siteNumber}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; border-bottom: 1px solid #e2e8f0;">Check-in</td>
+                                                <td style="padding: 8px 0; color: #0f172a; text-align: right; border-bottom: 1px solid #e2e8f0; font-weight: 500;">${arrivalFormatted}<br/><span style="color: #64748b; font-size: 12px;">After 3:00 PM</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; border-bottom: 1px solid #e2e8f0;">Check-out</td>
+                                                <td style="padding: 8px 0; color: #0f172a; text-align: right; border-bottom: 1px solid #e2e8f0; font-weight: 500;">${departureFormatted}<br/><span style="color: #64748b; font-size: 12px;">Before 11:00 AM</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b;">Duration</td>
+                                                <td style="padding: 8px 0; color: #0f172a; text-align: right; font-weight: 500;">${nights} Night${nights !== 1 ? 's' : ''}</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+
+                                    <div style="text-align: center; margin: 24px 0;">
+                                        <a href="${baseUrl}/portal" style="display: inline-block; padding: 14px 28px; background: #0f172a; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">View & Manage Reservation</a>
+                                        <p style="margin: 12px 0 0 0; color: #94a3b8; font-size: 12px;">Access your guest portal to view details, request changes, or check in online.</p>
+                                    </div>
+                                </div>
+
+                                ${policyBlock}
+
+                                <div style="text-align: center; padding: 20px 0; border-top: 1px solid #e2e8f0;">
+                                    <p style="color: #64748b; font-size: 13px; margin: 0 0 8px 0;">
+                                        Questions about your stay? Contact ${reservation.campground.name}
+                                    </p>
+                                    <p style="color: #94a3b8; font-size: 11px; margin: 0;">
+                                        Reservation ID: ${reservation.id}
+                                    </p>
+                                </div>
+                            </div>
                         `
                     });
                 } catch (emailError) {

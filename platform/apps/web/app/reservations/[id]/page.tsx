@@ -16,7 +16,7 @@ import { MessagesPanel } from "@/components/reservations/MessagesPanel";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { GitBranch, Loader2, Mail, MessageSquare, RotateCcw } from "lucide-react";
+import { GitBranch, Loader2, Mail, MessageSquare, PlusCircle, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -477,89 +477,97 @@ export default function ReservationDetailPage() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-3">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Type</Label>
-                                            <select
-                                                className="h-9 rounded border border-slate-200 bg-white px-2 text-sm"
-                                                value={composeType}
-                                                onChange={(e) => setComposeType(e.target.value as any)}
-                                            >
-                                                <option value="email">Email</option>
-                                                <option value="sms">SMS</option>
-                                                <option value="note">Note</option>
-                                                <option value="call">Call</option>
-                                            </select>
+                                {/* Collapsible Log Communication Form */}
+                                <details className="group">
+                                    <summary className="flex items-center gap-2 cursor-pointer text-sm text-slate-600 hover:text-slate-800 py-2 border-t border-slate-100 mt-2">
+                                        <PlusCircle className="h-4 w-4" />
+                                        <span>Log Communication</span>
+                                    </summary>
+                                    <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Type</Label>
+                                                <select
+                                                    className="w-full h-9 rounded border border-slate-200 bg-white px-2 text-sm"
+                                                    value={composeType}
+                                                    onChange={(e) => setComposeType(e.target.value as any)}
+                                                >
+                                                    <option value="email">Email</option>
+                                                    <option value="sms">SMS</option>
+                                                    <option value="note">Note</option>
+                                                    <option value="call">Call</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Direction</Label>
+                                                <select
+                                                    className="w-full h-9 rounded border border-slate-200 bg-white px-2 text-sm"
+                                                    value={composeDirection}
+                                                    onChange={(e) => setComposeDirection(e.target.value as any)}
+                                                >
+                                                    <option value="outbound">Outbound</option>
+                                                    <option value="inbound">Inbound</option>
+                                                </select>
+                                            </div>
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs">Direction</Label>
-                                            <select
-                                                className="h-9 rounded border border-slate-200 bg-white px-2 text-sm"
-                                                value={composeDirection}
-                                                onChange={(e) => setComposeDirection(e.target.value as any)}
-                                            >
-                                                <option value="outbound">Outbound</option>
-                                                <option value="inbound">Inbound</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Subject (optional)</Label>
-                                        <Input
-                                            value={composeSubject}
-                                            onChange={(e) => setComposeSubject(e.target.value)}
-                                            placeholder="Subject"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Body</Label>
-                                        <textarea
-                                            className="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm min-h-[90px]"
-                                            value={composeBody}
-                                            onChange={(e) => setComposeBody(e.target.value)}
-                                            placeholder="Log the message content"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">To</Label>
-                                            <Input value={composeTo} onChange={(e) => setComposeTo(e.target.value)} placeholder="email or phone" />
+                                            <Label className="text-xs">Subject (optional)</Label>
+                                            <Input
+                                                value={composeSubject}
+                                                onChange={(e) => setComposeSubject(e.target.value)}
+                                                placeholder="Subject"
+                                            />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs">From</Label>
-                                            <Input value={composeFrom} onChange={(e) => setComposeFrom(e.target.value)} placeholder="email or phone" />
+                                            <Label className="text-xs">Body</Label>
+                                            <textarea
+                                                className="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm min-h-[80px]"
+                                                value={composeBody}
+                                                onChange={(e) => setComposeBody(e.target.value)}
+                                                placeholder="Log the message content"
+                                            />
                                         </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">To</Label>
+                                                <Input value={composeTo} onChange={(e) => setComposeTo(e.target.value)} placeholder="email or phone" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">From</Label>
+                                                <Input value={composeFrom} onChange={(e) => setComposeFrom(e.target.value)} placeholder="email or phone" />
+                                            </div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            onClick={async () => {
+                                                if (!reservation?.campgroundId) return;
+                                                if (!composeBody.trim()) {
+                                                    return toast({ title: "Body required", variant: "destructive" });
+                                                }
+                                                await apiClient.createCommunication({
+                                                    campgroundId: reservation.campgroundId,
+                                                    reservationId: reservation.id,
+                                                    guestId: reservation.guestId,
+                                                    type: composeType,
+                                                    direction: composeDirection,
+                                                    subject: composeSubject || undefined,
+                                                    body: composeBody,
+                                                    toAddress: composeTo || undefined,
+                                                    fromAddress: composeFrom || undefined
+                                                });
+                                                setComposeBody("");
+                                                setComposeSubject("");
+                                                setComposeTo("");
+                                                setComposeFrom("");
+                                                commsQuery.refetch();
+                                                toast({ title: "Logged" });
+                                            }}
+                                            disabled={!reservation?.campgroundId}
+                                        >
+                                            Log communication
+                                        </Button>
                                     </div>
-                                    <Button
-                                        onClick={async () => {
-                                            if (!reservation?.campgroundId) return;
-                                            if (!composeBody.trim()) {
-                                                return toast({ title: "Body required", variant: "destructive" });
-                                            }
-                                            await apiClient.createCommunication({
-                                                campgroundId: reservation.campgroundId,
-                                                reservationId: reservation.id,
-                                                guestId: reservation.guestId,
-                                                type: composeType,
-                                                direction: composeDirection,
-                                                subject: composeSubject || undefined,
-                                                body: composeBody,
-                                                toAddress: composeTo || undefined,
-                                                fromAddress: composeFrom || undefined
-                                            });
-                                            setComposeBody("");
-                                            setComposeSubject("");
-                                            setComposeTo("");
-                                            setComposeFrom("");
-                                            commsQuery.refetch();
-                                            toast({ title: "Logged" });
-                                        }}
-                                        disabled={!reservation?.campgroundId}
-                                    >
-                                        Log communication
-                                    </Button>
-                                </div>
+                                </details>
 
                                 <div className="space-y-2 max-h-96 overflow-auto pr-1">
                                     {!timelineItems.length && (

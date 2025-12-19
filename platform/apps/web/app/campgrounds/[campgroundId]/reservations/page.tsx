@@ -104,7 +104,7 @@ export default function ReservationsPage() {
     id: number;
     skippedIds: string[];
   } | null>(null);
-  const [sortBy, setSortBy] = useState<"arrival" | "guest" | "site" | "status" | "balance">("arrival");
+  const [sortBy, setSortBy] = useState<"arrival" | "guest" | "site" | "status" | "balance" | "created">("arrival");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   useEffect(() => {
     if (!bulkFeedback) return;
@@ -722,6 +722,8 @@ export default function ReservationsPage() {
           return dir * (a.status || "").localeCompare(b.status || "");
         case "balance":
           return dir * (balanceA - balanceB);
+        case "created":
+          return dir * (new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
         case "arrival":
         default:
           return dir * (new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
@@ -1327,32 +1329,40 @@ export default function ReservationsPage() {
 
         <div className="grid gap-3">
             {overlapsListQuery.data && overlapsListQuery.data.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 space-y-1">
-                <div className="font-semibold text-amber-900">Overlapping reservations detected</div>
-                <div className="text-xs text-amber-700">Resolve these before running the DB constraint migration.</div>
-                <div className="space-y-1">
-                  {overlapsListQuery.data.map((row) => (
-                    <div key={`${row.reservationA}-${row.reservationB}`} className="flex flex-wrap gap-2 text-xs">
-                      <span className="font-semibold text-amber-900">{row.siteId}</span>
-                      <span>
-                        {row.arrivalA.slice(0, 10)} → {row.departureA.slice(0, 10)} ({row.reservationA})
-                      </span>
-                      <span>overlaps</span>
-                      <span>
-                        {row.arrivalB.slice(0, 10)} → {row.departureB.slice(0, 10)} ({row.reservationB})
-                      </span>
-                      <span className="flex gap-2">
-                        <a className="underline" href={`/reservations?focus=${row.reservationA}`} target="_blank" rel="noreferrer">
-                          Open A
-                        </a>
-                        <a className="underline" href={`/reservations?focus=${row.reservationB}`} target="_blank" rel="noreferrer">
-                          Open B
-                        </a>
-                      </span>
-                    </div>
-                  ))}
+              <details className="rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-800">
+                <summary className="p-3 cursor-pointer hover:bg-amber-100 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-amber-900">Overlapping reservations detected</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 text-xs font-medium">{overlapsListQuery.data.length}</span>
+                  </div>
+                  <span className="text-xs text-amber-600">Click to expand</span>
+                </summary>
+                <div className="px-3 pb-3 space-y-2 border-t border-amber-200">
+                  <div className="text-xs text-amber-700 pt-2">These reservations have conflicting dates on the same site. Update arrival/departure dates or move to a different site.</div>
+                  <div className="space-y-1">
+                    {overlapsListQuery.data.map((row) => (
+                      <div key={`${row.reservationA}-${row.reservationB}`} className="flex flex-wrap items-center gap-2 text-xs p-2 bg-amber-100/50 rounded">
+                        <span className="font-semibold text-amber-900">{row.siteId}</span>
+                        <span>
+                          {row.arrivalA.slice(0, 10)} → {row.departureA.slice(0, 10)}
+                        </span>
+                        <span className="text-amber-600">overlaps</span>
+                        <span>
+                          {row.arrivalB.slice(0, 10)} → {row.departureB.slice(0, 10)}
+                        </span>
+                        <span className="flex gap-2 ml-auto">
+                          <a className="underline text-amber-700 hover:text-amber-900" href={`/campgrounds/${campgroundId}/reservations/${row.reservationA}`}>
+                            Fix A
+                          </a>
+                          <a className="underline text-amber-700 hover:text-amber-900" href={`/campgrounds/${campgroundId}/reservations/${row.reservationB}`}>
+                            Fix B
+                          </a>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </details>
             )}
             <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -1472,6 +1482,19 @@ export default function ReservationsPage() {
                     }}
                   >
                     Next 7 days
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={sortBy === "created" ? "secondary" : "outline"}
+                    onClick={() => {
+                      setSortBy("created");
+                      setSortDir("desc");
+                      setStartFilter("");
+                      setEndFilter("");
+                      setStatusFilter("all");
+                    }}
+                  >
+                    Recently Booked
                   </Button>
                   <Button
                     size="sm"

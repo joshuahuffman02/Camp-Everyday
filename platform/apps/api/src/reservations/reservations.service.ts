@@ -427,6 +427,17 @@ export class ReservationsService {
         where: { id: pb.templateId, status: "approved" }
       });
       if (!template) continue;
+
+      // Check for existing pending/sent job for this playbook + reservation (prevents duplicates)
+      const existingJob = await (this.prisma as any).communicationPlaybookJob.findFirst({
+        where: {
+          playbookId: pb.id,
+          reservationId: reservation.id,
+          status: { in: ["pending", "sent"] }
+        }
+      });
+      if (existingJob) continue; // Skip if already queued or sent
+
       const scheduledAt = new Date(type === "arrival" ? reservation.arrivalDate : new Date());
       if (pb.offsetMinutes && Number.isFinite(pb.offsetMinutes)) {
         scheduledAt.setMinutes(scheduledAt.getMinutes() + pb.offsetMinutes);
