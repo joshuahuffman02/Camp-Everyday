@@ -123,6 +123,7 @@ function BookingLabPageInner() {
   }, [campgrounds, selectedCampgroundId]);
 
   const selectedCampground = campgrounds.find((cg) => cg.id === selectedCampgroundId) || null;
+  const campgroundGuestTag = selectedCampground?.id ? `campground:${selectedCampground.id}` : null;
   const siteLockFeeCents = (selectedCampground as any)?.siteSelectionFeeCents ?? 0;
 
   const guestsQuery = useQuery({
@@ -190,8 +191,20 @@ function BookingLabPageInner() {
   useEffect(() => {
     if (formData.arrivalDate && !formData.departureDate) {
       const arrival = parseLocalDateInput(formData.arrivalDate);
-      arrival.setDate(arrival.getDate() + 1);
+      arrival.setDate(arrival.getDate() + 2);
       setFormData((prev) => ({ ...prev, departureDate: formatLocalDateInput(arrival) }));
+    }
+  }, [formData.arrivalDate, formData.departureDate]);
+
+  useEffect(() => {
+    if (!formData.arrivalDate) return;
+    if (!formData.departureDate) return;
+    const arrival = parseLocalDateInput(formData.arrivalDate);
+    const departure = parseLocalDateInput(formData.departureDate);
+    if (departure <= arrival) {
+      const next = new Date(arrival);
+      next.setDate(next.getDate() + 2);
+      setFormData((prev) => ({ ...prev, departureDate: formatLocalDateInput(next) }));
     }
   }, [formData.arrivalDate, formData.departureDate]);
 
@@ -279,8 +292,11 @@ function BookingLabPageInner() {
   });
 
   const lockFeeCents = formData.lockSite && siteLockFeeCents > 0 ? siteLockFeeCents : 0;
-  const fallbackSubtotalCents =
-    selectedSite?.defaultRate && nights ? selectedSite.defaultRate * nights : null;
+  const fallbackRateCents =
+    selectedSite?.defaultRate ??
+    siteClassById.get(selectedSite?.siteClassId ?? "")?.defaultRate ??
+    null;
+  const fallbackSubtotalCents = fallbackRateCents !== null && nights ? fallbackRateCents * nights : null;
   const pricingSubtotalCents = quoteQuery.data?.baseSubtotalCents ?? fallbackSubtotalCents;
   const pricingRulesDeltaCents = quoteQuery.data?.rulesDeltaCents ?? null;
   const pricingTotalCents = quoteQuery.data?.totalCents ?? fallbackSubtotalCents;
@@ -311,6 +327,12 @@ function BookingLabPageInner() {
       setFormData((prev) => ({ ...prev, cashReceived: paymentAmountDefault }));
     }
   }, [formData.collectPayment, formData.paymentMethod, formData.cashReceived, paymentAmountDefault]);
+
+  useEffect(() => {
+    if (!formData.collectPayment) return;
+    if (formData.paymentMethod) return;
+    setFormData((prev) => ({ ...prev, paymentMethod: "card" }));
+  }, [formData.collectPayment, formData.paymentMethod]);
 
   const guests = guestsQuery.data || [];
   const guestStayedSet = useMemo(() => {
@@ -374,7 +396,8 @@ function BookingLabPageInner() {
       primaryFirstName: guestForm.primaryFirstName,
       primaryLastName: guestForm.primaryLastName,
       email: guestForm.email,
-      phone: guestForm.phone
+      phone: guestForm.phone,
+      ...(campgroundGuestTag ? { tags: [campgroundGuestTag] } : {})
     }),
     onSuccess: (guest) => {
       setFormData((prev) => ({ ...prev, guestId: guest.id }));

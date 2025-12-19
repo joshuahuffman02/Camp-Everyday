@@ -7,10 +7,18 @@ export class GuestsService {
   constructor(private readonly prisma: PrismaService) { }
 
   findOne(id: string, campgroundId?: string) {
+    const campgroundTag = campgroundId ? `campground:${campgroundId}` : null;
     return this.prisma.guest.findFirst({
       where: {
         id,
-        ...(campgroundId ? { reservations: { some: { campgroundId } } } : {})
+        ...(campgroundId
+          ? {
+              OR: [
+                { reservations: { some: { campgroundId } } },
+                { tags: { has: campgroundTag } }
+              ]
+            }
+          : {})
       },
       include: {
         loyaltyProfile: true,
@@ -45,8 +53,14 @@ export class GuestsService {
   }
 
   findAllByCampground(campgroundId: string) {
+    const campgroundTag = `campground:${campgroundId}`;
     return this.prisma.guest.findMany({
-      where: { reservations: { some: { campgroundId } } },
+      where: {
+        OR: [
+          { reservations: { some: { campgroundId } } },
+          { tags: { has: campgroundTag } }
+        ]
+      },
       orderBy: { primaryLastName: "asc" },
       include: {
         loyaltyProfile: true,
@@ -66,9 +80,10 @@ export class GuestsService {
   }
 
   async create(data: CreateGuestDto) {
-    const { rigLength, repeatStays, ...rest } = data as any;
+    const { rigLength, repeatStays, tags, ...rest } = data as any;
     const emailNormalized = rest.email ? rest.email.trim().toLowerCase() : null;
     const phoneNormalized = rest.phone ? rest.phone.replace(/\D/g, "").slice(-10) : null;
+    const incomingTags = Array.isArray(tags) ? tags.filter((tag) => typeof tag === "string" && tag.trim()) : [];
 
     // Global guest lookup: if email or phone already exists, reuse that guest.
     const existing = await this.prisma.guest.findFirst({
@@ -79,11 +94,23 @@ export class GuestsService {
         ]
       }
     });
-    if (existing) return existing;
+    if (existing) {
+      if (incomingTags.length > 0) {
+        const nextTags = Array.from(new Set([...(existing.tags ?? []), ...incomingTags]));
+        if (nextTags.length !== (existing.tags ?? []).length) {
+          return this.prisma.guest.update({
+            where: { id: existing.id },
+            data: { tags: nextTags }
+          });
+        }
+      }
+      return existing;
+    }
 
     return this.prisma.guest.create({
       data: {
         ...rest,
+        ...(incomingTags.length ? { tags: incomingTags } : {}),
         emailNormalized,
         phoneNormalized,
         rigLength: rigLength !== undefined ? Number(rigLength) : null,
