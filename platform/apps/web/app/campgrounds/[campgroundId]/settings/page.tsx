@@ -10,6 +10,7 @@ import { DepositSettings } from "@/components/campgrounds/DepositSettings";
 import { CampgroundProfileForm } from "@/components/campgrounds/CampgroundProfileForm";
 import { CampgroundMapUpload } from "@/components/campgrounds/CampgroundMapUpload";
 import { SiteMapCanvas } from "@/components/maps/SiteMapCanvas";
+import { SiteMapEditor } from "@/components/maps/SiteMapEditor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -93,6 +94,12 @@ export default function CampgroundSettingsPage() {
         enabled: !!campgroundId
     });
 
+    const sitesQuery = useQuery({
+        queryKey: ["campground-sites", campgroundId],
+        queryFn: () => apiClient.getSites(campgroundId),
+        enabled: !!campgroundId
+    });
+
     const previewMutation = useMutation({
         mutationFn: (payload: any) => apiClient.previewAssignments(campgroundId, payload)
     });
@@ -159,16 +166,16 @@ export default function CampgroundSettingsPage() {
         return null;
     }, [mapQuery.data?.config?.layers]);
 
-    const sites = mapQuery.data?.sites ?? [];
-    const adaCount = useMemo(() => sites.filter((s) => s.ada).length, [sites]);
-    const conflictSites = useMemo(() => sites.filter((s) => (s.conflicts?.length ?? 0) > 0).length, [sites]);
+    const mapSites = mapQuery.data?.sites ?? [];
+    const adaCount = useMemo(() => mapSites.filter((s) => s.ada).length, [mapSites]);
+    const conflictSites = useMemo(() => mapSites.filter((s) => (s.conflicts?.length ?? 0) > 0).length, [mapSites]);
     const siteLabelById = useMemo(() => {
         const map = new Map<string, string>();
-        sites.forEach((s) => {
+        mapSites.forEach((s) => {
             map.set(s.siteId, s.label || s.name || s.siteNumber || s.siteId);
         });
         return map;
-    }, [sites]);
+    }, [mapSites]);
 
     const metersQuery = useQuery({
         queryKey: ["utility-meters", campgroundId],
@@ -819,17 +826,17 @@ export default function CampgroundSettingsPage() {
                                         {mapQuery.data && (
                                             <div className="space-y-1">
                                                 <p>
-                                                    Sites loaded: <strong>{sites.length}</strong>{" "}
+                                                    Sites loaded: <strong>{mapSites.length}</strong>{" "}
                                                     {adaCount ? `• ADA: ${adaCount}` : ""}{" "}
                                                     {conflictSites ? `• Conflicts: ${conflictSites}` : ""}
                                                 </p>
                                                 <div className="flex flex-wrap gap-1">
-                                                    {sites.slice(0, 12).map((s) => (
+                                                    {mapSites.slice(0, 12).map((s) => (
                                                         <Badge key={s.siteId} variant={s.ada ? "default" : "secondary"}>
                                                             {s.label || s.name}
                                                         </Badge>
                                                     ))}
-                                                    {sites.length > 12 && <span className="text-xs text-slate-500">+ more</span>}
+                                                    {mapSites.length > 12 && <span className="text-xs text-slate-500">+ more</span>}
                                                 </div>
                                             </div>
                                         )}
@@ -857,6 +864,14 @@ export default function CampgroundSettingsPage() {
                                         {mapQuery.isError && (
                                             <p className="text-xs text-rose-600">Failed to load map preview.</p>
                                         )}
+                                        <SiteMapEditor
+                                            campgroundId={campgroundId}
+                                            mapData={mapQuery.data}
+                                            baseImageUrl={mapBaseImageUrl}
+                                            sites={sitesQuery.data ?? []}
+                                            isLoading={mapQuery.isLoading || sitesQuery.isLoading}
+                                            onSaved={() => mapQuery.refetch()}
+                                        />
                                     </div>
                                     <div className="grid gap-2">
                                         <Label>Eligibility preview</Label>

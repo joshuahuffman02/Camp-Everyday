@@ -110,17 +110,19 @@ export class SiteMapService {
 
     if (dto.sites?.length) {
       for (const site of dto.sites) {
+        const updateData: Prisma.SiteMapLayoutUpdateInput = {
+          geometry: site.geometry,
+          campgroundId
+        };
+        if (site.centroid !== undefined) updateData.centroid = site.centroid ?? null;
+        if (site.label !== undefined) updateData.label = site.label ?? null;
+        if (site.rotation !== undefined) updateData.rotation = site.rotation ?? null;
+        if (site.metadata !== undefined) updateData.metadata = site.metadata ?? null;
+
         ops.push(
           this.prisma.siteMapLayout.upsert({
             where: { siteId: site.siteId },
-            update: {
-              geometry: site.geometry,
-              centroid: site.centroid ?? null,
-              label: site.label ?? null,
-              rotation: site.rotation ?? null,
-              metadata: site.metadata ?? null,
-              campgroundId
-            },
+            update: updateData,
             create: {
               siteId: site.siteId,
               campgroundId,
