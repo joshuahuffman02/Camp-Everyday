@@ -1000,6 +1000,8 @@ model Campground {
   internalConversations     InternalConversation[]
   siteHolds                 SiteHold[]
   siteMapLayouts            SiteMapLayout[]
+  siteMapShapes             SiteMapShape[]
+  siteMapAssignments        SiteMapAssignment[]
   mapConfig                 CampgroundMapConfig?
   inviteTokens              InviteToken[]
   auditLogs                 AuditLog[]
@@ -1534,6 +1536,7 @@ model Site {
   analyticsEvents    AnalyticsEvent[]
   waitlistEntries    WaitlistEntry[]
   mapLayout          SiteMapLayout?
+  mapAssignment      SiteMapAssignment?
   utilityMeters      UtilityMeter[]
   accessGrants       AccessGrant[]
   documentTemplates  DocumentTemplate[]
@@ -1584,6 +1587,41 @@ model SiteMapLayout {
   site       Site       @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   @@index([campgroundId])
+}
+
+model SiteMapShape {
+  id           String   @id @default(cuid())
+  campgroundId String
+  name         String?
+  geometry     Json
+  centroid     Json?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campground  Campground         @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  assignments SiteMapAssignment[]
+
+  @@index([campgroundId])
+}
+
+model SiteMapAssignment {
+  id           String   @id @default(cuid())
+  campgroundId String
+  siteId       String   @unique
+  shapeId      String   @unique
+  label        String?
+  rotation     Float?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campground Campground  @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  site       Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  shape      SiteMapShape @relation(fields: [shapeId], references: [id], onDelete: Cascade)
+
+  @@index([campgroundId])
+  @@index([shapeId])
 }
 
 model CampgroundMapConfig {

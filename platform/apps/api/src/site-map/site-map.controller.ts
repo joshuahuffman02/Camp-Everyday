@@ -1,9 +1,11 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
 import { SiteMapService } from "./site-map.service";
 import { UpsertMapDto } from "./dto/upsert-map.dto";
 import { CheckAssignmentDto } from "./dto/check-assignment.dto";
 import { PreviewAssignmentsDto } from "./dto/preview-assignments.dto";
+import { UpsertMapAssignmentsDto } from "./dto/upsert-map-assignments.dto";
+import { UpsertMapShapesDto } from "./dto/upsert-map-shapes.dto";
 import { UploadsService } from "../uploads/uploads.service";
 
 const MAX_UPLOAD_BYTES = 18 * 1024 * 1024;
@@ -44,6 +46,26 @@ export class SiteMapController {
   @Put("campgrounds/:campgroundId/map")
   upsertMap(@Param("campgroundId") campgroundId: string, @Body() body: UpsertMapDto) {
     return this.siteMap.upsertMap(campgroundId, body);
+  }
+
+  @Put("campgrounds/:campgroundId/map/shapes")
+  upsertShapes(@Param("campgroundId") campgroundId: string, @Body() body: UpsertMapShapesDto) {
+    return this.siteMap.upsertShapes(campgroundId, body);
+  }
+
+  @Delete("campgrounds/:campgroundId/map/shapes/:shapeId")
+  deleteShape(@Param("campgroundId") campgroundId: string, @Param("shapeId") shapeId: string) {
+    return this.siteMap.deleteShape(campgroundId, shapeId);
+  }
+
+  @Put("campgrounds/:campgroundId/map/assignments")
+  upsertAssignments(@Param("campgroundId") campgroundId: string, @Body() body: UpsertMapAssignmentsDto) {
+    return this.siteMap.upsertAssignments(campgroundId, body);
+  }
+
+  @Delete("campgrounds/:campgroundId/map/assignments/:siteId")
+  unassignSite(@Param("campgroundId") campgroundId: string, @Param("siteId") siteId: string) {
+    return this.siteMap.unassignSite(campgroundId, siteId);
   }
 
   @Post("campgrounds/:campgroundId/map")

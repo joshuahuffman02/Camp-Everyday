@@ -1406,6 +1406,7 @@ const MapConflictSchema = z.object({
 
 const MapSiteSchema = z.object({
   siteId: z.string(),
+  shapeId: z.string().nullable().optional(),
   name: z.string(),
   siteNumber: z.string(),
   geometry: z.any(),
@@ -1430,6 +1431,15 @@ const MapSiteSchema = z.object({
   conflicts: z.array(MapConflictSchema).default([])
 });
 
+const MapShapeSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  geometry: z.any(),
+  centroid: z.any().nullable().optional(),
+  metadata: z.any().nullable().optional(),
+  assignedSiteId: z.string().nullable().optional()
+});
+
 const MapConfigSchema = z.object({
   bounds: z.any().nullable().optional(),
   defaultCenter: z.any().nullable().optional(),
@@ -1440,7 +1450,8 @@ const MapConfigSchema = z.object({
 
 const CampgroundMapSchema = z.object({
   config: MapConfigSchema.nullable().optional(),
-  sites: z.array(MapSiteSchema)
+  sites: z.array(MapSiteSchema),
+  shapes: z.array(MapShapeSchema).optional()
 });
 
 const PreviewAssignmentSchema = z.object({
@@ -1965,6 +1976,40 @@ export const apiClient = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
+    });
+    const data = await parseResponse<unknown>(res);
+    return CampgroundMapSchema.parse(data);
+  },
+  async upsertCampgroundMapShapes(campgroundId: string, payload: { shapes: Array<{ id?: string; name?: string | null; geometry: any; centroid?: any; metadata?: any }> }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/map/shapes`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload)
+    });
+    const data = await parseResponse<unknown>(res);
+    return CampgroundMapSchema.parse(data);
+  },
+  async deleteCampgroundMapShape(campgroundId: string, shapeId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/map/shapes/${shapeId}`, {
+      method: "DELETE",
+      headers: { ...scopedHeaders() }
+    });
+    const data = await parseResponse<unknown>(res);
+    return CampgroundMapSchema.parse(data);
+  },
+  async upsertCampgroundMapAssignments(campgroundId: string, payload: { assignments: Array<{ siteId: string; shapeId: string; label?: string | null; rotation?: number | null; metadata?: any }> }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/map/assignments`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload)
+    });
+    const data = await parseResponse<unknown>(res);
+    return CampgroundMapSchema.parse(data);
+  },
+  async unassignCampgroundMapSite(campgroundId: string, siteId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/map/assignments/${siteId}`, {
+      method: "DELETE",
+      headers: { ...scopedHeaders() }
     });
     const data = await parseResponse<unknown>(res);
     return CampgroundMapSchema.parse(data);

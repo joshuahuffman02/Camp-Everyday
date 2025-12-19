@@ -20,7 +20,8 @@ type EditorSite = {
 
 type SiteMapData = {
   config?: any | null;
-  sites?: Array<{ siteId: string; geometry?: any; centroid?: any; label?: string | null; rotation?: number | null }>;
+  sites?: Array<{ siteId: string; shapeId?: string | null; geometry?: any; centroid?: any; label?: string | null; rotation?: number | null }>;
+  shapes?: Array<{ id: string; name?: string | null; geometry: any; centroid?: any; metadata?: any; assignedSiteId?: string | null }>;
 };
 
 type SiteMapEditorProps = {
@@ -31,6 +32,15 @@ type SiteMapEditorProps = {
   isLoading?: boolean;
   onSaved?: () => void;
   className?: string;
+};
+
+type ShapeDraft = {
+  id: string;
+  name?: string | null;
+  geometry: any;
+  centroid?: any;
+  metadata?: any;
+  isNew?: boolean;
 };
 
 const isNumber = (value: any) => Number.isFinite(Number(value));
@@ -181,14 +191,17 @@ export function SiteMapEditor({
   const { toast } = useToast();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const [selectedShapeId, setSelectedShapeId] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [shapeSearch, setShapeSearch] = useState("");
   const [isDrawing, setIsDrawing] = useState(false);
+  const [drawTargetId, setDrawTargetId] = useState<string | null>(null);
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
   const [hoverPoint, setHoverPoint] = useState<Point | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [savingShapes, setSavingShapes] = useState(false);
+  const [assigning, setAssigning] = useState(false);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
-  const [draftLayouts, setDraftLayouts] = useState<Record<string, { geometry: any; centroid?: any }>>({});
-  const [templateShape, setTemplateShape] = useState<{ geometry: any; centroid?: any } | null>(null);
+  const [draftShapes, setDraftShapes] = useState<Record<string, ShapeDraft>>({});
   const [snapToGrid, setSnapToGrid] = useState(false);
   const [gridSize, setGridSize] = useState(10);
   const [editingPoints, setEditingPoints] = useState<Point[] | null>(null);
@@ -217,25 +230,117 @@ export function SiteMapEditor({
     setHoverPoint(null);
     setEditingPoints(null);
     setDragIndex(null);
+    setDrawTargetId(null);
   }, [selectedSiteId]);
 
-  const existingLayouts = useMemo(() => {
-    const map = new Map<string, { geometry: any; centroid?: any }>();
+  useEffect(() => {
+    if (!selectedShapeId) return;
+    setIsDrawing(false);
+    setDraftPoints([]);
+    setHoverPoint(null);
+    setEditingPoints(null);
+    setDragIndex(null);
+    setDrawTargetId(null);
+  }, [selectedShapeId]);
+
+  const assignedShapeBySite = useMemo(() => {
+    const map = new Map<string, string>();
     (mapData?.sites ?? []).forEach((site) => {
-      map.set(site.siteId, { geometry: site.geometry, centroid: site.centroid ?? undefined });
+      if (site.shapeId) {
+        map.set(site.siteId, site.shapeId);
+      }
     });
     return map;
   }, [mapData?.sites]);
 
-  const mergedLayouts = useMemo(() => {
-    const map = new Map(existingLayouts);
-    Object.entries(draftLayouts).forEach(([siteId, layout]) => {
-      map.set(siteId, layout);
+  useEffect(() => {
+    if (!selectedSiteId) return;
+    const shapeId = assignedShapeBySite.get(selectedSiteId);
+    if (shapeId) {
+      setSelectedShapeId(shapeId);
+    }
+  }, [assignedShapeBySite, selectedSiteId]);
+
+  const assignedSiteIds = useMemo(() => new Set(assignedShapeBySite.keys()), [assignedShapeBySite]);
+
+  const assignedSiteByShape = useMemo(() => {
+    const map = new Map<string, string>();
+    (mapData?.shapes ?? []).forEach((shape) => {
+      if (shape.assignedSiteId) {
+        map.set(shape.id, shape.assignedSiteId);
+      }
+    });
+    (mapData?.sites ?? []).forEach((site) => {
+      if (site.shapeId) {
+        map.set(site.shapeId, site.siteId);
+      }
     });
     return map;
-  }, [existingLayouts, draftLayouts]);
+  }, [mapData?.shapes, mapData?.sites]);
 
-  const mappedSiteIds = useMemo(() => new Set(mergedLayouts.keys()), [mergedLayouts]);
+  const existingShapes = useMemo(() => mapData?.shapes ?? [], [mapData?.shapes]);
+
+  const mergedShapes = useMemo(() => {
+    const map = new Map<string, ShapeDraft>();
+    existingShapes.forEach((shape) => {
+      map.set(shape.id, {
+        id: shape.id,
+        name: shape.name ?? null,
+        geometry: shape.geometry,
+        centroid: shape.centroid,
+        metadata: shape.metadata,
+        isNew: false
+      });
+    });
+    Object.values(draftShapes).forEach((draft) => {
+      map.set(draft.id, draft);
+    });
+    return map;
+  }, [existingShapes, draftShapes]);
+
+  const shapeList = useMemo(() => Array.from(mergedShapes.values()), [mergedShapes]);
+
+  const siteLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    sites.forEach((site) => {
+      const label = site.siteNumber || site.mapLabel || site.name || site.id;
+      map.set(site.id, label);
+    });
+    return map;
+  }, [sites]);
+
+  const shapeLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    shapeList.forEach((shape) => {
+      map.set(shape.id, shape.name || `Shape ${shape.id.slice(0, 6)}`);
+    });
+    return map;
+  }, [shapeList]);
+
+  const selectedSite = useMemo(
+    () => sites.find((site) => site.id === selectedSiteId) ?? null,
+    [sites, selectedSiteId]
+  );
+
+  const selectedSiteAssignedShapeId = useMemo(
+    () => (selectedSiteId ? assignedShapeBySite.get(selectedSiteId) : undefined),
+    [assignedShapeBySite, selectedSiteId]
+  );
+
+  const selectedShapeAssignedSiteId = useMemo(
+    () => (selectedShapeId ? assignedSiteByShape.get(selectedShapeId) : undefined),
+    [assignedSiteByShape, selectedShapeId]
+  );
+
+  const pendingShapeCount = useMemo(() => Object.keys(draftShapes).length, [draftShapes]);
+  const hasPendingShapes = pendingShapeCount > 0;
+
+  const assignedShapeCount = useMemo(
+    () => shapeList.filter((shape) => assignedSiteByShape.has(shape.id)).length,
+    [assignedSiteByShape, shapeList]
+  );
+
+  const unassignedShapeCount = shapeList.length - assignedShapeCount;
 
   const filteredSites = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -245,6 +350,17 @@ export function SiteMapEditor({
       return label.includes(term);
     });
   }, [search, sites]);
+
+  const filteredShapes = useMemo(() => {
+    const term = shapeSearch.trim().toLowerCase();
+    if (!term) return shapeList;
+    return shapeList.filter((shape) => {
+      const assignedSiteId = assignedSiteByShape.get(shape.id);
+      const siteLabel = assignedSiteId ? siteLabelById.get(assignedSiteId) ?? "" : "";
+      const label = `${shape.name ?? ""} ${shape.id} ${siteLabel}`.toLowerCase();
+      return label.includes(term);
+    });
+  }, [assignedSiteByShape, shapeList, shapeSearch, siteLabelById]);
 
   const viewBox = useMemo(() => {
     if (imageSize) {
@@ -259,7 +375,7 @@ export function SiteMapEditor({
         height: configBounds.maxY - configBounds.minY
       };
     }
-    const points = Array.from(mergedLayouts.values()).flatMap((layout) => geometryToPoints(layout.geometry));
+    const points = Array.from(mergedShapes.values()).flatMap((layout) => geometryToPoints(layout.geometry));
     if (points.length) {
       const minX = Math.min(...points.map((p) => p.x));
       const minY = Math.min(...points.map((p) => p.y));
@@ -271,9 +387,10 @@ export function SiteMapEditor({
       return { minX: minX - pad, minY: minY - pad, width: width + pad * 2, height: height + pad * 2 };
     }
     return { minX: 0, minY: 0, width: 1000, height: 600 };
-  }, [imageSize, mapData?.config?.bounds, mergedLayouts]);
+  }, [imageSize, mapData?.config?.bounds, mergedShapes]);
 
-  const selectedGeometry = selectedSiteId ? mergedLayouts.get(selectedSiteId)?.geometry : undefined;
+  const selectedShape = selectedShapeId ? mergedShapes.get(selectedShapeId) : undefined;
+  const selectedGeometry = selectedShape?.geometry;
   const selectedPoints = selectedGeometry ? geometryToPoints(selectedGeometry) : [];
   const activePoints = editingPoints ?? selectedPoints;
 
@@ -319,10 +436,6 @@ export function SiteMapEditor({
   const handleCanvasPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawing) return;
     if (dragIndex !== null) return;
-    if (!selectedSiteId) {
-      toast({ title: "Select a site first", description: "Pick a site before drawing its boundary.", variant: "destructive" });
-      return;
-    }
     const anchor = draftPoints.length ? draftPoints[draftPoints.length - 1] : null;
     const point = getSvgPoint(event, anchor);
     if (!point) return;
@@ -347,8 +460,31 @@ export function SiteMapEditor({
     setHoverPoint(point);
   };
 
+  const handleStartDraw = (targetId?: string | null) => {
+    setIsDrawing(true);
+    setDrawTargetId(targetId ?? null);
+    setDraftPoints([]);
+    setHoverPoint(null);
+    setEditingPoints(null);
+    setDragIndex(null);
+  };
+
+  const handleRedrawSelected = () => {
+    if (!selectedShapeId) {
+      toast({ title: "Select a shape first", description: "Choose a shape to redraw.", variant: "destructive" });
+      return;
+    }
+    handleStartDraw(selectedShapeId);
+  };
+
+  const createDraftId = () => `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const nextShapeIndex = useMemo(() => {
+    const draftCount = Object.values(draftShapes).filter((shape) => shape.isNew).length;
+    return existingShapes.length + draftCount + 1;
+  }, [draftShapes, existingShapes.length]);
+
   const handleFinish = () => {
-    if (!selectedSiteId) return;
     if (draftPoints.length < 3) {
       toast({ title: "Add at least 3 points", description: "Polygons need three or more points.", variant: "destructive" });
       return;
@@ -358,14 +494,27 @@ export function SiteMapEditor({
       coordinates: [draftPoints.map((p) => [p.x, p.y])]
     };
     const centroid = centroidFromPoints(draftPoints);
-    setDraftLayouts((prev) => ({
+    const targetId = drawTargetId ?? createDraftId();
+    const baseShape = mergedShapes.get(targetId);
+    const isNew = baseShape?.isNew ?? !existingShapes.find((shape) => shape.id === targetId);
+    const name = baseShape?.name ?? (isNew ? `Shape ${nextShapeIndex}` : null);
+
+    setDraftShapes((prev) => ({
       ...prev,
-      [selectedSiteId]: { geometry, centroid }
+      [targetId]: {
+        id: targetId,
+        name,
+        geometry,
+        centroid,
+        metadata: baseShape?.metadata,
+        isNew
+      }
     }));
-    setTemplateShape({ geometry: cloneGeometry(geometry), centroid });
+    setSelectedShapeId(targetId);
     setIsDrawing(false);
     setDraftPoints([]);
     setHoverPoint(null);
+    setDrawTargetId(null);
   };
 
   const handleUndo = () => {
@@ -377,36 +526,48 @@ export function SiteMapEditor({
     setHoverPoint(null);
   };
 
-  const handleApplyTemplate = () => {
-    if (!selectedSiteId || !templateShape) return;
-    const geometry = cloneGeometry(templateShape.geometry);
-    const centroid = templateShape.centroid ?? centroidFromPoints(geometryToPoints(geometry)) ?? undefined;
-    setDraftLayouts((prev) => ({
-      ...prev,
-      [selectedSiteId]: { geometry, centroid }
-    }));
-  };
-
-  const handleCopySelected = () => {
+  const handleDuplicateShape = () => {
     if (!selectedGeometry) {
-      toast({ title: "No shape to copy", description: "Select a mapped site first.", variant: "destructive" });
+      toast({ title: "No shape selected", description: "Select a shape to duplicate.", variant: "destructive" });
       return;
     }
-    const centroid = mergedLayouts.get(selectedSiteId)?.centroid ?? centroidFromPoints(geometryToPoints(selectedGeometry)) ?? undefined;
-    setTemplateShape({ geometry: cloneGeometry(selectedGeometry), centroid });
-    toast({ title: "Shape copied", description: "Select another site and apply the template." });
+    const draftId = createDraftId();
+    const centroid = centroidFromPoints(geometryToPoints(selectedGeometry)) ?? undefined;
+    const baseName = selectedShape?.name ?? "Shape";
+    setDraftShapes((prev) => ({
+      ...prev,
+      [draftId]: {
+        id: draftId,
+        name: `${baseName} copy`,
+        geometry: cloneGeometry(selectedGeometry),
+        centroid,
+        metadata: selectedShape?.metadata,
+        isNew: true
+      }
+    }));
+    setSelectedShapeId(draftId);
+    toast({ title: "Shape duplicated", description: "Assign the new shape to a site when ready." });
   };
 
   const commitEditing = (points: Point[]) => {
-    if (!selectedSiteId || points.length < 3) return;
+    if (!selectedShapeId || points.length < 3) return;
     const geometry = {
       type: "Polygon",
       coordinates: [points.map((p) => [p.x, p.y])]
     };
     const centroid = centroidFromPoints(points);
-    setDraftLayouts((prev) => ({
+    const baseShape = mergedShapes.get(selectedShapeId);
+    if (!baseShape) return;
+    setDraftShapes((prev) => ({
       ...prev,
-      [selectedSiteId]: { geometry, centroid }
+      [selectedShapeId]: {
+        id: baseShape.id,
+        name: baseShape.name ?? null,
+        geometry,
+        centroid,
+        metadata: baseShape.metadata,
+        isNew: baseShape.isNew
+      }
     }));
     setEditingPoints(null);
     setDragIndex(null);
@@ -450,43 +611,164 @@ export function SiteMapEditor({
     return () => window.removeEventListener("keydown", handler);
   }, [dragIndex, handleFinish, handleUndo, isDrawing]);
 
-  const handleSave = async () => {
+  const handleSaveShapes = async () => {
     if (!campgroundId) return;
-    const entries = Object.entries(draftLayouts);
+    const entries = Object.values(draftShapes);
     if (!entries.length) {
-      toast({ title: "No changes to save", description: "Draw a site boundary before saving." });
+      toast({ title: "No shapes to save", description: "Draw a shape before saving." });
       return;
     }
-    setSaving(true);
+    const hasNewShapes = entries.some((shape) => shape.isNew);
+    setSavingShapes(true);
     try {
-      const existingConfig = mapData?.config ?? {};
-      const bounds = existingConfig.bounds ?? (imageSize ? [0, 0, imageSize.width, imageSize.height] : undefined);
-      const configPayload = {
-        bounds: bounds ?? null,
-        defaultCenter: existingConfig.defaultCenter ?? null,
-        defaultZoom: existingConfig.defaultZoom ?? null,
-        layers: existingConfig.layers ?? null,
-        legend: existingConfig.legend ?? null
-      };
-
-      const sitesPayload = entries.map(([siteId, payload]) => ({
-        siteId,
-        geometry: payload.geometry,
-        centroid: payload.centroid
+      const shapesPayload = entries.map((shape) => ({
+        id: shape.isNew ? undefined : shape.id,
+        name: shape.name ?? null,
+        geometry: shape.geometry,
+        centroid: shape.centroid,
+        metadata: shape.metadata
       }));
 
-      await apiClient.upsertCampgroundMap(campgroundId, {
-        config: configPayload,
-        sites: sitesPayload
+      await apiClient.upsertCampgroundMapShapes(campgroundId, {
+        shapes: shapesPayload
       });
-      toast({ title: "Map saved", description: "Site boundaries updated." });
-      setDraftLayouts({});
+      toast({ title: "Shapes saved", description: "Shape library updated." });
+      setDraftShapes({});
+      if (hasNewShapes) {
+        setSelectedShapeId("");
+      }
       onSaved?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save map";
       toast({ title: "Save failed", description: message, variant: "destructive" });
     } finally {
-      setSaving(false);
+      setSavingShapes(false);
+    }
+  };
+
+  const handleAssignShape = async () => {
+    if (!campgroundId) return;
+    if (!selectedSiteId || !selectedShapeId) {
+      toast({ title: "Select a site and shape", description: "Choose both before assigning.", variant: "destructive" });
+      return;
+    }
+    if (selectedShape?.isNew || draftShapes[selectedShapeId]?.isNew) {
+      toast({ title: "Save the shape first", description: "New shapes must be saved before assigning." });
+      return;
+    }
+    if (draftShapes[selectedShapeId]) {
+      toast({ title: "Save edits first", description: "Save shape edits before assigning so geometry is current." });
+      return;
+    }
+
+    const currentShapeForSite = selectedSiteAssignedShapeId;
+    const currentSiteForShape = selectedShapeAssignedSiteId;
+    const selectedSiteLabel = siteLabelById.get(selectedSiteId) ?? selectedSiteId;
+    const selectedShapeLabel = shapeLabelById.get(selectedShapeId) ?? selectedShapeId;
+
+    if (currentSiteForShape && currentSiteForShape !== selectedSiteId) {
+      const assignedLabel = siteLabelById.get(currentSiteForShape) ?? currentSiteForShape;
+      const ok = window.confirm(`"${selectedShapeLabel}" is already assigned to ${assignedLabel}. Reassign it to ${selectedSiteLabel}?`);
+      if (!ok) return;
+    }
+
+    if (currentShapeForSite && currentShapeForSite !== selectedShapeId) {
+      const ok = window.confirm(`"${selectedSiteLabel}" already has a shape. Replace it with "${selectedShapeLabel}"?`);
+      if (!ok) return;
+    }
+
+    setAssigning(true);
+    try {
+      if (currentSiteForShape && currentSiteForShape !== selectedSiteId) {
+        await apiClient.unassignCampgroundMapSite(campgroundId, currentSiteForShape);
+      }
+      if (currentShapeForSite && currentShapeForSite !== selectedShapeId) {
+        await apiClient.unassignCampgroundMapSite(campgroundId, selectedSiteId);
+      }
+
+      const label = selectedSite?.mapLabel ?? selectedSite?.siteNumber ?? selectedSite?.name ?? null;
+      await apiClient.upsertCampgroundMapAssignments(campgroundId, {
+        assignments: [{ siteId: selectedSiteId, shapeId: selectedShapeId, label }]
+      });
+      toast({ title: "Assigned", description: `${selectedShapeLabel} mapped to ${selectedSiteLabel}.` });
+      onSaved?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Assignment failed";
+      toast({ title: "Assignment failed", description: message, variant: "destructive" });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleUnassignSite = async () => {
+    if (!campgroundId) return;
+    if (!selectedSiteId) {
+      toast({ title: "Select a site", description: "Choose a site to unassign.", variant: "destructive" });
+      return;
+    }
+    if (!selectedSiteAssignedShapeId) {
+      toast({ title: "No assignment found", description: "That site is already unassigned." });
+      return;
+    }
+    setAssigning(true);
+    try {
+      await apiClient.unassignCampgroundMapSite(campgroundId, selectedSiteId);
+      toast({ title: "Site unassigned", description: "Shape removed from this site." });
+      onSaved?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unassign failed";
+      toast({ title: "Unassign failed", description: message, variant: "destructive" });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleDeleteShape = async () => {
+    if (!campgroundId) return;
+    if (!selectedShapeId) {
+      toast({ title: "Select a shape", description: "Choose a shape to delete.", variant: "destructive" });
+      return;
+    }
+    const draftShape = draftShapes[selectedShapeId];
+    const isDraftOnly = draftShape?.isNew && !existingShapes.find((shape) => shape.id === selectedShapeId);
+    if (isDraftOnly) {
+      setDraftShapes((prev) => {
+        const next = { ...prev };
+        delete next[selectedShapeId];
+        return next;
+      });
+      setSelectedShapeId("");
+      toast({ title: "Draft removed", description: "Unsaved shape discarded." });
+      return;
+    }
+
+    const shapeLabel = shapeLabelById.get(selectedShapeId) ?? selectedShapeId;
+    const assignedSiteId = selectedShapeAssignedSiteId;
+    const assignedLabel = assignedSiteId ? siteLabelById.get(assignedSiteId) ?? assignedSiteId : null;
+    const confirmMessage = assignedLabel
+      ? `Delete "${shapeLabel}"? It is assigned to ${assignedLabel} and will be unassigned.`
+      : `Delete "${shapeLabel}"?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setAssigning(true);
+    try {
+      if (assignedSiteId) {
+        await apiClient.unassignCampgroundMapSite(campgroundId, assignedSiteId);
+      }
+      await apiClient.deleteCampgroundMapShape(campgroundId, selectedShapeId);
+      setDraftShapes((prev) => {
+        const next = { ...prev };
+        delete next[selectedShapeId];
+        return next;
+      });
+      setSelectedShapeId("");
+      toast({ title: "Shape deleted", description: "Shape removed from the library." });
+      onSaved?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Delete failed";
+      toast({ title: "Delete failed", description: message, variant: "destructive" });
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -512,13 +794,16 @@ export function SiteMapEditor({
         <div>
           <div className="text-sm font-semibold text-slate-800">Site map editor</div>
           <p className="text-xs text-slate-500">
-            Select a site, click to drop polygon points, then finish and save.
+            Draw polygons first, then assign them to sites. Drag points to fine-tune placement.
           </p>
-          <p className="text-[11px] text-slate-400">Tip: hold Shift to lock 45-degree angles while drawing.</p>
+          <p className="text-[11px] text-slate-400">Enter: finish | Esc: cancel | Shift: lock 45-degree angles.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setIsDrawing(true)} disabled={!selectedSiteId || isDrawing}>
-            Draw polygon
+          <Button size="sm" variant="outline" onClick={() => handleStartDraw(null)} disabled={isDrawing}>
+            Draw new shape
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleRedrawSelected} disabled={!selectedShapeId || isDrawing}>
+            Redraw selected
           </Button>
           <Button size="sm" variant="outline" onClick={handleUndo} disabled={!isDrawing || draftPoints.length === 0}>
             Undo
@@ -528,12 +813,6 @@ export function SiteMapEditor({
           </Button>
           <Button size="sm" onClick={handleFinish} disabled={!isDrawing}>
             Finish
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleCopySelected} disabled={!selectedGeometry}>
-            Copy shape
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleApplyTemplate} disabled={!templateShape || !selectedSiteId}>
-            Duplicate last
           </Button>
           <Button size="sm" variant={snapToGrid ? "default" : "outline"} onClick={() => setSnapToGrid((prev) => !prev)}>
             Snap {snapToGrid ? "On" : "Off"}
@@ -545,48 +824,144 @@ export function SiteMapEditor({
             value={gridSize}
             onChange={(e) => setGridSize(clampGrid(Number(e.target.value) || 1))}
             className="h-8 w-20"
+            disabled={!snapToGrid}
           />
-          <Button size="sm" variant="default" onClick={handleSave} disabled={saving || Object.keys(draftLayouts).length === 0}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-          {Object.keys(draftLayouts).length > 0 && (
-            <Badge variant="secondary">{Object.keys(draftLayouts).length} pending</Badge>
-          )}
-          {templateShape && <Badge variant="outline">Template ready</Badge>}
+          {isDrawing && <Badge variant="secondary">{draftPoints.length} pts</Badge>}
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[260px,1fr]">
-        <div className="space-y-3">
-          <Input placeholder="Search sites" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <div className="max-h-[420px] space-y-1 overflow-auto pr-1">
-            {filteredSites.map((site) => {
-              const isMapped = mappedSiteIds.has(site.id);
-              const isActive = selectedSiteId === site.id;
-              const label = site.siteNumber || site.name || site.id;
-              return (
-                <button
-                  key={site.id}
-                  type="button"
-                  onClick={() => setSelectedSiteId(site.id)}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition",
-                    isActive ? "border-emerald-400 bg-emerald-50" : "border-slate-200 hover:border-emerald-300"
-                  )}
-                >
-                  <div className="flex flex-col">
-                    <span className="font-medium text-slate-800">{label}</span>
-                    <span className="text-xs text-slate-500">{site.name}</span>
-                  </div>
-                  <Badge variant={isMapped ? "default" : "secondary"}>{isMapped ? "Mapped" : "Unmapped"}</Badge>
-                </button>
-              );
-            })}
-            {!filteredSites.length && (
-              <div className="rounded-lg border border-dashed border-slate-200 p-3 text-xs text-slate-500">
-                No matching sites.
+      <div className="mt-4 grid gap-4 lg:grid-cols-[320px,1fr]">
+        <div className="space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Shapes</div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{assignedShapeCount} assigned</Badge>
+                <Badge variant="outline">{unassignedShapeCount} free</Badge>
               </div>
-            )}
+            </div>
+            <Input
+              placeholder="Search shapes"
+              value={shapeSearch}
+              onChange={(e) => setShapeSearch(e.target.value)}
+              className="mt-2"
+            />
+            <div className="mt-2 max-h-[240px] space-y-1 overflow-auto pr-1">
+              {filteredShapes.map((shape) => {
+                const assignedSiteId = assignedSiteByShape.get(shape.id);
+                const assignedLabel = assignedSiteId ? siteLabelById.get(assignedSiteId) ?? assignedSiteId : "Unassigned";
+                const isActive = selectedShapeId === shape.id;
+                const isDraft = Boolean(draftShapes[shape.id]);
+                const label = shapeLabelById.get(shape.id) ?? shape.id;
+                return (
+                  <button
+                    key={shape.id}
+                    type="button"
+                    onClick={() => setSelectedShapeId(shape.id)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition",
+                      isActive ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-blue-300"
+                    )}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-slate-800">{label}</span>
+                      <span className="text-xs text-slate-500">
+                        {assignedSiteId ? `Assigned to ${assignedLabel}` : "Unassigned"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {isDraft && <Badge variant="secondary">Draft</Badge>}
+                      <Badge variant={assignedSiteId ? "default" : "secondary"}>{assignedSiteId ? "Assigned" : "Free"}</Badge>
+                    </div>
+                  </button>
+                );
+              })}
+              {!filteredShapes.length && (
+                <div className="rounded-lg border border-dashed border-slate-200 p-3 text-xs text-slate-500">
+                  No matching shapes.
+                </div>
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={handleDuplicateShape} disabled={!selectedGeometry || assigning}>
+                Duplicate
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleDeleteShape} disabled={!selectedShapeId || assigning}>
+                Delete
+              </Button>
+              <Button size="sm" onClick={handleSaveShapes} disabled={savingShapes || !hasPendingShapes}>
+                {savingShapes ? "Saving..." : "Save shapes"}
+              </Button>
+              {hasPendingShapes && <Badge variant="secondary">{pendingShapeCount} pending</Badge>}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Site assignments</div>
+              <Badge variant="secondary">
+                {assignedSiteIds.size}/{sites.length} mapped
+              </Badge>
+            </div>
+            <Input
+              placeholder="Search sites"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="mt-2"
+            />
+            <div className="mt-2 max-h-[280px] space-y-1 overflow-auto pr-1">
+              {filteredSites.map((site) => {
+                const isMapped = assignedSiteIds.has(site.id);
+                const isActive = selectedSiteId === site.id;
+                const assignedShapeId = assignedShapeBySite.get(site.id);
+                const shapeLabel = assignedShapeId ? shapeLabelById.get(assignedShapeId) ?? assignedShapeId : null;
+                const label = site.siteNumber || site.mapLabel || site.name || site.id;
+                return (
+                  <button
+                    key={site.id}
+                    type="button"
+                    onClick={() => setSelectedSiteId(site.id)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition",
+                      isActive ? "border-emerald-400 bg-emerald-50" : "border-slate-200 hover:border-emerald-300"
+                    )}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-slate-800">{label}</span>
+                      <span className="text-xs text-slate-500">
+                        {shapeLabel ? `Shape: ${shapeLabel}` : site.name ?? "No shape assigned"}
+                      </span>
+                    </div>
+                    <Badge variant={isMapped ? "default" : "secondary"}>{isMapped ? "Mapped" : "Unmapped"}</Badge>
+                  </button>
+                );
+              })}
+              {!filteredSites.length && (
+                <div className="rounded-lg border border-dashed border-slate-200 p-3 text-xs text-slate-500">
+                  No matching sites.
+                </div>
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleAssignShape}
+                disabled={!selectedSiteId || !selectedShapeId || assigning}
+              >
+                {assigning ? "Working..." : "Assign selected"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleUnassignSite}
+                disabled={!selectedSiteId || !selectedSiteAssignedShapeId || assigning}
+              >
+                Unassign
+              </Button>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">
+              Select a shape and site to assign. Shapes can only be used once.
+            </p>
           </div>
         </div>
 
@@ -614,18 +989,23 @@ export function SiteMapEditor({
               pointerEvents="none"
             />
 
-            {Array.from(mergedLayouts.entries())
-              .filter(([siteId]) => siteId !== selectedSiteId)
-              .map(([siteId, layout]) => {
-                const points = geometryToPoints(layout.geometry);
+            {shapeList
+              .filter((shape) => shape.id !== selectedShapeId)
+              .map((shape) => {
+                const points = geometryToPoints(shape.geometry);
                 if (points.length < 2) return null;
+                const assignedSiteId = assignedSiteByShape.get(shape.id);
+                const isAssigned = Boolean(assignedSiteId);
+                const isDraft = Boolean(draftShapes[shape.id]);
                 return (
                   <path
-                    key={siteId}
+                    key={shape.id}
                     d={pointsToPath(points, true)}
-                    fill="rgba(148,163,184,0.12)"
-                    stroke="#94a3b8"
-                    strokeWidth={1.2}
+                    fill={isAssigned ? "rgba(14,165,233,0.16)" : "rgba(148,163,184,0.12)"}
+                    stroke={isAssigned ? "#0ea5e9" : "#94a3b8"}
+                    strokeWidth={isAssigned ? 1.6 : 1.2}
+                    strokeDasharray={isAssigned ? undefined : "4 3"}
+                    opacity={isDraft ? 0.95 : 0.8}
                   />
                 );
               })}

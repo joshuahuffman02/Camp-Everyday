@@ -4,6 +4,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CheckAssignmentDto } from "./dto/check-assignment.dto";
 import { PreviewAssignmentsDto } from "./dto/preview-assignments.dto";
 import { UpsertMapDto } from "./dto/upsert-map.dto";
+import { UpsertMapAssignmentsDto } from "./dto/upsert-map-assignments.dto";
+import { UpsertMapShapesDto } from "./dto/upsert-map-shapes.dto";
 
 type ConflictType = "reservation" | "hold" | "maintenance" | "blackout";
 
@@ -30,52 +32,66 @@ export class SiteMapService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getMap(campgroundId: string, startDate?: string, endDate?: string) {
-    const [layouts, config] = await this.prisma.$transaction([
-      this.prisma.siteMapLayout.findMany({
+    await this.ensureShapeAssignments(campgroundId);
+
+    const [assignments, shapes, config] = await this.prisma.$transaction([
+      this.prisma.siteMapAssignment.findMany({
         where: { campgroundId },
-        include: { site: true }
+        include: { site: true, shape: true }
       }),
+      this.prisma.siteMapShape.findMany({ where: { campgroundId } }),
       this.prisma.campgroundMapConfig.findUnique({ where: { campgroundId } })
     ]);
 
     let conflictsBySite: Record<string, Conflict[]> = {};
-    if (startDate && endDate) {
+    if (startDate && endDate && assignments.length) {
       const { start, end } = this.parseDates(startDate, endDate);
-      conflictsBySite = await this.buildConflictsMap(campgroundId, layouts.map(l => l.siteId), start, end);
+      conflictsBySite = await this.buildConflictsMap(campgroundId, assignments.map(a => a.siteId), start, end);
     }
+
+    const assignedByShape = new Map(assignments.map(a => [a.shapeId, a.siteId]));
 
     return {
       config: config ?? null,
-      sites: layouts.map(layout => ({
-        siteId: layout.siteId,
-        name: layout.site.name,
-        siteNumber: layout.site.siteNumber,
-        geometry: layout.geometry,
-        centroid: layout.centroid,
-        label: layout.label ?? layout.site.mapLabel ?? layout.site.name,
-        rotation: layout.rotation,
-        ada: layout.site.accessible,
-        amenityTags: (layout.site.amenityTags?.length ? layout.site.amenityTags : layout.site.tags) ?? [],
+      sites: assignments.map(assignment => ({
+        siteId: assignment.siteId,
+        shapeId: assignment.shapeId,
+        name: assignment.site.name,
+        siteNumber: assignment.site.siteNumber,
+        geometry: assignment.shape.geometry,
+        centroid: assignment.shape.centroid,
+        label: assignment.label ?? assignment.site.mapLabel ?? assignment.site.name,
+        rotation: assignment.rotation,
+        ada: assignment.site.accessible,
+        amenityTags: (assignment.site.amenityTags?.length ? assignment.site.amenityTags : assignment.site.tags) ?? [],
         rigConstraints: {
-          length: layout.site.rigMaxLength ?? null,
-          width: layout.site.rigMaxWidth ?? null,
-          height: layout.site.rigMaxHeight ?? null,
-          pullThrough: layout.site.pullThrough ?? false
+          length: assignment.site.rigMaxLength ?? null,
+          width: assignment.site.rigMaxWidth ?? null,
+          height: assignment.site.rigMaxHeight ?? null,
+          pullThrough: assignment.site.pullThrough ?? false
         },
         hookups: {
-          power: layout.site.hookupsPower,
-          powerAmps: layout.site.powerAmps,
-          water: layout.site.hookupsWater,
-          sewer: layout.site.hookupsSewer
+          power: assignment.site.hookupsPower,
+          powerAmps: assignment.site.powerAmps,
+          water: assignment.site.hookupsWater,
+          sewer: assignment.site.hookupsSewer
         },
-        status: layout.site.status ?? null,
-        conflicts: conflictsBySite[layout.siteId] ?? []
+        status: assignment.site.status ?? null,
+        conflicts: conflictsBySite[assignment.siteId] ?? []
+      })),
+      shapes: shapes.map(shape => ({
+        id: shape.id,
+        name: shape.name,
+        geometry: shape.geometry,
+        centroid: shape.centroid,
+        metadata: shape.metadata,
+        assignedSiteId: assignedByShape.get(shape.id) ?? null
       }))
     };
   }
 
   async upsertMap(campgroundId: string, dto: UpsertMapDto) {
-    const ops: Prisma.PrismaPromise<any>[] = [];
+    await this.ensureShapeAssignments(campgroundId);
     const siteIds = dto.sites?.map(s => s.siteId) ?? [];
 
     if (siteIds.length) {
@@ -85,9 +101,11 @@ export class SiteMapService {
       }
     }
 
-    if (dto.config) {
-      ops.push(
-        this.prisma.campgroundMapConfig.upsert({
+    if (!dto.config && !dto.sites?.length) return this.getMap(campgroundId);
+
+    await this.prisma.$transaction(async (tx) => {
+      if (dto.config) {
+        await tx.campgroundMapConfig.upsert({
           where: { campgroundId },
           update: {
             bounds: dto.config.bounds ?? null,
@@ -104,41 +122,152 @@ export class SiteMapService {
             layers: dto.config.layers ?? null,
             legend: dto.config.legend ?? null
           }
-        })
-      );
-    }
+        });
+      }
 
-    if (dto.sites?.length) {
-      for (const site of dto.sites) {
-        const updateData: Prisma.SiteMapLayoutUpdateInput = {
-          geometry: site.geometry,
-          campgroundId
-        };
-        if (site.centroid !== undefined) updateData.centroid = site.centroid ?? null;
-        if (site.label !== undefined) updateData.label = site.label ?? null;
-        if (site.rotation !== undefined) updateData.rotation = site.rotation ?? null;
-        if (site.metadata !== undefined) updateData.metadata = site.metadata ?? null;
+      if (dto.sites?.length) {
+        const assignments = await tx.siteMapAssignment.findMany({
+          where: { siteId: { in: siteIds } }
+        });
+        const assignmentBySite = new Map(assignments.map(a => [a.siteId, a]));
 
-        ops.push(
-          this.prisma.siteMapLayout.upsert({
-            where: { siteId: site.siteId },
-            update: updateData,
-            create: {
-              siteId: site.siteId,
-              campgroundId,
-              geometry: site.geometry,
-              centroid: site.centroid ?? null,
-              label: site.label ?? null,
-              rotation: site.rotation ?? null,
-              metadata: site.metadata ?? null
+        for (const site of dto.sites) {
+          const assignment = assignmentBySite.get(site.siteId);
+          if (assignment) {
+            await tx.siteMapShape.update({
+              where: { id: assignment.shapeId },
+              data: {
+                geometry: site.geometry,
+                centroid: site.centroid ?? null
+              }
+            });
+            const assignmentUpdate: Prisma.SiteMapAssignmentUpdateInput = {};
+            if (site.label !== undefined) assignmentUpdate.label = site.label ?? null;
+            if (site.rotation !== undefined) assignmentUpdate.rotation = site.rotation ?? null;
+            if (site.metadata !== undefined) assignmentUpdate.metadata = site.metadata ?? null;
+            if (Object.keys(assignmentUpdate).length) {
+              await tx.siteMapAssignment.update({
+                where: { id: assignment.id },
+                data: assignmentUpdate
+              });
             }
-          })
-        );
+          } else {
+            const shape = await tx.siteMapShape.create({
+              data: {
+                campgroundId,
+                name: site.label ?? null,
+                geometry: site.geometry,
+                centroid: site.centroid ?? null
+              }
+            });
+            await tx.siteMapAssignment.create({
+              data: {
+                campgroundId,
+                siteId: site.siteId,
+                shapeId: shape.id,
+                label: site.label ?? null,
+                rotation: site.rotation ?? null,
+                metadata: site.metadata ?? null
+              }
+            });
+          }
+        }
+      }
+    });
+
+    return this.getMap(campgroundId);
+  }
+
+  async upsertShapes(campgroundId: string, dto: UpsertMapShapesDto) {
+    if (!dto.shapes?.length) return this.getMap(campgroundId);
+    const ids = dto.shapes.map(shape => shape.id).filter(Boolean) as string[];
+    if (ids.length) {
+      const count = await this.prisma.siteMapShape.count({ where: { id: { in: ids }, campgroundId } });
+      if (count !== ids.length) {
+        throw new BadRequestException("One or more shapes do not belong to this campground");
       }
     }
 
-    if (!ops.length) return this.getMap(campgroundId);
-    await this.prisma.$transaction(ops);
+    await this.prisma.$transaction(async (tx) => {
+      for (const shape of dto.shapes) {
+        if (shape.id) {
+          await tx.siteMapShape.update({
+            where: { id: shape.id },
+            data: {
+              name: shape.name ?? null,
+              geometry: shape.geometry,
+              centroid: shape.centroid ?? null,
+              metadata: shape.metadata ?? null
+            }
+          });
+        } else {
+          await tx.siteMapShape.create({
+            data: {
+              campgroundId,
+              name: shape.name ?? null,
+              geometry: shape.geometry,
+              centroid: shape.centroid ?? null,
+              metadata: shape.metadata ?? null
+            }
+          });
+        }
+      }
+    });
+
+    return this.getMap(campgroundId);
+  }
+
+  async deleteShape(campgroundId: string, shapeId: string) {
+    await this.prisma.siteMapShape.deleteMany({ where: { id: shapeId, campgroundId } });
+    return this.getMap(campgroundId);
+  }
+
+  async upsertAssignments(campgroundId: string, dto: UpsertMapAssignmentsDto) {
+    if (!dto.assignments?.length) return this.getMap(campgroundId);
+
+    const siteIds = dto.assignments.map((assignment) => assignment.siteId);
+    const shapeIds = dto.assignments.map((assignment) => assignment.shapeId);
+
+    const [siteCount, shapeCount] = await this.prisma.$transaction([
+      this.prisma.site.count({ where: { id: { in: siteIds }, campgroundId } }),
+      this.prisma.siteMapShape.count({ where: { id: { in: shapeIds }, campgroundId } })
+    ]);
+
+    if (siteCount !== siteIds.length) {
+      throw new BadRequestException("One or more sites do not belong to this campground");
+    }
+    if (shapeCount !== shapeIds.length) {
+      throw new BadRequestException("One or more shapes do not belong to this campground");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.siteMapAssignment.deleteMany({
+        where: {
+          campgroundId,
+          OR: [
+            { siteId: { in: siteIds } },
+            { shapeId: { in: shapeIds } }
+          ]
+        }
+      });
+
+      await tx.siteMapAssignment.createMany({
+        data: dto.assignments.map((assignment) => ({
+          campgroundId,
+          siteId: assignment.siteId,
+          shapeId: assignment.shapeId,
+          label: assignment.label ?? null,
+          rotation: assignment.rotation ?? null,
+          metadata: assignment.metadata ?? null
+        }))
+      });
+    });
+
+    return this.getMap(campgroundId);
+  }
+
+  async unassignSite(campgroundId: string, siteId: string) {
+    await this.prisma.siteMapAssignment.deleteMany({ where: { campgroundId, siteId } });
     return this.getMap(campgroundId);
   }
 
@@ -212,6 +341,47 @@ export class SiteMapService {
     });
 
     return { url };
+  }
+
+  private async ensureShapeAssignments(campgroundId: string) {
+    const [assignmentCount, shapeCount] = await this.prisma.$transaction([
+      this.prisma.siteMapAssignment.count({ where: { campgroundId } }),
+      this.prisma.siteMapShape.count({ where: { campgroundId } })
+    ]);
+
+    if (assignmentCount || shapeCount) return;
+
+    const layouts = await this.prisma.siteMapLayout.findMany({
+      where: { campgroundId },
+      include: { site: true }
+    });
+
+    if (!layouts.length) return;
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const layout of layouts) {
+        const shape = await tx.siteMapShape.create({
+          data: {
+            campgroundId,
+            name: layout.label ?? layout.site.mapLabel ?? layout.site.name ?? null,
+            geometry: layout.geometry,
+            centroid: layout.centroid ?? null,
+            metadata: layout.metadata ?? null
+          }
+        });
+
+        await tx.siteMapAssignment.create({
+          data: {
+            campgroundId,
+            siteId: layout.siteId,
+            shapeId: shape.id,
+            label: layout.label ?? null,
+            rotation: layout.rotation ?? null,
+            metadata: layout.metadata ?? null
+          }
+        });
+      }
+    });
   }
 
   private evaluateSiteFit(site: any, dto: CheckAssignmentDto | PreviewAssignmentsDto): AssignmentReason[] {
