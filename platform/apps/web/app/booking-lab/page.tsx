@@ -21,6 +21,7 @@ import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "../../components/breadcrumbs";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
@@ -28,6 +29,7 @@ import { Switch } from "../../components/ui/switch";
 import { Badge } from "../../components/ui/badge";
 import { Textarea } from "../../components/ui/textarea";
 import { useToast } from "../../components/ui/use-toast";
+import { PaymentModal } from "../../components/payments/PaymentModal";
 import { apiClient } from "../../lib/api-client";
 import { cn } from "../../lib/utils";
 import { useWhoami } from "@/hooks/use-whoami";
@@ -168,9 +170,22 @@ function BookingLabPageInner() {
     collectPayment: false,
     paymentAmount: "",
     paymentMethod: "",
+    cashReceived: "",
     transactionId: "",
     paymentNotes: ""
   });
+  const [paymentModal, setPaymentModal] = useState<{ reservationId: string; amountCents: number } | null>(null);
+  const [receiptData, setReceiptData] = useState<{
+    reservationId: string;
+    guestName: string;
+    siteName: string;
+    arrivalDate: string;
+    departureDate: string;
+    amountCents: number;
+    method: string;
+    cashReceivedCents?: number;
+    changeDueCents?: number;
+  } | null>(null);
 
   useEffect(() => {
     if (formData.arrivalDate && !formData.departureDate) {
@@ -272,12 +287,30 @@ function BookingLabPageInner() {
   const pricingIsEstimate = !quoteQuery.data && fallbackSubtotalCents !== null;
   const totalCents = (pricingTotalCents ?? 0) + lockFeeCents;
   const paymentAmountDefault = totalCents > 0 ? (totalCents / 100).toFixed(2) : "";
+  const paymentAmountCents = Math.round(Number(formData.paymentAmount || 0) * 100);
+  const cashReceivedCents = Math.round(Number(formData.cashReceived || 0) * 100);
+  const cashChangeDueCents =
+    formData.paymentMethod === "cash" && cashReceivedCents > paymentAmountCents
+      ? cashReceivedCents - paymentAmountCents
+      : 0;
+  const cashShortCents =
+    formData.paymentMethod === "cash" && cashReceivedCents > 0 && cashReceivedCents < paymentAmountCents
+      ? paymentAmountCents - cashReceivedCents
+      : 0;
 
   useEffect(() => {
     if (formData.collectPayment && paymentAmountDefault) {
       setFormData((prev) => ({ ...prev, paymentAmount: paymentAmountDefault }));
     }
   }, [formData.collectPayment, paymentAmountDefault]);
+
+  useEffect(() => {
+    if (!formData.collectPayment || formData.paymentMethod !== "cash") return;
+    if (formData.cashReceived) return;
+    if (paymentAmountDefault) {
+      setFormData((prev) => ({ ...prev, cashReceived: paymentAmountDefault }));
+    }
+  }, [formData.collectPayment, formData.paymentMethod, formData.cashReceived, paymentAmountDefault]);
 
   const guests = guestsQuery.data || [];
   const guestStayedSet = useMemo(() => {
@@ -358,9 +391,15 @@ function BookingLabPageInner() {
 
   const createReservationMutation = useMutation({
     mutationFn: async () => {
-      const paidAmountCents = formData.collectPayment
-        ? Math.round(Number(formData.paymentAmount || 0) * 100)
-        : 0;
+      const wantsPayment = formData.collectPayment;
+      const isCardPayment = wantsPayment && formData.paymentMethod === "card";
+      const requestedPaymentCents = wantsPayment ? paymentAmountCents : 0;
+      const paidAmountCents = isCardPayment ? 0 : requestedPaymentCents;
+      const cashNote =
+        wantsPayment && formData.paymentMethod === "cash" && cashReceivedCents > 0
+          ? `Cash received $${(cashReceivedCents / 100).toFixed(2)}${cashChangeDueCents ? ` • Change due $${(cashChangeDueCents / 100).toFixed(2)}` : ""}`
+          : "";
+      const paymentNotes = [formData.paymentNotes, cashNote].filter(Boolean).join(" • ") || undefined;
       const payload: any = {
         campgroundId: selectedCampground!.id,
         guestId: formData.guestId,
@@ -376,10 +415,10 @@ function BookingLabPageInner() {
         totalAmount: totalCents,
         paidAmount: paidAmountCents,
         balanceAmount: Math.max(0, totalCents - paidAmountCents),
-        status: "confirmed",
-        paymentMethod: formData.collectPayment ? formData.paymentMethod : undefined,
-        transactionId: formData.collectPayment ? formData.transactionId : undefined,
-        paymentNotes: formData.collectPayment ? formData.paymentNotes : undefined,
+        status: wantsPayment && isCardPayment ? "pending" : "confirmed",
+        paymentMethod: wantsPayment && !isCardPayment ? formData.paymentMethod : undefined,
+        transactionId: wantsPayment && !isCardPayment ? formData.transactionId : undefined,
+        paymentNotes: wantsPayment && !isCardPayment ? paymentNotes : undefined,
         siteLocked: formData.lockSite,
         overrideReason: lockFeeCents > 0 ? "Site lock fee" : undefined,
         overrideApprovedBy: whoami?.user?.id || undefined
@@ -388,6 +427,25 @@ function BookingLabPageInner() {
       return apiClient.createReservation(payload);
     },
     onSuccess: (reservation) => {
+      if (formData.collectPayment && formData.paymentMethod === "card") {
+        setPaymentModal({ reservationId: reservation.id, amountCents: paymentAmountCents });
+        toast({ title: "Reservation created", description: "Complete payment to finish booking." });
+        return;
+      }
+      if (formData.collectPayment) {
+        setReceiptData({
+          reservationId: reservation.id,
+          guestName: `${reservation.guest?.primaryFirstName || ""} ${reservation.guest?.primaryLastName || ""}`.trim() || "Guest",
+          siteName: reservation.site?.name || "Site",
+          arrivalDate: reservation.arrivalDate,
+          departureDate: reservation.departureDate,
+          amountCents: paymentAmountCents,
+          method: formData.paymentMethod || "cash",
+          cashReceivedCents: formData.paymentMethod === "cash" ? cashReceivedCents : undefined,
+          changeDueCents: formData.paymentMethod === "cash" ? cashChangeDueCents : undefined
+        });
+        return;
+      }
       toast({ title: "Reservation created", description: "Booking saved successfully." });
       router.push(`/reservations/${reservation.id}`);
     },
@@ -397,13 +455,18 @@ function BookingLabPageInner() {
   });
 
   const hasPricing = pricingSubtotalCents !== null;
+  const paymentReady =
+    !formData.collectPayment ||
+    (!!formData.paymentMethod &&
+      paymentAmountCents > 0 &&
+      (formData.paymentMethod !== "cash" || cashReceivedCents >= paymentAmountCents));
   const canCreate =
     !!selectedCampground?.id &&
     !!formData.guestId &&
     !!formData.siteId &&
     dateRangeValid &&
     hasPricing &&
-    (!formData.collectPayment || (!!formData.paymentMethod && Number(formData.paymentAmount) > 0));
+    paymentReady;
 
   return (
     <DashboardShell>
@@ -867,15 +930,23 @@ function BookingLabPageInner() {
                     checked={formData.collectPayment}
                     onCheckedChange={(value) => setFormData((prev) => ({ ...prev, collectPayment: value }))}
                   />
-                  <div className="text-xs text-slate-600">Collect payment now</div>
+                  <div className="text-xs text-slate-600">Take payment now</div>
                 </div>
 
                 {formData.collectPayment && (
                   <div className="mt-3 space-y-2">
+                    {formData.paymentMethod === "card" && (
+                      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500">
+                        Card checkout opens right after the reservation is created.
+                      </div>
+                    )}
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div className="space-y-1">
-                        <Label className="text-xs text-slate-500">Amount</Label>
+                        <Label className="text-xs text-slate-500">Amount to charge</Label>
                         <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
                           value={formData.paymentAmount}
                           onChange={(e) => setFormData((prev) => ({ ...prev, paymentAmount: e.target.value }))}
                         />
@@ -897,6 +968,34 @@ function BookingLabPageInner() {
                         </Select>
                       </div>
                     </div>
+                    {formData.paymentMethod === "cash" && (
+                      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-slate-500">Cash received</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={formData.cashReceived}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, cashReceived: e.target.value }))}
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-slate-500">Change due</Label>
+                            <div className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm flex items-center">
+                              {cashChangeDueCents > 0 ? `$${(cashChangeDueCents / 100).toFixed(2)}` : "—"}
+                            </div>
+                          </div>
+                        </div>
+                        {cashShortCents > 0 && (
+                          <div className="mt-2 text-xs text-amber-600">
+                            Cash received is short by ${(cashShortCents / 100).toFixed(2)}.
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <Input
                       placeholder="Transaction ID (optional)"
                       value={formData.transactionId}
@@ -925,7 +1024,11 @@ function BookingLabPageInner() {
                     onClick={() => createReservationMutation.mutate()}
                     disabled={!canCreate || createReservationMutation.isPending}
                   >
-                    {createReservationMutation.isPending ? "Creating..." : "Create reservation"}
+                    {createReservationMutation.isPending
+                      ? "Creating..."
+                      : formData.collectPayment
+                        ? "Collect payment & book"
+                        : "Create reservation"}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -945,6 +1048,112 @@ function BookingLabPageInner() {
           </div>
         )}
       </div>
+      {paymentModal && (
+        <PaymentModal
+          isOpen={!!paymentModal}
+          reservationId={paymentModal.reservationId}
+          amountCents={paymentModal.amountCents}
+          onClose={() => {
+            const reservationId = paymentModal.reservationId;
+            setPaymentModal(null);
+            apiClient.cancelReservation(reservationId).catch(() => undefined);
+            toast({ title: "Payment canceled", description: "Reservation canceled." });
+          }}
+          onSuccess={() => {
+            const reservationId = paymentModal.reservationId;
+            setPaymentModal(null);
+            apiClient.updateReservation(reservationId, { status: "confirmed" }).catch(() => undefined);
+            toast({ title: "Payment captured", description: "Booking confirmed." });
+            router.push(`/reservations/${reservationId}`);
+          }}
+        />
+      )}
+      {receiptData && (
+        <Dialog open={!!receiptData} onOpenChange={() => {
+          if (!receiptData) return;
+          const reservationId = receiptData.reservationId;
+          setReceiptData(null);
+          router.push(`/reservations/${reservationId}`);
+        }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Payment Receipt</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Reservation</span>
+                <span className="font-semibold text-slate-900">#{receiptData.reservationId.slice(0, 8)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Guest</span>
+                <span className="font-semibold text-slate-900">{receiptData.guestName}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Site</span>
+                <span className="font-semibold text-slate-900">{receiptData.siteName}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Dates</span>
+                <span className="font-semibold text-slate-900">{receiptData.arrivalDate} → {receiptData.departureDate}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Method</span>
+                <span className="font-semibold text-slate-900">{receiptData.method}</span>
+              </div>
+              <div className="flex items-center justify-between text-base">
+                <span className="font-semibold text-slate-700">Amount</span>
+                <span className="font-black text-slate-900">${(receiptData.amountCents / 100).toFixed(2)}</span>
+              </div>
+              {receiptData.cashReceivedCents !== undefined && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Cash received</span>
+                  <span className="font-semibold text-slate-900">${(receiptData.cashReceivedCents / 100).toFixed(2)}</span>
+                </div>
+              )}
+              {receiptData.changeDueCents ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Change due</span>
+                  <span className="font-semibold text-slate-900">${(receiptData.changeDueCents / 100).toFixed(2)}</span>
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const receiptText = [
+                    `Reservation #${receiptData.reservationId.slice(0, 8)}`,
+                    `Guest: ${receiptData.guestName}`,
+                    `Site: ${receiptData.siteName}`,
+                    `Dates: ${receiptData.arrivalDate} → ${receiptData.departureDate}`,
+                    `Method: ${receiptData.method}`,
+                    `Amount: $${(receiptData.amountCents / 100).toFixed(2)}`,
+                    receiptData.cashReceivedCents !== undefined
+                      ? `Cash received: $${(receiptData.cashReceivedCents / 100).toFixed(2)}`
+                      : "",
+                    receiptData.changeDueCents
+                      ? `Change due: $${(receiptData.changeDueCents / 100).toFixed(2)}`
+                      : ""
+                  ].filter(Boolean).join("\n");
+                  if (navigator?.clipboard?.writeText) {
+                    navigator.clipboard.writeText(receiptText).catch(() => undefined);
+                    toast({ title: "Receipt copied", description: "Receipt details copied to clipboard." });
+                  }
+                }}
+              >
+                Copy receipt
+              </Button>
+              <Button onClick={() => {
+                const reservationId = receiptData.reservationId;
+                setReceiptData(null);
+                router.push(`/reservations/${reservationId}`);
+              }}>
+                Done
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </DashboardShell>
   );
 }

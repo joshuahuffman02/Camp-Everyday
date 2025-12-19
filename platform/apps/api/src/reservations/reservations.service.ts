@@ -1376,7 +1376,8 @@ export class ReservationsService {
                 siteClass: true
               }
             },
-            guest: true
+            guest: true,
+            campground: { select: { name: true } }
           }
         });
 
@@ -1428,6 +1429,27 @@ export class ReservationsService {
               dedupeKey: transactionId ? `res:${reservation.id}:init:${transactionId}:credit` : `res:${reservation.id}:init:credit`
             }
           ]);
+
+          // Send payment receipt email
+          try {
+            await this.emailService.sendPaymentReceipt({
+              guestEmail: reservation.guest.email,
+              guestName: `${reservation.guest.primaryFirstName} ${reservation.guest.primaryLastName}`,
+              campgroundName: reservation.campground?.name || "Campground",
+              amountCents: paidAmount,
+              paymentMethod: paymentMethod || "card",
+              transactionId: transactionId ?? undefined,
+              reservationId: reservation.id,
+              siteNumber: reservation.site?.siteNumber,
+              arrivalDate: reservation.arrivalDate,
+              departureDate: reservation.departureDate,
+              source: reservation.source || "admin",
+              totalCents: paidAmount,
+              kind: "payment"
+            });
+          } catch (emailError) {
+            console.error("Failed to send payment receipt email:", emailError);
+          }
         }
 
         // Increment promotion usage count if promo was applied
