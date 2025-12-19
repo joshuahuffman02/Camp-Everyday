@@ -76,13 +76,22 @@ export class SiteMapController {
     }
 
     const extension = body.filename?.includes(".") ? body.filename.split(".").pop() : undefined;
-    const uploaded = await this.uploads.uploadBuffer(buffer, {
-      contentType,
-      extension,
-      prefix: "campground-maps"
-    });
+    try {
+      const uploaded = await this.uploads.uploadBuffer(buffer, {
+        contentType,
+        extension,
+        prefix: "campground-maps"
+      });
 
-    return this.siteMap.setBaseImage(campgroundId, uploaded.url);
+      return this.siteMap.setBaseImage(campgroundId, uploaded.url);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      if (process.env.UPLOADS_DATA_URL_FALLBACK !== "false") {
+        console.warn(`[SiteMap] Upload failed, storing data URL instead: ${message}`);
+        return this.siteMap.setBaseImage(campgroundId, body.dataUrl);
+      }
+      throw err;
+    }
   }
 
   @Post("campgrounds/:campgroundId/assignments/check")

@@ -62,7 +62,8 @@ export function CampgroundMapUpload({
       toast({ title: "Map uploaded" });
       onUploaded?.(res.url);
     } catch (e) {
-      toast({ title: "Upload failed", description: "Uploads may be disabled. Check storage settings.", variant: "destructive" });
+      const message = e instanceof Error ? e.message : "Uploads may be disabled. Check storage settings.";
+      toast({ title: "Upload failed", description: message, variant: "destructive" });
     } finally {
       setIsUploading(false);
     }
