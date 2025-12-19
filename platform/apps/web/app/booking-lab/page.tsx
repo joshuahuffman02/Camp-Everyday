@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -171,11 +171,13 @@ function BookingLabPageInner() {
     collectPayment: false,
     paymentAmount: "",
     paymentMethod: "",
+    cardEntryMode: "manual",
     cashReceived: "",
     transactionId: "",
     paymentNotes: ""
   });
   const [paymentModal, setPaymentModal] = useState<{ reservationId: string; amountCents: number } | null>(null);
+  const paymentCompletedRef = useRef(false);
   const [receiptData, setReceiptData] = useState<{
     reservationId: string;
     guestName: string;
@@ -187,6 +189,12 @@ function BookingLabPageInner() {
     cashReceivedCents?: number;
     changeDueCents?: number;
   } | null>(null);
+
+  useEffect(() => {
+    if (!paymentModal) {
+      paymentCompletedRef.current = false;
+    }
+  }, [paymentModal]);
 
   useEffect(() => {
     if (formData.arrivalDate && !formData.departureDate) {
@@ -333,6 +341,12 @@ function BookingLabPageInner() {
     if (formData.paymentMethod) return;
     setFormData((prev) => ({ ...prev, paymentMethod: "card" }));
   }, [formData.collectPayment, formData.paymentMethod]);
+
+  useEffect(() => {
+    if (formData.paymentMethod !== "card") return;
+    if (formData.cardEntryMode) return;
+    setFormData((prev) => ({ ...prev, cardEntryMode: "manual" }));
+  }, [formData.paymentMethod, formData.cardEntryMode]);
 
   const guests = guestsQuery.data || [];
   const guestStayedSet = useMemo(() => {
@@ -498,11 +512,13 @@ function BookingLabPageInner() {
   });
 
   const hasPricing = pricingSubtotalCents !== null;
+  const cardEntryBlocked = formData.paymentMethod === "card" && formData.cardEntryMode === "reader";
   const paymentReady =
     !formData.collectPayment ||
     (!!formData.paymentMethod &&
       paymentAmountCents > 0 &&
-      (formData.paymentMethod !== "cash" || cashReceivedCents >= paymentAmountCents));
+      (formData.paymentMethod !== "cash" || cashReceivedCents >= paymentAmountCents) &&
+      !cardEntryBlocked);
   const canCreate =
     !!selectedCampground?.id &&
     !!formData.guestId &&
@@ -980,7 +996,9 @@ function BookingLabPageInner() {
                   <div className="mt-3 space-y-2">
                     {formData.paymentMethod === "card" && (
                       <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500">
-                        Card checkout opens right after the reservation is created.
+                        {formData.cardEntryMode === "reader"
+                          ? "Card reader payments require a connected terminal."
+                          : "Manual card checkout opens right after the reservation is created."}
                       </div>
                     )}
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -1011,6 +1029,30 @@ function BookingLabPageInner() {
                         </Select>
                       </div>
                     </div>
+                    {formData.paymentMethod === "card" && (
+                      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-500">Card entry</Label>
+                          <Select
+                            value={formData.cardEntryMode}
+                            onValueChange={(value) => setFormData((prev) => ({ ...prev, cardEntryMode: value }))}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Select entry method" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="manual">Manual entry (keyed)</SelectItem>
+                              <SelectItem value="reader">Card reader (coming soon)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {formData.cardEntryMode === "reader" && (
+                          <div className="mt-2 text-[11px] text-amber-600">
+                            Card reader payments are not enabled in this sandbox.
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {formData.paymentMethod === "cash" && (
                       <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                         <div className="grid gap-2 sm:grid-cols-2">
@@ -1096,14 +1138,20 @@ function BookingLabPageInner() {
           isOpen={!!paymentModal}
           reservationId={paymentModal.reservationId}
           amountCents={paymentModal.amountCents}
+          entryMode={formData.cardEntryMode === "reader" ? "reader" : "manual"}
           onClose={() => {
             const reservationId = paymentModal.reservationId;
             setPaymentModal(null);
+            if (paymentCompletedRef.current) {
+              paymentCompletedRef.current = false;
+              return;
+            }
             apiClient.cancelReservation(reservationId).catch(() => undefined);
             toast({ title: "Payment canceled", description: "Reservation canceled." });
           }}
           onSuccess={() => {
             const reservationId = paymentModal.reservationId;
+            paymentCompletedRef.current = true;
             setPaymentModal(null);
             apiClient.updateReservation(reservationId, { status: "confirmed" }).catch(() => undefined);
             toast({ title: "Payment captured", description: "Booking confirmed." });

@@ -103,6 +103,7 @@ export function FinancialSummary({ reservation }: FinancialSummaryProps) {
                 amountCents={balanceCents}
                 onSuccess={() => {
                     // In a real app, we'd trigger a revalidation or toast here
+                    setIsPaymentModalOpen(false);
                     window.location.reload();
                 }}
             />
