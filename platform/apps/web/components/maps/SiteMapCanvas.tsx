@@ -15,7 +15,7 @@ type MapSite = {
   siteId: string;
   name?: string | null;
   siteNumber?: string | null;
-  geometry: any;
+  geometry?: any;
   centroid?: any;
   label?: string | null;
   rotation?: number | null;
