@@ -123,7 +123,7 @@ export default function SignInPage() {
         </form>
 
         <div className="mt-4 text-center text-xs text-muted-foreground">
-          <p>Demo: Use any email/password to sign in</p>
+          <p>Use your Camp Everyday Host credentials to sign in.</p>
         </div>
       </div>
     </div>

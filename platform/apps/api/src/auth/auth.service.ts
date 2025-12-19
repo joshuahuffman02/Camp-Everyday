@@ -2,6 +2,7 @@ import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { PlatformRole } from '@prisma/client';
 import { RegisterDto, LoginDto } from './dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 
@@ -50,7 +51,7 @@ export class AuthService {
     async login(dto: LoginDto) {
         try {
             console.log(`[AuthService] Attempting login for ${dto.email}`);
-            const user = await this.prisma.user.findUnique({
+            let user = await this.prisma.user.findUnique({
                 where: { email: dto.email.toLowerCase() },
                 include: {
                     memberships: {
@@ -60,8 +61,32 @@ export class AuthService {
             });
 
             if (!user) {
-                console.log(`[AuthService] User not found: ${dto.email}`);
-                throw new UnauthorizedException('Invalid credentials');
+                const totalUsers = await this.prisma.user.count();
+                const allowBootstrap = process.env.NODE_ENV !== "production" || process.env.ALLOW_BOOTSTRAP_ADMIN === "true";
+
+                if (totalUsers === 0 && allowBootstrap) {
+                    console.warn(`[AuthService] Bootstrapping first admin user: ${dto.email}`);
+                    const passwordHash = await bcrypt.hash(dto.password, 12);
+                    user = await this.prisma.user.create({
+                        data: {
+                            email: dto.email.toLowerCase(),
+                            passwordHash,
+                            firstName: "Admin",
+                            lastName: "User",
+                            platformRole: PlatformRole.platform_admin,
+                            isActive: true,
+                            mustChangePassword: true
+                        },
+                        include: {
+                            memberships: {
+                                include: { campground: { select: { id: true, name: true, slug: true } } }
+                            }
+                        }
+                    });
+                } else {
+                    console.log(`[AuthService] User not found: ${dto.email}`);
+                    throw new UnauthorizedException('Invalid credentials');
+                }
             }
 
             if (!user.isActive) {
