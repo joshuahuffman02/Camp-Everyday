@@ -4,7 +4,7 @@ import type { User } from "next-auth";
 
 
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || "http://localhost:4000/api";
 
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -32,10 +32,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
 
           if (!res.ok) {
+            let bodyText = "";
+            try {
+              bodyText = await res.text();
+            } catch {
+              // ignore body parse errors
+            }
+            console.warn("[auth] login failed", {
+              status: res.status,
+              apiBase: API_BASE,
+              body: bodyText?.slice(0, 500)
+            });
             return null;
           }
 
           const data = await res.json();
+          if (!data?.token) {
+            console.warn("[auth] login response missing token", { apiBase: API_BASE });
+            return null;
+          }
 
           return {
             id: data.id,
@@ -46,7 +61,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             campgrounds: data.campgrounds || []
           } as any;
         } catch (error) {
-          console.error("Auth error:", error);
+          console.error("Auth error:", error, { apiBase: API_BASE });
           return null;
         }
       }
@@ -81,4 +96,3 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }
   }
 });
-

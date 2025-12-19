@@ -61,10 +61,12 @@ export class AuthService {
             });
 
             if (!user) {
-                const totalUsers = await this.prisma.user.count();
                 const allowBootstrap = process.env.NODE_ENV !== "production" || process.env.ALLOW_BOOTSTRAP_ADMIN === "true";
+                const activeUsers = allowBootstrap
+                    ? await this.prisma.user.count({ where: { isActive: true } })
+                    : 0;
 
-                if (totalUsers === 0 && allowBootstrap) {
+                if (activeUsers === 0 && allowBootstrap) {
                     console.warn(`[AuthService] Bootstrapping first admin user: ${dto.email}`);
                     const passwordHash = await bcrypt.hash(dto.password, 12);
                     user = await this.prisma.user.create({
