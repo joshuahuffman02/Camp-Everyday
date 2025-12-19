@@ -456,7 +456,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
   const cgSitesPath = selected ? `/campgrounds/${selected}/sites` : "/campgrounds";
   const cgClassesPath = selected ? `/campgrounds/${selected}/classes` : "/campgrounds";
   const cgReservationsPath = selected ? `/campgrounds/${selected}/reservations` : "/reservations";
-  const cgMapPath = selected ? `/campgrounds/${selected}/settings?tab=advanced` : "/campgrounds";
+  const cgMapPath = selected ? `/campgrounds/${selected}/map` : "/campgrounds";
   // Operations items for top bar quick actions (moved from sidebar)
   const operationsItems = useMemo<NavItem[]>(() => [
     { label: "Check In/Out", href: "/check-in-out", icon: "reservation" },

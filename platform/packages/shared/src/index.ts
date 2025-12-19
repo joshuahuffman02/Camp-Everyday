@@ -328,7 +328,7 @@ export const ReservationSchema = z.object({
   referralSource: z.string().nullish(),
   referralChannel: z.string().nullish(),
   referralIncentiveType: z.string().nullish(),
-  referralIncentiveValue: z.number().int().nonnegative().optional(),
+  referralIncentiveValue: z.number().int().nonnegative().nullable().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   guest: GuestSchema.optional(),

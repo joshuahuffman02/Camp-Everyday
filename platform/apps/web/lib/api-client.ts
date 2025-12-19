@@ -3932,7 +3932,7 @@ export const apiClient = {
       referralDiscountCents: numberish(z.number()).optional().default(0),
       referralProgramId: z.string().nullable().optional(),
       referralIncentiveType: z.string().nullable().optional(),
-      referralIncentiveValue: numberish(z.number()).optional().default(0),
+      referralIncentiveValue: numberish(z.number()).nullable().optional().default(0),
       referralSource: z.string().nullable().optional(),
       referralChannel: z.string().nullable().optional()
     });
