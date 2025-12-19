@@ -536,14 +536,14 @@ function scopedHeaders(extra?: Record<string, string>) {
     if (park) headers["x-park-id"] = park;
     if (locale) headers["x-locale"] = locale;
     if (currency) headers["x-currency"] = currency;
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (!headers["Authorization"] && token) headers["Authorization"] = `Bearer ${token}`;
     headers["x-client"] = "pwa";
   }
   return headers;
 }
 
-async function fetchJSON<T>(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, { next: { revalidate: 0 }, headers: scopedHeaders() });
+async function fetchJSON<T>(path: string, headers?: Record<string, string>) {
+  const res = await fetch(`${API_BASE}${path}`, { next: { revalidate: 0 }, headers: scopedHeaders(headers) });
   return parseResponse<T>(res);
 }
 
@@ -5222,8 +5222,9 @@ export const apiClient = {
   },
 
   // Identity & permissions
-  async getWhoami() {
-    const data = await fetchJSON<unknown>("/permissions/whoami");
+  async getWhoami(token?: string) {
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+    const data = await fetchJSON<unknown>("/permissions/whoami", headers);
     return z.object({
       user: z.object({
         id: z.string(),
