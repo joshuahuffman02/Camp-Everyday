@@ -594,28 +594,28 @@ function BookingLabPageInner() {
                         {guestMatches.map((guest) => {
                           const hasStayed = !guestStayedSet || guestStayedSet.has(guest.id);
                           return (
-                          <button
-                            key={guest.id}
-                            type="button"
-                            className={cn(
-                              "w-full px-3 py-2 text-left text-sm hover:bg-slate-50",
-                              !hasStayed && "text-slate-400"
-                            )}
-                            onClick={() => {
-                              setFormData((prev) => ({ ...prev, guestId: guest.id }));
-                              setGuestSearch(`${guest.primaryFirstName} ${guest.primaryLastName}`.trim());
-                              setShowGuestResults(false);
-                            }}
-                          >
-                            <div className={cn("font-semibold", hasStayed ? "text-slate-800" : "text-slate-400")}>
-                              {guest.primaryFirstName} {guest.primaryLastName}
-                            </div>
-                            <div className={cn("text-xs", hasStayed ? "text-slate-500" : "text-slate-400")}>
-                              {guest.email}
-                            </div>
-                          </button>
-                        );
-                      })}
+                            <button
+                              key={guest.id}
+                              type="button"
+                              className={cn(
+                                "w-full px-3 py-2 text-left text-sm hover:bg-slate-50",
+                                !hasStayed && "text-slate-400"
+                              )}
+                              onClick={() => {
+                                setFormData((prev) => ({ ...prev, guestId: guest.id }));
+                                setGuestSearch(`${guest.primaryFirstName} ${guest.primaryLastName}`.trim());
+                                setShowGuestResults(false);
+                              }}
+                            >
+                              <div className={cn("font-semibold", hasStayed ? "text-slate-800" : "text-slate-400")}>
+                                {guest.primaryFirstName} {guest.primaryLastName}
+                              </div>
+                              <div className={cn("text-xs", hasStayed ? "text-slate-500" : "text-slate-400")}>
+                                {guest.email}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -859,8 +859,9 @@ function BookingLabPageInner() {
                     {filteredSites.map((site) => {
                       const typeKey = (site.siteType || "").toLowerCase();
                       const meta = SITE_TYPE_STYLES[typeKey] || SITE_TYPE_STYLES.default;
-                      const isSelected = site.id === formData.siteId;
-                      const isDisabled = site.status !== "available";
+                      const displayName = site.name.replace(new RegExp(`^${meta.label}\\s+`, 'i'), '');
+                      const displayNum = site.siteNumber.replace(new RegExp(`^${meta.label}`, 'i'), '');
+                      const displayClass = (site.siteClassName || "Class").replace(new RegExp(`\\s+${meta.label}$`, 'i'), '');
 
                       return (
                         <button
@@ -875,10 +876,10 @@ function BookingLabPageInner() {
                           onClick={() => setFormData((prev) => ({ ...prev, siteId: site.id }))}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-slate-900">{site.name}</div>
+                            <div className="text-sm font-semibold text-slate-900">{displayName}</div>
                             <Badge className={cn("text-[10px]", meta.badge)}>{meta.label}</Badge>
                           </div>
-                          <div className="text-xs text-slate-500">#{site.siteNumber} • {site.siteClassName || "Class"}</div>
+                          <div className="text-xs text-slate-500">#{displayNum} • {displayClass}</div>
                           <div className="mt-2 flex items-center justify-between text-xs">
                             <span className="text-slate-500">{site.statusDetail || site.status}</span>
                             {site.defaultRate ? (

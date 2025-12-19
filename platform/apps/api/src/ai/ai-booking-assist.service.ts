@@ -36,6 +36,8 @@ interface BookingAssistResponse {
         partySize?: { adults: number; children: number };
         rigInfo?: { type: string; length: number };
         siteClassId?: string;
+        siteClassName?: string;
+        addOns?: string[];
     };
 }
 
@@ -93,6 +95,7 @@ export class AiBookingAssistService {
                         hookupsWater: true,
                         hookupsSewer: true,
                         petFriendly: true,
+                        accessible: true,
                     },
                 },
                 sites: {
@@ -114,8 +117,19 @@ export class AiBookingAssistService {
             };
         }
 
-        // Anonymize context
-        const { anonymizedText } = this.privacy.anonymize(context.message, 'moderate');
+        const anonymizationLevel = campground.aiAnonymizationLevel ?? 'moderate';
+        const { anonymizedText, tokenMap } = this.privacy.anonymize(context.message, anonymizationLevel);
+        const { historyText, historyTokenMap } = this.buildHistory(context.history ?? [], anonymizationLevel);
+        const mergedTokenMap = this.mergeTokenMaps(tokenMap, historyTokenMap);
+        const preferencesForPrompt = context.preferences?.map((pref) => {
+            const result = this.privacy.anonymize(pref, anonymizationLevel);
+            result.tokenMap.forEach((value, key) => mergedTokenMap.set(key, value));
+            return result.anonymizedText;
+        });
+        const promptContext = {
+            ...context,
+            preferences: preferencesForPrompt ?? context.preferences,
+        };
 
         // Fetch conversation history from DB if not provided in context
         // (DB history is only useful for metadata since content is hashed, but good as fallback)
@@ -163,58 +177,63 @@ export class AiBookingAssistService {
         const systemPrompt = this.buildSystemPrompt(campground);
 
         // Build user prompt with context AND history
-        let userPrompt = this.buildUserPrompt(anonymizedText, context, campground.siteClasses, availableSiteTypes);
+        let userPrompt = this.buildUserPrompt(anonymizedText, promptContext, campground.siteClasses, availableSiteTypes);
 
         // Append conversation history
-        if (context.history && context.history.length > 0) {
-            userPrompt += "\n\nCONVERSATION HISTORY:";
-            // Take the last 10 messages in chronological order
-            const recentHistory = context.history.slice(-10);
-
-            for (const msg of recentHistory) {
-                userPrompt += `\n${msg.role.toUpperCase()}: ${msg.content}`;
-            }
+        if (historyText) {
+            userPrompt += `\n\nCONVERSATION HISTORY:\n${historyText}`;
         } else if (historyMeta.length > 0) {
             // Fallback to minimal context if we only have DB logs (hashed content)
             userPrompt += `\n\n(This is turn #${historyMeta.length + 1} of the conversation)`;
         }
 
         // If the context contains extracted entities (like dates), explicitly emphasize them
-        if (context.dates || context.rigInfo || context.partySize || context.preferences) {
+        if (promptContext.dates || promptContext.rigInfo || promptContext.partySize || promptContext.preferences) {
             userPrompt += "\n\nCRITICAL CONTEXT (Extracted from previous messages):";
-            if (context.dates) userPrompt += `\n- Dates: ${context.dates.arrival} to ${context.dates.departure}`;
-            if (context.partySize) userPrompt += `\n- Party: ${context.partySize.adults} adults, ${context.partySize.children} children`;
-            if (context.rigInfo) userPrompt += `\n- Rig: ${context.rigInfo.length}ft ${context.rigInfo.type}`;
-            if (context.preferences) userPrompt += `\n- Preferences: ${context.preferences.join(', ')}`;
+            if (promptContext.dates) userPrompt += `\n- Dates: ${promptContext.dates.arrival} to ${promptContext.dates.departure}`;
+            if (promptContext.partySize) userPrompt += `\n- Party: ${promptContext.partySize.adults} adults, ${promptContext.partySize.children} children`;
+            if (promptContext.rigInfo) userPrompt += `\n- Rig: ${promptContext.rigInfo.length}ft ${promptContext.rigInfo.type}`;
+            if (promptContext.preferences) userPrompt += `\n- Preferences: ${promptContext.preferences.join(', ')}`;
         }
 
         // Get AI response
-        const response = await this.provider.getCompletion({
+        const response = await this.provider.getToolCompletion({
             campgroundId: context.campgroundId,
             featureType: AiFeatureType.booking_assist,
             systemPrompt,
             userPrompt,
             sessionId: context.sessionId,
             maxTokens: 600,
-            temperature: 0.7,
+            temperature: 0.6,
+            tools: this.buildTools(),
         });
 
-        const parsedResponse = this.parseResponse(response.content, campground.siteClasses as any);
+        const toolCall = this.pickToolCall(response.toolCalls);
+        let parsedResponse: BookingAssistResponse | null = null;
 
-        // If action is book, attach the current known booking details from context or extracted from response
-        if (parsedResponse.action === 'book') {
-            parsedResponse.bookingDetails = {
-                dates: parsedResponse.bookingDetails?.dates || context.dates,
-                partySize: parsedResponse.bookingDetails?.partySize || context.partySize,
-                rigInfo: parsedResponse.bookingDetails?.rigInfo || context.rigInfo,
-                // We could also try to infer the siteClassId from the message or recommendations
-                siteClassId: parsedResponse.recommendations?.[0]?.siteClassName
-                    ? campground.siteClasses.find((sc: any) => sc.name === parsedResponse.recommendations![0].siteClassName)?.id
-                    : undefined
-            };
+        if (toolCall) {
+            const toolResult = this.parseToolArgs(toolCall.arguments);
+            if (toolResult) {
+                parsedResponse = this.buildResponseFromTool(
+                    toolResult,
+                    campground.siteClasses as any,
+                    (campground.sites ?? []) as any,
+                    mergedTokenMap
+                );
+            }
         }
 
-        return parsedResponse;
+        if (!parsedResponse) {
+            parsedResponse = this.parseResponse(response.content, campground.siteClasses as any);
+            parsedResponse.message = this.privacy.deanonymize(parsedResponse.message, mergedTokenMap);
+            if (parsedResponse.clarifyingQuestions?.length) {
+                parsedResponse.clarifyingQuestions = parsedResponse.clarifyingQuestions.map((q) =>
+                    this.privacy.deanonymize(q, mergedTokenMap)
+                );
+            }
+        }
+
+        return this.finalizeGuestResponse(parsedResponse, context, campground.siteClasses as any, availableSiteTypes);
     }
 
     /**
@@ -303,51 +322,54 @@ export class AiBookingAssistService {
     }
 
     private buildSystemPrompt(campground: any): string {
-        return `You are a friendly, knowledgeable front-desk staff member at ${campground.name}.
-Your job is to help guests find the perfect campsite. Speak in a warm, professional tone (e.g., "We'd love to host you!").
+        const classLines = campground.siteClasses.map((sc: any) => {
+            const rate =
+                sc.defaultRate !== null && sc.defaultRate !== undefined
+                    ? `$${(Number(sc.defaultRate) / 100).toFixed(0)}`
+                    : 'N/A';
+            const rigLength = sc.rigMaxLength ? `${sc.rigMaxLength}ft` : 'n/a';
+            const hookups = [
+                sc.hookupsPower ? 'power' : null,
+                sc.hookupsWater ? 'water' : null,
+                sc.hookupsSewer ? 'sewer' : null,
+            ].filter(Boolean).join('/');
+            const hookupsLabel = hookups || 'no hookups';
+            const petLabel = sc.petFriendly ? 'pet-friendly' : 'no pets';
+            const accessibility = sc.accessible ? 'accessible' : 'not accessible';
+            return `- ${sc.name} (${sc.siteType}, up to ${sc.maxOccupancy} guests, ${rigLength}, ${hookupsLabel}, ${petLabel}, ${accessibility}, ${rate}/night)`;
+        }).join('\n');
 
-Available site types:
-${campground.siteClasses.map((sc: any) => `- ${sc.name}: ${sc.description || 'No description'} (up to ${sc.maxOccupancy} guests, $${sc.defaultRate ? (Number(sc.defaultRate) / 100).toFixed(0) : '??'}/night)`).join('\n')}
+        return `You are the Active Campground AI Partner in GUEST MODE for ${campground.name}.
+You guide guests to the best-fit site class and prefill an anonymous booking context. You do not create or confirm reservations.
 
-Guidelines:
-- If the guest hasn't specified dates, ask for them.
-- If they mention an RV, ask about length if not specified.
-- Recommend specific site types based on their needs.
-- Keep responses under 100 words.
-- Don't make up policies or amenities not listed.
+Allowed:
+- Ask non-PII preference questions (dates, flexibility, RV length, power needs, pets, accessibility, location features).
+- Explain site classes, pricing ranges, and policies in plain language.
+- Recommend best-fit site classes and alternatives if preferred options are unavailable.
 
-SITE SELECTION POLICY:
-- Guests generally book a "Site Type" (Class). We guarantee a site of that type.
-- If a guest asks for a specific site number, explain that specific site selection may incur a "Site Lock Fee" or is subject to availability upon arrival. For this chat, we will book the Class.
+Disallowed:
+- Asking for or storing names, emails, phone numbers, addresses, or payment details.
+- Creating, modifying, or confirming reservations.
+- Calling any write-enabled reservation services.
 
-PRIVACY & SECURITY:
-- NEVER ask for credit card details, full address, or sensitive personal info in this chat.
-- Once details are confirmed, use the booking action to send them to our secure payment portal.
+Rig rules:
+- If the guest has an RV, only recommend RV site classes.
+- If the guest has a tent, only recommend tent site classes.
+- If the guest wants a cabin or glamping, only recommend those classes.
+- Ask for RV length if missing, and avoid classes that cannot fit it.
 
-CRITICAL:
-- When the guest confirms they want to proceed with a booking, you MUST use "ACTION: book" in your response.
-- Do NOT say "Booking Confirmed". Instead say: "I have pre-filled your details in the booking form. Please review and complete your reservation there."
-- You cannot process payments directly. You must hand off to the secure form.
-- YOU MUST CHECK THE "REAL-TIME AVAILABILITY" SECTION provided in the User Prompt if dates are known.
-- IF A SITE TYPE IS NOT LISTED IN "REAL-TIME AVAILABILITY", IT IS SOLD OUT. DO NOT RECOMMEND IT.
-- If the guest requests a sold-out site type, professionally explain it is unavailable for those dates.
-- THEN, proactively suggest the best available alternative within the SAME CATEGORY (e.g., if they want a Cabin, suggest another Cabin).
-- Do NOT suggest an RV "Site" to someone looking for a Cabin/Tent unless they explicitly mention having an RV. A "Site" usually implies they need to bring their own rig.
-- Always try to save the sale by offering what IS available, but make sure it makes sense for the guest's equipment.
-- Only use "ACTION: book" if you have Dates and Party Size/RV Info.
-- IF ACTION IS BOOK, YOU MUST ALSO OUTPUT METADATA:
-  DATES: YYYY-MM-DD,YYYY-MM-DD
-  RIG: length,type (if applicable)
-  PARTY: adults,children
+Availability rules:
+- Only recommend site classes listed in REAL-TIME AVAILABILITY.
+- If none are available, say so and offer flexible date options.
 
-Response format:
-MESSAGE: <your response>
-ACTION: search|book|clarify|info
-DATES: <arrival>,<departure>
-RIG: <length>,<type>
-PARTY: <adults>,<children>
-QUESTIONS: <optional comma-separated clarifying questions>
-RECOMMENDATIONS: <optional comma-separated site class names>`;
+SITE CLASSES:
+${classLines}
+
+Output:
+- Use the guest_assist_response tool only.
+- action: search | book | clarify | info
+- action=book means "prefill the booking form" (never confirm a reservation).
+- Keep responses under 120 words.`;
     }
 
     private buildUserPrompt(
@@ -381,6 +403,301 @@ RECOMMENDATIONS: <optional comma-separated site class names>`;
         }
 
         return prompt;
+    }
+
+    private buildTools() {
+        return [
+            {
+                type: 'function',
+                function: {
+                    name: 'guest_assist_response',
+                    description: 'Return a structured guest booking assistant response.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            message: { type: 'string' },
+                            action: { type: 'string', enum: ['search', 'book', 'clarify', 'info'] },
+                            questions: { type: 'array', items: { type: 'string' } },
+                            recommendations: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        siteClassName: { type: 'string' },
+                                        reasons: { type: 'array', items: { type: 'string' } },
+                                        matchScore: { type: 'number' },
+                                    },
+                                    required: ['siteClassName'],
+                                },
+                            },
+                            bookingDetails: {
+                                type: 'object',
+                                properties: {
+                                    dates: {
+                                        type: 'object',
+                                        properties: {
+                                            arrival: { type: 'string' },
+                                            departure: { type: 'string' },
+                                        },
+                                    },
+                                    partySize: {
+                                        type: 'object',
+                                        properties: {
+                                            adults: { type: 'number' },
+                                            children: { type: 'number' },
+                                        },
+                                    },
+                                    rigInfo: {
+                                        type: 'object',
+                                        properties: {
+                                            type: { type: 'string' },
+                                            length: { type: 'number' },
+                                        },
+                                    },
+                                    siteClassName: { type: 'string' },
+                                    siteClassId: { type: 'string' },
+                                    addOns: { type: 'array', items: { type: 'string' } },
+                                },
+                            },
+                        },
+                        required: ['message', 'action'],
+                    },
+                },
+            },
+        ];
+    }
+
+    private pickToolCall(toolCalls?: { name: string; arguments: string }[]) {
+        if (!toolCalls?.length) return null;
+        return toolCalls.find((call) => call.name === 'guest_assist_response') ?? toolCalls[0];
+    }
+
+    private parseToolArgs(args: string) {
+        try {
+            return JSON.parse(args);
+        } catch {
+            return null;
+        }
+    }
+
+    private buildHistory(history: { role: 'user' | 'assistant'; content: string }[], level: 'strict' | 'moderate' | 'minimal') {
+        if (!history.length) return { historyText: '', historyTokenMap: new Map<string, string>() };
+        const tokenMap = new Map<string, string>();
+        const lines = history.slice(-8).map((entry) => {
+            const result = this.privacy.anonymize(entry.content, level);
+            result.tokenMap.forEach((value, key) => tokenMap.set(key, value));
+            return `${entry.role.toUpperCase()}: ${result.anonymizedText}`;
+        });
+        return { historyText: lines.join('\n'), historyTokenMap: tokenMap };
+    }
+
+    private mergeTokenMaps(a: Map<string, string>, b: Map<string, string>) {
+        const merged = new Map<string, string>();
+        a.forEach((value, key) => merged.set(key, value));
+        b.forEach((value, key) => merged.set(key, value));
+        return merged;
+    }
+
+    private resolveTokenValue(value: any, tokenMap: Map<string, string>): any {
+        if (typeof value === 'string') {
+            return tokenMap.get(value) ?? value;
+        }
+        if (Array.isArray(value)) {
+            return value.map((item) => this.resolveTokenValue(item, tokenMap));
+        }
+        if (value && typeof value === 'object') {
+            const resolved: Record<string, any> = {};
+            for (const [key, item] of Object.entries(value)) {
+                resolved[key] = this.resolveTokenValue(item, tokenMap);
+            }
+            return resolved;
+        }
+        return value;
+    }
+
+    private buildResponseFromTool(
+        toolResult: any,
+        siteClasses: any[],
+        sites: any[],
+        tokenMap: Map<string, string>
+    ): BookingAssistResponse {
+        const resolved = this.resolveTokenValue(toolResult, tokenMap);
+        const response: BookingAssistResponse = {
+            message: (resolved.message || '').trim(),
+            action: resolved.action,
+        };
+
+        if (resolved.questions?.length) {
+            response.clarifyingQuestions = resolved.questions.map((q: string) => String(q).trim()).filter(Boolean);
+        }
+
+        if (resolved.recommendations?.length) {
+            response.recommendations = resolved.recommendations.map((rec: any) => {
+                const name = rec.siteClassName || rec.name || '';
+                const siteClass = siteClasses.find((sc: any) => sc.name.toLowerCase() === String(name).toLowerCase());
+                const site = siteClass ? sites.find((s: any) => s.siteClassId === siteClass.id) : null;
+                return {
+                    siteId: site?.id || '',
+                    siteName: site?.name || String(name),
+                    siteClassName: siteClass?.name || String(name),
+                    matchScore: typeof rec.matchScore === 'number' ? rec.matchScore : 80,
+                    reasons: Array.isArray(rec.reasons) ? rec.reasons : ['AI recommended'],
+                    available: true,
+                };
+            });
+        }
+
+        if (resolved.bookingDetails) {
+            response.bookingDetails = {
+                dates: resolved.bookingDetails.dates,
+                partySize: resolved.bookingDetails.partySize,
+                rigInfo: resolved.bookingDetails.rigInfo,
+                siteClassId: resolved.bookingDetails.siteClassId,
+                siteClassName: resolved.bookingDetails.siteClassName,
+                addOns: resolved.bookingDetails.addOns,
+            };
+        }
+
+        return response;
+    }
+
+    private finalizeGuestResponse(
+        response: BookingAssistResponse,
+        context: BookingContext,
+        siteClasses: any[],
+        availableSiteTypes: Set<string> | null
+    ): BookingAssistResponse {
+        const normalized: BookingAssistResponse = {
+            ...response,
+            action: response.action || 'info',
+            message: response.message?.trim() || 'How can I help with dates or site preferences?',
+        };
+
+        const bookingDetails = { ...(normalized.bookingDetails || {}) };
+        bookingDetails.dates = bookingDetails.dates || context.dates;
+        bookingDetails.partySize = bookingDetails.partySize || context.partySize;
+        bookingDetails.rigInfo = bookingDetails.rigInfo || context.rigInfo;
+
+        const siteClassName = bookingDetails.siteClassName || normalized.recommendations?.[0]?.siteClassName;
+        if (siteClassName && !bookingDetails.siteClassId) {
+            const match = siteClasses.find((sc: any) => sc.name.toLowerCase() === String(siteClassName).toLowerCase());
+            if (match) {
+                bookingDetails.siteClassId = match.id;
+                bookingDetails.siteClassName = match.name;
+            }
+        }
+
+        normalized.recommendations = this.filterRecommendations(
+            normalized.recommendations,
+            siteClasses,
+            bookingDetails,
+            availableSiteTypes
+        );
+
+        const safeQuestions = this.sanitizeQuestions(normalized.clarifyingQuestions || []);
+
+        if (normalized.action === 'book') {
+            const followups: string[] = [];
+            const hasDates = bookingDetails.dates?.arrival && bookingDetails.dates?.departure;
+            const rigType = String(bookingDetails.rigInfo?.type || '').toLowerCase();
+            const wantsRig = ['rv', 'motor', 'trailer', 'fifth', 'camper', 'tent'].some((key) => rigType.includes(key));
+            const hasParty = !!bookingDetails.partySize;
+            const hasRigInfo = !!bookingDetails.rigInfo?.type;
+
+            if (!hasDates) {
+                followups.push('What are your arrival and departure dates?');
+            }
+
+            if (!hasParty && !hasRigInfo) {
+                followups.push('How many guests, and are you bringing an RV, a tent, or looking for a cabin?');
+            } else if (!hasParty && !wantsRig) {
+                followups.push('How many guests will be staying?');
+            }
+
+            if (wantsRig && !bookingDetails.rigInfo?.length) {
+                followups.push('What is the length of your RV or trailer?');
+            }
+
+            if (followups.length) {
+                normalized.action = 'clarify';
+                normalized.clarifyingQuestions = Array.from(new Set([...safeQuestions, ...followups]));
+            } else {
+                normalized.clarifyingQuestions = safeQuestions.length ? safeQuestions : undefined;
+            }
+        } else {
+            normalized.clarifyingQuestions = safeQuestions.length ? safeQuestions : undefined;
+        }
+
+        if (availableSiteTypes && availableSiteTypes.size === 0) {
+            normalized.action = normalized.action === 'book' ? 'info' : normalized.action;
+        }
+
+        normalized.bookingDetails = Object.values(bookingDetails).some((value) => value !== undefined)
+            ? bookingDetails
+            : undefined;
+
+        return normalized;
+    }
+
+    private filterRecommendations(
+        recommendations: SiteRecommendation[] | undefined,
+        siteClasses: any[],
+        bookingDetails: BookingAssistResponse['bookingDetails'],
+        availableSiteTypes: Set<string> | null
+    ) {
+        if (!recommendations?.length) return recommendations;
+
+        const allowedTypes = this.resolveSiteTypeFilter(bookingDetails?.rigInfo?.type);
+        const rigLength = bookingDetails?.rigInfo?.length;
+
+        return recommendations.filter((rec) => {
+            if (availableSiteTypes && !availableSiteTypes.has(rec.siteClassName)) {
+                return false;
+            }
+
+            const siteClass = siteClasses.find((sc: any) => sc.name.toLowerCase() === rec.siteClassName.toLowerCase());
+            if (!siteClass) return true;
+
+            if (allowedTypes && !allowedTypes.has(siteClass.siteType)) {
+                return false;
+            }
+
+            if (rigLength && siteClass.rigMaxLength && Number(siteClass.rigMaxLength) < rigLength) {
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    private resolveSiteTypeFilter(rigType?: string): Set<string> | null {
+        if (!rigType) return null;
+        const normalized = rigType.toLowerCase();
+        if (normalized.includes('tent')) return new Set(['tent']);
+        if (normalized.includes('cabin')) return new Set(['cabin', 'glamping']);
+        if (normalized.includes('glamp') || normalized.includes('yurt')) return new Set(['glamping', 'cabin']);
+        if (normalized.includes('group')) return new Set(['group']);
+        if (['rv', 'motor', 'trailer', 'fifth', 'camper'].some((key) => normalized.includes(key))) {
+            return new Set(['rv']);
+        }
+        return null;
+    }
+
+    private sanitizeQuestions(questions: string[]) {
+        const blocked = [
+            /name/i,
+            /email/i,
+            /phone/i,
+            /contact/i,
+            /address/i,
+            /payment/i,
+            /credit/i,
+            /card/i,
+            /zip/i,
+            /postal/i,
+        ];
+
+        return questions.filter((question) => !blocked.some((pattern) => pattern.test(question)));
     }
 
     private parseResponse(content: string, siteClasses: any[]): BookingAssistResponse {

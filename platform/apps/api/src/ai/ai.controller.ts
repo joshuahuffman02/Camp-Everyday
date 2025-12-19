@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiFeatureGateService } from './ai-feature-gate.service';
 import { AiBookingAssistService } from './ai-booking-assist.service';
 import { AiSupportService } from './ai-support.service';
+import { AiPartnerService } from './ai-partner.service';
 import type { Request } from 'express';
 
 interface UpdateAiSettingsDto {
@@ -37,6 +38,12 @@ interface SupportChatDto {
   context?: string;
 }
 
+interface PartnerChatDto {
+  sessionId?: string;
+  message: string;
+  history?: { role: 'user' | 'assistant'; content: string }[];
+}
+
 @Controller('ai')
 export class AiController {
   constructor(
@@ -44,6 +51,7 @@ export class AiController {
     private readonly gate: AiFeatureGateService,
     private readonly bookingAssist: AiBookingAssistService,
     private readonly supportService: AiSupportService,
+    private readonly partnerService: AiPartnerService,
   ) { }
 
   // ==================== PUBLIC ENDPOINTS ====================
@@ -133,6 +141,36 @@ export class AiController {
           { title: "Contact Support", url: "/help/contact" },
         ],
         showTicketPrompt: true,
+      };
+    }
+  }
+
+  /**
+   * Authenticated AI partner endpoint for staff/admin
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('campgrounds/:campgroundId/partner')
+  async partnerChat(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: PartnerChatDto,
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user;
+
+    try {
+      return await this.partnerService.chat({
+        campgroundId,
+        message: body.message,
+        history: body.history,
+        sessionId: body.sessionId,
+        user,
+      });
+    } catch (error) {
+      console.error('AI partner chat error:', error);
+      return {
+        mode: 'staff',
+        message: "I'm having trouble completing that request right now.",
+        denials: [{ reason: error instanceof Error ? error.message : 'Unknown error' }],
       };
     }
   }
@@ -261,4 +299,3 @@ export class AiController {
     return this.gate.getUsageStats(campgroundId, 30);
   }
 }
-

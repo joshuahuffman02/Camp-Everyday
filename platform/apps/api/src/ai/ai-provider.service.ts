@@ -22,6 +22,15 @@ interface AiCompletionResponse {
     model: string;
 }
 
+interface AiToolCompletionRequest extends AiCompletionRequest {
+    tools: any[];
+    toolChoice?: any;
+}
+
+interface AiToolCompletionResponse extends AiCompletionResponse {
+    toolCalls?: { id?: string; name: string; arguments: string }[];
+}
+
 @Injectable()
 export class AiProviderService {
     private readonly logger = new Logger(AiProviderService.name);
@@ -118,6 +127,95 @@ export class AiProviderService {
         }
     }
 
+    /**
+     * Get AI completion with tool calling support (OpenAI)
+     */
+    async getToolCompletion(request: AiToolCompletionRequest): Promise<AiToolCompletionResponse> {
+        const startTime = Date.now();
+
+        const campground = await this.prisma.campground.findUnique({
+            where: { id: request.campgroundId },
+            select: {
+                aiEnabled: true,
+                aiProvider: true,
+                aiApiKey: true,
+                aiAnonymizationLevel: true,
+            },
+        });
+
+        if (!campground?.aiEnabled) {
+            throw new Error('AI features are not enabled for this campground');
+        }
+
+        const provider = campground.aiProvider || 'openai';
+
+        try {
+            const response = await this.callToolProvider(provider, {
+                systemPrompt: request.systemPrompt,
+                userPrompt: request.userPrompt,
+                apiKey: campground.aiApiKey || process.env.OPENAI_API_KEY,
+                maxTokens: request.maxTokens || 500,
+                temperature: request.temperature || 0.7,
+                tools: request.tools,
+                toolChoice: request.toolChoice,
+            });
+
+            const latencyMs = Date.now() - startTime;
+            const responseHash = this.privacy.hashForAudit(
+                `${response.content || ''}${response.toolCalls ? JSON.stringify(response.toolCalls) : ''}`
+            );
+
+            await this.logInteraction({
+                campgroundId: request.campgroundId,
+                featureType: request.featureType,
+                promptHash: this.privacy.hashForAudit(request.userPrompt),
+                responseHash,
+                tokensUsed: response.tokensUsed,
+                latencyMs,
+                userId: request.userId,
+                sessionId: request.sessionId,
+                success: true,
+                provider,
+                modelUsed: response.model,
+                costCents: this.estimateCost(response.tokensUsed, provider, response.model),
+            });
+
+            await this.prisma.campground.update({
+                where: { id: request.campgroundId },
+                data: {
+                    aiTotalTokensUsed: { increment: response.tokensUsed },
+                },
+            });
+
+            return {
+                content: response.content,
+                toolCalls: response.toolCalls,
+                tokensUsed: response.tokensUsed,
+                latencyMs,
+                provider,
+                model: response.model,
+            };
+        } catch (error) {
+            const latencyMs = Date.now() - startTime;
+
+            await this.logInteraction({
+                campgroundId: request.campgroundId,
+                featureType: request.featureType,
+                promptHash: this.privacy.hashForAudit(request.userPrompt),
+                responseHash: '',
+                tokensUsed: 0,
+                latencyMs,
+                userId: request.userId,
+                sessionId: request.sessionId,
+                success: false,
+                errorType: error instanceof Error ? error.message : 'Unknown error',
+                provider,
+            });
+
+            throw error;
+        }
+    }
+
     private async callProvider(
         provider: string,
         options: {
@@ -138,6 +236,36 @@ export class AiProviderService {
             default:
                 return this.callOpenAI(options);
         }
+    }
+
+    private async callToolProvider(
+        provider: string,
+        options: {
+            systemPrompt: string;
+            userPrompt: string;
+            apiKey?: string | null;
+            maxTokens: number;
+            temperature: number;
+            tools: any[];
+            toolChoice?: any;
+        },
+    ): Promise<{ content: string; tokensUsed: number; model: string; toolCalls?: { id?: string; name: string; arguments: string }[] }> {
+        if (provider === 'openai') {
+            return this.callOpenAITools(options);
+        }
+
+        const fallback = await this.callProvider(provider, {
+            systemPrompt: options.systemPrompt,
+            userPrompt: options.userPrompt,
+            apiKey: options.apiKey,
+            maxTokens: options.maxTokens,
+            temperature: options.temperature,
+        });
+
+        return {
+            ...fallback,
+            toolCalls: undefined,
+        };
     }
 
     private async callOpenAI(options: {
@@ -183,6 +311,66 @@ export class AiProviderService {
 
         return {
             content: data.choices[0]?.message?.content || '',
+            tokensUsed: data.usage?.total_tokens || 0,
+            model: data.model || 'gpt-4o-mini',
+        };
+    }
+
+    private async callOpenAITools(options: {
+        systemPrompt: string;
+        userPrompt: string;
+        apiKey?: string | null;
+        maxTokens: number;
+        temperature: number;
+        tools: any[];
+        toolChoice?: any;
+    }): Promise<{ content: string; tokensUsed: number; model: string; toolCalls?: { id?: string; name: string; arguments: string }[] }> {
+        const apiKey = options.apiKey || process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+            throw new Error('OpenAI API key not configured');
+        }
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: options.systemPrompt },
+                    { role: 'user', content: options.userPrompt },
+                ],
+                tools: options.tools,
+                tool_choice: options.toolChoice || 'auto',
+                max_tokens: options.maxTokens,
+                temperature: options.temperature,
+            }),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            this.logger.error(`OpenAI API error: ${error}`);
+            throw new Error(`OpenAI API error: ${response.status}`);
+        }
+
+        const data = await response.json() as {
+            choices: { message: { content: string; tool_calls?: { id?: string; type: string; function: { name: string; arguments: string } }[] } }[];
+            usage: { total_tokens: number };
+            model: string;
+        };
+
+        const message = data.choices[0]?.message;
+        const toolCalls = message?.tool_calls?.map((call) => ({
+            id: call.id,
+            name: call.function?.name,
+            arguments: call.function?.arguments,
+        })).filter((call) => call.name && call.arguments);
+
+        return {
+            content: message?.content || '',
+            toolCalls: toolCalls?.length ? toolCalls as { id?: string; name: string; arguments: string }[] : undefined,
             tokensUsed: data.usage?.total_tokens || 0,
             model: data.model || 'gpt-4o-mini',
         };
