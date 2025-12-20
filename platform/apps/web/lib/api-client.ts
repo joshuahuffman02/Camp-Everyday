@@ -4452,6 +4452,12 @@ export const apiClient = {
     return z.array(StoreOrderSchema.extend({
       fulfillmentLocation: StoreLocationSchema.pick({ id: true, name: true, code: true }).nullable().optional(),
       assignedBy: z.object({ id: z.string(), name: z.string().nullable(), email: z.string() }).nullable().optional(),
+      guest: z.object({
+        id: z.string(),
+        firstName: z.string().nullable(),
+        lastName: z.string().nullable(),
+        phone: z.string().nullable(),
+      }).nullable().optional(),
     })).parse(data);
   },
   async getFulfillmentCounts(campgroundId: string) {
