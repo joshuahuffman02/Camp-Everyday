@@ -461,7 +461,7 @@ export default function ReservationDetailPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    apiClient.fetchJSON(`/repeat-charges/reservation/${reservationId}/generate`, { method: 'POST' })
+                    apiClient.generateRepeatCharges(reservationId)
                       .then(() => queryClient.invalidateQueries({ queryKey: ["reservation-charges", reservationId] }));
                   }}
                 >
