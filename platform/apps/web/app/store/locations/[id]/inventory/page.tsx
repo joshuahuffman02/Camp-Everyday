@@ -38,21 +38,7 @@ import {
 import Link from "next/link";
 import { cn } from "../../../../../lib/utils";
 
-type LocationInventory = {
-    id: string;
-    productId: string;
-    locationId: string;
-    stockQty: number;
-    lowStockAlert?: number | null;
-    product?: {
-        id: string;
-        name: string;
-        sku?: string | null;
-        priceCents: number;
-        trackInventory?: boolean;
-        lowStockAlert?: number | null;
-    };
-};
+type LocationInventory = Awaited<ReturnType<typeof apiClient.getLocationInventory>>[0];
 
 export default function LocationInventoryPage() {
     const params = useParams();

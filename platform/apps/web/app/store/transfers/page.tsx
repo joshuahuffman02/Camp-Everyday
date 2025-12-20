@@ -53,25 +53,7 @@ import {
 import { format } from "date-fns";
 import { cn } from "../../../lib/utils";
 
-type TransferItem = {
-    productId: string;
-    qty: number;
-    product?: { id: string; name: string; sku: string | null };
-};
-
-type InventoryTransfer = {
-    id: string;
-    status: "pending" | "in_transit" | "completed" | "cancelled";
-    notes?: string | null;
-    createdAt?: string;
-    fromLocation?: { id: string; name: string; code?: string | null };
-    toLocation?: { id: string; name: string; code?: string | null };
-    requestedBy?: { firstName: string; lastName: string };
-    approvedBy?: { firstName: string; lastName: string } | null;
-    completedBy?: { firstName: string; lastName: string } | null;
-    items?: TransferItem[];
-    _count?: { items?: number };
-};
+type InventoryTransfer = Awaited<ReturnType<typeof apiClient.getInventoryTransfers>>[0];
 
 const STATUS_CONFIG = {
     pending: { label: "Pending", icon: Clock, color: "bg-amber-100 text-amber-800" },

@@ -57,25 +57,7 @@ type Category = {
     sortOrder: number;
 };
 
-type StoreLocation = {
-    id: string;
-    campgroundId: string;
-    name: string;
-    code?: string | null;
-    type: "physical" | "virtual";
-    isDefault: boolean;
-    isActive: boolean;
-    acceptsOnline: boolean;
-    sortOrder: number;
-    createdAt?: string;
-    updatedAt?: string;
-    _count?: {
-        terminals?: number;
-        locationInventory?: number;
-        priceOverrides?: number;
-        fulfillmentOrders?: number;
-    };
-};
+type StoreLocation = Awaited<ReturnType<typeof apiClient.getStoreLocations>>[0];
 
 export type CartItem = Product & { qty: number };
 

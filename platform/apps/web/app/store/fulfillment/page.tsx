@@ -10,38 +10,9 @@ import { Label } from "../../../components/ui/label";
 import { apiClient } from "../../../lib/api-client";
 import Link from "next/link";
 
-type FulfillmentStatus = "unassigned" | "assigned" | "preparing" | "ready" | "completed";
-
-type StoreLocation = {
-    id: string;
-    name: string;
-    code: string | null;
-};
-
-type FulfillmentOrder = {
-    id: string;
-    campgroundId?: string;
-    channel?: string;
-    fulfillmentType?: string | null;
-    siteNumber?: string | null;
-    deliveryInstructions?: string | null;
-    promisedAt?: string | null;
-    status: string;
-    totalCents: number;
-    fulfillmentStatus: FulfillmentStatus;
-    fulfillmentLocationId?: string | null;
-    fulfillmentLocation?: { id: string; name: string; code: string | null } | null;
-    assignedAt?: string | null;
-    assignedBy?: { id: string; name: string | null; email: string } | null;
-    createdAt?: string;
-    items: Array<{
-        id: string;
-        name: string;
-        qty: number;
-        product?: { id: string; name: string; imageUrl: string | null } | null;
-    }>;
-    guest?: { id: string; firstName: string | null; lastName: string | null; phone: string | null } | null;
-};
+type StoreLocation = Awaited<ReturnType<typeof apiClient.getStoreLocations>>[0];
+type FulfillmentOrder = Awaited<ReturnType<typeof apiClient.getFulfillmentQueue>>[0];
+type FulfillmentStatus = NonNullable<FulfillmentOrder["fulfillmentStatus"]>;
 
 const STATUS_COLORS: Record<FulfillmentStatus, string> = {
     unassigned: "bg-slate-100 text-slate-700 border-slate-200",
@@ -98,8 +69,8 @@ export default function FulfillmentQueuePage() {
                 apiClient.getStoreLocations(campgroundId),
                 apiClient.getFulfillmentCounts(campgroundId),
             ]);
-            setOrders(ordersData as FulfillmentOrder[]);
-            setLocations(locationsData.filter((l) => l.acceptsOnline) as StoreLocation[]);
+            setOrders(ordersData);
+            setLocations(locationsData.filter((l) => l.acceptsOnline));
             setCounts(countsData);
         } catch (err) {
             console.error("Failed to load fulfillment data:", err);

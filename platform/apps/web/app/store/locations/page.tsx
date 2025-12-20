@@ -39,23 +39,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../../lib/utils";
 
-type StoreLocation = {
-    id: string;
-    campgroundId: string;
-    name: string;
-    code?: string | null;
-    type: "physical" | "virtual";
-    isDefault: boolean;
-    isActive: boolean;
-    acceptsOnline: boolean;
-    sortOrder: number;
-    _count?: {
-        terminals?: number;
-        locationInventory?: number;
-        priceOverrides?: number;
-        fulfillmentOrders?: number;
-    };
-};
+type StoreLocation = Awaited<ReturnType<typeof apiClient.getStoreLocations>>[0];
 
 export default function StoreLocationsPage() {
     const queryClient = useQueryClient();
