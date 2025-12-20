@@ -20,20 +20,20 @@ type StoreLocation = {
 
 type FulfillmentOrder = {
     id: string;
-    campgroundId: string;
-    channel: string;
-    fulfillmentType: string | null;
-    siteNumber: string | null;
-    deliveryInstructions: string | null;
-    promisedAt: string | null;
+    campgroundId?: string;
+    channel?: string;
+    fulfillmentType?: string | null;
+    siteNumber?: string | null;
+    deliveryInstructions?: string | null;
+    promisedAt?: string | null;
     status: string;
     totalCents: number;
     fulfillmentStatus: FulfillmentStatus;
-    fulfillmentLocationId: string | null;
+    fulfillmentLocationId?: string | null;
     fulfillmentLocation?: { id: string; name: string; code: string | null } | null;
-    assignedAt: string | null;
+    assignedAt?: string | null;
     assignedBy?: { id: string; name: string | null; email: string } | null;
-    createdAt: string;
+    createdAt?: string;
     items: Array<{
         id: string;
         name: string;

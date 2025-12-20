@@ -250,6 +250,8 @@ const OnboardingInviteResponseSchema = z.object({
 
 // Product schemas are imported from @campreserv/shared
 
+const FulfillmentStatusSchema = z.enum(["unassigned", "assigned", "preparing", "ready", "completed"]);
+
 const StoreOrderItemSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -277,11 +279,17 @@ const StoreOrderAdjustmentSchema = z.object({
 
 const StoreOrderSchema = z.object({
   id: z.string(),
+  campgroundId: z.string(),
+  reservationId: z.string().nullable().optional(),
+  guestId: z.string().nullable().optional(),
   totalCents: z.number(),
   status: z.string(),
   paymentMethod: z.string().optional(),
   channel: z.enum(["pos", "online", "kiosk", "portal", "internal"]).optional(),
   fulfillmentType: z.enum(["pickup", "curbside", "delivery", "table_service"]).optional(),
+  fulfillmentStatus: FulfillmentStatusSchema.default("unassigned"),
+  fulfillmentLocationId: z.string().nullable().default(null),
+  assignedAt: z.string().nullable().default(null),
   deliveryInstructions: z.string().nullable().optional(),
   promisedAt: z.string().nullable().optional(),
   prepTimeMinutes: z.number().int().nullable().optional(),
