@@ -153,6 +153,8 @@ export class AiPartnerService {
 
     // Privacy Redaction
     const { anonymizedText, tokenMap } = this.privacy.anonymize(message, campground.aiAnonymizationLevel ?? "moderate");
+    const { historyText, historyTokenMap } = this.buildHistory(history, campground.aiAnonymizationLevel ?? "moderate");
+    const mergedTokenMap = this.mergeTokenMaps(tokenMap, historyTokenMap);
 
     // Execute via ADK Runner
     try {
@@ -177,9 +179,184 @@ export class AiPartnerService {
       };
     } catch (err) {
       this.logger.error("ADK Partner Execution Failed", err);
-      return {
+      return await this.runFallback({
+        campground,
+        campgroundId,
+        anonymizedText,
+        historyText,
+        tokenMap: mergedTokenMap,
+        role,
         mode,
-        message: "I encountered an error while processing your request. Please try again later.",
+        user,
+        sessionId
+      });
+    }
+  }
+
+  private async runFallback(params: {
+    campground: { id: string; name: string; slug: string; aiAnonymizationLevel: string | null };
+    campgroundId: string;
+    anonymizedText: string;
+    historyText: string;
+    tokenMap: Map<string, string>;
+    role: string;
+    mode: PartnerMode;
+    user: any;
+    sessionId?: string;
+  }): Promise<AiPartnerResponse> {
+    try {
+      const systemPrompt = this.buildSystemPrompt({
+        mode: params.mode,
+        campgroundName: params.campground.name,
+        role: params.role,
+        campgroundId: params.campgroundId
+      });
+
+      const userPrompt = this.buildUserPrompt({
+        anonymizedText: params.anonymizedText,
+        historyText: params.historyText,
+        campgroundName: params.campground.name,
+        campgroundId: params.campgroundId,
+        userId: params.user?.id,
+        role: params.role,
+        mode: params.mode
+      });
+
+      const toolResponse = await this.provider.getToolCompletion({
+        campgroundId: params.campgroundId,
+        featureType: AiFeatureType.reply_assist,
+        systemPrompt,
+        userPrompt,
+        userId: params.user?.id,
+        sessionId: params.sessionId,
+        tools: this.buildTools(),
+        toolChoice: { type: "function", function: { name: "assistant_response" } },
+        maxTokens: 700,
+        temperature: 0.2
+      });
+
+      const toolCall = this.pickToolCall(toolResponse.toolCalls);
+      const toolArgs = toolCall ? this.parseToolArgs(toolCall.arguments) : null;
+      const rawMessage = typeof toolArgs?.message === "string" && toolArgs.message.trim().length
+        ? toolArgs.message
+        : toolResponse.content;
+
+      const message = this.privacy.deanonymize(
+        rawMessage || "I can help with availability, holds, and rate guidance. What would you like to do?",
+        params.tokenMap
+      );
+
+      const questions = Array.isArray(toolArgs?.questions)
+        ? toolArgs.questions.map((q: string) => this.privacy.deanonymize(String(q), params.tokenMap))
+        : undefined;
+
+      if (toolArgs?.denial) {
+        return {
+          mode: params.mode,
+          message,
+          questions,
+          denials: [{
+            reason: this.privacy.deanonymize(String(toolArgs.denial.reason || "Request denied."), params.tokenMap),
+            guidance: toolArgs.denial.guidance
+              ? this.privacy.deanonymize(String(toolArgs.denial.guidance), params.tokenMap)
+              : undefined
+          }]
+        };
+      }
+
+      const actionInput = toolArgs?.action;
+      const actionType = actionInput?.type as ActionType | undefined;
+      if (!actionType || actionType === "none" || !(actionType in ACTION_REGISTRY)) {
+        return { mode: params.mode, message, questions };
+      }
+
+      const registry = ACTION_REGISTRY[actionType as Exclude<ActionType, "none">];
+      const parameters = this.resolveParameters(actionInput?.parameters ?? {}, params.tokenMap);
+      const sensitivity = (actionInput?.sensitivity as "low" | "medium" | "high" | undefined) ?? registry.sensitivity;
+      const impactArea = (actionInput?.impactArea as ImpactArea | undefined) ?? registry.impactArea;
+
+      const access = await this.permissions.checkAccess({
+        user: params.user,
+        campgroundId: params.campgroundId,
+        resource: registry.resource,
+        action: registry.action
+      });
+
+      const baseDraft: ActionDraft = {
+        id: randomUUID(),
+        actionType,
+        resource: registry.resource,
+        action: registry.action,
+        parameters,
+        status: access.allowed ? "draft" : "denied",
+        sensitivity,
+        impactArea
+      };
+
+      if (!access.allowed) {
+        return {
+          mode: params.mode,
+          message,
+          questions,
+          actionDrafts: [baseDraft],
+          denials: [{ reason: "You don't have permission to perform that action." }]
+        };
+      }
+
+      const impact = await this.evaluateImpact({
+        campgroundId: params.campgroundId,
+        actionType,
+        impactArea,
+        parameters
+      });
+
+      const explicitConfirmation = actionInput?.requiresConfirmation ?? registry.confirmByDefault ?? false;
+      const requiresConfirmation = explicitConfirmation || sensitivity === "high" || impact?.level === "high";
+
+      const actionDraft: ActionDraft = {
+        ...baseDraft,
+        requiresConfirmation,
+        impact,
+        evidenceLinks: this.buildEvidenceLinks(actionType, parameters)
+      };
+
+      let finalMessage = message;
+      let finalDraft = actionDraft;
+
+      if (!requiresConfirmation) {
+        if (actionType === "lookup_availability") {
+          const executed = await this.executeReadAction(params.campground, actionDraft);
+          if (executed) {
+            finalMessage = executed.message;
+            finalDraft = executed.action;
+          }
+        }
+        if (actionType === "create_hold") {
+          const executed = await this.executeHold(params.campground, actionDraft, params.user);
+          if (executed) {
+            finalMessage = executed.message;
+            finalDraft = executed.action;
+          }
+        }
+      }
+
+      const confirmationPrompt = actionInput?.summary
+        ? this.privacy.deanonymize(String(actionInput.summary), params.tokenMap)
+        : `Confirm to ${actionType.replace(/_/g, " ")}?`;
+
+      return {
+        mode: params.mode,
+        message: finalMessage,
+        questions,
+        actionDrafts: [finalDraft],
+        confirmations: requiresConfirmation ? [{ id: finalDraft.id, prompt: confirmationPrompt }] : undefined,
+        evidenceLinks: finalDraft.evidenceLinks
+      };
+    } catch (err) {
+      this.logger.error("AI Partner fallback failed", err);
+      return {
+        mode: params.mode,
+        message: "The AI partner is temporarily unavailable. Please try again shortly."
       };
     }
   }

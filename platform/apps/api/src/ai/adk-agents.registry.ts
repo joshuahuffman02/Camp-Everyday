@@ -1,4 +1,3 @@
-import { adk } from "@google/adk";
 import { createRevenueTools, createOpsTools } from "./adk-tools";
 
 /**
@@ -22,24 +21,47 @@ Keep responses operational and direct.
 `;
 
 export const createAgentRegistry = (services: any) => {
-    // Specialized Agents
-    const revenueAgent = adk.llmAgent({
-        name: "RevenueManager",
-        instructions: REVENUE_MANAGER_PROMPT,
-        tools: createRevenueTools(services.pricingV2, services.seasonalRates),
-    });
+    let runnerPromise: Promise<any> | null = null;
+    let loadError: Error | null = null;
 
-    const opsAgent = adk.llmAgent({
-        name: "OperationsChief",
-        instructions: OPERATIONS_CHIEF_PROMPT,
-        tools: createOpsTools(services.reservations, services.maintenance, services.repeatCharges),
-    });
+    const loadRunner = async () => {
+        if (loadError) {
+            throw loadError;
+        }
+        if (!runnerPromise) {
+            runnerPromise = (async () => {
+                const { adk } = await import("@google/adk");
 
-    // The Orchestrator (Dispatcher)
-    // It handles user intent and routes to the correct expert
-    return adk.orchestrator({
-        name: "ActivePartnerOrchestrator",
-        instructions: "You are the Active AI Partner for a campground owner. Route the user to the correct expert based on their goal.",
-        agents: [revenueAgent, opsAgent],
-    });
+                const revenueAgent = adk.llmAgent({
+                    name: "RevenueManager",
+                    instructions: REVENUE_MANAGER_PROMPT,
+                    tools: createRevenueTools(adk, services.pricingV2, services.seasonalRates),
+                });
+
+                const opsAgent = adk.llmAgent({
+                    name: "OperationsChief",
+                    instructions: OPERATIONS_CHIEF_PROMPT,
+                    tools: createOpsTools(adk, services.reservations, services.maintenance, services.repeatCharges),
+                });
+
+                return adk.orchestrator({
+                    name: "ActivePartnerOrchestrator",
+                    instructions: "You are the Active AI Partner for a campground owner. Route the user to the correct expert based on their goal.",
+                    agents: [revenueAgent, opsAgent],
+                });
+            })().catch((err: Error) => {
+                loadError = err;
+                runnerPromise = null;
+                throw err;
+            });
+        }
+        return runnerPromise;
+    };
+
+    return {
+        async run(input: string, options: any) {
+            const runner = await loadRunner();
+            return runner.run(input, options);
+        }
+    };
 };

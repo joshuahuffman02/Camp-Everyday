@@ -1,4 +1,3 @@
-import { adk } from "@google/adk";
 import { z } from "zod";
 import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
 import { ReservationsService } from "../reservations/reservations.service";
@@ -11,7 +10,7 @@ import { RepeatChargesService } from "../repeat-charges/repeat-charges.service";
  * This decouples the AI from the core business logic while providing strict type safety.
  */
 
-export const createRevenueTools = (pricingService: PricingV2Service, seasonalService: SeasonalRatesService) => [
+export const createRevenueTools = (adk: any, pricingService: PricingV2Service, seasonalService: SeasonalRatesService) => [
     adk.tool({
         name: "get_occupancy_report",
         description: "Retrieves a detailed occupancy report for a given date range.",
@@ -70,7 +69,7 @@ export const createRevenueTools = (pricingService: PricingV2Service, seasonalSer
     }),
 ];
 
-export const createOpsTools = (resvService: ReservationsService, maintService: MaintenanceService, billingService: RepeatChargesService) => [
+export const createOpsTools = (adk: any, resvService: ReservationsService, maintService: MaintenanceService, billingService: RepeatChargesService) => [
     adk.tool({
         name: "block_site",
         description: "Blocks a site for a specific date range (e.g., for maintenance).",
