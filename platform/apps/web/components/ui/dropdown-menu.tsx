@@ -102,7 +102,9 @@ export const DropdownMenuTrigger = React.forwardRef<HTMLElement, DropdownMenuTri
       return React.cloneElement(children, sharedProps);
     }
 
-    const buttonProps: React.ButtonHTMLAttributes<HTMLButtonElement> = {
+    const buttonProps: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      ref?: React.Ref<HTMLButtonElement>;
+    } = {
       ...sharedProps,
       type: "button",
       "aria-haspopup": "menu",
