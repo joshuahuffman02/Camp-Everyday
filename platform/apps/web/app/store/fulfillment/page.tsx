@@ -285,7 +285,7 @@ export default function FulfillmentQueuePage() {
                                                     )}
                                                 </div>
                                                 <div className="text-sm text-slate-500 mt-1">
-                                                    {formatTimeAgo(order.createdAt)}
+                                                    {order.createdAt ? formatTimeAgo(order.createdAt) : "Just now"}
                                                     {order.promisedAt && (
                                                         <span className="ml-2 text-amber-600 font-medium">
                                                             Promised: {formatTime(order.promisedAt)}
