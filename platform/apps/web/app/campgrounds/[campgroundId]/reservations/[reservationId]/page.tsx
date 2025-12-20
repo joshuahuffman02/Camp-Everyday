@@ -503,8 +503,8 @@ export default function ReservationDetailPage() {
                               </td>
                               <td className="px-3 py-2 text-right">
                                 {charge.status !== "paid" && (
-                                  <Button size="xs" variant="secondary" className="h-7" onClick={() => {
-                                    apiClient.fetchJSON(`/repeat-charges/${charge.id}/process`, { method: 'POST' })
+                                  <Button size="sm" variant="secondary" className="h-7" onClick={() => {
+                                    apiClient.processRepeatCharge(charge.id)
                                       .then(() => {
                                         queryClient.invalidateQueries({ queryKey: ["reservation-charges", reservationId] });
                                         queryClient.invalidateQueries({ queryKey: ["reservation", reservationId] });
