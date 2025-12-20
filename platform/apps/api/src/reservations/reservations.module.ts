@@ -25,9 +25,10 @@ import { SignaturesModule } from "../signatures/signatures.module";
 import { ApprovalsModule } from "../approvals/approvals.module";
 import { UsageTrackerModule } from "../org-billing/usage-tracker.module";
 import { RepeatChargesModule } from "../repeat-charges/repeat-charges.module";
+import { PoliciesModule } from "../policies/policies.module";
 
 @Module({
-  imports: [WaitlistModule, LoyaltyModule, SeasonalRatesModule, TaxRulesModule, GamificationModule, AuditModule, AccessControlModule, SignaturesModule, ApprovalsModule, UsageTrackerModule, RepeatChargesModule],
+  imports: [WaitlistModule, LoyaltyModule, SeasonalRatesModule, TaxRulesModule, GamificationModule, AuditModule, AccessControlModule, SignaturesModule, PoliciesModule, ApprovalsModule, UsageTrackerModule, RepeatChargesModule],
   controllers: [ReservationsController],
   providers: [
     ReservationsService,
@@ -45,4 +46,3 @@ import { RepeatChargesModule } from "../repeat-charges/repeat-charges.module";
   exports: [ReservationsService, MatchScoreService]
 })
 export class ReservationsModule { }
-

@@ -27,6 +27,7 @@ import { AuditService } from "../audit/audit.service";
 import { ApprovalsService } from "../approvals/approvals.service";
 import { UsageTrackerService } from "../org-billing/usage-tracker.service";
 import { RepeatChargesService } from "../repeat-charges/repeat-charges.service";
+import { PoliciesService } from "../policies/policies.service";
 
 @Injectable()
 export class ReservationsService {
@@ -49,7 +50,8 @@ export class ReservationsService {
     private readonly audit: AuditService,
     private readonly approvals: ApprovalsService,
     private readonly usageTracker: UsageTrackerService,
-    private readonly repeatChargesService: RepeatChargesService
+    private readonly repeatChargesService: RepeatChargesService,
+    private readonly policiesService: PoliciesService
   ) { }
 
   async getMatchedSites(campgroundId: string, guestId: string) {
@@ -255,6 +257,12 @@ export class ReservationsService {
           signingUrl = undefined;
         }
       }
+    }
+
+    const policyCompliance = await this.policiesService.getPendingPolicyCompliance(reservation.id);
+    if (!policyCompliance.ok) {
+      reasons.push("policy_required");
+      signingUrl = signingUrl ?? policyCompliance.signingUrl;
     }
     return { ok: reasons.length === 0, reason: reasons[0], reasons, signingUrl };
   }
@@ -1341,6 +1349,8 @@ export class ReservationsService {
           siteClassId,
           rvType,
           pets,
+          petTypes,
+          policyAcceptances,
           holdId: _holdId,
           requiresAccessible: _requiresAccessible,
           requiredAmenities: _requiredAmenities,
@@ -1359,6 +1369,8 @@ export class ReservationsService {
             rigType: data.rigType || rvType,
             siteId: siteId, // Use the determined siteId (either from data or found from siteClassId)
             children: data.children ?? 0,
+            petCount: pets ?? 0,
+            petTypes: petTypes && petTypes.length ? petTypes : null,
             status: data.status ?? ReservationStatus.pending,
             arrivalDate: arrival,
             departureDate: departure,
@@ -1514,10 +1526,16 @@ export class ReservationsService {
         }
 
         try {
-          await this.signaturesService.autoSendForReservation(reservation);
+          await this.policiesService.applyPoliciesToReservation({
+            reservation,
+            guest: reservation.guest,
+            site: reservation.site,
+            siteClass: reservation.site?.siteClass,
+            channel: reservation.source || "admin",
+            acceptances: policyAcceptances
+          });
         } catch (err) {
-          // Auto-send failures should not block booking creation
-          console.warn(`[Signatures] Auto-send failed for reservation ${reservation.id}:`, err);
+          console.warn(`[Policies] Auto-apply failed for reservation ${reservation.id}:`, err);
         }
 
         // Track usage for billing (non-blocking)
@@ -1623,6 +1641,7 @@ export class ReservationsService {
           siteClassId: _siteClassId,
           rvType: _rvType,
           pets: _pets,
+          petTypes: _petTypes,
           holdId: _holdId,
           requiresAccessible: _requiresAccessible,
           requiredAmenities: _requiredAmenities,
@@ -1664,6 +1683,8 @@ export class ReservationsService {
             departureDate: data.departureDate ? departure : undefined,
             totalAmount,
             paidAmount,
+            petCount: _pets !== undefined ? _pets : existing.petCount,
+            petTypes: _petTypes !== undefined ? _petTypes : existing.petTypes,
             baseSubtotal: data.baseSubtotal ?? (price ? price.baseSubtotalCents : baselinePrice.baseSubtotalCents ?? existing.baseSubtotal),
             feesAmount: data.feesAmount ?? existing.feesAmount,
             taxesAmount: data.taxesAmount ?? existing.taxesAmount,

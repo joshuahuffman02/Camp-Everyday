@@ -77,6 +77,7 @@ import { PosModule } from "./pos/pos.module";
 // Phase 3 imports
 import { DynamicPricingModule } from "./dynamic-pricing/dynamic-pricing.module";
 import { WorkflowsModule } from "./workflows/workflows.module";
+import { PoliciesModule } from "./policies/policies.module";
 import { StaffModule } from "./staff/staff.module";
 import { PortfolioModule } from "./portfolio/portfolio.module";
 import { UploadsModule } from "./uploads/uploads.module";
@@ -180,6 +181,7 @@ import { OrgReferralsModule } from "./org-referrals/org-referrals.module";
     // Phase 3 modules
     DynamicPricingModule,
     WorkflowsModule,
+    PoliciesModule,
     StaffModule,
     PortfolioModule,
     UploadsModule,

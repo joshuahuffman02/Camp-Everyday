@@ -6,12 +6,12 @@ import { SignaturesModule } from '../signatures/signatures.module';
 import { AuditModule } from '../audit/audit.module';
 import { AccessControlModule } from '../access-control/access-control.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { PoliciesModule } from '../policies/policies.module';
 
 @Module({
-  imports: [PrismaModule, SignaturesModule, AuditModule, AccessControlModule, PaymentsModule],
+  imports: [PrismaModule, SignaturesModule, AuditModule, AccessControlModule, PaymentsModule, PoliciesModule],
   controllers: [SelfCheckinController],
   providers: [SelfCheckinService],
   exports: [SelfCheckinService],
 })
 export class SelfCheckinModule {}
-

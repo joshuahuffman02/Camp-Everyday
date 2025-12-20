@@ -71,10 +71,25 @@ export class SignaturesService {
     return `${this.appBaseUrl()}/sign/${token}`;
   }
 
-  private computeReminder(expiresAt?: Date | null, fallbackDays = 2) {
+  private computeReminder(expiresAt?: Date | null, fallbackDays = 2, cadenceDays?: number | null) {
+    if (cadenceDays && cadenceDays > 0) {
+      return new Date(Date.now() + cadenceDays * 24 * 60 * 60 * 1000);
+    }
     if (!expiresAt) return new Date(Date.now() + fallbackDays * 24 * 60 * 60 * 1000);
     const target = new Date(expiresAt.getTime() - fallbackDays * 24 * 60 * 60 * 1000);
     return target > new Date() ? target : new Date(Date.now() + fallbackDays * 60 * 60 * 1000);
+  }
+
+  private getReminderCadenceDays(request: any) {
+    const cadence = Number(request?.metadata?.reminderCadenceDays);
+    if (!Number.isFinite(cadence) || cadence <= 0) return null;
+    return cadence;
+  }
+
+  private getReminderMaxCount(request: any) {
+    const max = Number(request?.metadata?.reminderMaxCount);
+    if (!Number.isFinite(max) || max <= 0) return null;
+    return max;
   }
 
   private buildStubPdf(request: any, payload?: SignatureWebhookDto) {
@@ -140,7 +155,8 @@ export class SignaturesService {
     const guest = reservation?.guest ?? (dto.guestId ? await this.prisma.guest.findUnique({ where: { id: dto.guestId } }) : null);
     const token = randomBytes(24).toString("hex");
     const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-    const reminderAt = dto.reminderAt ? new Date(dto.reminderAt) : this.computeReminder(expiresAt);
+    const cadenceDays = dto.metadata?.reminderCadenceDays ? Number(dto.metadata.reminderCadenceDays) : null;
+    const reminderAt = dto.reminderAt ? new Date(dto.reminderAt) : this.computeReminder(expiresAt, 2, cadenceDays);
     const deliveryChannel = dto.deliveryChannel || SignatureDeliveryChannel.email;
     const documentType = dto.documentType || SignatureDocumentType.other;
 
@@ -180,6 +196,51 @@ export class SignaturesService {
     return { request: created, signingUrl: this.signingUrl(token) };
   }
 
+  async createSignedRequest(dto: {
+    campgroundId?: string;
+    reservationId?: string;
+    guestId?: string;
+    templateId?: string;
+    documentType?: SignatureDocumentType;
+    deliveryChannel?: SignatureDeliveryChannel;
+    subject?: string;
+    message?: string;
+    recipientName?: string | null;
+    recipientEmail?: string | null;
+    recipientPhone?: string | null;
+    metadata?: Record<string, any>;
+  }) {
+    const token = randomBytes(24).toString("hex");
+    const request = await this.prisma.signatureRequest.create({
+      data: {
+        campgroundId: dto.campgroundId!,
+        reservationId: dto.reservationId ?? null,
+        guestId: dto.guestId ?? null,
+        templateId: dto.templateId ?? null,
+        documentType: dto.documentType ?? SignatureDocumentType.other,
+        status: SignatureRequestStatus.sent,
+        deliveryChannel: dto.deliveryChannel ?? SignatureDeliveryChannel.email,
+        token,
+        subject: dto.subject ?? null,
+        message: dto.message ?? null,
+        recipientName: dto.recipientName ?? null,
+        recipientEmail: dto.recipientEmail ?? null,
+        recipientPhone: dto.recipientPhone ?? null,
+        sentAt: new Date(),
+        metadata: dto.metadata ?? null
+      }
+    });
+
+    const signed = await this.handleWebhook({
+      token,
+      status: "signed",
+      recipientEmail: dto.recipientEmail ?? undefined,
+      metadata: dto.metadata ?? undefined
+    });
+
+    return signed.request ?? request;
+  }
+
   async resend(id: string, actorId: string | null) {
     const existing = await this.prisma.signatureRequest.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("Signature request not found");
@@ -187,7 +248,8 @@ export class SignaturesService {
       throw new BadRequestException("Cannot resend a completed request");
     }
 
-    const reminderAt = this.computeReminder(existing.expiresAt);
+    const cadenceDays = this.getReminderCadenceDays(existing);
+    const reminderAt = this.computeReminder(existing.expiresAt, 2, cadenceDays);
     const updated = await this.prisma.signatureRequest.update({
       where: { id },
       data: {
@@ -356,6 +418,13 @@ export class SignaturesService {
     });
   }
 
+  async getByToken(token: string) {
+    return this.prisma.signatureRequest.findUnique({
+      where: { token },
+      include: { artifact: true, template: true }
+    });
+  }
+
   private scoreTemplate(tpl: any, siteId?: string | null, siteClassId?: string | null) {
     let score = 0;
     if (tpl.siteId && tpl.siteId === siteId) score += 3;
@@ -466,19 +535,28 @@ export class SignaturesService {
       where: {
         status: { in: [SignatureRequestStatus.sent, SignatureRequestStatus.viewed] },
         reminderAt: { lte: now },
-        expiresAt: { gt: now }
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }]
       },
       take: 25
     });
 
     for (const req of signatureCandidates) {
+      const maxCount = this.getReminderMaxCount(req);
+      if (maxCount !== null && req.reminderCount >= maxCount) {
+        await this.prisma.signatureRequest.update({
+          where: { id: req.id },
+          data: { reminderAt: null }
+        });
+        continue;
+      }
       try {
         await this.deliverRequest(req);
+        const cadenceDays = this.getReminderCadenceDays(req);
         await this.prisma.signatureRequest.update({
           where: { id: req.id },
           data: {
             reminderCount: req.reminderCount + 1,
-            reminderAt: this.computeReminder(req.expiresAt)
+            reminderAt: this.computeReminder(req.expiresAt, 2, cadenceDays)
           }
         });
       } catch (err) {
@@ -519,4 +597,3 @@ export class SignaturesService {
     }
   }
 }
-

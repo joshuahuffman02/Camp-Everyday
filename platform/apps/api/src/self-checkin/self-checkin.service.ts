@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { AccessControlService } from '../access-control/access-control.service';
 import { StripeService } from '../payments/stripe.service';
 import { GatewayConfigService } from '../payments/gateway-config.service';
+import { PoliciesService } from '../policies/policies.service';
 
 export type CheckinResult = {
   status: 'completed' | 'failed';
@@ -30,7 +31,8 @@ export class SelfCheckinService {
     private readonly audit: AuditService,
     private readonly accessControl: AccessControlService,
     private readonly stripeService: StripeService,
-    private readonly gatewayConfig: GatewayConfigService
+    private readonly gatewayConfig: GatewayConfigService,
+    private readonly policies: PoliciesService
   ) { }
 
   private async attachWaiverArtifacts(reservationId: string, guestId: string, evidence: { request?: any; artifact?: any; digital?: any }) {
@@ -196,6 +198,11 @@ export class SelfCheckinService {
       if (!signed) reasons.push('waiver_required');
     }
 
+    const policyCompliance = await this.policies.getPendingPolicyCompliance(reservation.id);
+    if (!policyCompliance.ok) {
+      reasons.push('policy_required');
+    }
+
     if (!reservation.siteReady) {
       reasons.push('site_not_ready');
     }
@@ -256,6 +263,10 @@ export class SelfCheckinService {
       if (validation.reason === "waiver_required" && validation.reservation) {
         const signatureResult = await this.signatures.autoSendForReservation(validation.reservation);
         signingUrl = (signatureResult as any)?.signingUrl;
+      }
+      if (validation.reason === "policy_required" && validation.reservation) {
+        const policyCompliance = await this.policies.getPendingPolicyCompliance(validation.reservation.id);
+        signingUrl = policyCompliance.signingUrl;
       }
 
       // Emit check-in failed communication
@@ -565,4 +576,3 @@ export class SelfCheckinService {
     }
   }
 }
-

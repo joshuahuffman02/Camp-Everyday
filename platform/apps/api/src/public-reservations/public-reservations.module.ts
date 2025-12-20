@@ -8,12 +8,12 @@ import { AbandonedCartModule } from "../abandoned-cart/abandoned-cart.module";
 import { MembershipsModule } from "../memberships/memberships.module";
 import { SignaturesModule } from "../signatures/signatures.module";
 import { AccessControlModule } from "../access-control/access-control.module";
+import { PoliciesModule } from "../policies/policies.module";
 
 @Module({
-    imports: [PrismaModule, RedisModule, PromotionsModule, AbandonedCartModule, MembershipsModule, SignaturesModule, AccessControlModule],
+    imports: [PrismaModule, RedisModule, PromotionsModule, AbandonedCartModule, MembershipsModule, SignaturesModule, PoliciesModule, AccessControlModule],
     controllers: [PublicReservationsController],
     providers: [PublicReservationsService],
     exports: [PublicReservationsService]
 })
 export class PublicReservationsModule { }
-

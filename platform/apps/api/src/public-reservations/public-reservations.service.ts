@@ -11,6 +11,7 @@ import { resolveDiscounts } from "../pricing-v2/discount-engine";
 import { TaxRuleType } from "@prisma/client";
 import { MembershipsService } from "../memberships/memberships.service";
 import { SignaturesService } from "../signatures/signatures.service";
+import { PoliciesService } from "../policies/policies.service";
 import { AccessControlService } from "../access-control/access-control.service";
 
 @Injectable()
@@ -23,6 +24,7 @@ export class PublicReservationsService {
         private readonly abandonedCarts: AbandonedCartService,
         private readonly memberships: MembershipsService,
         private readonly signatures: SignaturesService,
+        private readonly policies: PoliciesService,
         private readonly accessControl: AccessControlService
     ) { }
 
@@ -636,6 +638,47 @@ export class PublicReservationsService {
                 ? totalAfterDiscount + (taxResult.taxesCents - taxResult.inclusiveTaxesCents)
                 : totalAfterDiscount + taxResult.taxesCents;
 
+        const policyRequirements = await this.policies.evaluatePolicies(campground.id, {
+            campgroundId: campground.id,
+            channel: "online",
+            stay: {
+                nights,
+                arrivalDate: arrival,
+                departureDate: departure
+            },
+            site: {
+                id: site.id,
+                siteClassId: site.siteClassId,
+                siteType: site.siteType,
+                tags: site.tags ?? [],
+                amenityTags: site.amenityTags ?? [],
+                vibeTags: site.vibeTags ?? [],
+                petFriendly: site.petFriendly,
+                accessible: site.accessible,
+                maxOccupancy: site.maxOccupancy
+            },
+            siteClass: site.siteClass
+                ? {
+                    id: site.siteClass.id,
+                    siteType: site.siteClass.siteType,
+                    tags: site.siteClass.tags ?? [],
+                    petFriendly: site.siteClass.petFriendly,
+                    accessible: site.siteClass.accessible,
+                    maxOccupancy: site.siteClass.maxOccupancy,
+                    minNights: site.siteClass.minNights ?? null,
+                    maxNights: site.siteClass.maxNights ?? null
+                }
+                : undefined,
+            guest: {
+                adults: dto.adults ?? undefined,
+                children: dto.children ?? undefined,
+                partySize: (dto.adults ?? 0) + (dto.children ?? 0),
+                petCount: dto.petCount ?? undefined,
+                petTypes: dto.petTypes ?? [],
+                stayReasonPreset: dto.stayReasonPreset ?? undefined
+            }
+        });
+
         return {
             nights,
             baseSubtotalCents: baseSubtotal,
@@ -658,7 +701,8 @@ export class PublicReservationsService {
             referralIncentiveType: referral.type ?? null,
             referralIncentiveValue: referral.discountCents ?? 0,
             referralSource: referral.source ?? null,
-            referralChannel: referral.channel ?? null
+            referralChannel: referral.channel ?? null,
+            policyRequirements
         };
     }
 
@@ -770,6 +814,47 @@ export class PublicReservationsService {
             stayReasonPreset: dto.stayReasonPreset,
             stayReasonOther: dto.stayReasonOther
         });
+
+        await this.policies.assertPreBookingPolicies(
+            campground.id,
+            {
+                campgroundId: campground.id,
+                channel: "online",
+                stay: { nights: quote.nights, arrivalDate: arrival, departureDate: departure },
+                site: {
+                    id: site.id,
+                    siteClassId: site.siteClassId,
+                    siteType: site.siteType,
+                    tags: site.tags ?? [],
+                    amenityTags: site.amenityTags ?? [],
+                    vibeTags: site.vibeTags ?? [],
+                    petFriendly: site.petFriendly,
+                    accessible: site.accessible,
+                    maxOccupancy: site.maxOccupancy
+                },
+                siteClass: site.siteClass
+                    ? {
+                        id: site.siteClass.id,
+                        siteType: site.siteClass.siteType,
+                        tags: site.siteClass.tags ?? [],
+                        petFriendly: site.siteClass.petFriendly,
+                        accessible: site.siteClass.accessible,
+                        maxOccupancy: site.siteClass.maxOccupancy,
+                        minNights: site.siteClass.minNights ?? null,
+                        maxNights: site.siteClass.maxNights ?? null
+                    }
+                    : undefined,
+                guest: {
+                    adults: dto.adults ?? undefined,
+                    children: dto.children ?? undefined,
+                    partySize: (dto.adults ?? 0) + (dto.children ?? 0),
+                    petCount: dto.petCount ?? undefined,
+                    petTypes: dto.petTypes ?? [],
+                    stayReasonPreset: dto.stayReasonPreset ?? undefined
+                }
+            },
+            dto.policyAcceptances ?? []
+        );
 
         const subtotal = quote.totalCents;
         const discountCents = quote.discountCents ?? 0;
@@ -912,6 +997,8 @@ export class PublicReservationsService {
                         departureDate: departure,
                         adults: dto.adults,
                         children: dto.children ?? 0,
+                        petCount: dto.petCount ?? 0,
+                        petTypes: dto.petTypes ?? null,
                         siteLocked: dto.siteLocked ?? false,
                         status: ReservationStatus.pending,
                         totalAmount: totalAmount,
@@ -1011,6 +1098,19 @@ export class PublicReservationsService {
                 // Increment promotion usage count if promo was applied
                 if (promotionId) {
                     await this.promotionsService.incrementUsage(promotionId);
+                }
+
+                try {
+                    await this.policies.applyPoliciesToReservation({
+                        reservation,
+                        guest: reservation.guest,
+                        site: reservation.site,
+                        siteClass: reservation.site?.siteClass,
+                        channel: "online",
+                        acceptances: dto.policyAcceptances ?? []
+                    });
+                } catch (err) {
+                    console.warn(`[Policies] Auto-apply failed for reservation ${reservation.id}:`, err);
                 }
 
                 // Send confirmation email with cancellation policy
@@ -1279,6 +1379,14 @@ export class PublicReservationsService {
                     signingUrl: (signatureResult as any)?.signingUrl
                 });
             }
+        }
+
+        const policyCompliance = await this.policies.getPendingPolicyCompliance(reservation.id);
+        if (!policyCompliance.ok) {
+            throw new ConflictException({
+                reason: policyCompliance.reason,
+                signingUrl: policyCompliance.signingUrl
+            });
         }
 
         const newTotal = reservation.totalAmount + upsellTotalCents;

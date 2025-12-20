@@ -48,6 +48,8 @@ interface GuestInfo {
     zipCode: string;
     adults: number;
     children: number;
+    petCount: number;
+    petTypes: string[];
     additionalGuests: AdditionalGuest[];
     childrenDetails: ChildDetails[];
     stayReasonPreset: string;
@@ -873,6 +875,7 @@ function GuestStep({
     const [showPartyDetails, setShowPartyDetails] = useState(false);
     const [showStayReason, setShowStayReason] = useState(false);
     const [showEquipment, setShowEquipment] = useState(false);
+    const [showPets, setShowPets] = useState(false);
 
     // Simplified validation - only require essential fields
     const isValid =
@@ -1253,6 +1256,69 @@ function GuestStep({
                     )}
                 </div>
 
+                {/* Collapsible: Pets */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <button
+                        type="button"
+                        onClick={() => setShowPets(!showPets)}
+                        className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between text-left"
+                    >
+                        <span className="text-sm font-medium text-slate-700">Pets (optional)</span>
+                        <svg
+                            className={`w-5 h-5 text-slate-500 transition-transform ${showPets ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    {showPets && (
+                        <div className="p-4 space-y-3">
+                            <div className="flex flex-wrap gap-3">
+                                {["dog", "cat", "other"].map((petType) => {
+                                    const checked = guestInfo.petTypes.includes(petType);
+                                    return (
+                                        <label key={petType} className="flex items-center gap-2 text-sm text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => {
+                                                    const next = checked
+                                                        ? guestInfo.petTypes.filter((p) => p !== petType)
+                                                        : [...guestInfo.petTypes, petType];
+                                                    onChange({
+                                                        ...guestInfo,
+                                                        petTypes: next,
+                                                        petCount: next.length === 0 ? 0 : Math.max(guestInfo.petCount || 0, 1)
+                                                    });
+                                                }}
+                                                className="h-4 w-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                                            />
+                                            {petType.charAt(0).toUpperCase() + petType.slice(1)}
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                            {guestInfo.petTypes.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">How many pets?</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={guestInfo.petCount}
+                                        onChange={(e) => onChange({ ...guestInfo, petCount: parseInt(e.target.value || "1") })}
+                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    />
+                                </div>
+                            )}
+                            <p className="text-xs text-slate-500">
+                                Used to match pet-related park policies and site eligibility.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
                 {/* Collapsible: Equipment/Vehicle */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                     <button
@@ -1571,6 +1637,7 @@ function ReviewStep({
 
     // Tax waiver state
     const [taxWaiverSigned, setTaxWaiverSigned] = useState(false);
+    const [policyAcceptances, setPolicyAcceptances] = useState<Record<string, boolean>>({});
 
     // Charity round-up state
     const [charityDonation, setCharityDonation] = useState<{ optedIn: boolean; amountCents: number; charityId: string | null }>({ optedIn: false, amountCents: 0, charityId: null });
@@ -1586,7 +1653,11 @@ function ReviewStep({
             taxWaiverSigned,
             guestInfo.referralCode || null,
             guestInfo.stayReasonPreset,
-            guestInfo.stayReasonOther
+            guestInfo.stayReasonOther,
+            guestInfo.adults,
+            guestInfo.children,
+            guestInfo.petCount,
+            guestInfo.petTypes.join(",")
         ],
         queryFn: () =>
             apiClient.getPublicQuote(slug, {
@@ -1597,10 +1668,46 @@ function ReviewStep({
                 taxWaiverSigned,
                 referralCode: guestInfo.referralCode || undefined,
                 stayReasonPreset: guestInfo.stayReasonPreset || undefined,
-                stayReasonOther: guestInfo.stayReasonPreset === "other" ? guestInfo.stayReasonOther : undefined
+                stayReasonOther: guestInfo.stayReasonPreset === "other" ? guestInfo.stayReasonOther : undefined,
+                adults: guestInfo.adults,
+                children: guestInfo.children,
+                petCount: guestInfo.petCount || 0,
+                petTypes: guestInfo.petTypes
             }),
         enabled: !!slug && !!selectedSite?.id && !!arrivalDate && !!departureDate
     });
+
+    const policyRequirements = useMemo(() => quote?.policyRequirements ?? [], [quote]);
+    const bookingPolicies = useMemo(() => {
+        return policyRequirements.filter((policy) => {
+            const config = (policy?.config ?? {}) as Record<string, any>;
+            const enforcement = config.enforcement ?? "post_booking";
+            const showDuringBooking = config.showDuringBooking ?? true;
+            return showDuringBooking || enforcement === "pre_booking";
+        });
+    }, [policyRequirements]);
+    const requiredPolicies = useMemo(() => {
+        return bookingPolicies.filter((policy) => {
+            const config = (policy?.config ?? {}) as Record<string, any>;
+            return (config.enforcement ?? "post_booking") === "pre_booking";
+        });
+    }, [bookingPolicies]);
+
+    useEffect(() => {
+        if (!bookingPolicies.length) {
+            setPolicyAcceptances({});
+            return;
+        }
+        setPolicyAcceptances((prev) => {
+            const next: Record<string, boolean> = {};
+            for (const policy of bookingPolicies) {
+                next[policy.id] = prev[policy.id] ?? false;
+            }
+            return next;
+        });
+    }, [bookingPolicies]);
+
+    const policiesBlocking = requiredPolicies.some((policy) => !policyAcceptances[policy.id]);
 
     // Auto-apply promo code from URL on mount
     useEffect(() => {
@@ -1728,6 +1835,15 @@ function ReviewStep({
     const stayReasonLabel = guestInfo.stayReasonPreset === "other"
         ? (guestInfo.stayReasonOther || "Other")
         : (reasonLabels[guestInfo.stayReasonPreset] || guestInfo.stayReasonPreset);
+    const signerName = `${guestInfo.firstName} ${guestInfo.lastName}`.trim();
+    const policyAcceptancePayload = bookingPolicies
+        .filter((policy) => policyAcceptances[policy.id])
+        .map((policy) => ({
+            templateId: policy.id,
+            accepted: true,
+            signerName: signerName || undefined,
+            signerEmail: guestInfo.email || undefined
+        }));
 
     const createReservationMutation = useMutation({
         mutationFn: async () => {
@@ -1763,6 +1879,8 @@ function ReviewStep({
                 departureDate,
                 adults: guestInfo.adults,
                 children: guestInfo.children,
+                petCount: guestInfo.petCount,
+                petTypes: guestInfo.petTypes,
                 guest: {
                     firstName: guestInfo.firstName,
                     lastName: guestInfo.lastName,
@@ -1795,6 +1913,7 @@ function ReviewStep({
                     charityId: charityDonation.charityId,
                     amountCents: charityDonation.amountCents
                 } : undefined,
+                policyAcceptances: policyAcceptancePayload.length ? policyAcceptancePayload : undefined,
                 equipment: guestInfo.equipment.type !== "tent" && guestInfo.equipment.type !== "car" ? {
                     type: guestInfo.equipment.type,
                     length: Number(guestInfo.equipment.length),
@@ -1845,6 +1964,11 @@ function ReviewStep({
         setBookingError(null);
         createReservationMutation.mutate();
     };
+    const proceedDisabledReason = waiverBlocking
+        ? "Please sign the tax exemption waiver to continue"
+        : policiesBlocking
+            ? "Please accept the required policies to continue"
+            : undefined;
 
     const formatDate = (dateStr: string) =>
         new Date(dateStr).toLocaleDateString("en-US", {
@@ -2075,6 +2199,83 @@ function ReviewStep({
                 )}
             </div>
 
+            {bookingPolicies.length > 0 && (
+                <div className="mb-6 p-4 bg-white border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-slate-900">Park Policies & Agreements</h4>
+                        <span className="text-xs text-slate-500">
+                            {bookingPolicies.length} {bookingPolicies.length === 1 ? "policy" : "policies"}
+                        </span>
+                    </div>
+                    <div className="space-y-3">
+                        {bookingPolicies.map((policy) => {
+                            const config = (policy?.config ?? {}) as Record<string, any>;
+                            const enforcement = config.enforcement ?? "post_booking";
+                            const requireSignature = config.requireSignature ?? true;
+                            const showAcceptance = enforcement === "pre_booking" || requireSignature;
+                            const required = enforcement === "pre_booking";
+                            const badgeTone =
+                                enforcement === "pre_booking"
+                                    ? "bg-rose-100 text-rose-700 border-rose-200"
+                                    : enforcement === "pre_checkin"
+                                        ? "bg-amber-100 text-amber-700 border-amber-200"
+                                        : enforcement === "post_booking"
+                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                            : "bg-slate-100 text-slate-700 border-slate-200";
+                            const badgeLabel =
+                                enforcement === "pre_booking"
+                                    ? "Required before booking"
+                                    : enforcement === "pre_checkin"
+                                        ? "Required before check-in"
+                                        : enforcement === "post_booking"
+                                            ? "Sent after booking"
+                                            : "Information only";
+                            return (
+                                <div key={policy.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div className="font-medium text-slate-900">{policy.name}</div>
+                                            {policy.description && (
+                                                <div className="text-xs text-slate-600">{policy.description}</div>
+                                            )}
+                                        </div>
+                                        <Badge variant="outline" className={badgeTone}>{badgeLabel}</Badge>
+                                    </div>
+                                    {policy.content && (
+                                        <details className="text-xs text-slate-600">
+                                            <summary className="cursor-pointer select-none">View policy details</summary>
+                                            <div className="mt-2 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700 whitespace-pre-wrap max-h-48 overflow-auto">
+                                                {policy.content}
+                                            </div>
+                                        </details>
+                                    )}
+                                    {showAcceptance && (
+                                        <label className="flex items-start gap-2 text-sm text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                checked={policyAcceptances[policy.id] || false}
+                                                onChange={(e) =>
+                                                    setPolicyAcceptances((prev) => ({ ...prev, [policy.id]: e.target.checked }))
+                                                }
+                                            />
+                                            <span>
+                                                {required ? "I agree to this policy (required to book)." : "Sign now (optional)."}
+                                            </span>
+                                        </label>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {policiesBlocking && (
+                        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                            Please accept the required policies to continue.
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Tax Exemption Waiver Section */}
             {waiverRequired && (
                 <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
@@ -2194,9 +2395,9 @@ function ReviewStep({
                     </button>
                     <button
                         onClick={handleProceedToPayment}
-                        disabled={createReservationMutation.isPending || !quote || waiverBlocking}
+                        disabled={createReservationMutation.isPending || !quote || waiverBlocking || policiesBlocking}
                         className="flex-1 py-4 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 disabled:bg-slate-400 transition-colors"
-                        title={waiverBlocking ? "Please sign the tax exemption waiver to continue" : undefined}
+                        title={proceedDisabledReason}
                     >
                         {createReservationMutation.isPending ? "Creating..." : "Proceed to Payment"}
                     </button>
@@ -2472,6 +2673,8 @@ export default function BookingPage() {
         zipCode: "",
         adults: initialAdults,
         children: initialChildren,
+        petCount: 0,
+        petTypes: [],
         additionalGuests: [],
         childrenDetails: [],
         stayReasonPreset: "vacation",
@@ -2510,6 +2713,8 @@ export default function BookingPage() {
             zipCode: guestInfo.zipCode,
             adults: guestInfo.adults,
             children: guestInfo.children,
+            petCount: guestInfo.petCount,
+            petTypes: guestInfo.petTypes,
             stayReasonPreset: guestInfo.stayReasonPreset,
             stayReasonOther: guestInfo.stayReasonOther,
             referralCode: guestInfo.referralCode,

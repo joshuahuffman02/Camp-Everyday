@@ -45,6 +45,11 @@ export class SignaturesController {
     return this.signatures.getById(id);
   }
 
+  @Get("requests/token/:token")
+  async getRequestByToken(@Param("token") token: string) {
+    return this.signatures.getByToken(token);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance, UserRole.readonly)
   @RequireScope({ resource: "reservations", action: "read" })

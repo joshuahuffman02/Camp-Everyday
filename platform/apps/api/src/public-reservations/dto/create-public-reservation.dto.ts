@@ -83,6 +83,26 @@ export class PublicEquipmentDto {
     model?: string;
 }
 
+export class PolicyAcceptanceDto {
+    @IsString()
+    @IsNotEmpty()
+    templateId!: string;
+
+    @IsBoolean()
+    accepted!: boolean;
+
+    @IsOptional()
+    @IsString()
+    signerName?: string;
+
+    @IsOptional()
+    @IsEmail()
+    signerEmail?: string;
+
+    @IsOptional()
+    metadata?: Record<string, any>;
+}
+
 export class CreatePublicReservationDto {
     @IsString()
     @IsNotEmpty()
@@ -174,6 +194,22 @@ export class CreatePublicReservationDto {
     needsAccessible?: boolean;
 
     @IsOptional()
+    @IsInt()
+    @Min(0)
+    petCount?: number;
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    petTypes?: string[];
+
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => PolicyAcceptanceDto)
+    policyAcceptances?: PolicyAcceptanceDto[];
+
+    @IsOptional()
     @IsString()
     holdId?: string;
 }
@@ -245,4 +281,24 @@ export class PublicQuoteDto {
     @IsOptional()
     @IsString()
     stayReasonPreset?: StayReasonPreset;
+
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    adults?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(0)
+    children?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(0)
+    petCount?: number;
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    petTypes?: string[];
 }

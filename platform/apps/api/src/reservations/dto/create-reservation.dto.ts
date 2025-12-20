@@ -1,5 +1,26 @@
-import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min, ValidateNested } from "class-validator";
 import { ReservationStatus, StayReasonPreset } from "@prisma/client";
+import { Type } from "class-transformer";
+
+export class PolicyAcceptanceDto {
+  @IsString()
+  @IsNotEmpty()
+  templateId!: string;
+
+  @IsBoolean()
+  accepted!: boolean;
+
+  @IsOptional()
+  @IsString()
+  signerName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  signerEmail?: string;
+
+  @IsOptional()
+  metadata?: Record<string, any>;
+}
 
 export class CreateReservationDto {
   @IsString()
@@ -201,4 +222,15 @@ export class CreateReservationDto {
   @IsInt()
   @Min(0)
   pets?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  petTypes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PolicyAcceptanceDto)
+  policyAcceptances?: PolicyAcceptanceDto[];
 }
