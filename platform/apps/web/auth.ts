@@ -4,7 +4,7 @@ import type { User } from "next-auth";
 
 
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || "http://localhost:4000/api";
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || "http://localhost:4000/api").replace(/\/$/, "");
 
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -17,7 +17,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials): Promise<User | null> {
         console.log("[auth] authorize called with credentials keys:", Object.keys(credentials || {}));
-        if (!credentials?.email || !credentials?.password) {
+        const email = typeof credentials?.email === "string" ? credentials.email.trim().toLowerCase() : "";
+        const password = typeof credentials?.password === "string" ? credentials.password : "";
+        if (!email || !password) {
+          console.warn("[auth] missing credentials", {
+            hasEmail: Boolean(email),
+            hasPassword: Boolean(password),
+            apiBase: API_BASE
+          });
           return null;
         }
 
@@ -25,10 +32,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const res = await fetch(`${API_BASE}/auth/login`, {
             method: "POST",
             body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password
+              email,
+              password
             }),
-            headers: { "Content-Type": "application/json" }
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            cache: "no-store"
           });
 
           if (!res.ok) {
@@ -46,7 +54,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return null;
           }
 
-          const data = await res.json();
+          let data: any;
+          try {
+            data = await res.json();
+          } catch {
+            console.warn("[auth] login response not json", { apiBase: API_BASE });
+            return null;
+          }
           if (!data?.token) {
             console.warn("[auth] login response missing token", { apiBase: API_BASE });
             return null;

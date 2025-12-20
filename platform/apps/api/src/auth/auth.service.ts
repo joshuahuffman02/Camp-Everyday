@@ -14,9 +14,10 @@ export class AuthService {
     ) { }
 
     async register(dto: RegisterDto) {
+        const normalizedEmail = dto.email.trim().toLowerCase();
         // Check if user already exists
         const existing = await this.prisma.user.findUnique({
-            where: { email: dto.email.toLowerCase() }
+            where: { email: normalizedEmail }
         });
 
         if (existing) {
@@ -29,7 +30,7 @@ export class AuthService {
         // Create user
         const user = await this.prisma.user.create({
             data: {
-                email: dto.email.toLowerCase(),
+                email: normalizedEmail,
                 passwordHash,
                 firstName: dto.firstName,
                 lastName: dto.lastName
@@ -50,9 +51,10 @@ export class AuthService {
 
     async login(dto: LoginDto) {
         try {
-            console.log(`[AuthService] Attempting login for ${dto.email}`);
+            const normalizedEmail = dto.email.trim().toLowerCase();
+            console.log(`[AuthService] Attempting login for ${normalizedEmail}`);
             let user = await this.prisma.user.findUnique({
-                where: { email: dto.email.toLowerCase() },
+                where: { email: normalizedEmail },
                 include: {
                     memberships: {
                         include: { campground: { select: { id: true, name: true, slug: true } } }
@@ -67,11 +69,11 @@ export class AuthService {
                     : 0;
 
                 if (activeUsers === 0 && allowBootstrap) {
-                    console.warn(`[AuthService] Bootstrapping first admin user: ${dto.email}`);
+                    console.warn(`[AuthService] Bootstrapping first admin user: ${normalizedEmail}`);
                     const passwordHash = await bcrypt.hash(dto.password, 12);
                     user = await this.prisma.user.create({
                         data: {
-                            email: dto.email.toLowerCase(),
+                            email: normalizedEmail,
                             passwordHash,
                             firstName: "Admin",
                             lastName: "User",
@@ -86,22 +88,22 @@ export class AuthService {
                         }
                     });
                 } else {
-                    console.log(`[AuthService] User not found: ${dto.email}`);
+                    console.log(`[AuthService] User not found: ${normalizedEmail}`);
                     throw new UnauthorizedException('Invalid credentials');
                 }
             }
 
             if (!user.isActive) {
-                console.log(`[AuthService] User not active: ${dto.email}`);
+                console.log(`[AuthService] User not active: ${normalizedEmail}`);
                 throw new UnauthorizedException('Invalid credentials');
             }
 
             console.log(`[AuthService] User found, comparing password hash for ${user.id}`);
             const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
             if (!passwordValid) {
-                console.log(`[AuthService] Invalid password for ${dto.email}`);
-                throw new UnauthorizedException('Invalid credentials');
-            }
+            console.log(`[AuthService] Invalid password for ${normalizedEmail}`);
+            throw new UnauthorizedException('Invalid credentials');
+        }
 
             console.log(`[AuthService] Password valid, generating token`);
             const token = this.generateToken(user.id, user.email);
