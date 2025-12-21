@@ -408,7 +408,8 @@ export const CreateGuestSchema = z.object({
   primaryLastName: z.string().min(1),
   email: z.string().email(),
   phone: z.string().min(3),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  tags: z.array(z.string()).optional()
 });
 export type CreateGuestDto = z.infer<typeof CreateGuestSchema>;
 

@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsArray, IsEmail, IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CreateGuestDto {
   @IsString()
@@ -69,6 +69,8 @@ export class CreateGuestDto {
   vehicleState?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   tags?: string[];
 
   @IsOptional()
