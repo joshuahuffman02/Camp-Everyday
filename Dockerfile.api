@@ -1,8 +1,9 @@
 FROM node:lts-alpine AS base
-# Build: 2025-12-21 - Railway cache buster v11 - Regenerate Prisma client with new columns
+# CACHE_BUST ARG forces rebuild when changed - v12 2025-12-21T18:00
+ARG CACHE_BUST=v12
 RUN corepack enable && corepack prepare pnpm@7.33.6 --activate
 WORKDIR /app
-RUN echo "Dockerfile.api v7 - TSC FIX for decorator metadata" > /tmp/build-info
+RUN echo "Build: ${CACHE_BUST}" > /tmp/build-info
 
 # Install dependencies
 FROM base AS deps
@@ -19,9 +20,12 @@ RUN pnpm --filter @campreserv/shared build
 
 # Build API
 FROM shared AS api-builder
+ARG CACHE_BUST=v12
 COPY platform/apps/api ./platform/apps/api
-# Force prisma regeneration - 2025-12-21 v2
-RUN rm -rf node_modules/.prisma node_modules/@prisma/client && pnpm --filter @campreserv/api prisma:generate
+# Force prisma regeneration - CACHE_BUST=${CACHE_BUST}
+RUN echo "Regenerating Prisma client - ${CACHE_BUST}" && \
+    rm -rf node_modules/.prisma node_modules/@prisma/client platform/apps/api/node_modules/.prisma && \
+    pnpm --filter @campreserv/api prisma:generate
 RUN pnpm --filter @campreserv/api build
 
 # Production image for API

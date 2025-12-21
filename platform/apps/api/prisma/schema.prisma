@@ -1,3 +1,4 @@
+// Prisma Client Generator - Cache bust: 2025-12-21-v4
 generator client {
   provider = "prisma-client-js"
 }

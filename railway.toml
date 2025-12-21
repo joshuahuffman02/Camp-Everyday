@@ -4,5 +4,9 @@ buildArgs = [
   "NEXT_PUBLIC_API_BASE",
   "AUTH_URL",
   "AUTH_SECRET",
-  "AUTH_TRUST_HOST"
+  "AUTH_TRUST_HOST",
+  "CACHE_BUST"
 ]
+
+# Force no cache for Prisma client regeneration issue
+# Note: Set CACHE_BUST environment variable in Railway dashboard to force rebuild
