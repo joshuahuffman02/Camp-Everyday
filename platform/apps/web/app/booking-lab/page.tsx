@@ -36,12 +36,12 @@ import { useWhoami } from "@/hooks/use-whoami";
 import { diffInDays, formatLocalDateInput, parseLocalDateInput } from "../calendar/utils";
 
 const SITE_TYPE_STYLES: Record<string, { label: string; badge: string; border: string }> = {
-  rv: { label: "RV", badge: "bg-emerald-100 text-emerald-700", border: "border-emerald-400" },
-  tent: { label: "Tent", badge: "bg-amber-100 text-amber-800", border: "border-amber-400" },
-  cabin: { label: "Cabin", badge: "bg-rose-100 text-rose-700", border: "border-rose-400" },
-  group: { label: "Group", badge: "bg-indigo-100 text-indigo-700", border: "border-indigo-400" },
-  glamping: { label: "Glamp", badge: "bg-cyan-100 text-cyan-700", border: "border-cyan-400" },
-  default: { label: "Site", badge: "bg-slate-100 text-slate-600", border: "border-slate-300" }
+  rv: { label: "RV", badge: "bg-emerald-100 text-emerald-700", border: "border-l-emerald-400" },
+  tent: { label: "Tent", badge: "bg-amber-100 text-amber-800", border: "border-l-amber-400" },
+  cabin: { label: "Cabin", badge: "bg-rose-100 text-rose-700", border: "border-l-rose-400" },
+  group: { label: "Group", badge: "bg-indigo-100 text-indigo-700", border: "border-l-indigo-400" },
+  glamping: { label: "Glamp", badge: "bg-cyan-100 text-cyan-700", border: "border-l-cyan-400" },
+  default: { label: "Site", badge: "bg-slate-100 text-slate-600", border: "border-l-slate-300" }
 };
 
 const RIG_TYPE_OPTIONS = [
@@ -279,6 +279,13 @@ function BookingLabPageInner() {
   const rigLengthValue = Number(formData.rigLength);
   const hasRigLength = Number.isFinite(rigLengthValue) && rigLengthValue > 0;
   const isRvRigType = RV_RIG_TYPES.has(formData.rigType);
+  const rigTypeFilter = useMemo(() => {
+    if (isRvRigType) return new Set(["rv"]);
+    if (formData.rigType === "tent") return new Set(["tent"]);
+    if (formData.rigType === "cabin") return new Set(["cabin", "glamping"]);
+    if (formData.rigType === "group") return new Set(["group"]);
+    return null;
+  }, [formData.rigType, isRvRigType]);
 
   const filteredSites = useMemo(() => {
     const sites = siteStatusQuery.data || [];
@@ -286,8 +293,8 @@ function BookingLabPageInner() {
       if (availableOnly && site.status !== "available") return false;
       if (siteTypeFilter !== "all" && site.siteType !== siteTypeFilter) return false;
       if (siteClassFilter !== "all" && site.siteClassId !== siteClassFilter) return false;
-      if (isRvRigType && (site.siteType === "tent" || site.siteType === "cabin")) return false;
-      if (hasRigLength) {
+      if (rigTypeFilter && !rigTypeFilter.has(site.siteType)) return false;
+      if (hasRigLength && rigTypeFilter?.has("rv")) {
         const siteMaxLength =
           (site as { rigMaxLength?: number | null }).rigMaxLength ??
           siteClassById.get(site.siteClassId ?? "")?.rigMaxLength ??
@@ -302,6 +309,7 @@ function BookingLabPageInner() {
     siteTypeFilter,
     siteClassFilter,
     isRvRigType,
+    rigTypeFilter,
     hasRigLength,
     rigLengthValue,
     siteClassById
@@ -458,14 +466,15 @@ function BookingLabPageInner() {
     const matches = matchesQuery.data || [];
     return matches.filter((match) => {
       const siteType = (match.site.siteType || "").toLowerCase();
-      if (isRvRigType && (siteType === "tent" || siteType === "cabin")) return false;
-      if (hasRigLength) {
+      if (rigTypeFilter && !rigTypeFilter.has(siteType)) return false;
+      if (siteTypeFilter !== "all" && siteType !== siteTypeFilter) return false;
+      if (hasRigLength && rigTypeFilter?.has("rv")) {
         const maxLength = match.site.rigMaxLength ?? match.site.siteClass?.rigMaxLength ?? null;
         if (maxLength && rigLengthValue > maxLength) return false;
       }
       return true;
     });
-  }, [matchesQuery.data, isRvRigType, hasRigLength, rigLengthValue]);
+  }, [matchesQuery.data, rigTypeFilter, siteTypeFilter, hasRigLength, rigLengthValue]);
 
   const createGuestMutation = useMutation({
     mutationFn: () => apiClient.createGuest({
@@ -1067,9 +1076,10 @@ function BookingLabPageInner() {
                           key={site.id}
                           type="button"
                           className={cn(
-                            "rounded-xl border p-3 text-left transition-all",
+                            "rounded-xl border border-l-4 p-3 text-left transition-all",
                             isSelected ? "border-emerald-400 bg-emerald-50" : "border-slate-200 hover:border-emerald-300",
-                            isDisabled && "opacity-60 cursor-not-allowed"
+                            isDisabled && "opacity-60 cursor-not-allowed",
+                            meta.border
                           )}
                           disabled={isDisabled}
                           onClick={() => setFormData((prev) => ({ ...prev, siteId: site.id }))}
