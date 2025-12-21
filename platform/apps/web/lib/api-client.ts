@@ -3577,11 +3577,17 @@ export const apiClient = {
     reservationId: string;
     guestEmail?: string;
     captureMethod?: 'automatic' | 'manual';
+    idempotencyKey?: string;
   }) {
+    const { idempotencyKey, ...payload } = params;
+    const fallbackKey = `public:${params.reservationId}:${params.amountCents}`;
     const res = await fetch(`${API_BASE}/public/payments/intents`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(params)
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey || fallbackKey
+      },
+      body: JSON.stringify(payload)
     });
     const data = await parseResponse<unknown>(res);
     return z.object({

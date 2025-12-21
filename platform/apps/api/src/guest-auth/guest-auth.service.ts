@@ -20,15 +20,20 @@ export class GuestAuthService {
         // Actually, the GuestAccount model has unique email.
         // So we first check if a GuestAccount exists.
 
-        let account = await this.prisma.guestAccount.findUnique({
-            where: { email: normalizedEmail },
+        let account = await this.prisma.guestAccount.findFirst({
+            where: { email: { equals: normalizedEmail, mode: "insensitive" } },
         });
 
         if (!account) {
             // If no account, check if a Guest profile exists with this email to link to.
             // If multiple exist, we might need a strategy. For now, pick the most recently updated one.
             const guest = await this.prisma.guest.findFirst({
-                where: { email: normalizedEmail },
+                where: {
+                    OR: [
+                        { emailNormalized: normalizedEmail },
+                        { email: { equals: normalizedEmail, mode: "insensitive" } },
+                    ],
+                },
                 orderBy: { updatedAt: 'desc' },
             });
 
@@ -63,7 +68,7 @@ export class GuestAuthService {
         });
 
         // Send email with link
-        const baseUrl = (process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_BASE || "http://localhost:3000").replace(/\/+$/, "");
+        const baseUrl = (process.env.FRONTEND_URL || process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_BASE || "http://localhost:3000").replace(/\/+$/, "");
         const link = `${baseUrl}/portal/verify?token=${token}`;
         try {
             await this.emailService.sendEmail({

@@ -1105,7 +1105,7 @@ export class PublicReservationsService {
                 const arrivalFormatted = reservation.arrivalDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
                 const departureFormatted = reservation.departureDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
                 const nights = Math.ceil((reservation.departureDate.getTime() - reservation.arrivalDate.getTime()) / (1000 * 60 * 60 * 24));
-                const baseUrl = (process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_BASE || "http://localhost:3000").replace(/\/+$/, "");
+                const baseUrl = (process.env.FRONTEND_URL || process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_BASE || "http://localhost:3000").replace(/\/+$/, "");
 
                 // Send confirmation email (don't fail booking if email fails)
                 try {
