@@ -297,6 +297,10 @@ export class CreateOrderDto {
 
     @IsString()
     @IsOptional()
+    locationId?: string;
+
+    @IsString()
+    @IsOptional()
     notes?: string;
 
     @IsArray()

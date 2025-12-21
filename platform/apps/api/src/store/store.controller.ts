@@ -162,9 +162,10 @@ export class StoreController {
     @Post("campgrounds/:campgroundId/store/orders")
     createOrder(
         @Param("campgroundId") campgroundId: string,
-        @Body() body: Omit<CreateOrderDto, "campgroundId">
+        @Body() body: Omit<CreateOrderDto, "campgroundId">,
+        @Req() req: any
     ) {
-        return this.store.createOrder({ campgroundId, ...body });
+        return this.store.createOrder({ campgroundId, ...body }, req?.user?.id);
     }
 
     // ============= Guest Portal (guest-jwt) =============

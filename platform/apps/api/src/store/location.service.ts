@@ -619,13 +619,16 @@ export class LocationService {
             const override = (p.priceOverrides as any)?.[0];
             const locInventory = (p.locationInventory as any)?.[0];
 
+            const effectiveStock = p.trackInventory
+                ? (p.inventoryMode === "per_location"
+                    ? (locInventory?.stockQty ?? 0)
+                    : p.stockQty)
+                : null;
+
             return {
                 ...p,
                 effectivePriceCents: override?.priceCents ?? p.priceCents,
-                effectiveStockQty:
-                    p.inventoryMode === "per_location" && locInventory
-                        ? locInventory.stockQty
-                        : p.stockQty,
+                effectiveStock,
                 hasLocationStock: !!locInventory,
                 hasPriceOverride: !!override,
             };

@@ -13,6 +13,7 @@ import { AddOnPricingType, PaymentMethod, OrderChannel, ChannelInventoryMode, Ta
 import { EmailService } from "../email/email.service";
 import { randomUUID } from "crypto";
 import { Decimal } from "@prisma/client/runtime/library";
+import { LocationService } from "./location.service";
 
 @Injectable()
 export class StoreService {
@@ -21,7 +22,8 @@ export class StoreService {
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly emailService: EmailService
+        private readonly emailService: EmailService,
+        private readonly locationService: LocationService
     ) { }
 
     // ==================== CATEGORIES ====================
@@ -348,7 +350,7 @@ export class StoreService {
         await this.prisma.product.update({ where: { id: product.id }, data: { stockQty: next } });
     }
 
-    async createOrder(data: CreateOrderDto) {
+    async createOrder(data: CreateOrderDto, actorUserId?: string) {
         const campground = await (this.prisma as any).campground.findUnique({
             where: { id: data.campgroundId },
             select: { storeOpenHour: true, storeCloseHour: true, email: true, name: true }
@@ -382,6 +384,7 @@ export class StoreService {
 
         const channel = this.resolveInventoryChannel((data as any).channel);
         const fulfillmentType = this.resolveFulfillmentType((data as any).fulfillmentType);
+        const locationId = data.locationId ?? null;
 
         const orderItems = data.items.map((item) => {
             let name = "";
@@ -459,6 +462,8 @@ export class StoreService {
                 taxCents,
                 totalCents,
                 status: "pending",
+                createdBy: actorUserId ?? null,
+                fulfillmentLocationId: locationId,
                 items: {
                     create: orderItems,
                 },
@@ -469,14 +474,33 @@ export class StoreService {
         // Fire-and-forget notifications
         this.notifyStaffNewOrder(order, campground?.email, campground?.name, (campground as any)?.orderWebhookUrl).catch(() => { /* ignore */ });
 
-        // Adjust stock for products
+        const perLocationItems: Array<{ productId: string; qty: number }> = [];
+        const channelItems: Array<{ product: any; qty: number }> = [];
+
         for (const item of data.items) {
-            if (item.productId) {
-                const product: any = productMap.get(item.productId);
-                if (product?.trackInventory && !(product.afterHoursAllowed && !isOpen)) {
-                    await this.adjustInventoryForChannel(product, channel, -item.qty);
-                }
+            if (!item.productId) continue;
+            const product: any = productMap.get(item.productId);
+            if (!product?.trackInventory || (product.afterHoursAllowed && !isOpen)) continue;
+
+            if (product.inventoryMode === "per_location" && locationId && actorUserId) {
+                perLocationItems.push({ productId: item.productId, qty: item.qty });
+            } else {
+                channelItems.push({ product, qty: item.qty });
             }
+        }
+
+        if (perLocationItems.length && locationId && actorUserId) {
+            await this.locationService.deductInventoryForSale(
+                data.campgroundId,
+                perLocationItems,
+                locationId,
+                actorUserId,
+                order.id
+            );
+        }
+
+        for (const item of channelItems) {
+            await this.adjustInventoryForChannel(item.product, channel, -item.qty);
         }
 
         // If charged to site, create a ledger entry
