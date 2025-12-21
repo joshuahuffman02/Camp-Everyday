@@ -73,3 +73,38 @@ export function saveQueue<T>(key: string, items: T[]) {
   }
 }
 
+const OFFLINE_ACTIONS_KEY = "campreserv:pwa:offlineActions";
+
+export type OfflineAction = {
+  id: string;
+  type: string;
+  payload: unknown;
+  endpoint: string;
+  method: string;
+  body?: unknown;
+  createdAt: string;
+};
+
+export async function queueOfflineAction(action: Omit<OfflineAction, "id" | "createdAt">) {
+  const queue = loadQueue<OfflineAction>(OFFLINE_ACTIONS_KEY);
+  const newAction: OfflineAction = {
+    ...action,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+  };
+  queue.push(newAction);
+  saveQueue(OFFLINE_ACTIONS_KEY, queue);
+  await registerBackgroundSync("sync-offline-actions");
+  return newAction;
+}
+
+export function getOfflineActions(): OfflineAction[] {
+  return loadQueue<OfflineAction>(OFFLINE_ACTIONS_KEY);
+}
+
+export function clearOfflineAction(id: string) {
+  const queue = loadQueue<OfflineAction>(OFFLINE_ACTIONS_KEY);
+  const filtered = queue.filter((a) => a.id !== id);
+  saveQueue(OFFLINE_ACTIONS_KEY, filtered);
+}
+

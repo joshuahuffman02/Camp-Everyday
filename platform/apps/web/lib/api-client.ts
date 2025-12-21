@@ -7722,7 +7722,7 @@ export const apiClient = {
     return z.array(z.any()).parse(data);
   },
 
-  async getHousekeepingStats(campgroundId: string) {
+  async getHousekeepingStatusStats(campgroundId: string) {
     const data = await fetchJSON<unknown>(`/housekeeping/stats?campgroundId=${campgroundId}`);
     return data as { total: number; byStatus: Record<string, number> };
   },

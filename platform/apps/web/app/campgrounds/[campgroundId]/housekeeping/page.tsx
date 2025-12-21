@@ -181,7 +181,7 @@ export default function HousekeepingPage() {
 
   const housekeepingStatsQuery = useQuery({
     queryKey: ["housekeeping-stats", campgroundId],
-    queryFn: () => apiClient.getHousekeepingStats(campgroundId),
+    queryFn: () => apiClient.getHousekeepingStatusStats(campgroundId),
     enabled: !!campgroundId,
   });
 
