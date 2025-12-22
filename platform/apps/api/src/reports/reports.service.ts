@@ -1339,6 +1339,107 @@ export class ReportsService {
           conversions: e.reservationId ? 1 : 0,
         }));
       }
+      case "pos": {
+        const carts = await this.prisma.posCart.findMany({
+          where: { ...where, status: "checked_out" },
+          orderBy: { createdAt: "desc" },
+          take,
+          include: {
+            items: {
+              include: {
+                product: {
+                  include: { category: true }
+                }
+              }
+            },
+            payments: true
+          }
+        });
+        // Flatten for item-level and payment-level analysis
+        const rows: any[] = [];
+        carts.forEach((cart) => {
+          const baseRow = {
+            id: cart.id,
+            createdAt: cart.createdAt,
+            status: cart.status,
+            terminalId: cart.terminalId,
+            grossCents: cart.grossCents,
+            netCents: cart.netCents,
+            taxCents: cart.taxCents,
+            feeCents: cart.feeCents,
+            itemCount: cart.items.length,
+          };
+          // For payment method analysis
+          if (cart.payments.length) {
+            cart.payments.forEach((p) => {
+              rows.push({
+                ...baseRow,
+                method: p.method,
+                paymentAmountCents: p.amountCents,
+              });
+            });
+          } else {
+            rows.push({ ...baseRow, method: "unknown", paymentAmountCents: 0 });
+          }
+          // For product/category analysis, also emit item rows
+          cart.items.forEach((item) => {
+            rows.push({
+              id: `${cart.id}-${item.id}`,
+              createdAt: cart.createdAt,
+              status: cart.status,
+              terminalId: cart.terminalId,
+              productName: item.product?.name ?? "unknown",
+              categoryName: item.product?.category?.name ?? "uncategorized",
+              qty: item.qty,
+              discountCents: item.discountCents,
+              totalCents: item.totalCents,
+              taxCents: item.taxCents,
+            });
+          });
+        });
+        return rows;
+      }
+      case "till": {
+        // For session-based reports
+        const sessions = await this.prisma.tillSession.findMany({
+          where,
+          orderBy: { openedAt: "desc" },
+          take,
+          select: {
+            id: true,
+            openedAt: true,
+            closedAt: true,
+            status: true,
+            terminalId: true,
+            openingFloatCents: true,
+            expectedCloseCents: true,
+            countedCloseCents: true,
+            overShortCents: true,
+            openedByUserId: true,
+          },
+        });
+        // For movement-based reports, also fetch movements
+        const movements = await this.prisma.tillMovement.findMany({
+          where: { session: where },
+          orderBy: { createdAt: "desc" },
+          take,
+          include: { session: { select: { terminalId: true } } },
+        });
+        // Combine both for flexible reporting
+        const sessionRows = sessions.map((s) => ({
+          ...s,
+          type: "session",
+        }));
+        const movementRows = movements.map((m) => ({
+          id: m.id,
+          createdAt: m.createdAt,
+          type: m.type,
+          amountCents: m.amountCents,
+          terminalId: m.session?.terminalId,
+          sessionId: m.sessionId,
+        }));
+        return [...sessionRows, ...movementRows];
+      }
       default:
         throw new BadRequestException(`Unsupported source ${spec.source}`);
     }
@@ -1523,6 +1624,7 @@ export class ReportsService {
       case "payment":
       case "support":
       case "task":
+      case "pos":
         return "createdAt";
       case "ledger":
         return "occurredAt";
@@ -1530,6 +1632,8 @@ export class ReportsService {
         return "arrivalDate";
       case "marketing":
         return "occurredAt";
+      case "till":
+        return "openedAt";
       default:
         return "createdAt";
     }

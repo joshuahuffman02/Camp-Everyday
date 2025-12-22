@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient, useQueries } from "@tanstack/react-query";
 import { apiClient } from "../../../../lib/api-client";
@@ -13,6 +14,7 @@ import { TableEmpty } from "../../../../components/ui/table";
 import { ReservationSchema, computeDepositDue } from "@campreserv/shared";
 import type { z } from "zod";
 import { useGanttStore } from "../../../../lib/gantt-store";
+import { BulkMessageModal } from "../../../../components/reservations/BulkMessageModal";
 
 type ReservationStatus = z.infer<typeof ReservationSchema>["status"];
 type ReservationUpdate = Partial<z.infer<typeof ReservationSchema>> & {
@@ -141,6 +143,7 @@ export default function ReservationsPage() {
   const [resQuoteLoading, setResQuoteLoading] = useState<Record<string, boolean>>({});
   const [resQuoteErrors, setResQuoteErrors] = useState<Record<string, string>>({});
   const [flash, setFlash] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);
   const { selection, setSelection, drag, setDrag, startDrag, resetDrag } = useGanttStore();
   const focusId = selection.openDetailsId;
   const highlighted = selection.highlightedId;
@@ -901,13 +904,11 @@ export default function ReservationsPage() {
   };
 
   const handleBulkMessage = () => {
-    const first = tabFilteredReservations.find((r) => selectedIds.includes(r.id));
-    if (!first) {
+    if (selectedInView.length === 0) {
       setFlash({ type: "info", message: "Select reservations to message." });
       return;
     }
-    setSelection({ highlightedId: first.id, openDetailsId: first.id });
-    toggleDetails(first, true);
+    setBulkMessageOpen(true);
   };
 
   const toggleRow = (id: string) => {
@@ -1012,28 +1013,32 @@ export default function ReservationsPage() {
               <div className="text-xs text-slate-600">{occupancyRate}% occupancy</div>
             </CardContent>
           </Card>
-          <Card data-testid="arrivals-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Arrivals today</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-1">
-              <div className="text-2xl font-semibold text-slate-900" data-testid="arrivals-today">
-                {arrivalsToday.length}
-              </div>
-              <div className="text-xs text-slate-600">Ready for check-in</div>
-            </CardContent>
-          </Card>
-          <Card data-testid="departures-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Departures today</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-1">
-              <div className="text-2xl font-semibold text-slate-900" data-testid="departures-today">
-                {departuresToday.length}
-              </div>
-              <div className="text-xs text-slate-600">Due to leave</div>
-            </CardContent>
-          </Card>
+          <Link href="/check-in-out" className="block">
+            <Card data-testid="arrivals-card" className="hover:border-emerald-300 hover:shadow-md transition cursor-pointer">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-slate-500">Arrivals today</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-1">
+                <div className="text-2xl font-semibold text-slate-900" data-testid="arrivals-today">
+                  {arrivalsToday.length}
+                </div>
+                <div className="text-xs text-emerald-600 font-medium">Click to check in →</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/check-in-out" className="block">
+            <Card data-testid="departures-card" className="hover:border-orange-300 hover:shadow-md transition cursor-pointer">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-slate-500">Departures today</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-1">
+                <div className="text-2xl font-semibold text-slate-900" data-testid="departures-today">
+                  {departuresToday.length}
+                </div>
+                <div className="text-xs text-orange-600 font-medium">Click to check out →</div>
+              </CardContent>
+            </Card>
+          </Link>
           <Card data-testid="balance-due-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-slate-500">Balance due</CardTitle>
@@ -2720,6 +2725,23 @@ export default function ReservationsPage() {
             )}
           </div>
       </div>
+      <BulkMessageModal
+        open={bulkMessageOpen}
+        onClose={() => setBulkMessageOpen(false)}
+        campgroundId={campgroundId}
+        reservations={selectedInView}
+        onComplete={(results) => {
+          setFlash({
+            type: results.failed === 0 ? "success" : "info",
+            message: results.failed === 0
+              ? `Message sent to ${results.sent} guest${results.sent !== 1 ? "s" : ""}`
+              : `Sent to ${results.sent}, failed for ${results.failed}`
+          });
+          if (results.failed === 0) {
+            setSelectedIds([]);
+          }
+        }}
+      />
     </DashboardShell>
   );
 }

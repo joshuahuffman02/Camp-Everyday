@@ -146,6 +146,61 @@ const marketingLibrary: SourceLibrary = {
   ],
 };
 
+const posLibrary: SourceLibrary = {
+  dimensions: {
+    sale_day: { id: "sale_day", label: "Sale Day", field: "createdAt", kind: "date", timeGrain: "day" },
+    sale_week: { id: "sale_week", label: "Sale Week", field: "createdAt", kind: "date", timeGrain: "week" },
+    sale_month: { id: "sale_month", label: "Sale Month", field: "createdAt", kind: "date", timeGrain: "month" },
+    sale_hour: { id: "sale_hour", label: "Hour of Day", field: "createdAt", kind: "number" },
+    payment_method: { id: "payment_method", label: "Payment Method", field: "method", kind: "enum" },
+    product_category: { id: "product_category", label: "Product Category", field: "categoryName", kind: "string", fallback: "uncategorized" },
+    product: { id: "product", label: "Product", field: "productName", kind: "string" },
+    terminal: { id: "terminal", label: "Terminal", field: "terminalId", kind: "string", fallback: "unknown" },
+    status: { id: "status", label: "Status", field: "status", kind: "enum" },
+  },
+  metrics: {
+    transactions: { id: "transactions", label: "Transactions", field: "id", aggregation: "count", type: "number" },
+    gross_sales: { id: "gross_sales", label: "Gross Sales", field: "grossCents", aggregation: "sum", type: "currency", format: "currency" },
+    net_sales: { id: "net_sales", label: "Net Sales", field: "netCents", aggregation: "sum", type: "currency", format: "currency" },
+    tax_collected: { id: "tax_collected", label: "Tax Collected", field: "taxCents", aggregation: "sum", type: "currency", format: "currency" },
+    discounts: { id: "discounts", label: "Discounts", field: "discountCents", aggregation: "sum", type: "currency", format: "currency" },
+    items_sold: { id: "items_sold", label: "Items Sold", field: "qty", aggregation: "sum", type: "number" },
+    avg_ticket: { id: "avg_ticket", label: "Avg Ticket", field: "grossCents", aggregation: "avg", type: "currency", format: "currency" },
+    avg_items: { id: "avg_items", label: "Avg Items/Txn", field: "itemCount", aggregation: "avg", type: "number" },
+  },
+  filters: [
+    { id: "status", label: "Status", field: "status", type: "enum", operators: ["eq", "in"], options: ["open", "checked_out", "void"] },
+    { id: "payment_method", label: "Payment Method", field: "method", type: "enum", operators: ["eq", "in"], options: ["card", "cash", "gift", "store_credit", "charge_to_site"] },
+    { id: "terminal", label: "Terminal", field: "terminalId", type: "string", operators: ["eq", "in"] },
+  ],
+};
+
+const tillLibrary: SourceLibrary = {
+  dimensions: {
+    session_day: { id: "session_day", label: "Session Day", field: "openedAt", kind: "date", timeGrain: "day" },
+    session_month: { id: "session_month", label: "Session Month", field: "openedAt", kind: "date", timeGrain: "month" },
+    movement_day: { id: "movement_day", label: "Movement Day", field: "createdAt", kind: "date", timeGrain: "day" },
+    movement_type: { id: "movement_type", label: "Movement Type", field: "type", kind: "enum" },
+    terminal: { id: "terminal", label: "Terminal", field: "terminalId", kind: "string", fallback: "unknown" },
+    session_status: { id: "session_status", label: "Session Status", field: "status", kind: "enum" },
+    cashier: { id: "cashier", label: "Cashier", field: "openedByUserId", kind: "string" },
+  },
+  metrics: {
+    sessions: { id: "sessions", label: "Sessions", field: "id", aggregation: "count", type: "number" },
+    movements: { id: "movements", label: "Movements", field: "id", aggregation: "count", type: "number" },
+    movement_amount: { id: "movement_amount", label: "Movement Amount", field: "amountCents", aggregation: "sum", type: "currency", format: "currency" },
+    opening_float: { id: "opening_float", label: "Opening Float", field: "openingFloatCents", aggregation: "sum", type: "currency", format: "currency" },
+    expected_close: { id: "expected_close", label: "Expected Close", field: "expectedCloseCents", aggregation: "sum", type: "currency", format: "currency" },
+    counted_close: { id: "counted_close", label: "Counted Close", field: "countedCloseCents", aggregation: "sum", type: "currency", format: "currency" },
+    over_short: { id: "over_short", label: "Over/Short", field: "overShortCents", aggregation: "sum", type: "currency", format: "currency" },
+  },
+  filters: [
+    { id: "session_status", label: "Session Status", field: "status", type: "enum", operators: ["eq", "in"], options: ["open", "closed"] },
+    { id: "movement_type", label: "Movement Type", field: "type", type: "enum", operators: ["eq", "in"], options: ["cash_sale", "cash_refund", "paid_in", "paid_out", "adjustment"] },
+    { id: "terminal", label: "Terminal", field: "terminalId", type: "string", operators: ["eq", "in"] },
+  ],
+};
+
 export const libraries: Record<ReportSource, SourceLibrary> = {
   reservation: reservationLibrary,
   payment: paymentLibrary,
@@ -154,6 +209,8 @@ export const libraries: Record<ReportSource, SourceLibrary> = {
   support: supportLibrary,
   task: taskLibrary,
   marketing: marketingLibrary,
+  pos: posLibrary,
+  till: tillLibrary,
 };
 
 const bookingTemplates: ReportSpec[] = [
@@ -232,6 +289,46 @@ const marketingTemplates: ReportSpec[] = [
   { id: "marketing.channel_medium", name: "Channel by medium", category: "Marketing", source: "marketing", dimensions: ["channel", "medium"], metrics: ["touches"], defaultTimeRange: { preset: "last_180_days" }, chartTypes: ["table"], defaultChart: "table", sampling: { limit: 5000 }, heavy: true },
 ];
 
+const posTemplates: ReportSpec[] = [
+  // Sales reports
+  { id: "pos.daily_sales", name: "Daily POS sales", category: "POS", source: "pos", dimensions: ["sale_day"], metrics: ["transactions", "gross_sales", "net_sales", "tax_collected"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["line", "bar", "table"], defaultChart: "line", sampling: { limit: 4000 } },
+  { id: "pos.weekly_sales", name: "Weekly POS sales", category: "POS", source: "pos", dimensions: ["sale_week"], metrics: ["transactions", "gross_sales", "avg_ticket"], defaultTimeRange: { preset: "last_90_days" }, chartTypes: ["line", "bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+  { id: "pos.monthly_sales", name: "Monthly POS sales", category: "POS", source: "pos", dimensions: ["sale_month"], metrics: ["transactions", "gross_sales", "net_sales", "discounts"], defaultTimeRange: { preset: "last_12_months" }, chartTypes: ["line", "bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+  { id: "pos.hourly_sales", name: "Sales by hour", category: "POS", source: "pos", dimensions: ["sale_hour"], metrics: ["transactions", "gross_sales"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+
+  // Mix reports
+  { id: "pos.payment_method_mix", name: "Payment method mix", category: "POS", source: "pos", dimensions: ["payment_method"], metrics: ["transactions", "gross_sales"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["pie", "bar", "table"], defaultChart: "pie", sampling: { limit: 4000 } },
+  { id: "pos.category_sales", name: "Sales by category", category: "POS", source: "pos", dimensions: ["product_category"], metrics: ["items_sold", "gross_sales", "net_sales"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["bar", "pie", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+  { id: "pos.product_performance", name: "Product performance", category: "POS", source: "pos", dimensions: ["product"], metrics: ["items_sold", "gross_sales"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["bar", "table"], defaultChart: "bar", sampling: { limit: 5000 } },
+  { id: "pos.terminal_sales", name: "Sales by terminal", category: "POS", source: "pos", dimensions: ["terminal"], metrics: ["transactions", "gross_sales", "avg_ticket"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+
+  // Analysis reports
+  { id: "pos.avg_ticket_trend", name: "Avg ticket trend", category: "POS", source: "pos", dimensions: ["sale_day"], metrics: ["avg_ticket", "avg_items"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["line", "table"], defaultChart: "line", sampling: { limit: 4000 } },
+  { id: "pos.discount_analysis", name: "Discount analysis", category: "POS", source: "pos", dimensions: ["sale_month"], metrics: ["discounts", "gross_sales"], defaultTimeRange: { preset: "last_12_months" }, chartTypes: ["bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+  { id: "pos.tax_collected", name: "Tax collected", category: "POS", source: "pos", dimensions: ["sale_month"], metrics: ["tax_collected", "net_sales"], defaultTimeRange: { preset: "last_12_months" }, chartTypes: ["bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+  { id: "pos.void_analysis", name: "Void transactions", category: "POS", source: "pos", dimensions: ["sale_day", "status"], metrics: ["transactions", "gross_sales"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["table", "bar"], defaultChart: "table", sampling: { limit: 4000 } },
+
+  // Cross-dimensional
+  { id: "pos.category_by_day", name: "Category sales by day", category: "POS", source: "pos", dimensions: ["sale_day", "product_category"], metrics: ["gross_sales"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["table"], defaultChart: "table", sampling: { limit: 5000 }, heavy: true },
+  { id: "pos.payment_trend", name: "Payment method trend", category: "POS", source: "pos", dimensions: ["sale_month", "payment_method"], metrics: ["transactions", "gross_sales"], defaultTimeRange: { preset: "last_12_months" }, chartTypes: ["table"], defaultChart: "table", sampling: { limit: 5000 }, heavy: true },
+];
+
+const tillTemplates: ReportSpec[] = [
+  // Session reports
+  { id: "till.daily_sessions", name: "Daily till sessions", category: "POS", source: "till", dimensions: ["session_day"], metrics: ["sessions", "opening_float", "expected_close"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["line", "bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+  { id: "till.over_short_daily", name: "Over/short by day", category: "POS", source: "till", dimensions: ["session_day"], metrics: ["over_short", "sessions"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+  { id: "till.over_short_monthly", name: "Over/short by month", category: "POS", source: "till", dimensions: ["session_month"], metrics: ["over_short", "sessions"], defaultTimeRange: { preset: "last_12_months" }, chartTypes: ["bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+  { id: "till.cashier_performance", name: "Cashier over/short", category: "POS", source: "till", dimensions: ["cashier"], metrics: ["sessions", "over_short"], defaultTimeRange: { preset: "last_90_days" }, chartTypes: ["bar", "table"], defaultChart: "bar", sampling: { limit: 4000 } },
+
+  // Movement reports
+  { id: "till.movement_types", name: "Movement by type", category: "POS", source: "till", dimensions: ["movement_type"], metrics: ["movements", "movement_amount"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["pie", "bar", "table"], defaultChart: "pie", sampling: { limit: 4000 } },
+  { id: "till.daily_movements", name: "Daily movements", category: "POS", source: "till", dimensions: ["movement_day"], metrics: ["movements", "movement_amount"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["line", "table"], defaultChart: "line", sampling: { limit: 4000 } },
+  { id: "till.terminal_reconciliation", name: "Terminal reconciliation", category: "POS", source: "till", dimensions: ["terminal"], metrics: ["sessions", "expected_close", "counted_close", "over_short"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["table", "bar"], defaultChart: "table", sampling: { limit: 4000 } },
+
+  // Cross-dimensional
+  { id: "till.movement_by_day_type", name: "Movements by day and type", category: "POS", source: "till", dimensions: ["movement_day", "movement_type"], metrics: ["movements", "movement_amount"], defaultTimeRange: { preset: "last_30_days" }, chartTypes: ["table"], defaultChart: "table", sampling: { limit: 5000 }, heavy: true },
+];
+
 const definitions: ReportSpec[] = [
   ...bookingTemplates,
   ...inventoryTemplates,
@@ -239,6 +336,8 @@ const definitions: ReportSpec[] = [
   ...ledgerTemplates,
   ...operationsTemplates,
   ...marketingTemplates,
+  ...posTemplates,
+  ...tillTemplates,
 ];
 
 export function getReportCatalog(opts?: { category?: string; search?: string; includeHeavy?: boolean }) {
