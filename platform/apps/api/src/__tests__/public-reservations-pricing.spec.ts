@@ -55,11 +55,11 @@ describe("PublicReservationsService pricing", () => {
       {} as EmailService,
       {} as AbandonedCartService,
       { getActiveMembershipById: jest.fn(), getActiveMembershipByGuest: jest.fn() } as unknown as MembershipsService,
-      {} as any,
-      {} as any,
-      {} as any,
+      {} as any, // signatures
+      { evaluatePolicies: jest.fn().mockResolvedValue({ waiverRequired: false, signatureRequired: false }) } as any, // policies
+      {} as any, // accessControl
       pricingV2Service as any,
-      {} as any
+      { resolve: jest.fn().mockResolvedValue(null), calculateDeposit: jest.fn().mockResolvedValue(null) } as any // depositPolicies
     );
   });
 
@@ -274,6 +274,16 @@ describe("PublicReservationsService pricing", () => {
       siteClass: { defaultRate: 12000 } // $120/night
     });
 
+    pricingV2Service.evaluate.mockResolvedValue({
+      nights: 2,
+      baseSubtotalCents: 24000,
+      adjustmentsCents: 0,
+      demandAdjustmentCents: 0,
+      totalBeforeTaxCents: 24000,
+      appliedRules: [],
+      pricingRuleVersion: "v2:test"
+    });
+
     prisma.pricingRule.findMany = jest.fn().mockResolvedValue([]);
     prisma.taxRule.findMany = jest.fn().mockResolvedValue([]); // no taxes, no exemptions
 
@@ -308,6 +318,16 @@ describe("PublicReservationsService pricing", () => {
       campgroundId: "cg1",
       siteClassId: "sc1",
       siteClass: { defaultRate: 11000 } // price is tax-inclusive at 10%
+    });
+
+    pricingV2Service.evaluate.mockResolvedValue({
+      nights: 1,
+      baseSubtotalCents: 11000,
+      adjustmentsCents: 0,
+      demandAdjustmentCents: 0,
+      totalBeforeTaxCents: 11000,
+      appliedRules: [],
+      pricingRuleVersion: "v2:test"
     });
 
     prisma.pricingRule.findMany = jest.fn().mockResolvedValue([]);

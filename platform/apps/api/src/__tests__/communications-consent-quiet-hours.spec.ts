@@ -14,6 +14,8 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 
 describe("Communications consent, quiet hours, and alerts", () => {
+  jest.setTimeout(30000); // Increase timeout for Nest.js test module setup
+
   let app: any;
   let prisma: any;
   let email: any;

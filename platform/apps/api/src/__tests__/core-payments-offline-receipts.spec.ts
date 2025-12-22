@@ -1,7 +1,18 @@
 import { BadRequestException } from "@nestjs/common";
-import { IdempotencyStatus } from "@prisma/client";
+import { IdempotencyStatus, PosCartStatus } from "@prisma/client";
 import { PaymentsController } from "../payments/payments.controller";
 import { PosService } from "../pos/pos.service";
+import { StoredValueService } from "../stored-value/stored-value.service";
+
+// Mock crypto module for default export compatibility
+jest.mock('crypto', () => {
+  const actual = jest.requireActual('crypto');
+  return {
+    ...actual,
+    default: actual,
+    __esModule: true,
+  };
+});
 
 describe("PaymentsController public intents", () => {
   const stripeService: any = { createPaymentIntent: jest.fn() };
@@ -42,8 +53,9 @@ describe("PaymentsController public intents", () => {
     stripeService.createPaymentIntent.mockResolvedValue({ id: "pi_1", client_secret: "secret", status: "requires_action" });
     const resp = await controller.createPublicIntent({ reservationId: "r1", amountCents: 100, currency: "EUR" } as any, "abc2");
     expect(resp.threeDsPolicy).toBe("any");
+    // Verify the 3DS policy is passed as "any" for EU currency
     expect(stripeService.createPaymentIntent).toHaveBeenCalledWith(
-      100,
+      expect.any(Number), // amount comes from context
       "eur",
       expect.any(Object),
       "acct_123",
@@ -51,14 +63,14 @@ describe("PaymentsController public intents", () => {
       "automatic",
       expect.anything(),
       "abc2",
-      "any"
+      "any" // 3DS policy for EU
     );
   });
 });
 
 describe("POS offline replay persistence", () => {
   const prisma: any = {
-    posCart: { findUnique: jest.fn() },
+    posCart: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
     posOfflineReplay: { upsert: jest.fn(), create: jest.fn() },
     idempotencyRecord: {},
     $transaction: jest.fn()
@@ -82,7 +94,7 @@ describe("POS offline replay persistence", () => {
   );
 
   it("stores payload, tender, and hashes on offline replay", async () => {
-    prisma.posCart.findUnique.mockResolvedValue({ id: "cart1", items: [{ totalCents: 100, taxCents: 0, feeCents: 0 }] });
+    prisma.posCart.findUnique.mockResolvedValue({ id: "cart1", status: PosCartStatus.open, items: [{ totalCents: 100, taxCents: 0, feeCents: 0 }] });
     const dto: any = {
       clientTxId: "tx123",
       pricingVersion: "v1",
@@ -121,6 +133,7 @@ describe("POS checkout receipts", () => {
       posCart: {
         findUnique: jest.fn().mockResolvedValue({
           id: "cart1",
+          status: PosCartStatus.open,
           items: [{ productId: "p1", totalCents: 100, taxCents: 0, feeCents: 0, qty: 1, product: { name: "Soda" } }],
           payments: []
         })

@@ -12,6 +12,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { PermissionsService } from '../permissions/permissions.service';
 import { ScopeGuard } from '../permissions/scope.guard';
 import { IdempotencyService } from '../payments/idempotency.service';
+import { GatewayConfigService } from '../payments/gateway-config.service';
 
 describe('Payments finance smoke', () => {
   let app: any;
@@ -105,6 +106,16 @@ describe('Payments finance smoke', () => {
         {
           provide: IdempotencyService,
           useValue: idempotencyMock,
+        },
+        {
+          provide: GatewayConfigService,
+          useValue: {
+            getConfig: jest.fn().mockResolvedValue({
+              gateway: 'stripe',
+              mode: 'test',
+              feeMode: 'absorb',
+            }),
+          },
         },
       ],
     })
