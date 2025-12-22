@@ -1,6 +1,7 @@
 [build]
-# Use Dockerfile.api for the API service
-dockerfilePath = "Dockerfile.api"
+# Note: Each service should specify its Dockerfile in Railway dashboard:
+# - API service: Dockerfile.api
+# - Web service: Dockerfile (default)
 
 # Pass these environment variables as Docker build arguments
 buildArgs = [
