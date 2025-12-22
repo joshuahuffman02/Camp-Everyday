@@ -1247,7 +1247,6 @@ export default function ReservationsPage() {
         </TabsContent>
 
         <TabsContent value="inhouse" className="space-y-4">
-          {/* Reuse the table above for in-house view */}
           <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-slate-600">
@@ -1261,20 +1260,48 @@ export default function ReservationsPage() {
                       onChange={toggleAll}
                     />
                   </th>
-                  <th className="px-3 py-2 text-left font-semibold">Guest</th>
-                  <th className="px-3 py-2 text-left font-semibold">Site</th>
-                  <th className="px-3 py-2 text-left font-semibold">Arrived</th>
-                  <th className="px-3 py-2 text-left font-semibold">Balance</th>
+                  <th className="px-3 py-2 text-left font-semibold cursor-pointer select-none" onClick={() => {
+                    setSortBy("arrival");
+                    setSortDir((prev) => sortBy === "arrival" ? (prev === "asc" ? "desc" : "asc") : "asc");
+                  }}>
+                    Dates
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold cursor-pointer select-none" onClick={() => {
+                    setSortBy((prev) => prev === "guest" ? "guest" : "guest");
+                    setSortDir((prev) => sortBy === "guest" ? (prev === "asc" ? "desc" : "asc") : "asc");
+                  }}>
+                    Guest
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold cursor-pointer select-none" onClick={() => {
+                    setSortBy((prev) => prev === "site" ? "site" : "site");
+                    setSortDir((prev) => sortBy === "site" ? (prev === "asc" ? "desc" : "asc") : "asc");
+                  }}>
+                    Site
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold cursor-pointer select-none" onClick={() => {
+                    setSortBy((prev) => prev === "status" ? "status" : "status");
+                    setSortDir((prev) => sortBy === "status" ? (prev === "asc" ? "desc" : "asc") : "asc");
+                  }}>
+                    Status
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold cursor-pointer select-none" onClick={() => {
+                    setSortBy((prev) => prev === "balance" ? "balance" : "balance");
+                    setSortDir((prev) => sortBy === "balance" ? (prev === "asc" ? "desc" : "asc") : "asc");
+                  }}>
+                    Balance
+                  </th>
                   <th className="px-3 py-2 text-left font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {tabFilteredReservations.map((res) => {
                   const arrival = new Date(res.arrivalDate);
+                  const departure = new Date(res.departureDate);
                   const total = (res.totalAmount ?? 0) / 100;
                   const paid = (res.paidAmount ?? 0) / 100;
                   const balance = Math.max(0, total - paid);
                   const guestName = `${(res as any).guest?.primaryFirstName || ""} ${(res as any).guest?.primaryLastName || ""}`.trim() || "Unassigned";
+                  const statusClass = statusBadge(res.status as ReservationStatus);
                   const balanceClass =
                     balance > 0
                       ? "border-amber-300 bg-amber-50 text-amber-800"
@@ -1289,9 +1316,16 @@ export default function ReservationsPage() {
                           onChange={() => toggleRow(res.id)}
                         />
                       </td>
+                      <td className="px-3 py-2 text-slate-800">
+                        {arrival.toLocaleDateString()} → {departure.toLocaleDateString()}
+                      </td>
                       <td className="px-3 py-2 text-slate-800">{guestName}</td>
                       <td className="px-3 py-2 text-slate-800">{res.site?.name || res.site?.siteNumber || "—"}</td>
-                      <td className="px-3 py-2 text-slate-800">{arrival.toLocaleDateString()}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full border px-2 py-0.5 text-xs capitalize ${statusClass}`}>
+                          {res.status.replace("_", " ")}
+                        </span>
+                      </td>
                       <td className="px-3 py-2 text-slate-800">
                         <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${balanceClass}`}>
                           Paid ${paid.toFixed(2)} • Bal ${balance.toFixed(2)}
@@ -1299,14 +1333,26 @@ export default function ReservationsPage() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => updateReservation.mutate({ id: res.id, data: { status: "checked_out" } })}
-                            disabled={updateReservation.isPending}
-                          >
-                            Check out
-                          </Button>
+                          {res.status === "confirmed" && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => updateReservation.mutate({ id: res.id, data: { status: "checked_in" } })}
+                              disabled={updateReservation.isPending}
+                            >
+                              Check in
+                            </Button>
+                          )}
+                          {res.status === "checked_in" && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => updateReservation.mutate({ id: res.id, data: { status: "checked_out" } })}
+                              disabled={updateReservation.isPending}
+                            >
+                              Check out
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline" onClick={() => toggleDetails(res, true)}>
                             Message
                           </Button>
@@ -1321,11 +1367,18 @@ export default function ReservationsPage() {
                             Details
                           </Button>
                         </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-600 mt-1">
+                          {activeFilterCount > 0 && (
+                            <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold">
+                              {activeFilterCount} filters
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
-                {tabFilteredReservations.length === 0 && <TableEmpty colSpan={6}>No in-house guests right now.</TableEmpty>}
+                {tabFilteredReservations.length === 0 && <TableEmpty colSpan={7}>No in-house guests right now.</TableEmpty>}
               </tbody>
             </table>
           </div>
