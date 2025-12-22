@@ -1,4 +1,7 @@
 [build]
+# Use Dockerfile.api for the API service
+dockerfilePath = "Dockerfile.api"
+
 # Pass these environment variables as Docker build arguments
 buildArgs = [
   "NEXT_PUBLIC_API_BASE",

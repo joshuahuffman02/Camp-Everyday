@@ -5,21 +5,47 @@ import Redis from "ioredis";
 export class RedisService implements OnModuleDestroy {
   private client: Redis | null;
   private readonly logger = new Logger(RedisService.name);
+  private connectionFailed = false;
 
   constructor() {
     const url = process.env.PLATFORM_REDIS_URL;
-    this.client = url ? new Redis(url) : null;
 
-    if (this.client) {
-      this.client.on("connect", () => this.logger.log("Redis connected"));
-      this.client.on("error", (err) => this.logger.error("Redis error", err));
-    } else {
+    if (!url) {
+      this.client = null;
       this.logger.warn("Redis is not configured (PLATFORM_REDIS_URL not set)");
+      return;
     }
+
+    // Create Redis client with limited retries to avoid log spam
+    this.client = new Redis(url, {
+      maxRetriesPerRequest: 1,
+      retryStrategy: (times) => {
+        if (times > 3) {
+          // Stop retrying after 3 attempts
+          this.logger.warn("Redis connection failed after 3 attempts, disabling Redis");
+          this.connectionFailed = true;
+          return null; // Stop retrying
+        }
+        return Math.min(times * 500, 2000); // Retry with backoff
+      },
+      enableOfflineQueue: false, // Don't queue commands when disconnected
+    });
+
+    this.client.on("connect", () => this.logger.log("Redis connected"));
+    this.client.on("error", (err) => {
+      // Only log error once to avoid spam
+      if (!this.connectionFailed) {
+        this.logger.error("Redis error", { code: err.code });
+        if (err.code === "ECONNREFUSED") {
+          this.connectionFailed = true;
+          this.logger.warn("Redis unavailable, features requiring Redis will be disabled");
+        }
+      }
+    });
   }
 
   get isEnabled() {
-    return !!this.client;
+    return !!this.client && !this.connectionFailed;
   }
 
   /**
@@ -27,20 +53,20 @@ export class RedisService implements OnModuleDestroy {
    * Returns null when Redis is not configured so callers can noop gracefully.
    */
   getClient() {
-    return this.client;
+    return this.isEnabled ? this.client : null;
   }
 
   async ping(): Promise<string | null> {
-    if (!this.client) return null;
-    return this.client.ping();
+    if (!this.isEnabled) return null;
+    return this.client!.ping();
   }
 
   /**
    * Get a value from cache
    */
   async get<T = string>(key: string): Promise<T | null> {
-    if (!this.client) return null;
-    const value = await this.client.get(key);
+    if (!this.isEnabled) return null;
+    const value = await this.client!.get(key);
     if (!value) return null;
     try {
       return JSON.parse(value) as T;
@@ -53,12 +79,12 @@ export class RedisService implements OnModuleDestroy {
    * Set a value in cache with optional TTL (in seconds)
    */
   async set(key: string, value: any, ttl?: number): Promise<void> {
-    if (!this.client) return;
+    if (!this.isEnabled) return;
     const serialized = typeof value === "string" ? value : JSON.stringify(value);
     if (ttl) {
-      await this.client.setex(key, ttl, serialized);
+      await this.client!.setex(key, ttl, serialized);
     } else {
-      await this.client.set(key, serialized);
+      await this.client!.set(key, serialized);
     }
   }
 
@@ -66,18 +92,18 @@ export class RedisService implements OnModuleDestroy {
    * Delete a key from cache
    */
   async del(key: string): Promise<void> {
-    if (!this.client) return;
-    await this.client.del(key);
+    if (!this.isEnabled) return;
+    await this.client!.del(key);
   }
 
   /**
    * Delete multiple keys matching a pattern
    */
   async delPattern(pattern: string): Promise<void> {
-    if (!this.client) return;
-    const keys = await this.client.keys(pattern);
+    if (!this.isEnabled) return;
+    const keys = await this.client!.keys(pattern);
     if (keys.length > 0) {
-      await this.client.del(...keys);
+      await this.client!.del(...keys);
     }
   }
 
@@ -85,8 +111,8 @@ export class RedisService implements OnModuleDestroy {
    * Check if a key exists
    */
   async exists(key: string): Promise<boolean> {
-    if (!this.client) return false;
-    const result = await this.client.exists(key);
+    if (!this.isEnabled) return false;
+    const result = await this.client!.exists(key);
     return result === 1;
   }
 
@@ -94,24 +120,24 @@ export class RedisService implements OnModuleDestroy {
    * Set expiration time on a key (in seconds)
    */
   async expire(key: string, ttl: number): Promise<void> {
-    if (!this.client) return;
-    await this.client.expire(key, ttl);
+    if (!this.isEnabled) return;
+    await this.client!.expire(key, ttl);
   }
 
   /**
    * Increment a counter
    */
   async incr(key: string): Promise<number | null> {
-    if (!this.client) return null;
-    return this.client.incr(key);
+    if (!this.isEnabled) return null;
+    return this.client!.incr(key);
   }
 
   /**
    * Decrement a counter
    */
   async decr(key: string): Promise<number | null> {
-    if (!this.client) return null;
-    return this.client.decr(key);
+    if (!this.isEnabled) return null;
+    return this.client!.decr(key);
   }
 
   async onModuleDestroy() {

@@ -1,9 +1,9 @@
-FROM node:lts-alpine AS base
-# CACHE_BUST ARG forces rebuild when changed - v13 2025-12-21T18:30
-ARG CACHE_BUST=v13
+FROM node:22-alpine AS base
+# COMPLETE CACHE BUST v15 - Force rebuild with startup script
+ARG CACHE_BUST=v15
 RUN corepack enable && corepack prepare pnpm@7.33.6 --activate
 WORKDIR /app
-RUN echo "Build: ${CACHE_BUST}" > /tmp/build-info
+RUN echo "Build: ${CACHE_BUST} - $(date)" > /tmp/build-info
 
 # Install dependencies
 FROM base AS deps
@@ -20,7 +20,7 @@ RUN pnpm --filter @campreserv/shared build
 
 # Build API
 FROM shared AS api-builder
-ARG CACHE_BUST=v13
+ARG CACHE_BUST=v15
 COPY platform/apps/api ./platform/apps/api
 # Force prisma regeneration - CACHE_BUST=${CACHE_BUST}
 RUN echo "Regenerating Prisma client - ${CACHE_BUST}" && \
@@ -30,7 +30,7 @@ RUN pnpm --filter @campreserv/api build
 
 # Production image for API
 FROM base AS api
-ARG CACHE_BUST=v13
+ARG CACHE_BUST=v15
 COPY --from=api-builder /app/node_modules ./node_modules
 COPY --from=deps /app/platform ./platform
 COPY --from=shared /app/platform/packages/shared/dist ./platform/packages/shared/dist
@@ -39,11 +39,13 @@ COPY --from=api-builder /app/platform/apps/api/prisma ./platform/apps/api/prisma
 COPY --from=api-builder /app/platform/apps/api/package.json ./platform/apps/api/
 COPY --from=api-builder /app/platform/apps/api/prisma.config.ts ./platform/apps/api/
 
-# CRITICAL: Force regenerate Prisma client in production image - CACHE_BUST=${CACHE_BUST}
+# CRITICAL: Force regenerate Prisma client in production image - CACHE_BUST=v15
 WORKDIR /app/platform/apps/api
-RUN echo "Final Prisma regen - ${CACHE_BUST}" && \
-    rm -rf /app/node_modules/.prisma /app/node_modules/@prisma/client && \
-    npx prisma generate
+
+# Copy startup script - v15 forces rebuild
+COPY platform/apps/api/start.sh ./start.sh
+RUN chmod +x start.sh
 
 EXPOSE 3001
-CMD ["node", "-r", "tsconfig-paths/register", "dist/main.js"]
+# Use startup script that guarantees fresh Prisma client
+CMD ["./start.sh"]
