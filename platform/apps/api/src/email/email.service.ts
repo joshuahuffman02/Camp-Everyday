@@ -67,7 +67,11 @@ export class EmailService {
     }
 
     async sendEmail(options: EmailOptions): Promise<{ providerMessageId?: string; provider?: string; fallback?: string }> {
-        const fromEmail = process.env.SMTP_FROM || "no-reply@campreserv.com";
+        // For Resend, use onboarding@resend.dev if no verified domain is configured
+        const configuredFrom = process.env.SMTP_FROM || "";
+        const isValidEmail = configuredFrom.includes("@");
+        const resendFrom = isValidEmail ? configuredFrom : "Camp Everyday <onboarding@resend.dev>";
+        const fromEmail = isValidEmail ? configuredFrom : "no-reply@campreserv.com";
 
         const tryResend = async () => {
             const res = await fetch("https://api.resend.com/emails", {
@@ -77,7 +81,7 @@ export class EmailService {
                     Authorization: `Bearer ${this.resendApiKey}`
                 },
                 body: JSON.stringify({
-                    from: fromEmail,
+                    from: resendFrom,
                     to: options.to,
                     subject: options.subject,
                     html: options.html
