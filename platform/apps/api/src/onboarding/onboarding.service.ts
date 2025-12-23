@@ -140,37 +140,48 @@ export class OnboardingService {
     if (existing?.status === IdempotencyStatus.succeeded && existing.responseJson) {
       return existing.responseJson;
     }
-    if (existing?.status === IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 60000) {
+    // Allow retry if inflight record is older than 10 seconds (likely a failed/abandoned request)
+    if (existing?.status === IdempotencyStatus.inflight && existing.createdAt && Date.now() - new Date(existing.createdAt).getTime() < 10000) {
       throw new ConflictException("Onboarding step already in progress");
     }
+    // If inflight but older than 10 seconds, mark it as failed so we can retry
+    if (existing?.status === IdempotencyStatus.inflight && idempotencyKey) {
+      await this.idempotency.fail(idempotencyKey).catch(() => null);
+    }
 
-    const sanitized = this.validatePayload(step, payload);
-    const completed = new Set(session.completedSteps ?? []);
-    completed.add(step);
+    try {
+      const sanitized = this.validatePayload(step, payload);
+      const completed = new Set(session.completedSteps ?? []);
+      completed.add(step);
 
-    const progress = this.buildProgress({
-      ...session,
-      currentStep: step,
-      completedSteps: Array.from(completed),
-      data: { ...(session.data as any ?? {}), [step]: sanitized },
-    });
-
-    const nextStatus = progress.remainingSteps.length === 0 ? OnboardingStatus.completed : OnboardingStatus.in_progress;
-
-    const updated = await this.prisma.onboardingSession.update({
-      where: { id: sessionId },
-      data: {
-        currentStep: progress.nextStep ?? step,
+      const progress = this.buildProgress({
+        ...session,
+        currentStep: step,
         completedSteps: Array.from(completed),
-        status: nextStatus,
         data: { ...(session.data as any ?? {}), [step]: sanitized },
-        progress,
-      }
-    });
+      });
 
-    const response = { session: updated, progress };
-    if (idempotencyKey) await this.idempotency.complete(idempotencyKey, response);
-    return response;
+      const nextStatus = progress.remainingSteps.length === 0 ? OnboardingStatus.completed : OnboardingStatus.in_progress;
+
+      const updated = await this.prisma.onboardingSession.update({
+        where: { id: sessionId },
+        data: {
+          currentStep: progress.nextStep ?? step,
+          completedSteps: Array.from(completed),
+          status: nextStatus,
+          data: { ...(session.data as any ?? {}), [step]: sanitized },
+          progress,
+        }
+      });
+
+      const response = { session: updated, progress };
+      if (idempotencyKey) await this.idempotency.complete(idempotencyKey, response);
+      return response;
+    } catch (error) {
+      // Mark idempotency as failed so retries work
+      if (idempotencyKey) await this.idempotency.fail(idempotencyKey).catch(() => null);
+      throw error;
+    }
   }
 
   private buildProgress(session: any) {
