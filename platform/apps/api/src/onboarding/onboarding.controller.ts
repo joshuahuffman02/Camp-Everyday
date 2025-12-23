@@ -125,11 +125,21 @@ export class OnboardingController {
     }
 
     // Check if account is fully onboarded
+    // Consider "connected" when details are submitted (user completed their part)
+    // charges_enabled may take time for Stripe to verify
     try {
       const account = await this.stripe.retrieveAccount(accountId);
-      const connected = account.details_submitted && account.charges_enabled;
-      return { connected, accountId, details_submitted: account.details_submitted, charges_enabled: account.charges_enabled };
-    } catch {
+      const connected = !!account.details_submitted; // User completed Stripe onboarding
+      const fullyEnabled = account.details_submitted && account.charges_enabled;
+      return {
+        connected,
+        fullyEnabled,
+        accountId,
+        details_submitted: account.details_submitted,
+        charges_enabled: account.charges_enabled
+      };
+    } catch (err) {
+      console.error("[Onboarding] Stripe account retrieval error:", err);
       return { connected: false, reason: "account_error" };
     }
   }
