@@ -249,6 +249,11 @@ export default function SignupPage() {
 
       const registerData = await registerRes.json();
 
+      // Auto-login: store the token so user is signed in
+      if (registerData.token && typeof window !== "undefined") {
+        localStorage.setItem("campreserv:authToken", registerData.token);
+      }
+
       // Create early access enrollment
       const signupRes = await fetch(`${API_BASE}/early-access/signup`, {
         method: "POST",
