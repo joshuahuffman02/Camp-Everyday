@@ -157,6 +157,43 @@ export class OnboardingService {
       const completed = new Set(session.completedSteps ?? []);
       completed.add(step);
 
+      // Create campground when park_profile is saved (needed for Stripe connect)
+      let campgroundId = session.campgroundId;
+      if ((step === OnboardingStep.park_profile || step === OnboardingStep.account_profile) && !campgroundId) {
+        const profileData = sanitized as any;
+        const campgroundData = profileData.campground || profileData;
+        const campgroundName = campgroundData.name || campgroundData.campgroundName || "My Campground";
+
+        // Generate unique slug
+        const baseSlug = campgroundName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        let slug = baseSlug;
+        let counter = 1;
+        while (await this.prisma.campground.findUnique({ where: { slug } })) {
+          slug = `${baseSlug}-${counter}`;
+          counter++;
+        }
+
+        const campground = await this.prisma.campground.create({
+          data: {
+            organizationId: session.organizationId || "",
+            name: campgroundName,
+            slug,
+            phone: campgroundData.phone,
+            email: campgroundData.email,
+            city: campgroundData.city,
+            state: campgroundData.state,
+            country: campgroundData.country || "US",
+            address1: campgroundData.address1,
+            postalCode: campgroundData.postalCode,
+            timezone: campgroundData.timezone || "America/New_York",
+            website: campgroundData.website,
+            isBookable: false, // Not bookable until onboarding complete
+          }
+        });
+        campgroundId = campground.id;
+        this.logger.log(`Created campground ${campground.id} (${campground.name}) during onboarding`);
+      }
+
       const progress = this.buildProgress({
         ...session,
         currentStep: step,
@@ -169,6 +206,7 @@ export class OnboardingService {
       const updated = await this.prisma.onboardingSession.update({
         where: { id: sessionId },
         data: {
+          campgroundId, // Update with new campground if created
           currentStep: progress.nextStep ?? step,
           completedSteps: Array.from(completed),
           status: nextStatus,

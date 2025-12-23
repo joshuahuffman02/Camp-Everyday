@@ -136,7 +136,7 @@ export default function OnboardingPage() {
 
   // Handle Stripe return
   useEffect(() => {
-    if (stripeStatus === "success") {
+    if (stripeStatus === "success" && token) {
       // Show celebration and move to next step
       setCelebration({
         show: true,
@@ -201,8 +201,8 @@ export default function OnboardingPage() {
     },
   });
 
-  // Loading state
-  if (sessionQuery.isLoading) {
+  // Loading state - also show loading if token isn't ready yet (hydration)
+  if (!token || sessionQuery.isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -213,7 +213,7 @@ export default function OnboardingPage() {
     );
   }
 
-  // Error state
+  // Error state - only show if we have a token but the query failed
   if (sessionQuery.error || !sessionQuery.data) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -246,31 +246,47 @@ export default function OnboardingPage() {
   };
 
   const handleStripeConnect = async (): Promise<string> => {
-    // Call API to create Stripe account link
+    // Call onboarding-specific Stripe connect endpoint (no JWT required)
+    const sessionId = sessionQuery.data?.session.id;
+    if (!sessionId) {
+      throw new Error("Session not loaded");
+    }
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE}/campgrounds/${sessionQuery.data?.session.campgroundId}/payments/connect`,
+      `${process.env.NEXT_PUBLIC_API_BASE}/onboarding/session/${sessionId}/stripe/connect`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Onboarding-Token": token,
         },
+        body: JSON.stringify({ token }),
       }
     );
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to connect Stripe");
+    }
     const result = await response.json();
     return result.onboardingUrl;
   };
 
   const handleStripeCheckStatus = async (): Promise<boolean> => {
-    // Check if Stripe is connected
+    // Check if Stripe is connected via onboarding endpoint
+    const sessionId = sessionQuery.data?.session.id;
+    if (!sessionId) {
+      return false;
+    }
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE}/campgrounds/${sessionQuery.data?.session.campgroundId}/payments/status`,
+      `${process.env.NEXT_PUBLIC_API_BASE}/onboarding/session/${sessionId}/stripe/status?token=${encodeURIComponent(token)}`,
       {
         headers: {
           "X-Onboarding-Token": token,
         },
       }
     );
+    if (!response.ok) {
+      return false;
+    }
     const result = await response.json();
     return result.connected;
   };
