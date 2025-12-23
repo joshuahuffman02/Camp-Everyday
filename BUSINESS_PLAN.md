@@ -81,12 +81,33 @@ With limited time, traditional sales (cold calls, demos, follow-ups) isn't viabl
 - AI features included
 - No marketplace commission (unlike Campspot's 10%)
 
+### Setup Assistance Add-Ons (Optional)
+
+DIY setup is always free. For campgrounds who want help:
+
+| Service | Price | What's Included |
+|---------|-------|-----------------|
+| Quick Start | $249 | Site & rate config, payment setup, 30-min training call |
+| Data Import (up to 500) | $299 | We import their exported reservation data |
+| Data Import (501-2,000) | $599 | Same as above, larger volume |
+| Data Import (2,001-5,000) | $999 | Same as above, larger volume |
+| Data Import (5,000+) | Custom | Enterprise-scale migrations |
+
+**Note:** Customer must export their own data from their old system (we can't access their accounts). We clean up and import it.
+
+**Pay-over-time option:** Don't want to pay upfront? Add $1/booking until paid off.
+- Quick Start ($249) = paid off after 249 bookings
+- Data Import ($299-$999) = paid off after equivalent bookings
+
+**Early access tiers include free data migration assistance.**
+
 ### Why This Works for Bootstrapping
 
 - Recurring revenue (monthly) provides stability
 - Per-booking fees scale with customer success
 - No enterprise sales cycles requiring founder time
 - Simple pricing = no negotiation needed
+- Setup add-ons are pure margin (contracted out at ~$40/hr)
 
 ---
 

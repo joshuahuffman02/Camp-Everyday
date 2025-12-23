@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, X, ArrowRight, Star, Clock, Users, Zap, Crown, Rocket, Gift, Shield } from 'lucide-react';
+import { Check, X, ArrowRight, Star, Clock, Users, Zap, Crown, Rocket, Gift, Shield, Wrench, Database, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -346,6 +346,125 @@ export function PricingPreview() {
           </p>
         </div>
 
+        {/* Setup Assistance Add-Ons */}
+        <div className="max-w-5xl mx-auto mb-20">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-400 text-sm font-semibold mb-6">
+              <Wrench className="h-4 w-4" />
+              Optional Add-Ons
+            </div>
+            <h3 className="text-3xl font-bold text-white mb-4">
+              Want Help Getting Set Up?
+            </h3>
+            <p className="text-slate-400 max-w-2xl mx-auto">
+              DIY setup is always free with our guides and documentation. But if you'd rather have us handle
+              the heavy lifting, we've got you covered.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Quick Start */}
+            <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 rounded-xl bg-blue-500/20">
+                  <Headphones className="h-6 w-6 text-blue-400" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-white">Quick Start</h4>
+                  <p className="text-slate-400 text-sm">We configure, you relax</p>
+                </div>
+              </div>
+
+              <div className="flex items-baseline gap-1 mb-6">
+                <span className="text-2xl text-slate-400">$</span>
+                <span className="text-5xl font-bold text-white">249</span>
+                <span className="text-slate-400">one-time</span>
+              </div>
+
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Site & rate configuration</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Payment gateway setup</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">30-minute training call</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Policy & email template setup</span>
+                </li>
+              </ul>
+
+              <p className="text-sm text-slate-500">
+                Perfect for campgrounds who want to hit the ground running.
+              </p>
+
+              <div className="mt-6 pt-6 border-t border-slate-700/50">
+                <p className="text-sm text-slate-400">
+                  <span className="text-blue-400 font-medium">Prefer to pay over time?</span>{" "}
+                  Add $1/booking until paid off.
+                </p>
+              </div>
+            </div>
+
+            {/* Data Import Service */}
+            <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 rounded-xl bg-emerald-500/20">
+                  <Database className="h-6 w-6 text-emerald-400" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-white">Data Import Service</h4>
+                  <p className="text-slate-400 text-sm">We import your existing reservations</p>
+                </div>
+              </div>
+
+              <p className="text-slate-300 mb-6">
+                You export from your old system, we clean it up and import it. No more manual data entry.
+              </p>
+
+              <div className="space-y-3 mb-6">
+                <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
+                  <span className="text-slate-300">Up to 500 reservations</span>
+                  <span className="text-white font-semibold">$299</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
+                  <span className="text-slate-300">501 – 2,000 reservations</span>
+                  <span className="text-white font-semibold">$599</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
+                  <span className="text-slate-300">2,001 – 5,000 reservations</span>
+                  <span className="text-white font-semibold">$999</span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-slate-300">5,000+ reservations</span>
+                  <span className="text-emerald-400 font-semibold">Custom quote</span>
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-500">
+                Includes guest data, reservation history, and QA review.
+              </p>
+
+              <div className="mt-6 pt-6 border-t border-slate-700/50">
+                <p className="text-sm text-slate-400">
+                  <span className="text-emerald-400 font-medium">Prefer to pay over time?</span>{" "}
+                  Add $1/booking until paid off.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-center text-slate-500 text-sm mt-8">
+            Early access tiers include free data migration assistance.
+          </p>
+        </div>
+
         {/* Competitor Comparison Toggle */}
         <div className="text-center mb-8">
           <button
@@ -471,8 +590,8 @@ export function PricingPreview() {
               <p className="text-slate-400">Average time to go live</p>
             </div>
             <div>
-              <div className="text-4xl font-bold text-white mb-2">$0</div>
-              <p className="text-slate-400">Setup and migration fees</p>
+              <div className="text-4xl font-bold text-white mb-2">Free</div>
+              <p className="text-slate-400">DIY setup with guides</p>
             </div>
           </div>
         </div>

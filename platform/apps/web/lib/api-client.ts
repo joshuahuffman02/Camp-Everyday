@@ -291,7 +291,7 @@ const OnboardingSessionSchema = z.object({
   currentStep: OnboardingStepEnum,
   completedSteps: z.array(OnboardingStepEnum).default([]),
   data: z.record(z.any()).nullable().optional(),
-  progress: OnboardingProgressSchema.optional(),
+  progress: OnboardingProgressSchema.nullable().optional(),
   expiresAt: z.string().nullable().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional()
