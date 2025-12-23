@@ -10,7 +10,7 @@ import {
     UseGuards,
     Request,
 } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { BatchInventoryService } from "./batch-inventory.service";
 import { ExpirationAlertService } from "./expiration-alert.service";
 import { SlowMovingInventoryService } from "./slow-moving.service";
