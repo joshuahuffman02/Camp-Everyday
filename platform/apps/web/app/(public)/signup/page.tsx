@@ -269,12 +269,18 @@ export default function SignupPage() {
         throw new Error(data.message || "Signup failed");
       }
 
+      const signupData = await signupRes.json();
+
       // Show success celebration
       setShowSubmitSuccess(true);
 
-      // Redirect after celebration
+      // Redirect after celebration - include onboarding URL for testing
       setTimeout(() => {
-        router.push(`/signup/confirm?email=${encodeURIComponent(email)}`);
+        const params = new URLSearchParams({
+          email,
+          ...(signupData.onboardingUrl && { url: signupData.onboardingUrl })
+        });
+        router.push(`/signup/confirm?${params.toString()}`);
       }, 1500);
 
     } catch (err) {

@@ -19,6 +19,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api"
 function ConfirmContent() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
+  const onboardingUrl = searchParams.get("url") || "";
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const prefersReducedMotion = useReducedMotion();
@@ -175,6 +176,30 @@ function ConfirmContent() {
             ))}
           </ol>
         </motion.div>
+
+        {/* Direct link for testing (when URL is available) */}
+        {onboardingUrl && (
+          <motion.div
+            variants={prefersReducedMotion ? undefined : itemVariants}
+            className="mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30"
+          >
+            <p className="text-amber-400 text-sm font-semibold mb-2">
+              Dev Mode: Direct Onboarding Link
+            </p>
+            <p className="text-slate-400 text-xs mb-3">
+              Email delivery not configured. Use this link to continue:
+            </p>
+            <Button
+              asChild
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold"
+            >
+              <Link href={onboardingUrl}>
+                Continue to Setup
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </motion.div>
+        )}
 
         {/* Resend */}
         <motion.div
