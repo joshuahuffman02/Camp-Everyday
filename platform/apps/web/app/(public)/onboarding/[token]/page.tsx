@@ -12,8 +12,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+
+const US_TIMEZONES = [
+  { value: "America/New_York", label: "Eastern (ET)" },
+  { value: "America/Chicago", label: "Central (CT)" },
+  { value: "America/Denver", label: "Mountain (MT)" },
+  { value: "America/Phoenix", label: "Arizona (no DST)" },
+  { value: "America/Los_Angeles", label: "Pacific (PT)" },
+  { value: "America/Anchorage", label: "Alaska (AKT)" },
+  { value: "Pacific/Honolulu", label: "Hawaii (HST)" },
+] as const;
 
 type StepData = Partial<Record<OnboardingStepKey, any>>;
 
@@ -221,7 +232,7 @@ function StepFields({
           <Field label="Contact name" value={value.contactName} onChange={(v) => onChange({ contactName: v })} />
           <Field label="Contact email" value={value.contactEmail} onChange={(v) => onChange({ contactEmail: v })} />
           <Field label="Phone" value={value.phone} onChange={(v) => onChange({ phone: v })} />
-          <Field label="Timezone" value={value.timezone} onChange={(v) => onChange({ timezone: v })} />
+          <TimezoneField value={value.timezone} onChange={(v) => onChange({ timezone: v })} />
         </div>
       );
     case "payment_gateway":
@@ -347,6 +358,32 @@ function SwitchField({
         <p className="text-sm font-medium text-slate-900">{label}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
+function TimezoneField({
+  value,
+  onChange
+}: {
+  value: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm">Timezone</Label>
+      <Select value={value || ""} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue placeholder="Select timezone" />
+        </SelectTrigger>
+        <SelectContent>
+          {US_TIMEZONES.map((tz) => (
+            <SelectItem key={tz.value} value={tz.value}>
+              {tz.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
