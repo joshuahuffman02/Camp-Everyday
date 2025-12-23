@@ -30,6 +30,7 @@ interface WizardState {
   campground?: {
     id: string;
     name: string;
+    slug?: string;
     phone?: string;
     email?: string;
     city: string;
@@ -136,13 +137,14 @@ export default function OnboardingPage() {
 
     setState((prev) => ({
       ...prev,
-      campground: data.campground || {
-        id: session.campgroundId || "",
-        name: signupData.name,
-        phone: signupData.phone,
-        email: signupData.email,
-        city: "",
-        state: "",
+      campground: {
+        id: session.campgroundId || data.campground?.id || "",
+        name: data.campground?.name || signupData.name,
+        slug: (session as any).campgroundSlug || data.campground?.slug,
+        phone: data.campground?.phone || signupData.phone,
+        email: data.campground?.email || signupData.email,
+        city: data.campground?.city || "",
+        state: data.campground?.state || "",
       },
       stripeConnected: data.stripeConnected,
       stripeAccountId: data.stripeAccountId,
@@ -496,8 +498,11 @@ export default function OnboardingPage() {
   };
 
   const handlePreview = () => {
-    // Open booking page in new tab
-    window.open(`/park/${state.campground?.name?.toLowerCase().replace(/\s+/g, "-")}`, "_blank");
+    // Open booking page in new tab with preview token
+    const slug = state.campground?.slug || state.campground?.name?.toLowerCase().replace(/\s+/g, "-");
+    if (slug) {
+      window.open(`/park/${slug}/book?token=${encodeURIComponent(token)}`, "_blank");
+    }
   };
 
   // Render current step
@@ -648,6 +653,18 @@ export default function OnboardingPage() {
             }}
             onLaunch={handleLaunch}
             onPreview={handlePreview}
+            campgroundId={state.campground?.id}
+            token={token}
+            sites={state.sites?.map((s) => ({
+              id: s.id,
+              name: s.name,
+              siteNumber: s.siteNumber,
+              siteClassId: s.siteClassId,
+            }))}
+            siteClasses={state.siteClasses?.map((sc) => ({
+              id: sc.id,
+              name: sc.name,
+            }))}
           />
         );
 

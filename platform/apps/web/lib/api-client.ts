@@ -4033,8 +4033,11 @@ export const apiClient = {
     const data = await fetchJSON<unknown>("/public/campgrounds");
     return PublicCampgroundListSchema.parse(data);
   },
-  async getPublicCampground(slug: string) {
-    const data = await fetchJSON<unknown>(`/public/campgrounds/${slug}`);
+  async getPublicCampground(slug: string, previewToken?: string) {
+    const url = previewToken
+      ? `/public/campgrounds/${slug}/preview?token=${encodeURIComponent(previewToken)}`
+      : `/public/campgrounds/${slug}`;
+    const data = await fetchJSON<unknown>(url);
     return PublicCampgroundDetailSchema.parse(data);
   },
   async abandonPublicCart(payload: { campgroundId: string; email?: string; phone?: string; abandonedAt?: string }) {

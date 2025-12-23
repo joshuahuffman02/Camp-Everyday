@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, ForbiddenException, NotFoundException, Patch, UseGuards, Delete, BadRequestException } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Req, ForbiddenException, NotFoundException, Patch, UseGuards, Delete, BadRequestException, Query } from "@nestjs/common";
 import { CampgroundsService } from "./campgrounds.service";
 import { CreateCampgroundDto } from "./dto/create-campground.dto";
 import type { Request } from "express";
@@ -9,10 +9,14 @@ import { UserRole } from "@prisma/client";
 import { ExternalCampgroundUpsertDto, OsmIngestRequestDto } from "./dto/external-campground.dto";
 import { UpdatePhotosDto } from "./dto/update-photos.dto";
 import { DepositConfigSchema, DepositRule } from "@campreserv/shared";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Controller()
 export class CampgroundsController {
-  constructor(private readonly campgrounds: CampgroundsService) { }
+  constructor(
+    private readonly campgrounds: CampgroundsService,
+    private readonly prisma: PrismaService,
+  ) { }
 
   // Public endpoints (no auth required)
   @Get("public/campgrounds")
@@ -33,6 +37,38 @@ export class CampgroundsController {
     const result = await this.campgrounds.findPublicSite(slug, code);
     if (!result) throw new NotFoundException("Site not found");
     return result;
+  }
+
+  /**
+   * Preview endpoint for onboarding - allows viewing unpublished campgrounds with valid token
+   */
+  @Get("public/campgrounds/:slug/preview")
+  async getPreviewBySlug(
+    @Param("slug") slug: string,
+    @Query("token") token: string,
+  ) {
+    if (!token) throw new BadRequestException("Preview token required");
+
+    // Validate the onboarding token and get the associated campground
+    const session = await this.prisma.onboardingSession.findFirst({
+      where: { token },
+      include: { campground: true },
+    });
+
+    if (!session || !session.campground) {
+      throw new NotFoundException("Invalid preview token or campground not found");
+    }
+
+    // Verify the slug matches the session's campground
+    if (session.campground.slug !== slug) {
+      throw new NotFoundException("Campground not found");
+    }
+
+    // Return the campground data (bypassing isPublished check)
+    const campground = await this.campgrounds.findBySlug(slug);
+    if (!campground) throw new NotFoundException("Campground not found");
+
+    return { ...campground, isPreview: true };
   }
 
   // Admin endpoints (auth required)

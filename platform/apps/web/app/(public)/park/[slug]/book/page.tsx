@@ -2655,6 +2655,7 @@ export default function BookingPage() {
     const initialSiteClassId = searchParams.get("siteClassId") || null;
     const initialRvLength = searchParams.get("rvLength") || "";
     const initialRvType = searchParams.get("rvType") || "";
+    const previewToken = searchParams.get("token") || undefined;
 
     const slug = params.slug as string;
     const [step, setStep] = useState<BookingStep>(initialArrival && initialDeparture ? 2 : 1);
@@ -2800,10 +2801,10 @@ export default function BookingPage() {
         router.replace(`/park/${slug}/book${nextQuery ? `?${nextQuery}` : ""}`, { scroll: false });
     }, [arrivalDate, departureDate, selectedSiteType, guestInfo.adults, guestInfo.children, slug, router, searchParams]);
 
-    // Fetch campground info
+    // Fetch campground info (with preview token for unpublished campgrounds)
     const { data: campground, isLoading: isLoadingCampground, error: campgroundError } = useQuery({
-        queryKey: ["public-campground", slug],
-        queryFn: () => apiClient.getPublicCampground(slug),
+        queryKey: ["public-campground", slug, previewToken],
+        queryFn: () => apiClient.getPublicCampground(slug, previewToken),
         enabled: !!slug,
         retry: 2,
         retryDelay: (attempt) => Math.min(500 * (attempt + 1), 4000)

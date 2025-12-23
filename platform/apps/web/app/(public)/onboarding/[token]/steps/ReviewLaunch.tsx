@@ -12,9 +12,14 @@ import {
   Shield,
   ArrowRight,
   ExternalLink,
+  Upload,
+  FileSpreadsheet,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ReservationImportModal } from "../components/reservation-import";
 
 interface SetupSummary {
   campground: {
@@ -34,6 +39,11 @@ interface ReviewLaunchProps {
   onLaunch: () => Promise<void>;
   onPreview: () => void;
   isLoading?: boolean;
+  // For reservation import
+  campgroundId?: string;
+  token?: string;
+  sites?: Array<{ id: string; name: string; siteNumber: string; siteClassId?: string }>;
+  siteClasses?: Array<{ id: string; name: string }>;
 }
 
 const SPRING_CONFIG = {
@@ -97,9 +107,16 @@ export function ReviewLaunch({
   onLaunch,
   onPreview,
   isLoading = false,
+  campgroundId,
+  token,
+  sites = [],
+  siteClasses = [],
 }: ReviewLaunchProps) {
   const prefersReducedMotion = useReducedMotion();
   const [launching, setLaunching] = useState(false);
+  const [importExpanded, setImportExpanded] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
 
   const handleLaunch = async () => {
     setLaunching(true);
@@ -194,6 +211,59 @@ export function ReviewLaunch({
           </Button>
         </motion.div>
 
+        {/* Reservation Import Section */}
+        {campgroundId && token && sites.length > 0 && (
+          <motion.div
+            initial={prefersReducedMotion ? {} : { opacity: 0 }}
+            animate={prefersReducedMotion ? {} : { opacity: 1 }}
+            transition={{ delay: 0.42 }}
+            className="border border-slate-700 rounded-xl overflow-hidden"
+          >
+            <button
+              onClick={() => setImportExpanded(!importExpanded)}
+              className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <FileSpreadsheet className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-white">Import Existing Reservations</p>
+                  <p className="text-sm text-slate-400">
+                    {importedCount > 0
+                      ? `${importedCount} reservations imported`
+                      : "Optional: Upload a CSV to import current bookings"}
+                  </p>
+                </div>
+              </div>
+              {importExpanded ? (
+                <ChevronUp className="w-5 h-5 text-slate-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-slate-400" />
+              )}
+            </button>
+
+            {importExpanded && (
+              <div className="px-4 pb-4 border-t border-slate-700/50">
+                <div className="pt-4 space-y-4">
+                  <p className="text-sm text-slate-400">
+                    Have existing reservations in another system? Import them now so they appear
+                    on your calendar and guests can see their bookings.
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => setImportModalOpen(true)}
+                    className="w-full border-slate-600 text-slate-200 hover:bg-slate-800"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload CSV
+                  </Button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Launch button */}
         <motion.div
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
@@ -256,6 +326,23 @@ export function ReviewLaunch({
           </p>
         </motion.div>
       </motion.div>
+
+      {/* Reservation Import Modal */}
+      {campgroundId && token && (
+        <ReservationImportModal
+          isOpen={importModalOpen}
+          onClose={() => setImportModalOpen(false)}
+          campgroundId={campgroundId}
+          token={token}
+          sites={sites}
+          siteClasses={siteClasses}
+          onComplete={(result) => {
+            setImportedCount(result.imported);
+            setImportModalOpen(false);
+            setImportExpanded(false);
+          }}
+        />
+      )}
     </div>
   );
 }

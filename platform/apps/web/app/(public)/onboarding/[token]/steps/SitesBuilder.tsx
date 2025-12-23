@@ -217,7 +217,6 @@ export function SitesBuilder({
   const [bulkCount, setBulkCount] = useState(10);
   // Default per-site values for bulk creation
   const [bulkLength, setBulkLength] = useState<number | undefined>(undefined);
-  const [bulkAmp, setBulkAmp] = useState<number | undefined>(undefined);
 
   // Individual creation state
   const [newSiteName, setNewSiteName] = useState("");
@@ -242,10 +241,9 @@ export function SitesBuilder({
         siteNumber,
         siteClassId: bulkSiteClassId,
       };
-      // Add RV-specific fields if applicable
-      if (isBulkRv) {
-        if (bulkLength) site.rigMaxLength = bulkLength;
-        if (bulkAmp) site.powerAmps = bulkAmp;
+      // Add RV-specific fields if applicable (no powerAmps - site inherits all options from class)
+      if (isBulkRv && bulkLength) {
+        site.rigMaxLength = bulkLength;
       }
       newSites.push(site);
     }
@@ -356,11 +354,7 @@ export function SitesBuilder({
                   <Label className="text-sm text-slate-300">Site Type</Label>
                   <Select
                     value={bulkSiteClassId}
-                    onValueChange={(val) => {
-                      setBulkSiteClassId(val);
-                      // Reset amp selection when changing class
-                      setBulkAmp(undefined);
-                    }}
+                    onValueChange={setBulkSiteClassId}
                   >
                     <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
                       <SelectValue />
@@ -413,7 +407,7 @@ export function SitesBuilder({
 
               {/* RV-specific bulk options */}
               {isBulkRv && (
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-700/50">
+                <div className="pt-2 border-t border-slate-700/50 space-y-4">
                   <div className="space-y-2">
                     <Label className="text-sm text-slate-300 flex items-center gap-2">
                       <Ruler className="w-4 h-4 text-slate-500" />
@@ -430,28 +424,24 @@ export function SitesBuilder({
                     />
                   </div>
                   {selectedBulkClass?.electricAmps && selectedBulkClass.electricAmps.length > 0 && (
-                    <div className="space-y-2">
-                      <Label className="text-sm text-slate-300 flex items-center gap-2">
+                    <div className="bg-slate-900/50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-sm text-slate-300 mb-2">
                         <Zap className="w-4 h-4 text-yellow-400" />
-                        Default Electric
-                      </Label>
-                      <Select
-                        value={bulkAmp?.toString() || ""}
-                        onValueChange={(val) =>
-                          setBulkAmp(val ? parseInt(val) : undefined)
-                        }
-                      >
-                        <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
-                          <SelectValue placeholder="Select amp" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedBulkClass.electricAmps.map((amp) => (
-                            <SelectItem key={amp} value={amp.toString()}>
-                              {amp} Amp
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        Electric Options
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedBulkClass.electricAmps.map((amp) => (
+                          <span
+                            key={amp}
+                            className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-sm"
+                          >
+                            {amp}A
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        All sites will support these amp options. You can restrict individual sites later.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -466,11 +456,9 @@ export function SitesBuilder({
                   {bulkStart + 1}, ... {bulkPrefix}
                   {bulkStart + bulkCount - 1}
                 </p>
-                {isBulkRv && (bulkLength || bulkAmp) && (
+                {isBulkRv && bulkLength && (
                   <p className="text-slate-500 text-xs mt-1">
-                    Each with: {bulkLength && `${bulkLength}ft max`}
-                    {bulkLength && bulkAmp && " • "}
-                    {bulkAmp && `${bulkAmp}A electric`}
+                    Each with: {bulkLength}ft max
                   </p>
                 )}
               </div>

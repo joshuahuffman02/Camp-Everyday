@@ -1,0 +1,756 @@
+import { Injectable, Logger, BadRequestException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { CsvParserService, FieldMapping } from "./parsers/csv-parser.service";
+
+// ============ Types ============
+
+export interface ReservationImportColumnMapping {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  arrivalDate: string;
+  departureDate: string;
+  siteNumber?: string;
+  siteName?: string;
+  siteClass?: string;
+  totalAmount?: string;
+  paidAmount?: string;
+  adults?: string;
+  children?: string;
+  confirmationNumber?: string;
+  status?: string;
+  notes?: string;
+}
+
+export interface ParsedReservationRow {
+  rowIndex: number;
+  rawData: Record<string, string>;
+  guest: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+  };
+  stay: {
+    arrivalDate: Date;
+    departureDate: Date;
+    nights: number;
+  };
+  siteIdentifier: {
+    siteNumber?: string;
+    siteName?: string;
+    siteClassName?: string;
+  };
+  pricing: {
+    totalAmountCents?: number;
+    paidAmountCents?: number;
+    balanceCents?: number;
+  };
+  meta: {
+    confirmationNumber?: string;
+    status?: string;
+    notes?: string;
+    adults: number;
+    children: number;
+  };
+  errors: string[];
+}
+
+export interface SiteMatchResult {
+  matchType: "exact_number" | "exact_name" | "class_assignment" | "manual_required";
+  matchedSiteId?: string;
+  matchedSiteName?: string;
+  matchedSiteNumber?: string;
+  suggestedSiteClassId?: string;
+  suggestedSiteClassName?: string;
+  availableSites?: Array<{ id: string; name: string; siteNumber: string }>;
+  conflict?: string;
+}
+
+export interface GuestMatchResult {
+  matchType: "existing" | "will_create";
+  existingGuestId?: string;
+  existingGuestName?: string;
+  existingGuestEmail?: string;
+}
+
+export interface PricingComparison {
+  csvTotalCents: number;
+  calculatedTotalCents: number;
+  difference: number;
+  differencePercent: number;
+  requiresReview: boolean;
+}
+
+export interface MatchResult {
+  rowIndex: number;
+  site: SiteMatchResult;
+  guest: GuestMatchResult;
+  pricing: PricingComparison;
+  useSystemPricing: boolean;
+  skip: boolean;
+}
+
+export interface ReservationImportPreview {
+  parsedRows: ParsedReservationRow[];
+  matchResults: MatchResult[];
+  summary: {
+    totalRows: number;
+    validRows: number;
+    sitesMatched: number;
+    sitesNeedSelection: number;
+    guestsFound: number;
+    guestsToCreate: number;
+    hasConflicts: number;
+    pricingDiscrepancies: number;
+  };
+}
+
+export interface ReservationImportExecuteRow {
+  rowIndex: number;
+  siteId?: string;
+  siteClassId?: string;
+  guestId?: string;
+  createGuest?: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+  };
+  useSystemPricing: boolean;
+  manualTotalOverrideCents?: number;
+  skip: boolean;
+}
+
+export interface ReservationImportResult {
+  success: boolean;
+  imported: number;
+  skipped: number;
+  errors: Array<{ rowIndex: number; error: string }>;
+  createdReservationIds: string[];
+  createdGuestIds: string[];
+}
+
+// ============ Service ============
+
+@Injectable()
+export class ReservationImportService {
+  private readonly logger = new Logger(ReservationImportService.name);
+
+  // Target fields with aliases for auto-mapping
+  static readonly targetFields = [
+    { name: "firstName", aliases: ["first_name", "firstname", "first", "guest_first_name", "primary_first"] },
+    { name: "lastName", aliases: ["last_name", "lastname", "last", "guest_last_name", "primary_last", "surname"] },
+    { name: "email", aliases: ["email_address", "guest_email", "primary_email", "e-mail"] },
+    { name: "phone", aliases: ["phone_number", "telephone", "guest_phone", "primary_phone", "mobile", "cell"] },
+    { name: "arrivalDate", aliases: ["arrival", "check_in", "checkin", "check_in_date", "start_date", "arrive"] },
+    { name: "departureDate", aliases: ["departure", "check_out", "checkout", "check_out_date", "end_date", "depart"] },
+    { name: "siteNumber", aliases: ["site_number", "site_num", "site_id", "site", "spot", "site_#", "site#", "unit"] },
+    { name: "siteName", aliases: ["site_name", "sitename", "spot_name"] },
+    { name: "siteClass", aliases: ["site_class", "site_type", "category", "class", "type", "accommodation_type"] },
+    { name: "totalAmount", aliases: ["total", "total_amount", "amount", "price", "total_price", "reservation_total", "grand_total"] },
+    { name: "paidAmount", aliases: ["paid", "paid_amount", "amount_paid", "payments", "collected"] },
+    { name: "adults", aliases: ["adult_count", "num_adults", "adult_guests", "adults_count"] },
+    { name: "children", aliases: ["child_count", "num_children", "kids", "children_count", "minors"] },
+    { name: "confirmationNumber", aliases: ["confirmation", "confirmation_number", "conf_number", "conf_#", "booking_id", "reservation_id", "res_id"] },
+    { name: "status", aliases: ["reservation_status", "booking_status", "state"] },
+    { name: "notes", aliases: ["note", "comments", "remarks", "special_requests", "guest_notes"] },
+  ];
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly csvParser: CsvParserService
+  ) {}
+
+  /**
+   * Get suggested field mappings for reservation import
+   */
+  suggestMappings(headers: string[]): Array<{ sourceField: string; suggestedTarget: string; confidence: number }> {
+    return this.csvParser.suggestFieldMappings(headers, ReservationImportService.targetFields);
+  }
+
+  /**
+   * Parse CSV and detect columns
+   */
+  async parseAndDetectColumns(
+    csvContent: string,
+    campgroundId: string
+  ): Promise<{
+    headers: string[];
+    suggestedMapping: Record<string, string>;
+    sampleRows: Record<string, string>[];
+    totalRows: number;
+  }> {
+    const parseResult = this.csvParser.parseCSV(csvContent);
+
+    if (!parseResult.success || parseResult.headers.length === 0) {
+      throw new BadRequestException("Unable to parse CSV file");
+    }
+
+    const suggestions = this.suggestMappings(parseResult.headers);
+    const suggestedMapping: Record<string, string> = {};
+
+    for (const s of suggestions) {
+      if (s.confidence >= 0.6) {
+        suggestedMapping[s.suggestedTarget] = s.sourceField;
+      }
+    }
+
+    return {
+      headers: parseResult.headers,
+      suggestedMapping,
+      sampleRows: parseResult.rows.slice(0, 5).map(r => r.data as Record<string, string>),
+      totalRows: parseResult.rows.length,
+    };
+  }
+
+  /**
+   * Preview import with full matching and pricing comparison
+   */
+  async previewImport(
+    campgroundId: string,
+    csvContent: string,
+    mapping: ReservationImportColumnMapping
+  ): Promise<ReservationImportPreview> {
+    // Verify campground exists
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      include: {
+        siteClasses: { where: { isActive: true } },
+        sites: { select: { id: true, name: true, siteNumber: true, siteClassId: true } },
+      },
+    });
+
+    if (!campground) {
+      throw new BadRequestException("Campground not found");
+    }
+
+    // Build field mappings for CSV parser
+    const fieldMappings: FieldMapping[] = [];
+    for (const [target, source] of Object.entries(mapping)) {
+      if (source) {
+        fieldMappings.push({ sourceField: source, targetField: target });
+      }
+    }
+
+    // Parse CSV
+    const parseResult = this.csvParser.parseCSV(csvContent, fieldMappings);
+    if (!parseResult.success) {
+      throw new BadRequestException(parseResult.errors?.join("; ") || "Failed to parse CSV");
+    }
+
+    // Parse each row
+    const parsedRows: ParsedReservationRow[] = [];
+    for (let i = 0; i < parseResult.rows.length; i++) {
+      const row = parseResult.rows[i];
+      const parsed = this.parseRow(i, row.data as Record<string, string>, mapping);
+      parsedRows.push(parsed);
+    }
+
+    // Match sites and guests
+    const matchResults: MatchResult[] = [];
+    for (const parsed of parsedRows) {
+      const siteMatch = await this.matchSite(
+        campground.sites,
+        campground.siteClasses,
+        parsed.siteIdentifier,
+        parsed.stay.arrivalDate,
+        parsed.stay.departureDate,
+        campgroundId
+      );
+
+      const guestMatch = await this.matchGuest(campgroundId, parsed.guest);
+
+      // Calculate pricing comparison
+      const pricingComparison = await this.calculatePricingComparison(
+        campgroundId,
+        siteMatch.matchedSiteId || null,
+        siteMatch.suggestedSiteClassId || null,
+        parsed.stay.arrivalDate,
+        parsed.stay.departureDate,
+        parsed.pricing.totalAmountCents || 0
+      );
+
+      matchResults.push({
+        rowIndex: parsed.rowIndex,
+        site: siteMatch,
+        guest: guestMatch,
+        pricing: pricingComparison,
+        useSystemPricing: false, // Default to CSV pricing
+        skip: parsed.errors.length > 0,
+      });
+    }
+
+    // Build summary
+    const summary = {
+      totalRows: parsedRows.length,
+      validRows: parsedRows.filter((r) => r.errors.length === 0).length,
+      sitesMatched: matchResults.filter((m) => m.site.matchType === "exact_number" || m.site.matchType === "exact_name").length,
+      sitesNeedSelection: matchResults.filter((m) => m.site.matchType === "class_assignment" || m.site.matchType === "manual_required").length,
+      guestsFound: matchResults.filter((m) => m.guest.matchType === "existing").length,
+      guestsToCreate: matchResults.filter((m) => m.guest.matchType === "will_create").length,
+      hasConflicts: matchResults.filter((m) => m.site.conflict).length,
+      pricingDiscrepancies: matchResults.filter((m) => m.pricing.requiresReview).length,
+    };
+
+    return { parsedRows, matchResults, summary };
+  }
+
+  /**
+   * Execute the import
+   */
+  async executeImport(
+    campgroundId: string,
+    parsedRows: ParsedReservationRow[],
+    executeRows: ReservationImportExecuteRow[]
+  ): Promise<ReservationImportResult> {
+    const result: ReservationImportResult = {
+      success: true,
+      imported: 0,
+      skipped: 0,
+      errors: [],
+      createdReservationIds: [],
+      createdGuestIds: [],
+    };
+
+    // Process each row
+    for (const execRow of executeRows) {
+      if (execRow.skip) {
+        result.skipped++;
+        continue;
+      }
+
+      const parsed = parsedRows.find((p) => p.rowIndex === execRow.rowIndex);
+      if (!parsed) {
+        result.errors.push({ rowIndex: execRow.rowIndex, error: "Row data not found" });
+        continue;
+      }
+
+      try {
+        // Create guest if needed
+        let guestId = execRow.guestId;
+        if (!guestId && execRow.createGuest) {
+          const guest = await this.prisma.guest.create({
+            data: {
+              campgroundId,
+              primaryFirstName: execRow.createGuest.firstName,
+              primaryLastName: execRow.createGuest.lastName,
+              email: execRow.createGuest.email?.toLowerCase().trim() || null,
+              phone: execRow.createGuest.phone || null,
+            },
+          });
+          guestId = guest.id;
+          result.createdGuestIds.push(guest.id);
+        }
+
+        if (!guestId) {
+          result.errors.push({ rowIndex: execRow.rowIndex, error: "No guest ID or guest data provided" });
+          continue;
+        }
+
+        if (!execRow.siteId && !execRow.siteClassId) {
+          result.errors.push({ rowIndex: execRow.rowIndex, error: "No site or site class selected" });
+          continue;
+        }
+
+        // Determine pricing
+        let totalAmountCents = parsed.pricing.totalAmountCents || 0;
+        if (execRow.manualTotalOverrideCents !== undefined) {
+          totalAmountCents = execRow.manualTotalOverrideCents;
+        } else if (execRow.useSystemPricing) {
+          // Would need to recalculate - for now use CSV
+          // In production, call pricing service here
+        }
+
+        const paidAmountCents = parsed.pricing.paidAmountCents || 0;
+        const balanceAmountCents = totalAmountCents - paidAmountCents;
+
+        // Determine status
+        let status: "pending" | "confirmed" | "checked_in" | "checked_out" | "cancelled" = "confirmed";
+        const csvStatus = parsed.meta.status?.toLowerCase();
+        if (csvStatus) {
+          if (csvStatus.includes("cancel")) status = "cancelled";
+          else if (csvStatus.includes("check") && csvStatus.includes("in")) status = "checked_in";
+          else if (csvStatus.includes("check") && csvStatus.includes("out")) status = "checked_out";
+          else if (csvStatus.includes("pending")) status = "pending";
+        }
+
+        // Create reservation
+        const reservation = await this.prisma.reservation.create({
+          data: {
+            campgroundId,
+            siteId: execRow.siteId || undefined,
+            guestId,
+            arrivalDate: parsed.stay.arrivalDate,
+            departureDate: parsed.stay.departureDate,
+            adults: parsed.meta.adults,
+            children: parsed.meta.children,
+            totalAmount: totalAmountCents,
+            paidAmount: paidAmountCents,
+            balanceAmount: balanceAmountCents,
+            status,
+            notes: parsed.meta.notes || `Imported from CSV. Original confirmation: ${parsed.meta.confirmationNumber || "N/A"}`,
+            bookedAt: new Date(),
+          },
+        });
+
+        result.createdReservationIds.push(reservation.id);
+        result.imported++;
+      } catch (error: any) {
+        result.errors.push({
+          rowIndex: execRow.rowIndex,
+          error: error.message || "Failed to create reservation",
+        });
+      }
+    }
+
+    result.success = result.errors.length === 0;
+    return result;
+  }
+
+  // ============ Private Methods ============
+
+  private parseRow(
+    rowIndex: number,
+    row: Record<string, string>,
+    mapping: ReservationImportColumnMapping
+  ): ParsedReservationRow {
+    const errors: string[] = [];
+
+    // Parse dates
+    const arrivalStr = row[mapping.arrivalDate] || "";
+    const departureStr = row[mapping.departureDate] || "";
+
+    const arrivalDate = this.parseDate(arrivalStr);
+    const departureDate = this.parseDate(departureStr);
+
+    if (!arrivalDate) errors.push("Invalid or missing arrival date");
+    if (!departureDate) errors.push("Invalid or missing departure date");
+    if (arrivalDate && departureDate && arrivalDate >= departureDate) {
+      errors.push("Departure must be after arrival");
+    }
+
+    const nights = arrivalDate && departureDate
+      ? Math.ceil((departureDate.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    // Parse guest info
+    const firstName = (row[mapping.firstName || ""] || "").trim() || "Guest";
+    const lastName = (row[mapping.lastName || ""] || "").trim();
+    if (!lastName) errors.push("Missing guest last name");
+
+    // Parse amounts
+    const totalAmountCents = this.parseCurrency(row[mapping.totalAmount || ""]);
+    const paidAmountCents = this.parseCurrency(row[mapping.paidAmount || ""]);
+
+    return {
+      rowIndex,
+      rawData: row,
+      guest: {
+        firstName,
+        lastName,
+        email: (row[mapping.email || ""] || "").trim().toLowerCase() || undefined,
+        phone: (row[mapping.phone || ""] || "").trim() || undefined,
+      },
+      stay: {
+        arrivalDate: arrivalDate || new Date(),
+        departureDate: departureDate || new Date(),
+        nights,
+      },
+      siteIdentifier: {
+        siteNumber: (row[mapping.siteNumber || ""] || "").trim() || undefined,
+        siteName: (row[mapping.siteName || ""] || "").trim() || undefined,
+        siteClassName: (row[mapping.siteClass || ""] || "").trim() || undefined,
+      },
+      pricing: {
+        totalAmountCents,
+        paidAmountCents,
+        balanceCents: totalAmountCents !== undefined && paidAmountCents !== undefined
+          ? totalAmountCents - paidAmountCents
+          : undefined,
+      },
+      meta: {
+        confirmationNumber: (row[mapping.confirmationNumber || ""] || "").trim() || undefined,
+        status: (row[mapping.status || ""] || "").trim() || undefined,
+        notes: (row[mapping.notes || ""] || "").trim() || undefined,
+        adults: parseInt(row[mapping.adults || ""] || "1", 10) || 1,
+        children: parseInt(row[mapping.children || ""] || "0", 10) || 0,
+      },
+      errors,
+    };
+  }
+
+  private parseDate(dateStr: string): Date | null {
+    if (!dateStr?.trim()) return null;
+
+    const cleaned = dateStr.trim();
+
+    // Try various formats
+    const formats = [
+      // ISO format
+      /^(\d{4})-(\d{1,2})-(\d{1,2})$/,
+      // US format MM/DD/YYYY
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+      // US format MM-DD-YYYY
+      /^(\d{1,2})-(\d{1,2})-(\d{4})$/,
+    ];
+
+    for (const format of formats) {
+      const match = cleaned.match(format);
+      if (match) {
+        let year: number, month: number, day: number;
+
+        if (format === formats[0]) {
+          // ISO: YYYY-MM-DD
+          year = parseInt(match[1], 10);
+          month = parseInt(match[2], 10) - 1;
+          day = parseInt(match[3], 10);
+        } else {
+          // US: MM/DD/YYYY or MM-DD-YYYY
+          month = parseInt(match[1], 10) - 1;
+          day = parseInt(match[2], 10);
+          year = parseInt(match[3], 10);
+        }
+
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) return date;
+      }
+    }
+
+    // Try native parsing as fallback
+    const parsed = new Date(cleaned);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private parseCurrency(value: string | undefined): number | undefined {
+    if (!value?.trim()) return undefined;
+
+    // Remove currency symbols, commas, spaces
+    const cleaned = value.replace(/[$,\s]/g, "").trim();
+    const amount = parseFloat(cleaned);
+
+    if (isNaN(amount)) return undefined;
+
+    // Convert to cents (assuming input is in dollars)
+    return Math.round(amount * 100);
+  }
+
+  private async matchSite(
+    sites: Array<{ id: string; name: string; siteNumber: string; siteClassId: string | null }>,
+    siteClasses: Array<{ id: string; name: string }>,
+    identifier: { siteNumber?: string; siteName?: string; siteClassName?: string },
+    arrivalDate: Date,
+    departureDate: Date,
+    campgroundId: string
+  ): Promise<SiteMatchResult> {
+    // Priority 1: Exact match by site number
+    if (identifier.siteNumber) {
+      const site = sites.find(
+        (s) => s.siteNumber?.toLowerCase() === identifier.siteNumber?.toLowerCase()
+      );
+      if (site) {
+        const conflict = await this.checkSiteAvailability(site.id, arrivalDate, departureDate);
+        return {
+          matchType: "exact_number",
+          matchedSiteId: site.id,
+          matchedSiteName: site.name,
+          matchedSiteNumber: site.siteNumber,
+          conflict,
+        };
+      }
+    }
+
+    // Priority 2: Match by site name
+    if (identifier.siteName) {
+      const site = sites.find(
+        (s) => s.name?.toLowerCase().includes(identifier.siteName!.toLowerCase())
+      );
+      if (site) {
+        const conflict = await this.checkSiteAvailability(site.id, arrivalDate, departureDate);
+        return {
+          matchType: "exact_name",
+          matchedSiteId: site.id,
+          matchedSiteName: site.name,
+          matchedSiteNumber: site.siteNumber,
+          conflict,
+        };
+      }
+    }
+
+    // Priority 3: Match by site class name
+    if (identifier.siteClassName) {
+      const siteClass = siteClasses.find(
+        (sc) => sc.name?.toLowerCase().includes(identifier.siteClassName!.toLowerCase())
+      );
+      if (siteClass) {
+        const availableSites = await this.getAvailableSitesInClass(
+          siteClass.id,
+          arrivalDate,
+          departureDate,
+          campgroundId
+        );
+        return {
+          matchType: "class_assignment",
+          suggestedSiteClassId: siteClass.id,
+          suggestedSiteClassName: siteClass.name,
+          availableSites,
+        };
+      }
+    }
+
+    // No match - manual selection required
+    const allSites = sites.map((s) => ({
+      id: s.id,
+      name: s.name,
+      siteNumber: s.siteNumber,
+    }));
+
+    return {
+      matchType: "manual_required",
+      availableSites: allSites,
+    };
+  }
+
+  private async matchGuest(
+    campgroundId: string,
+    guestData: { firstName: string; lastName: string; email?: string; phone?: string }
+  ): Promise<GuestMatchResult> {
+    // Match by email
+    if (guestData.email) {
+      const existing = await this.prisma.guest.findFirst({
+        where: {
+          campgroundId,
+          email: guestData.email.toLowerCase(),
+        },
+      });
+      if (existing) {
+        return {
+          matchType: "existing",
+          existingGuestId: existing.id,
+          existingGuestName: `${existing.primaryFirstName} ${existing.primaryLastName}`,
+          existingGuestEmail: existing.email || undefined,
+        };
+      }
+    }
+
+    // Match by phone + name
+    if (guestData.phone) {
+      const normalizedPhone = guestData.phone.replace(/\D/g, "");
+      const existing = await this.prisma.guest.findFirst({
+        where: {
+          campgroundId,
+          phone: { contains: normalizedPhone.slice(-10) },
+          primaryLastName: { equals: guestData.lastName, mode: "insensitive" },
+        },
+      });
+      if (existing) {
+        return {
+          matchType: "existing",
+          existingGuestId: existing.id,
+          existingGuestName: `${existing.primaryFirstName} ${existing.primaryLastName}`,
+          existingGuestEmail: existing.email || undefined,
+        };
+      }
+    }
+
+    return { matchType: "will_create" };
+  }
+
+  private async checkSiteAvailability(
+    siteId: string,
+    arrivalDate: Date,
+    departureDate: Date
+  ): Promise<string | undefined> {
+    const conflict = await this.prisma.reservation.findFirst({
+      where: {
+        siteId,
+        status: { notIn: ["cancelled"] },
+        arrivalDate: { lt: departureDate },
+        departureDate: { gt: arrivalDate },
+      },
+    });
+
+    return conflict ? "Site has overlapping reservation" : undefined;
+  }
+
+  private async getAvailableSitesInClass(
+    siteClassId: string,
+    arrivalDate: Date,
+    departureDate: Date,
+    campgroundId: string
+  ): Promise<Array<{ id: string; name: string; siteNumber: string }>> {
+    const sites = await this.prisma.site.findMany({
+      where: {
+        campgroundId,
+        siteClassId,
+        status: "active",
+      },
+      select: { id: true, name: true, siteNumber: true },
+    });
+
+    // Filter out sites with conflicts
+    const available: Array<{ id: string; name: string; siteNumber: string }> = [];
+    for (const site of sites) {
+      const conflict = await this.checkSiteAvailability(site.id, arrivalDate, departureDate);
+      if (!conflict) {
+        available.push(site);
+      }
+    }
+
+    return available;
+  }
+
+  private async calculatePricingComparison(
+    campgroundId: string,
+    siteId: string | null,
+    siteClassId: string | null,
+    arrivalDate: Date,
+    departureDate: Date,
+    csvTotalCents: number
+  ): Promise<PricingComparison> {
+    // For now, use a simple calculation based on site class default rate
+    // In production, this would call the full pricing evaluation service
+    let calculatedTotalCents = 0;
+
+    try {
+      if (siteId) {
+        const site = await this.prisma.site.findUnique({
+          where: { id: siteId },
+          include: { siteClass: true },
+        });
+        if (site?.siteClass?.defaultRate) {
+          const nights = Math.ceil(
+            (departureDate.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          calculatedTotalCents = site.siteClass.defaultRate * nights;
+        }
+      } else if (siteClassId) {
+        const siteClass = await this.prisma.siteClass.findUnique({
+          where: { id: siteClassId },
+        });
+        if (siteClass?.defaultRate) {
+          const nights = Math.ceil(
+            (departureDate.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          calculatedTotalCents = siteClass.defaultRate * nights;
+        }
+      }
+    } catch (e) {
+      // Ignore pricing calculation errors
+    }
+
+    const difference = csvTotalCents - calculatedTotalCents;
+    const differencePercent = calculatedTotalCents > 0
+      ? (difference / calculatedTotalCents) * 100
+      : 0;
+
+    return {
+      csvTotalCents,
+      calculatedTotalCents,
+      difference,
+      differencePercent,
+      requiresReview: Math.abs(differencePercent) > 10,
+    };
+  }
+}

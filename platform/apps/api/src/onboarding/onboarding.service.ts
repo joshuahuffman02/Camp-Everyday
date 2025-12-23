@@ -123,7 +123,18 @@ export class OnboardingService {
   async getSession(sessionId: string, token: string) {
     const session = await this.requireSession(sessionId, token);
     const progress = this.buildProgress(session);
-    return { session, progress };
+
+    // Include campground slug if available
+    let campgroundSlug: string | null = null;
+    if (session.campgroundId) {
+      const campground = await this.prisma.campground.findUnique({
+        where: { id: session.campgroundId },
+        select: { slug: true },
+      });
+      campgroundSlug = campground?.slug ?? null;
+    }
+
+    return { session: { ...session, campgroundSlug }, progress };
   }
 
   async saveStep(
@@ -159,6 +170,7 @@ export class OnboardingService {
 
       // Create campground when park_profile is saved (needed for Stripe connect)
       let campgroundId = session.campgroundId;
+      let campgroundSlug: string | null = null;
       if ((step === OnboardingStep.park_profile || step === OnboardingStep.account_profile) && !campgroundId) {
         const profileData = sanitized as any;
         const campgroundData = profileData.campground || profileData;
@@ -191,7 +203,15 @@ export class OnboardingService {
           }
         });
         campgroundId = campground.id;
+        campgroundSlug = campground.slug;
         this.logger.log(`Created campground ${campground.id} (${campground.name}) during onboarding`);
+
+        // Add slug to the sanitized data so it's stored with the session
+        (sanitized as any).campground = {
+          ...(sanitized as any).campground || campgroundData,
+          slug: campground.slug,
+          id: campground.id,
+        };
       }
 
       const progress = this.buildProgress({
