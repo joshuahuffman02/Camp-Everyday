@@ -11,9 +11,13 @@ import { SetupCelebration } from "./components/SetupCelebration";
 import { ParkProfile } from "./steps/ParkProfile";
 import { StripeConnect } from "./steps/StripeConnect";
 import { ImportOrManual } from "./steps/ImportOrManual";
+import { DataImport } from "./steps/DataImport";
 import { SiteClasses } from "./steps/SiteClasses";
 import { SitesBuilder } from "./steps/SitesBuilder";
+import { RatesSetup } from "./steps/RatesSetup";
+import { TaxRules } from "./steps/TaxRules";
 import { DepositPolicy } from "./steps/DepositPolicy";
+import { ParkRules } from "./steps/ParkRules";
 import { ReviewLaunch } from "./steps/ReviewLaunch";
 import { Loader2 } from "lucide-react";
 
@@ -33,7 +37,10 @@ interface WizardState {
   stripeAccountId?: string;
   siteClasses?: Array<{ id: string; name: string; siteType: string; defaultRate: number }>;
   sites?: Array<{ id: string; name: string; siteNumber: string; siteClassId: string }>;
+  rates?: Array<{ siteClassId: string; nightlyRate: number }>;
+  taxRules?: Array<{ name: string; type: string; rate: number }>;
   depositPolicy?: { strategy: string };
+  parkRules?: { content: string; requireSignature: boolean };
 }
 
 export default function OnboardingPage() {
@@ -301,6 +308,56 @@ export default function OnboardingPage() {
     }, 2000);
   };
 
+  const handleDataImportComplete = (result: { sitesCreated: number; siteClassesCreated: number }) => {
+    // Update state with imported data counts
+    setState((prev) => ({
+      ...prev,
+      sites: Array(result.sitesCreated).fill({ id: "imported", name: "", siteNumber: "", siteClassId: "" }),
+      siteClasses: prev.siteClasses || Array(result.siteClassesCreated).fill({ id: "imported", name: "", siteType: "", defaultRate: 0 }),
+    }));
+    completeStep("data_import");
+    showCelebration(
+      `${result.sitesCreated} Sites Imported!`,
+      "Your inventory is ready",
+      "sites"
+    );
+    setTimeout(() => {
+      hideCelebration();
+      goToStep("rates_setup");
+    }, 2000);
+  };
+
+  const handleRatesSave = async (rates: Array<{ siteClassId: string; nightlyRate: number }>) => {
+    await saveMutation.mutateAsync({
+      step: "rates_setup",
+      data: { rates },
+    });
+    setState((prev) => ({
+      ...prev,
+      rates,
+    }));
+    completeStep("rates_setup");
+    goToStep("tax_rules");
+  };
+
+  const handleTaxRulesSave = async (rules: Array<{ name: string; type: string; rate: number }>) => {
+    await saveMutation.mutateAsync({
+      step: "tax_rules",
+      data: { taxRules: rules },
+    });
+    setState((prev) => ({
+      ...prev,
+      taxRules: rules,
+    }));
+    completeStep("tax_rules");
+    goToStep("deposit_policy");
+  };
+
+  const handleTaxRulesSkip = () => {
+    completeStep("tax_rules");
+    goToStep("deposit_policy");
+  };
+
   const handleDepositPolicySave = async (data: any) => {
     await saveMutation.mutateAsync({
       step: "deposit_policy",
@@ -311,6 +368,24 @@ export default function OnboardingPage() {
       depositPolicy: data,
     }));
     completeStep("deposit_policy");
+    goToStep("park_rules");
+  };
+
+  const handleParkRulesSave = async (data: any) => {
+    await saveMutation.mutateAsync({
+      step: "park_rules",
+      data: { parkRules: data },
+    });
+    setState((prev) => ({
+      ...prev,
+      parkRules: data,
+    }));
+    completeStep("park_rules");
+    goToStep("review_launch");
+  };
+
+  const handleParkRulesSkip = () => {
+    completeStep("park_rules");
     goToStep("review_launch");
   };
 
@@ -402,18 +477,64 @@ export default function OnboardingPage() {
           />
         );
 
+      case "data_import":
+        return (
+          <DataImport
+            campgroundId={sessionQuery.data?.session.campgroundId || ""}
+            token={token}
+            onComplete={handleDataImportComplete}
+            onSkip={() => {
+              // Skip import and go to manual site class creation
+              goToStep("site_classes");
+            }}
+          />
+        );
+
       case "rates_setup":
-        // Simplified - just move to next step
-        // In full implementation, this would have its own component
-        completeStep("rates_setup");
-        goToStep("deposit_policy");
-        return null;
+        return (
+          <RatesSetup
+            siteClasses={
+              state.siteClasses?.map((c) => ({
+                id: c.id,
+                name: c.name,
+                siteType: c.siteType,
+                defaultRate: c.defaultRate,
+              })) || []
+            }
+            onSave={handleRatesSave}
+            onNext={() => goToStep("tax_rules")}
+          />
+        );
+
+      case "tax_rules":
+        return (
+          <TaxRules
+            initialRules={state.taxRules?.map((r) => ({
+              name: r.name,
+              type: r.type as "percentage" | "flat",
+              rate: r.rate,
+            }))}
+            onSave={handleTaxRulesSave}
+            onSkip={handleTaxRulesSkip}
+            onNext={() => goToStep("deposit_policy")}
+          />
+        );
 
       case "deposit_policy":
         return (
           <DepositPolicy
             initialData={state.depositPolicy as any}
             onSave={handleDepositPolicySave}
+            onNext={() => goToStep("park_rules")}
+          />
+        );
+
+      case "park_rules":
+        return (
+          <ParkRules
+            initialData={state.parkRules as any}
+            onSave={handleParkRulesSave}
+            onSkip={handleParkRulesSkip}
             onNext={() => goToStep("review_launch")}
           />
         );
@@ -432,7 +553,7 @@ export default function OnboardingPage() {
                   : state.depositPolicy?.strategy === "full"
                     ? "Full Payment"
                     : "50% Deposit",
-              taxRulesCount: 0,
+              taxRulesCount: state.taxRules?.length || 0,
             }}
             onLaunch={handleLaunch}
             onPreview={handlePreview}
