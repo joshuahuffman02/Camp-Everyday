@@ -570,10 +570,13 @@ model SiteClass {
   defaultRate       Int      @default(0)
   siteType          SiteType
   maxOccupancy      Int
-  rigMaxLength      Int?
+  rigMaxLength      Int?     // @deprecated - use Site.rigMaxLength instead
   hookupsPower      Boolean  @default(false)
   hookupsWater      Boolean  @default(false)
   hookupsSewer      Boolean  @default(false)
+  // RV-specific configuration
+  rvOrientation     String?  // "back_in" | "pull_through"
+  electricAmps      Int[]    @default([]) // Available amp options: 20, 30, 50, 100
   // Metered utilities defaults for sites in this class
   meteredEnabled    Boolean  @default(false)
   meteredType       String?  // power|water|sewer

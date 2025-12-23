@@ -37,8 +37,26 @@ interface WizardState {
   };
   stripeConnected?: boolean;
   stripeAccountId?: string;
-  siteClasses?: Array<{ id: string; name: string; siteType: string; defaultRate: number }>;
-  sites?: Array<{ id: string; name: string; siteNumber: string; siteClassId: string }>;
+  siteClasses?: Array<{
+    id: string;
+    name: string;
+    siteType: string;
+    defaultRate: number;
+    maxOccupancy?: number;
+    hookupsWater?: boolean;
+    hookupsSewer?: boolean;
+    petFriendly?: boolean;
+    electricAmps?: number[];
+    rvOrientation?: string;
+  }>;
+  sites?: Array<{
+    id: string;
+    name: string;
+    siteNumber: string;
+    siteClassId: string;
+    rigMaxLength?: number;
+    powerAmps?: number;
+  }>;
   rates?: Array<{ siteClassId: string; nightlyRate: number }>;
   taxRules?: Array<{ name: string; type: string; rate: number }>;
   depositPolicy?: { strategy: string };
@@ -69,6 +87,9 @@ export default function OnboardingPage() {
     type: "stripe" | "sites" | "launch" | "default";
   }>({ show: false, title: "", type: "default" });
 
+  // Track if we've initialized from session to prevent resetting on refetch
+  const [initialized, setInitialized] = useState(false);
+
   // Fetch session data
   const sessionQuery = useQuery({
     queryKey: ["onboarding", token],
@@ -76,63 +97,65 @@ export default function OnboardingPage() {
     enabled: Boolean(token),
   });
 
-  // Initialize state from session
+  // Initialize state from session (only once on first load)
   useEffect(() => {
-    if (sessionQuery.data?.session) {
-      const session = sessionQuery.data.session;
-      const data = session.data || {};
+    if (initialized || !sessionQuery.data?.session) return;
 
-      // Map old step keys to new ones if needed
-      const mapStepKey = (key: string): OnboardingStepKey => {
-        const mapping: Record<string, OnboardingStepKey> = {
-          account_profile: "park_profile",
-          payment_gateway: "stripe_connect",
-          inventory_sites: "inventory_choice",
-          rates_and_fees: "rates_setup",
-          taxes_and_fees: "tax_rules",
-          policies: "deposit_policy",
-        };
-        return (mapping[key] as OnboardingStepKey) || (key as OnboardingStepKey);
+    const session = sessionQuery.data.session;
+    const data = session.data || {};
+
+    // Map old step keys to new ones if needed
+    const mapStepKey = (key: string): OnboardingStepKey => {
+      const mapping: Record<string, OnboardingStepKey> = {
+        account_profile: "park_profile",
+        payment_gateway: "stripe_connect",
+        inventory_sites: "inventory_choice",
+        rates_and_fees: "rates_setup",
+        taxes_and_fees: "tax_rules",
+        policies: "deposit_policy",
       };
+      return (mapping[key] as OnboardingStepKey) || (key as OnboardingStepKey);
+    };
 
-      const mappedCompletedSteps = (sessionQuery.data.progress?.completedSteps || [])
-        .map(mapStepKey)
-        .filter((key): key is OnboardingStepKey =>
-          onboardingSteps.some(s => s.key === key)
-        );
-
-      const currentStepKey = mapStepKey(
-        session.currentStep || sessionQuery.data.progress?.nextStep || "park_profile"
+    const mappedCompletedSteps = (sessionQuery.data.progress?.completedSteps || [])
+      .map(mapStepKey)
+      .filter((key): key is OnboardingStepKey =>
+        onboardingSteps.some(s => s.key === key)
       );
 
-      // Extract signup data for pre-population
-      const signupData = {
-        name: data.campgroundName || data.campground?.name || "",
-        phone: data.phone || data.campground?.phone || "",
-        email: data.email || data.campground?.email || "",
-      };
+    const currentStepKey = mapStepKey(
+      session.currentStep || sessionQuery.data.progress?.nextStep || "park_profile"
+    );
 
-      setState((prev) => ({
-        ...prev,
-        campground: data.campground || {
-          id: session.campgroundId || "",
-          name: signupData.name,
-          phone: signupData.phone,
-          email: signupData.email,
-          city: "",
-          state: "",
-        },
-        stripeConnected: data.stripeConnected,
-        stripeAccountId: data.stripeAccountId,
-        siteClasses: data.siteClasses,
-        sites: data.sites,
-        depositPolicy: data.depositPolicy,
-        completedSteps: mappedCompletedSteps,
-        currentStep: currentStepKey,
-        inventoryPath: data.inventoryPath,
-      }));
-    }
-  }, [sessionQuery.data]);
+    // Extract signup data for pre-population
+    const signupData = {
+      name: data.campgroundName || data.campground?.name || "",
+      phone: data.phone || data.campground?.phone || "",
+      email: data.email || data.campground?.email || "",
+    };
+
+    setState((prev) => ({
+      ...prev,
+      campground: data.campground || {
+        id: session.campgroundId || "",
+        name: signupData.name,
+        phone: signupData.phone,
+        email: signupData.email,
+        city: "",
+        state: "",
+      },
+      stripeConnected: data.stripeConnected,
+      stripeAccountId: data.stripeAccountId,
+      siteClasses: data.siteClasses,
+      sites: data.sites,
+      depositPolicy: data.depositPolicy,
+      completedSteps: mappedCompletedSteps,
+      currentStep: currentStepKey,
+      inventoryPath: data.inventoryPath,
+    }));
+
+    setInitialized(true);
+  }, [sessionQuery.data, initialized]);
 
   // Handle Stripe return
   useEffect(() => {
@@ -511,15 +534,15 @@ export default function OnboardingPage() {
         return (
           <SiteClasses
             initialClasses={state.siteClasses?.map((c) => ({
-              templateId: c.siteType,
               name: c.name,
-              siteType: c.siteType,
+              siteType: c.siteType as "rv" | "tent" | "cabin" | "glamping",
               defaultRate: c.defaultRate / 100,
-              maxOccupancy: 6,
-              hookupsPower: true,
-              hookupsWater: true,
-              hookupsSewer: false,
-              petFriendly: true,
+              maxOccupancy: c.maxOccupancy || 6,
+              hookupsWater: c.hookupsWater ?? true,
+              hookupsSewer: c.hookupsSewer ?? false,
+              petFriendly: c.petFriendly ?? true,
+              electricAmps: c.electricAmps || [],
+              rvOrientation: c.rvOrientation as "back_in" | "pull_through" | undefined,
             }))}
             onSave={handleSiteClassesSave}
             onNext={() => goToStep("sites_builder")}
@@ -535,6 +558,8 @@ export default function OnboardingPage() {
                 name: c.name,
                 siteType: c.siteType,
                 defaultRate: c.defaultRate,
+                rvOrientation: c.rvOrientation,
+                electricAmps: c.electricAmps || [],
               })) || []
             }
             initialSites={state.sites}

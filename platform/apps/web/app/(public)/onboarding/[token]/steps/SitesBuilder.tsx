@@ -12,6 +12,11 @@ import {
   Truck,
   Home,
   Sparkles,
+  Ruler,
+  Zap,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +35,9 @@ interface SiteClass {
   name: string;
   siteType: string;
   defaultRate: number;
+  // RV-specific
+  rvOrientation?: string;
+  electricAmps?: number[];
 }
 
 interface SiteData {
@@ -37,6 +45,9 @@ interface SiteData {
   name: string;
   siteNumber: string;
   siteClassId: string;
+  // Per-site overrides (RV only)
+  rigMaxLength?: number;
+  powerAmps?: number;
 }
 
 interface SitesBuilderProps {
@@ -58,7 +69,131 @@ const iconMap: Record<string, React.ElementType> = {
   tent: Tent,
   cabin: Home,
   yurt: Sparkles,
+  glamping: Sparkles,
 };
+
+// Individual site card for editing per-site details
+function SiteCard({
+  site,
+  siteClass,
+  onUpdate,
+  onRemove,
+}: {
+  site: SiteData;
+  siteClass: SiteClass | undefined;
+  onUpdate: (data: Partial<SiteData>) => void;
+  onRemove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isRv = siteClass?.siteType === "rv";
+  const hasAmpOptions = isRv && siteClass?.electricAmps && siteClass.electricAmps.length > 0;
+  const needsConfig = isRv; // RV sites can have per-site config
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className={cn(
+        "border rounded-lg overflow-hidden transition-all",
+        expanded ? "border-emerald-500/50 bg-slate-800/50" : "border-slate-700 bg-slate-800/30"
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center gap-2 px-3 py-2 cursor-pointer",
+          needsConfig && "hover:bg-slate-800/50"
+        )}
+        onClick={() => needsConfig && setExpanded(!expanded)}
+      >
+        <Hash className="w-3 h-3 text-slate-500" />
+        <span className="text-sm font-medium text-white flex-1">{site.siteNumber}</span>
+        {isRv && site.powerAmps && (
+          <span className="text-xs text-yellow-400 flex items-center gap-1">
+            <Zap className="w-3 h-3" />
+            {site.powerAmps}A
+          </span>
+        )}
+        {isRv && site.rigMaxLength && (
+          <span className="text-xs text-slate-400">{site.rigMaxLength}ft</span>
+        )}
+        {needsConfig && (
+          expanded ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          )
+        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="p-1 text-slate-500 hover:text-red-400 transition-colors"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {expanded && needsConfig && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-3 pb-3 pt-1 border-t border-slate-700/50 space-y-3">
+              {/* RV Length */}
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400 flex items-center gap-1">
+                  <Ruler className="w-3 h-3" />
+                  Max RV Length (ft)
+                </Label>
+                <Input
+                  type="number"
+                  value={site.rigMaxLength || ""}
+                  onChange={(e) =>
+                    onUpdate({ rigMaxLength: parseInt(e.target.value) || undefined })
+                  }
+                  placeholder="45"
+                  className="bg-slate-900/50 border-slate-600 text-white h-8 text-sm"
+                />
+              </div>
+
+              {/* Electric Amp Selection */}
+              {hasAmpOptions && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-slate-400 flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-yellow-400" />
+                    Electric Hookup
+                  </Label>
+                  <Select
+                    value={site.powerAmps?.toString() || ""}
+                    onValueChange={(val) =>
+                      onUpdate({ powerAmps: val ? parseInt(val) : undefined })
+                    }
+                  >
+                    <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white h-8 text-sm">
+                      <SelectValue placeholder="Select amp" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {siteClass.electricAmps!.map((amp) => (
+                        <SelectItem key={amp} value={amp.toString()}>
+                          {amp} Amp
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
 
 export function SitesBuilder({
   siteClasses,
@@ -71,6 +206,7 @@ export function SitesBuilder({
   const [sites, setSites] = useState<SiteData[]>(initialSites);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"bulk" | "individual">("bulk");
+  const [viewMode, setViewMode] = useState<"compact" | "detailed">("compact");
 
   // Bulk creation state
   const [bulkSiteClassId, setBulkSiteClassId] = useState<string>(
@@ -79,23 +215,39 @@ export function SitesBuilder({
   const [bulkPrefix, setBulkPrefix] = useState("");
   const [bulkStart, setBulkStart] = useState(1);
   const [bulkCount, setBulkCount] = useState(10);
+  // Default per-site values for bulk creation
+  const [bulkLength, setBulkLength] = useState<number | undefined>(undefined);
+  const [bulkAmp, setBulkAmp] = useState<number | undefined>(undefined);
 
   // Individual creation state
   const [newSiteName, setNewSiteName] = useState("");
   const [newSiteClassId, setNewSiteClassId] = useState<string>(
     siteClasses[0]?.id || ""
   );
+  const [newSiteLength, setNewSiteLength] = useState<number | undefined>(undefined);
+  const [newSiteAmp, setNewSiteAmp] = useState<number | undefined>(undefined);
+
+  const selectedBulkClass = siteClasses.find((sc) => sc.id === bulkSiteClassId);
+  const selectedNewClass = siteClasses.find((sc) => sc.id === newSiteClassId);
+  const isBulkRv = selectedBulkClass?.siteType === "rv";
+  const isNewRv = selectedNewClass?.siteType === "rv";
 
   const addBulkSites = () => {
     const newSites: SiteData[] = [];
     for (let i = 0; i < bulkCount; i++) {
       const num = bulkStart + i;
       const siteNumber = bulkPrefix ? `${bulkPrefix}${num}` : `${num}`;
-      newSites.push({
+      const site: SiteData = {
         name: `Site ${siteNumber}`,
         siteNumber,
         siteClassId: bulkSiteClassId,
-      });
+      };
+      // Add RV-specific fields if applicable
+      if (isBulkRv) {
+        if (bulkLength) site.rigMaxLength = bulkLength;
+        if (bulkAmp) site.powerAmps = bulkAmp;
+      }
+      newSites.push(site);
     }
     setSites((prev) => [...prev, ...newSites]);
     // Reset for next batch
@@ -104,15 +256,24 @@ export function SitesBuilder({
 
   const addIndividualSite = () => {
     if (!newSiteName.trim()) return;
-    setSites((prev) => [
-      ...prev,
-      {
-        name: newSiteName,
-        siteNumber: newSiteName,
-        siteClassId: newSiteClassId,
-      },
-    ]);
+    const site: SiteData = {
+      name: newSiteName,
+      siteNumber: newSiteName,
+      siteClassId: newSiteClassId,
+    };
+    // Add RV-specific fields if applicable
+    if (isNewRv) {
+      if (newSiteLength) site.rigMaxLength = newSiteLength;
+      if (newSiteAmp) site.powerAmps = newSiteAmp;
+    }
+    setSites((prev) => [...prev, site]);
     setNewSiteName("");
+    setNewSiteLength(undefined);
+    setNewSiteAmp(undefined);
+  };
+
+  const updateSite = (index: number, data: Partial<SiteData>) => {
+    setSites((prev) => prev.map((s, i) => (i === index ? { ...s, ...data } : s)));
   };
 
   const removeSite = (index: number) => {
@@ -195,7 +356,11 @@ export function SitesBuilder({
                   <Label className="text-sm text-slate-300">Site Type</Label>
                   <Select
                     value={bulkSiteClassId}
-                    onValueChange={setBulkSiteClassId}
+                    onValueChange={(val) => {
+                      setBulkSiteClassId(val);
+                      // Reset amp selection when changing class
+                      setBulkAmp(undefined);
+                    }}
                   >
                     <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
                       <SelectValue />
@@ -246,6 +411,52 @@ export function SitesBuilder({
                 </div>
               </div>
 
+              {/* RV-specific bulk options */}
+              {isBulkRv && (
+                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-700/50">
+                  <div className="space-y-2">
+                    <Label className="text-sm text-slate-300 flex items-center gap-2">
+                      <Ruler className="w-4 h-4 text-slate-500" />
+                      Default Max Length (ft)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={bulkLength || ""}
+                      onChange={(e) =>
+                        setBulkLength(parseInt(e.target.value) || undefined)
+                      }
+                      placeholder="45"
+                      className="bg-slate-800/50 border-slate-700 text-white"
+                    />
+                  </div>
+                  {selectedBulkClass?.electricAmps && selectedBulkClass.electricAmps.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm text-slate-300 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-yellow-400" />
+                        Default Electric
+                      </Label>
+                      <Select
+                        value={bulkAmp?.toString() || ""}
+                        onValueChange={(val) =>
+                          setBulkAmp(val ? parseInt(val) : undefined)
+                        }
+                      >
+                        <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
+                          <SelectValue placeholder="Select amp" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedBulkClass.electricAmps.map((amp) => (
+                            <SelectItem key={amp} value={amp.toString()}>
+                              {amp} Amp
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Preview */}
               <div className="bg-slate-900/50 rounded-lg p-3 text-sm">
                 <p className="text-slate-400 mb-2">Preview:</p>
@@ -255,6 +466,13 @@ export function SitesBuilder({
                   {bulkStart + 1}, ... {bulkPrefix}
                   {bulkStart + bulkCount - 1}
                 </p>
+                {isBulkRv && (bulkLength || bulkAmp) && (
+                  <p className="text-slate-500 text-xs mt-1">
+                    Each with: {bulkLength && `${bulkLength}ft max`}
+                    {bulkLength && bulkAmp && " • "}
+                    {bulkAmp && `${bulkAmp}A electric`}
+                  </p>
+                )}
               </div>
 
               <Button
@@ -295,7 +513,10 @@ export function SitesBuilder({
                   <Label className="text-sm text-slate-300">Site Type</Label>
                   <Select
                     value={newSiteClassId}
-                    onValueChange={setNewSiteClassId}
+                    onValueChange={(val) => {
+                      setNewSiteClassId(val);
+                      setNewSiteAmp(undefined);
+                    }}
                   >
                     <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
                       <SelectValue />
@@ -310,6 +531,52 @@ export function SitesBuilder({
                   </Select>
                 </div>
               </div>
+
+              {/* RV-specific individual options */}
+              {isNewRv && (
+                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-700/50">
+                  <div className="space-y-2">
+                    <Label className="text-sm text-slate-300 flex items-center gap-2">
+                      <Ruler className="w-4 h-4 text-slate-500" />
+                      Max Length (ft)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={newSiteLength || ""}
+                      onChange={(e) =>
+                        setNewSiteLength(parseInt(e.target.value) || undefined)
+                      }
+                      placeholder="45"
+                      className="bg-slate-800/50 border-slate-700 text-white"
+                    />
+                  </div>
+                  {selectedNewClass?.electricAmps && selectedNewClass.electricAmps.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm text-slate-300 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-yellow-400" />
+                        Electric Hookup
+                      </Label>
+                      <Select
+                        value={newSiteAmp?.toString() || ""}
+                        onValueChange={(val) =>
+                          setNewSiteAmp(val ? parseInt(val) : undefined)
+                        }
+                      >
+                        <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
+                          <SelectValue placeholder="Select amp" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedNewClass.electricAmps.map((amp) => (
+                            <SelectItem key={amp} value={amp.toString()}>
+                              {amp} Amp
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <Button
                 onClick={addIndividualSite}
@@ -334,19 +601,47 @@ export function SitesBuilder({
               <h3 className="font-medium text-white">
                 Your Sites ({sites.length})
               </h3>
-              {sites.length > 0 && (
-                <button
-                  onClick={() => setSites([])}
-                  className="text-sm text-slate-500 hover:text-red-400 transition-colors"
-                >
-                  Clear all
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {/* View mode toggle */}
+                <div className="flex gap-1 p-0.5 bg-slate-800/50 rounded-md">
+                  <button
+                    onClick={() => setViewMode("compact")}
+                    className={cn(
+                      "px-2 py-1 rounded text-xs transition-all",
+                      viewMode === "compact"
+                        ? "bg-slate-700 text-white"
+                        : "text-slate-500 hover:text-white"
+                    )}
+                  >
+                    Compact
+                  </button>
+                  <button
+                    onClick={() => setViewMode("detailed")}
+                    className={cn(
+                      "px-2 py-1 rounded text-xs transition-all",
+                      viewMode === "detailed"
+                        ? "bg-slate-700 text-white"
+                        : "text-slate-500 hover:text-white"
+                    )}
+                  >
+                    Detailed
+                  </button>
+                </div>
+                {sites.length > 0 && (
+                  <button
+                    onClick={() => setSites([])}
+                    className="text-sm text-slate-500 hover:text-red-400 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
             </div>
 
             {Object.entries(sitesByClass).map(([classId, classSites]) => {
               const siteClass = siteClasses.find((sc) => sc.id === classId);
               const Icon = iconMap[siteClass?.siteType || "tent"] || Tent;
+              const isRvClass = siteClass?.siteType === "rv";
 
               return (
                 <div
@@ -361,9 +656,17 @@ export function SitesBuilder({
                     <span className="text-sm text-slate-500">
                       ({classSites.length} sites)
                     </span>
+                    {isRvClass && viewMode === "compact" && (
+                      <span className="text-xs text-slate-500 ml-auto">
+                        Click a site to edit length/amp
+                      </span>
+                    )}
                   </div>
 
-                  <div className="p-4 flex flex-wrap gap-2">
+                  <div className={cn(
+                    "p-4",
+                    viewMode === "compact" ? "flex flex-wrap gap-2" : "space-y-2"
+                  )}>
                     <AnimatePresence mode="popLayout">
                       {classSites.map((site, i) => {
                         const globalIndex = sites.findIndex(
@@ -371,6 +674,20 @@ export function SitesBuilder({
                             s.siteNumber === site.siteNumber &&
                             s.siteClassId === site.siteClassId
                         );
+
+                        if (viewMode === "detailed" || isRvClass) {
+                          return (
+                            <SiteCard
+                              key={`${site.siteNumber}-${i}`}
+                              site={site}
+                              siteClass={siteClass}
+                              onUpdate={(data) => updateSite(globalIndex, data)}
+                              onRemove={() => removeSite(globalIndex)}
+                            />
+                          );
+                        }
+
+                        // Compact view for non-RV sites
                         return (
                           <motion.div
                             key={`${site.siteNumber}-${i}`}

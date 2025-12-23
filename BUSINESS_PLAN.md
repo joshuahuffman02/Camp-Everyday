@@ -223,6 +223,126 @@ DIY setup is always free. For campgrounds who want help:
 
 ---
 
+## Hiring Roadmap
+
+### Hiring Philosophy
+
+**Rule of thumb:** Each hire should cost <25-30% of monthly profit to stay healthy. Hire ahead of burnout, not after.
+
+### Hiring Sequence
+
+| # | Role | Monthly Cost | Revenue Needed | Campgrounds | Timeline |
+|---|------|-------------|----------------|-------------|----------|
+| 1 | Support/Onboarding | $2-3k | ~$10-12k/mo | ~100 | Month 6-9 |
+| 2 | Part-time Dev | $4-5k | ~$25-30k/mo | ~250 | Month 12-18 |
+| 3 | Marketing | $5-7k | ~$50k/mo | ~400 | Year 2 |
+| 4 | Ops Manager/Leader | $8-12k | ~$100k/mo | ~800 | Year 3 |
+
+---
+
+### Hire #1: Support/Onboarding Person
+
+**When:** ~100 campgrounds (~$10k/mo revenue)
+
+**Why first:**
+- Founder time is the bottleneck
+- Every support ticket answered = time not growing the business
+- Can run the paid setup assistance services ($249-$999) - pays for themselves
+- Frees founder to focus on product and strategy
+
+**Profile:** Virtual assistant or part-time contractor (20-30 hrs/week)
+- Doesn't need to be technical
+- Handles tier-1 support (password resets, how-do-I questions)
+- Runs setup assistance services for customers
+- Updates knowledge base
+- Escalates only critical issues to founder
+
+**Cost:** $2,000-3,000/month
+
+---
+
+### Hire #2: Part-time Developer
+
+**When:** ~250 campgrounds (~$25-30k/mo revenue)
+
+**Why second:**
+- Bug fixes pile up faster than founder can handle
+- Small feature requests from customers need attention
+- Frees founder from being on-call for technical issues
+- Can eventually grow to full-time as revenue increases
+
+**Profile:** Senior freelancer (10-20 hrs/week)
+- Can work independently without hand-holding
+- Familiar with the stack (NestJS, Next.js, Prisma, PostgreSQL)
+- Good communication skills for async work
+- Ideally in a compatible timezone
+
+**Cost:** $4,000-5,000/month
+
+---
+
+### Hire #3: Marketing Person
+
+**When:** ~400 campgrounds (~$50k/mo revenue)
+
+**Why third (not earlier):**
+- Before this, word-of-mouth + SEO should drive growth
+- Need product-market fit PROVEN before investing in marketing
+- Earlier marketing spend is often wasted on a product still finding its footing
+- By 400 campgrounds, you have case studies, testimonials, and proof
+
+**Profile:** Content marketer (full-time or senior part-time)
+- SEO expertise (blog posts, landing pages)
+- Case study and testimonial creation
+- Email marketing campaigns
+- NOT a "growth hacker" or paid ads person (yet)
+
+**Cost:** $5,000-7,000/month
+
+---
+
+### Hire #4: Ops Manager / Leader
+
+**When:** ~800 campgrounds (~$100k/mo revenue)
+
+**Why last:**
+- This is the "founder steps back" hire
+- Runs day-to-day operations so founder becomes advisory only
+- Manages support team, coordinates dev priorities, handles escalations
+- Expensive hire - needs stable, profitable business first
+
+**Profile:** Operations generalist
+- Has run a small SaaS or managed a team before
+- Reliable operator, not a founder-type
+- Good at systems, processes, and people management
+- Can make decisions without constant founder input
+
+**Cost:** $8,000-12,000/month
+
+---
+
+### Founder Role Evolution
+
+| Phase | Campgrounds | Founder Focus | Hours/Week |
+|-------|-------------|---------------|------------|
+| Pre-Hire #1 | 0-100 | Everything | 10-15 |
+| Post-Hire #1 | 100-250 | Product + Strategy | 8-10 |
+| Post-Hire #2 | 250-500 | Strategy + Key Relationships | 5-8 |
+| Post-Hire #3 | 500-800 | Strategy + Vision | 4-6 |
+| Post-Hire #4 | 800+ | Board-level decisions only | 2-4 |
+
+---
+
+### The Key Unlock
+
+**Hire #1 is everything.** That's when you stop being a support rep and start being a CEO.
+
+Before Hire #1: You're doing $15/hour work (support) instead of $500/hour work (strategy, product decisions, key relationships).
+
+After Hire #1: You can focus on the things only you can do - product vision, key customer relationships, and growing the business.
+
+---
+
 ## Risk Mitigation
 
 ### Risk: Not Enough Time
@@ -321,4 +441,4 @@ This isn't a VC-backed rocket ship. It's a profitable business designed to gener
 
 ---
 
-*Last updated: December 2024*
+*Last updated: December 23, 2024*
