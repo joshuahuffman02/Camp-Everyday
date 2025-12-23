@@ -30,6 +30,8 @@ interface WizardState {
   campground?: {
     id: string;
     name: string;
+    phone?: string;
+    email?: string;
     city: string;
     state: string;
   };
@@ -103,9 +105,23 @@ export default function OnboardingPage() {
         session.currentStep || sessionQuery.data.progress?.nextStep || "park_profile"
       );
 
+      // Extract signup data for pre-population
+      const signupData = {
+        name: data.campgroundName || data.campground?.name || "",
+        phone: data.phone || data.campground?.phone || "",
+        email: data.email || data.campground?.email || "",
+      };
+
       setState((prev) => ({
         ...prev,
-        campground: data.campground,
+        campground: data.campground || {
+          id: session.campgroundId || "",
+          name: signupData.name,
+          phone: signupData.phone,
+          email: signupData.email,
+          city: "",
+          state: "",
+        },
         stripeConnected: data.stripeConnected,
         stripeAccountId: data.stripeAccountId,
         siteClasses: data.siteClasses,

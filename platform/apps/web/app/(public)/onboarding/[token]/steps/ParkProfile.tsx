@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { MapPin, Phone, Mail, Globe, Upload, Check } from "lucide-react";
+import { MapPin, Phone, Mail, Globe, Upload, Check, ChevronDown, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { US_TIMEZONES } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
 
@@ -165,6 +178,10 @@ export function ParkProfile({
 }: ParkProfileProps) {
   const prefersReducedMotion = useReducedMotion();
   const [saving, setSaving] = useState(false);
+  const [stateOpen, setStateOpen] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [data, setData] = useState<ParkProfileData>({
     name: initialData?.name || "",
     phone: initialData?.phone || "",
@@ -177,6 +194,25 @@ export function ParkProfile({
     timezone: initialData?.timezone || "",
     logoUrl: initialData?.logoUrl || "",
   });
+
+  // Update data when initialData changes (e.g., when signup data loads)
+  useEffect(() => {
+    if (initialData) {
+      setData((prev) => ({
+        ...prev,
+        name: initialData.name || prev.name,
+        phone: initialData.phone || prev.phone,
+        email: initialData.email || prev.email,
+        website: initialData.website || prev.website,
+        address1: initialData.address1 || prev.address1,
+        city: initialData.city || prev.city,
+        state: initialData.state || prev.state,
+        postalCode: initialData.postalCode || prev.postalCode,
+        timezone: initialData.timezone || prev.timezone,
+        logoUrl: initialData.logoUrl || prev.logoUrl,
+      }));
+    }
+  }, [initialData]);
 
   // Try to detect timezone on mount
   useEffect(() => {
@@ -193,6 +229,46 @@ export function ParkProfile({
     }
   }, []);
 
+  const handleLogoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image must be less than 5MB");
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      // For now, use local preview URL
+      // In production, this would upload to S3/R2
+      const previewUrl = URL.createObjectURL(file);
+      setData((prev) => ({ ...prev, logoUrl: previewUrl }));
+    } catch (error) {
+      console.error("Logo upload failed:", error);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const removeLogo = () => {
+    setData((prev) => ({ ...prev, logoUrl: "" }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const isValid =
     data.name.trim() &&
     data.phone.trim() &&
@@ -204,11 +280,10 @@ export function ParkProfile({
     data.timezone;
 
   const handleSave = async () => {
-    if (!isValid) return;
+    if (!isValid || saving) return;
     setSaving(true);
     try {
       await onSave(data);
-      onNext();
     } catch (error) {
       console.error("Failed to save park profile:", error);
     } finally {
@@ -216,34 +291,66 @@ export function ParkProfile({
     }
   };
 
+  const selectedState = US_STATES.find((s) => s.value === data.state);
+
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto px-4">
       <motion.div
         initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
         animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
         className="space-y-8"
       >
-        {/* Logo upload (optional) */}
+        {/* Logo upload */}
         <motion.div
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
           animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="flex items-center gap-6"
         >
-          <div className="w-20 h-20 rounded-xl bg-slate-800 border-2 border-dashed border-slate-700 flex items-center justify-center overflow-hidden group hover:border-emerald-500/50 transition-colors cursor-pointer">
-            {data.logoUrl ? (
-              <img
-                src={data.logoUrl}
-                alt="Logo"
-                className="w-full h-full object-cover"
-              />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleLogoUpload}
+            className="hidden"
+          />
+          <div
+            onClick={handleLogoClick}
+            className={cn(
+              "relative w-20 h-20 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden cursor-pointer transition-all",
+              data.logoUrl
+                ? "border-emerald-500/50 bg-slate-800"
+                : "border-slate-700 bg-slate-800 hover:border-emerald-500/50 group"
+            )}
+          >
+            {uploadingLogo ? (
+              <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
+            ) : data.logoUrl ? (
+              <>
+                <img
+                  src={data.logoUrl}
+                  alt="Logo"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeLogo();
+                  }}
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-400"
+                >
+                  <X className="w-3 h-3 text-white" />
+                </button>
+              </>
             ) : (
               <Upload className="w-6 h-6 text-slate-500 group-hover:text-emerald-400 transition-colors" />
             )}
           </div>
           <div>
             <p className="text-sm font-medium text-white">Campground Logo</p>
-            <p className="text-xs text-slate-500">Optional - Add later in settings</p>
+            <p className="text-xs text-slate-500">
+              {data.logoUrl ? "Click to change" : "Click to upload (optional)"}
+            </p>
           </div>
         </motion.div>
 
@@ -330,21 +437,60 @@ export function ParkProfile({
               <Label className="text-sm text-slate-300">
                 State <span className="text-red-400">*</span>
               </Label>
-              <Select
-                value={data.state}
-                onValueChange={(v) => setData((prev) => ({ ...prev, state: v }))}
-              >
-                <SelectTrigger className="mt-2 bg-slate-800/50 border-slate-700 text-white">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {US_STATES.map((state) => (
-                    <SelectItem key={state.value} value={state.value}>
-                      {state.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={stateOpen} onOpenChange={setStateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={stateOpen}
+                    className="mt-2 w-full justify-between bg-slate-800/50 border-slate-700 text-white hover:bg-slate-800 hover:text-white"
+                  >
+                    {selectedState?.label || "Select state..."}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[200px] p-0 bg-slate-800 border-slate-700"
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                >
+                  <Command className="bg-slate-800">
+                    <CommandInput
+                      placeholder="Search state..."
+                      className="text-white"
+                    />
+                    <CommandList className="max-h-[200px]">
+                      <CommandEmpty className="text-slate-400 py-2 text-center text-sm">
+                        No state found.
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {US_STATES.map((state) => (
+                          <CommandItem
+                            key={state.value}
+                            value={state.label}
+                            onSelect={() => {
+                              setData((prev) => ({ ...prev, state: state.value }));
+                              setStateOpen(false);
+                            }}
+                            className="text-white hover:bg-slate-700 cursor-pointer"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                data.state === state.value
+                                  ? "opacity-100 text-emerald-400"
+                                  : "opacity-0"
+                              )}
+                            />
+                            {state.label}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="col-span-2">
@@ -379,9 +525,9 @@ export function ParkProfile({
             <SelectTrigger className="mt-2 bg-slate-800/50 border-slate-700 text-white">
               <SelectValue placeholder="Select timezone" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-slate-800 border-slate-700">
               {US_TIMEZONES.map((tz) => (
-                <SelectItem key={tz.value} value={tz.value}>
+                <SelectItem key={tz.value} value={tz.value} className="text-white hover:bg-slate-700">
                   {tz.label}
                 </SelectItem>
               ))}
@@ -409,7 +555,14 @@ export function ParkProfile({
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
-            {saving ? "Saving..." : "Continue to Payments"}
+            {saving ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Continue to Payments"
+            )}
           </Button>
         </motion.div>
       </motion.div>

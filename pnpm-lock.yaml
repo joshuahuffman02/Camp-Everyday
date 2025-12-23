@@ -26,7 +26,6 @@ importers:
       '@campreserv/shared': workspace:*
       '@codegenie/serverless-express': ^4.17.1
       '@google/adk': ^0.2.1
-      '@opentelemetry/api': ^1.9.0
       '@jest/test-sequencer': ^29.7.0
       '@nestjs/cli': ^11.0.14
       '@nestjs/common': ^10.4.7
@@ -39,6 +38,7 @@ importers:
       '@nestjs/schedule': ^6.0.1
       '@nestjs/swagger': ^11.2.3
       '@nestjs/testing': ^10.4.7
+      '@opentelemetry/api': ^1.9.0
       '@prisma/adapter-pg': ^7.1.0
       '@prisma/client': ^7.1.0
       '@swc/cli': ^0.7.9
@@ -89,7 +89,6 @@ importers:
       '@campreserv/shared': link:../../packages/shared
       '@codegenie/serverless-express': 4.17.1
       '@google/adk': 0.2.1
-      '@opentelemetry/api': 1.9.0
       '@nestjs/common': 10.4.20_26q5nehxwcs3ri7zvy3wttpjeq
       '@nestjs/config': 4.0.2_d7wabo3ln2lhn3a3ctrkkbwyym
       '@nestjs/core': 10.4.20_ckonxzgiymdtimkdiovrfjr6qq
@@ -99,6 +98,7 @@ importers:
       '@nestjs/platform-express': 10.4.20_l3i2k2xw4clhrdvjqjgazkkhem
       '@nestjs/schedule': 6.1.0_l3i2k2xw4clhrdvjqjgazkkhem
       '@nestjs/swagger': 11.2.3_bt4cegxxkoersx6l6qyvtzvqga
+      '@opentelemetry/api': 1.9.0
       '@prisma/adapter-pg': 7.1.0
       '@prisma/client': 7.1.0_vgibhykssbg4dlnnr46cu6kc64
       '@types/express': 5.0.6
@@ -154,6 +154,8 @@ importers:
       '@hookform/resolvers': ^3.9.1
       '@playwright/test': ^1.49.1
       '@radix-ui/react-checkbox': ^1.3.3
+      '@radix-ui/react-dialog': ^1.1.15
+      '@radix-ui/react-popover': ^1.1.15
       '@radix-ui/react-select': ^2.2.6
       '@radix-ui/react-slot': ^1.0.2
       '@radix-ui/react-switch': ^1.2.6
@@ -176,6 +178,7 @@ importers:
       autoprefixer: ^10.4.20
       class-variance-authority: ^0.7.0
       clsx: ^2.1.1
+      cmdk: ^1.1.1
       date-fns: ^4.1.0
       eslint: ^8.57.1
       eslint-config-next: ^14.2.35
@@ -204,6 +207,8 @@ importers:
       '@campreserv/shared': link:../../packages/shared
       '@hookform/resolvers': 3.10.0_react-hook-form@7.68.0
       '@radix-ui/react-checkbox': 1.3.3_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-dialog': 1.1.15_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-popover': 1.1.15_7oy5bngghhoic3d6rsiyrvfoga
       '@radix-ui/react-select': 2.2.6_7oy5bngghhoic3d6rsiyrvfoga
       '@radix-ui/react-slot': 1.2.4_gvpw3nleobtzb6yriethvjsu44
       '@radix-ui/react-switch': 1.2.6_7oy5bngghhoic3d6rsiyrvfoga
@@ -217,6 +222,7 @@ importers:
       '@types/react-big-calendar': 1.16.3
       class-variance-authority: 0.7.1
       clsx: 2.1.1
+      cmdk: 1.1.1_7oy5bngghhoic3d6rsiyrvfoga
       date-fns: 4.1.0
       framer-motion: 12.23.26_nnrd3gsncyragczmpvfhocinkq
       gray-matter: 4.0.3
@@ -402,11 +408,6 @@ packages:
       oauth4webapi: 3.8.3
       preact: 10.24.3
       preact-render-to-string: 6.5.11_preact@10.24.3
-    dev: false
-
-  /@opentelemetry/api/1.9.0:
-    resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
-    engines: {node: '>=8.0.0'}
     dev: false
 
   /@aws-crypto/crc32/5.2.0:
@@ -3357,6 +3358,11 @@ packages:
     transitivePeerDependencies:
       - encoding
 
+  /@opentelemetry/api/1.9.0:
+    resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
+    engines: {node: '>=8.0.0'}
+    dev: false
+
   /@panva/hkdf/1.2.1:
     resolution: {integrity: sha512-6oclG6Y3PiDFcoyk8srjLfVKyMfVCKJ27JwNPViuXziFpmdz+MZnZN/aKY0JGXgYuO/VghU0jcOAZgWXZ1Dmrw==}
     dev: false
@@ -3614,6 +3620,39 @@ packages:
       react: 18.3.1
     dev: false
 
+  /@radix-ui/react-dialog/1.1.15_7oy5bngghhoic3d6rsiyrvfoga:
+    resolution: {integrity: sha512-TCglVRtzlffRNxRMEyR36DGBLJpeusFcgMVD9PZEzAKnUs1lKCgX5u9BmC2Yg+LL9MgZDugFFs1Vl+Jp4t/PGw==}
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      '@types/react-dom':
+        optional: true
+    dependencies:
+      '@radix-ui/primitive': 1.1.3
+      '@radix-ui/react-compose-refs': 1.1.2_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-context': 1.1.2_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-dismissable-layer': 1.1.11_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-focus-guards': 1.1.3_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-focus-scope': 1.1.7_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-id': 1.1.1_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-portal': 1.1.9_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-presence': 1.1.5_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-primitive': 2.1.3_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-slot': 1.2.3_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-use-controllable-state': 1.2.2_gvpw3nleobtzb6yriethvjsu44
+      '@types/react': 18.3.27
+      '@types/react-dom': 18.3.7_@types+react@18.3.27
+      aria-hidden: 1.2.6
+      react: 18.3.1
+      react-dom: 18.3.1_react@18.3.1
+      react-remove-scroll: 2.7.2_gvpw3nleobtzb6yriethvjsu44
+    dev: false
+
   /@radix-ui/react-direction/1.1.1_gvpw3nleobtzb6yriethvjsu44:
     resolution: {integrity: sha512-1UEWRX6jnOA2y4H5WczZ44gOOjTEmlqv1uNW4GAJEO5+bauCBhv8snY65Iw5/VOS/ghKN9gr2KjnLKxrsvoMVw==}
     peerDependencies:
@@ -3698,6 +3737,40 @@ packages:
       '@radix-ui/react-use-layout-effect': 1.1.1_gvpw3nleobtzb6yriethvjsu44
       '@types/react': 18.3.27
       react: 18.3.1
+    dev: false
+
+  /@radix-ui/react-popover/1.1.15_7oy5bngghhoic3d6rsiyrvfoga:
+    resolution: {integrity: sha512-kr0X2+6Yy/vJzLYJUPCZEc8SfQcf+1COFoAqauJm74umQhta9M7lNJHP7QQS3vkvcGLQUbWpMzwrXYwrYztHKA==}
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      '@types/react-dom':
+        optional: true
+    dependencies:
+      '@radix-ui/primitive': 1.1.3
+      '@radix-ui/react-compose-refs': 1.1.2_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-context': 1.1.2_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-dismissable-layer': 1.1.11_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-focus-guards': 1.1.3_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-focus-scope': 1.1.7_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-id': 1.1.1_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-popper': 1.2.8_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-portal': 1.1.9_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-presence': 1.1.5_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-primitive': 2.1.3_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-slot': 1.2.3_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-use-controllable-state': 1.2.2_gvpw3nleobtzb6yriethvjsu44
+      '@types/react': 18.3.27
+      '@types/react-dom': 18.3.7_@types+react@18.3.27
+      aria-hidden: 1.2.6
+      react: 18.3.1
+      react-dom: 18.3.1_react@18.3.1
+      react-remove-scroll: 2.7.2_gvpw3nleobtzb6yriethvjsu44
     dev: false
 
   /@radix-ui/react-popper/1.2.8_7oy5bngghhoic3d6rsiyrvfoga:
@@ -7032,6 +7105,23 @@ packages:
   /cluster-key-slot/1.1.2:
     resolution: {integrity: sha512-RMr0FhtfXemyinomL4hrWcYJxmX6deFdCxpJzhDttxgO1+bcCnkk+9drydLVDmAMG7NE6aN/fl4F7ucU/90gAA==}
     engines: {node: '>=0.10.0'}
+    dev: false
+
+  /cmdk/1.1.1_7oy5bngghhoic3d6rsiyrvfoga:
+    resolution: {integrity: sha512-Vsv7kFaXm+ptHDMZ7izaRsP70GgrW9NBNGswt9OZaVBLlE0SNpDq8eu/VGXyF9r7M0azK3Wy7OlYXsuyYLFzHg==}
+    peerDependencies:
+      react: ^18 || ^19 || ^19.0.0-rc
+      react-dom: ^18 || ^19 || ^19.0.0-rc
+    dependencies:
+      '@radix-ui/react-compose-refs': 1.1.2_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-dialog': 1.1.15_7oy5bngghhoic3d6rsiyrvfoga
+      '@radix-ui/react-id': 1.1.1_gvpw3nleobtzb6yriethvjsu44
+      '@radix-ui/react-primitive': 2.1.3_7oy5bngghhoic3d6rsiyrvfoga
+      react: 18.3.1
+      react-dom: 18.3.1_react@18.3.1
+    transitivePeerDependencies:
+      - '@types/react'
+      - '@types/react-dom'
     dev: false
 
   /co/4.6.0:
