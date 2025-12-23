@@ -888,6 +888,7 @@ model Organization {
   // Organization billing (what Camp Everyday charges them)
   billingPeriods OrganizationBillingPeriod[]
   usageEvents    UsageEvent[]
+  setupServices  SetupService[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -6580,6 +6581,70 @@ model UsageEvent {
   @@index([billed])
   @@index([createdAt])
   @@index([billingPeriodId])
+}
+
+// ============================================
+// Setup Assistance Services
+// ============================================
+
+enum SetupServiceType {
+  quick_start       // $249 - Site config, payment setup, training call
+  data_import_500   // $299 - Up to 500 reservations
+  data_import_2000  // $599 - 501-2,000 reservations
+  data_import_5000  // $999 - 2,001-5,000 reservations
+  data_import_custom // Custom quote for 5,000+
+}
+
+enum SetupServiceStatus {
+  pending      // Purchased, awaiting work
+  in_progress  // Work has started
+  completed    // Work finished
+  cancelled    // Cancelled/refunded
+}
+
+model SetupService {
+  id                      String              @id @default(cuid())
+  organizationId          String
+  serviceType             SetupServiceType
+  status                  SetupServiceStatus  @default(pending)
+
+  // Pricing
+  totalCents              Int                 // Full price (e.g., 24900 for $249)
+  paidUpfrontCents        Int                 @default(0) // Amount paid at purchase
+  balanceRemainingCents   Int                 @default(0) // Remaining to pay via bookings
+  perBookingSurchargeCents Int                @default(100) // $1.00 per booking
+
+  // For data imports
+  reservationCount        Int?                // Estimated/actual reservation count
+  importFileUrl           String?             // URL to uploaded export file
+  importNotes             String?             // Notes from customer about the import
+
+  // Stripe
+  stripePaymentIntentId   String?             // If paid upfront
+  stripeInvoiceId         String?
+
+  // Tracking
+  purchasedAt             DateTime            @default(now())
+  startedAt               DateTime?
+  completedAt             DateTime?
+  completedBy             String?             // Staff user ID who completed it
+
+  // Balance payoff tracking
+  bookingsCharged         Int                 @default(0) // Number of bookings that paid $1 surcharge
+  lastChargedAt           DateTime?
+  paidOffAt               DateTime?           // When balance reached $0
+
+  notes                   String?
+  metadata                Json?
+
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  organization            Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([balanceRemainingCents])
 }
 
 // ============================================

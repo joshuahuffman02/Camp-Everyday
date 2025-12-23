@@ -656,12 +656,12 @@ export default function SignupPage() {
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Password
-                    <span className="text-slate-500 font-normal ml-2">(at least 8 characters)</span>
+                    <span className="text-slate-500 font-normal ml-2">(12+ chars, upper, lower, number, special)</span>
                   </label>
                   <ValidatedInput
                     type="password"
                     required
-                    minLength={8}
+                    minLength={12}
                     value={password}
                     onChange={setPassword}
                     placeholder="Keep your account secure"
