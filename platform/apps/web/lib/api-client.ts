@@ -4053,7 +4053,8 @@ export const apiClient = {
   },
   async getPublicAvailability(
     slug: string,
-    dates: { arrivalDate: string; departureDate: string; rigType?: string; rigLength?: string | number; needsAccessible?: boolean }
+    dates: { arrivalDate: string; departureDate: string; rigType?: string; rigLength?: string | number; needsAccessible?: boolean },
+    previewToken?: string
   ) {
     const params = new URLSearchParams();
     params.set("arrivalDate", dates.arrivalDate);
@@ -4063,6 +4064,7 @@ export const apiClient = {
       params.set("rigLength", String(dates.rigLength));
     }
     if (dates.needsAccessible) params.set("needsAccessible", "true");
+    if (previewToken) params.set("token", previewToken);
     const data = await fetchJSON<unknown>(`/public/campgrounds/${slug}/availability?${params.toString()}`);
     return z.array(z.object({
       id: z.string(),
@@ -4106,6 +4108,7 @@ export const apiClient = {
       children?: number;
       petCount?: number;
       petTypes?: string[];
+      previewToken?: string;
     }
   ) {
     const res = await fetch(`${API_BASE}/public/campgrounds/${slug}/quote`, {

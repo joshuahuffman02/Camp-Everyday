@@ -293,18 +293,36 @@ export class PublicReservationsService {
         departureDate: string,
         rigType?: string,
         rigLength?: string,
-        needsAccessible?: boolean
+        needsAccessible?: boolean,
+        previewToken?: string
     ) {
         const campground = await this.prisma.campground.findUnique({
             where: { slug },
             select: { id: true, isPublished: true, isBookable: true, isExternal: true, nonBookableReason: true }
         });
 
-        if (!campground || (!campground.isPublished && !campground.isExternal)) {
+        // Check for preview token to bypass publish/bookable checks
+        let isPreviewMode = false;
+        if (previewToken && campground) {
+            const invite = await this.prisma.onboardingInvite.findUnique({
+                where: { token: previewToken },
+                include: {
+                    session: { include: { campground: true } },
+                    campground: true
+                }
+            });
+            const inviteCampground = invite?.session?.campground || invite?.campground;
+            if (invite && inviteCampground?.id === campground.id) {
+                isPreviewMode = true;
+            }
+        }
+
+        if (!campground || (!campground.isPublished && !campground.isExternal && !isPreviewMode)) {
             throw new NotFoundException("Campground not found");
         }
 
-        if (!campground.isBookable || campground.isExternal) {
+        // In preview mode, skip the bookable check
+        if (!isPreviewMode && (!campground.isBookable || campground.isExternal)) {
             throw new BadRequestException(campground.nonBookableReason || "This campground is view-only.");
         }
 
@@ -471,11 +489,28 @@ export class PublicReservationsService {
             select: { id: true, isPublished: true, isBookable: true, isExternal: true, nonBookableReason: true }
         });
 
-        if (!campground || (!campground.isPublished && !campground.isExternal)) {
+        // Check for preview token to bypass publish/bookable checks
+        let isPreviewMode = false;
+        if (dto.previewToken && campground) {
+            const invite = await this.prisma.onboardingInvite.findUnique({
+                where: { token: dto.previewToken },
+                include: {
+                    session: { include: { campground: true } },
+                    campground: true
+                }
+            });
+            const inviteCampground = invite?.session?.campground || invite?.campground;
+            if (invite && inviteCampground?.id === campground.id) {
+                isPreviewMode = true;
+            }
+        }
+
+        if (!campground || (!campground.isPublished && !campground.isExternal && !isPreviewMode)) {
             throw new NotFoundException("Campground not found");
         }
 
-        if (!campground.isBookable || campground.isExternal) {
+        // In preview mode, skip the bookable check
+        if (!isPreviewMode && (!campground.isBookable || campground.isExternal)) {
             throw new BadRequestException(campground.nonBookableReason || "This campground is view-only.");
         }
 

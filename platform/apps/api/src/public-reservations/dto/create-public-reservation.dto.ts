@@ -301,4 +301,8 @@ export class PublicQuoteDto {
     @IsArray()
     @IsString({ each: true })
     petTypes?: string[];
+
+    @IsOptional()
+    @IsString()
+    previewToken?: string;
 }

@@ -1583,7 +1583,8 @@ function ReviewStep({
     holdExpiresAt,
     onHoldExpiresAtChange,
     onComplete,
-    promoCodeFromUrl
+    promoCodeFromUrl,
+    previewToken
 }: {
     slug: string;
     campgroundId: string;
@@ -1598,6 +1599,7 @@ function ReviewStep({
     onHoldExpiresAtChange?: (value: Date | null) => void;
     onComplete: (reservation?: any) => void;
     promoCodeFromUrl?: string | null;
+    previewToken?: string;
 }) {
     const [clientSecret, setClientSecret] = useState<string | null>(null);
     const [reservationId, setReservationId] = useState<string | null>(null);
@@ -1657,7 +1659,8 @@ function ReviewStep({
             guestInfo.adults,
             guestInfo.children,
             guestInfo.petCount,
-            guestInfo.petTypes.join(",")
+            guestInfo.petTypes.join(","),
+            previewToken
         ],
         queryFn: () =>
             apiClient.getPublicQuote(slug, {
@@ -1672,7 +1675,8 @@ function ReviewStep({
                 adults: guestInfo.adults,
                 children: guestInfo.children,
                 petCount: guestInfo.petCount || 0,
-                petTypes: guestInfo.petTypes
+                petTypes: guestInfo.petTypes,
+                previewToken: previewToken || undefined
             }),
         enabled: !!slug && !!selectedSite?.id && !!arrivalDate && !!departureDate
     });
@@ -2817,7 +2821,7 @@ export default function BookingPage() {
 
     // Fetch availability when dates are selected
     const { data: availableSites, isLoading: isLoadingSites, error: availabilityError, refetch: refetchAvailability } = useQuery({
-        queryKey: ["public-availability", slug, arrivalDate, departureDate, guestInfo.equipment.type, guestInfo.equipment.length, guestInfo.needsAccessible],
+        queryKey: ["public-availability", slug, arrivalDate, departureDate, guestInfo.equipment.type, guestInfo.equipment.length, guestInfo.needsAccessible, previewToken],
         queryFn: () =>
             apiClient.getPublicAvailability(slug, {
                 arrivalDate,
@@ -2825,7 +2829,7 @@ export default function BookingPage() {
                 rigType: guestInfo.equipment.type,
                 rigLength: guestInfo.equipment.length,
                 needsAccessible: guestInfo.needsAccessible
-            }),
+            }, previewToken || undefined),
         enabled: !!slug && !!arrivalDate && !!departureDate && step >= 2,
         retry: 2,
         retryDelay: (attempt) => Math.min(750 * (attempt + 1), 5000)
@@ -2867,7 +2871,7 @@ export default function BookingPage() {
                         rigType: guestInfo.equipment.type,
                         rigLength: guestInfo.equipment.length,
                         needsAccessible: guestInfo.needsAccessible
-                    });
+                    }, previewToken || undefined);
                     const available = res.filter((s) => s.status === "available");
                     if (available.length > 0) {
                         if (!cancelled) {
@@ -2891,7 +2895,7 @@ export default function BookingPage() {
         return () => {
             cancelled = true;
         };
-    }, [arrivalDate, departureDate, filteredSites.length, guestInfo.equipment.length, guestInfo.equipment.type, isLoadingSites, slug, step]);
+    }, [arrivalDate, departureDate, filteredSites.length, guestInfo.equipment.length, guestInfo.equipment.type, guestInfo.needsAccessible, isLoadingSites, previewToken, slug, step]);
 
     const selectedSite = availableSites?.find((s) => s.id === selectedSiteId) || null;
 
@@ -3128,6 +3132,7 @@ export default function BookingPage() {
                                     setIsComplete(true);
                                 }}
                                 promoCodeFromUrl={searchParams.get("promoCode")}
+                                previewToken={previewToken}
                             />
                         )}
 

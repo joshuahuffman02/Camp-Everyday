@@ -10,13 +10,14 @@ export class PublicReservationsController {
     getAvailability(
         @Param("slug") slug: string,
         @Query("arrivalDate") arrivalDate: string,
-    @Query("departureDate") departureDate: string,
+        @Query("departureDate") departureDate: string,
         @Query("rigType") rigType?: string,
         @Query("rigLength") rigLength?: string,
-        @Query("needsAccessible") needsAccessible?: string
+        @Query("needsAccessible") needsAccessible?: string,
+        @Query("token") token?: string
     ) {
         const needsAccessibleBool = needsAccessible === "true" || needsAccessible === "1";
-        return this.service.getAvailability(slug, arrivalDate, departureDate, rigType, rigLength, needsAccessibleBool);
+        return this.service.getAvailability(slug, arrivalDate, departureDate, rigType, rigLength, needsAccessibleBool, token);
     }
 
     @Post("campgrounds/:slug/quote")
