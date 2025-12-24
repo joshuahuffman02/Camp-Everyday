@@ -1,4 +1,4 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { ReservationsService } from "./reservations.service";
 import { ReservationsController } from "./reservations.controller";
 import { PrismaService } from "../prisma/prisma.service";
@@ -16,7 +16,7 @@ import { TaxRulesModule } from "../tax-rules/tax-rules.module";
 import { GamificationModule } from "../gamification/gamification.module";
 import { AuditModule } from "../audit/audit.module";
 import { ReservationImportExportService } from "./reservation-import-export.service";
-import { IdempotencyService } from "../payments/idempotency.service";
+import { IdempotencyModule } from "../idempotency/idempotency.module";
 
 import { MatchScoreService } from "./match-score.service";
 import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
@@ -29,7 +29,7 @@ import { PoliciesModule } from "../policies/policies.module";
 import { GuestWalletModule } from "../guest-wallet/guest-wallet.module";
 
 @Module({
-  imports: [WaitlistModule, LoyaltyModule, SeasonalRatesModule, TaxRulesModule, GamificationModule, AuditModule, AccessControlModule, SignaturesModule, PoliciesModule, ApprovalsModule, UsageTrackerModule, RepeatChargesModule, forwardRef(() => GuestWalletModule)],
+  imports: [WaitlistModule, LoyaltyModule, SeasonalRatesModule, TaxRulesModule, GamificationModule, AuditModule, AccessControlModule, SignaturesModule, PoliciesModule, ApprovalsModule, UsageTrackerModule, RepeatChargesModule, GuestWalletModule, IdempotencyModule],
   controllers: [ReservationsController],
   providers: [
     ReservationsService,
@@ -42,7 +42,6 @@ import { GuestWalletModule } from "../guest-wallet/guest-wallet.module";
     MatchScoreService,
     PricingV2Service,
     DepositPoliciesService,
-    IdempotencyService
   ],
   exports: [ReservationsService, MatchScoreService]
 })

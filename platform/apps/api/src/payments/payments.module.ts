@@ -6,17 +6,17 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PaymentsReconciliationService } from "./reconciliation.service";
 import { PaymentsScheduler } from "./payments.scheduler";
 import { PermissionsModule } from "../permissions/permissions.module";
-import { IdempotencyService } from "./idempotency.service";
+import { IdempotencyModule } from "../idempotency/idempotency.module";
 import { GatewayConfigService } from "./gateway-config.service";
 import { GatewayConfigController } from "./gateway-config.controller";
 import { AuditModule } from "../audit/audit.module";
 import { LedgerModule } from "../ledger/ledger.module";
 
 @Module({
-  imports: [ReservationsModule, PermissionsModule, AuditModule, LedgerModule],
+  imports: [ReservationsModule, PermissionsModule, AuditModule, LedgerModule, IdempotencyModule],
   controllers: [PaymentsController, GatewayConfigController],
-  providers: [StripeService, PaymentsReconciliationService, PaymentsScheduler, IdempotencyService, GatewayConfigService],
-  exports: [StripeService, PaymentsReconciliationService, IdempotencyService, GatewayConfigService]
+  providers: [StripeService, PaymentsReconciliationService, PaymentsScheduler, GatewayConfigService],
+  exports: [StripeService, PaymentsReconciliationService, IdempotencyModule, GatewayConfigService]
 })
 export class PaymentsModule { }
 

@@ -108,6 +108,7 @@ import { PartnerApiModule } from "./partner-api/partner-api.module";
 import { MenuConfigModule } from "./menu-config/menu-config.module";
 import { FeatureProgressModule } from "./feature-progress/feature-progress.module";
 import { KioskModule } from "./kiosk/kiosk.module";
+import { IdempotencyModule } from "./idempotency/idempotency.module";
 
 @Module({
   imports: [
@@ -220,6 +221,7 @@ import { KioskModule } from "./kiosk/kiosk.module";
     MenuConfigModule,
     FeatureProgressModule,
     KioskModule,
+    IdempotencyModule,
   ],
   providers: []
 })
