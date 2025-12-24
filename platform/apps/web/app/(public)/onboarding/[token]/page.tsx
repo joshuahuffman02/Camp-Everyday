@@ -306,14 +306,19 @@ export default function OnboardingPage() {
 
   // Step handlers
   const handleParkProfileSave = async (data: any) => {
-    await saveMutation.mutateAsync({
+    const result = await saveMutation.mutateAsync({
       step: "park_profile",
       data: { campground: data },
     });
+    // Extract slug from the API response (server generates slug when creating campground)
+    const savedCampground = result?.session?.data?.park_profile?.campground || {};
+    const campgroundId = result?.session?.campgroundId || sessionQuery.data?.session.campgroundId || "";
+
     setState((prev) => ({
       ...prev,
       campground: {
-        id: sessionQuery.data?.session.campgroundId || "",
+        id: campgroundId,
+        slug: savedCampground.slug || data.slug,
         ...data,
       },
     }));
@@ -516,7 +521,8 @@ export default function OnboardingPage() {
 
   const handlePreview = () => {
     // Open booking page in new tab with preview token
-    const slug = state.campground?.slug || state.campground?.name?.toLowerCase().replace(/\s+/g, "-");
+    // Fallback slug generation uses same algorithm as backend
+    const slug = state.campground?.slug || state.campground?.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     if (slug) {
       window.open(`/park/${slug}/book?token=${encodeURIComponent(token)}`, "_blank");
     }
