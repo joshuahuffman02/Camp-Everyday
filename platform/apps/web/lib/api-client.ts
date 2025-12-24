@@ -4045,7 +4045,13 @@ export const apiClient = {
       ? `/public/campgrounds/${slug}/preview?token=${encodeURIComponent(previewToken)}`
       : `/public/campgrounds/${slug}`;
     const data = await fetchJSON<unknown>(url);
-    return PublicCampgroundDetailSchema.parse(data);
+    try {
+      return PublicCampgroundDetailSchema.parse(data);
+    } catch (parseError) {
+      console.error("Zod parse error for campground:", parseError);
+      console.error("Raw data that failed parsing:", data);
+      throw parseError;
+    }
   },
   async abandonPublicCart(payload: { campgroundId: string; email?: string; phone?: string; abandonedAt?: string }) {
     const res = await fetch(`${API_BASE}/public/reservations/abandon`, {
