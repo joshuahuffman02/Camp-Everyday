@@ -107,6 +107,7 @@ import { InventoryModule } from "./inventory/inventory.module";
 import { PartnerApiModule } from "./partner-api/partner-api.module";
 import { MenuConfigModule } from "./menu-config/menu-config.module";
 import { FeatureProgressModule } from "./feature-progress/feature-progress.module";
+import { KioskModule } from "./kiosk/kiosk.module";
 
 @Module({
   imports: [
@@ -218,6 +219,7 @@ import { FeatureProgressModule } from "./feature-progress/feature-progress.modul
     PartnerApiModule,
     MenuConfigModule,
     FeatureProgressModule,
+    KioskModule,
   ],
   providers: []
 })

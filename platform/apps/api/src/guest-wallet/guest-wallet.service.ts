@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { IdempotencyService } from "../payments/idempotency.service";
@@ -26,6 +28,7 @@ import {
 export class GuestWalletService {
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => IdempotencyService))
     private readonly idempotency: IdempotencyService
   ) {}
 

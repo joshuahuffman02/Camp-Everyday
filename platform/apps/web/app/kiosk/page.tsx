@@ -9,10 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookingMap } from "@/components/maps/BookingMap";
-import { Loader2, Search, CheckCircle, MapPin, Calendar, User, CreditCard, Home, RefreshCw, Flame, Snowflake, Plus, Minus, ShoppingBag, Tent, ArrowRight, Grid3X3, Zap, Droplet, Waves } from "lucide-react";
+import { Loader2, Search, CheckCircle, MapPin, Calendar, User, CreditCard, Home, RefreshCw, Flame, Snowflake, Plus, Minus, ShoppingBag, Tent, ArrowRight, Grid3X3, Zap, Droplet, Waves, Tablet, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { format, parseISO, addDays } from "date-fns";
 import { randomId } from "@/lib/random-id";
+
+// Storage key for kiosk device token
+const KIOSK_TOKEN_KEY = "campreserv:kioskDeviceToken";
+const KIOSK_CAMPGROUND_KEY = "campreserv:kioskCampground";
 
 type Reservation = {
     id: string;
@@ -49,15 +53,30 @@ type SiteFilters = {
     hookups: ("power" | "water" | "sewer")[];
 };
 
-type KioskState = "home" | "lookup" | "details" | "upsell" | "payment" | "success" | "walkin-nights" | "walkin-sites" | "walkin-guest";
+type KioskState = "setup" | "home" | "lookup" | "details" | "upsell" | "payment" | "success" | "walkin-nights" | "walkin-sites" | "walkin-guest";
+
+type CampgroundInfo = {
+    id: string;
+    name: string;
+    slug: string;
+    heroImageUrl: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    checkInTime?: string | null;
+    checkOutTime?: string | null;
+};
 
 const INACTIVITY_TIMEOUT = 60000; // 60 seconds
-const CAMPGROUND_SLUG = "camp-everyday-riverbend";
 
 export default function KioskPage() {
-    const [state, setState] = useState<KioskState>("home");
-    const [loading, setLoading] = useState(false);
+    const [state, setState] = useState<KioskState>("setup");
+    const [loading, setLoading] = useState(true); // Start loading while checking device token
     const [error, setError] = useState<string | null>(null);
+
+    // Device pairing state
+    const [pairingCode, setPairingCode] = useState("");
+    const [campground, setCampground] = useState<CampgroundInfo | null>(null);
+    const [deviceName, setDeviceName] = useState("");
 
     // Lookup form
     const [confirmationCode, setConfirmationCode] = useState("");
@@ -267,15 +286,102 @@ export default function KioskPage() {
         };
     }, []);
 
-    // Fetch campground center for map positioning
+    // Validate device token on page load
     useEffect(() => {
-        apiClient.getPublicCampground(CAMPGROUND_SLUG)
-            .then(cg => setCampgroundCenter({
-                latitude: cg?.latitude ? Number(cg.latitude) : null,
-                longitude: cg?.longitude ? Number(cg.longitude) : null
-            }))
-            .catch(() => { /* non-blocking */ });
+        const validateDevice = async () => {
+            const token = localStorage.getItem(KIOSK_TOKEN_KEY);
+
+            if (!token) {
+                // No token stored, show pairing screen
+                setLoading(false);
+                setState("setup");
+                return;
+            }
+
+            try {
+                const result = await apiClient.kioskGetDeviceInfo(token);
+
+                if (!result.valid || !result.campground) {
+                    // Token is invalid, clear it and show pairing screen
+                    localStorage.removeItem(KIOSK_TOKEN_KEY);
+                    localStorage.removeItem(KIOSK_CAMPGROUND_KEY);
+                    setLoading(false);
+                    setState("setup");
+                    setError(result.error || "Device session expired. Please pair again.");
+                    return;
+                }
+
+                // Token is valid, set campground and go to home
+                setCampground(result.campground);
+                setCampgroundCenter({
+                    latitude: result.campground.latitude,
+                    longitude: result.campground.longitude
+                });
+                localStorage.setItem(KIOSK_CAMPGROUND_KEY, JSON.stringify(result.campground));
+                setLoading(false);
+                setState("home");
+            } catch (err) {
+                // API error, try to use cached campground data
+                const cached = localStorage.getItem(KIOSK_CAMPGROUND_KEY);
+                if (cached) {
+                    try {
+                        const cachedCampground = JSON.parse(cached) as CampgroundInfo;
+                        setCampground(cachedCampground);
+                        setCampgroundCenter({
+                            latitude: cachedCampground.latitude,
+                            longitude: cachedCampground.longitude
+                        });
+                        setLoading(false);
+                        setState("home");
+                        return;
+                    } catch {}
+                }
+                // No cached data, show pairing screen
+                localStorage.removeItem(KIOSK_TOKEN_KEY);
+                localStorage.removeItem(KIOSK_CAMPGROUND_KEY);
+                setLoading(false);
+                setState("setup");
+                setError("Failed to validate device. Please pair again.");
+            }
+        };
+
+        validateDevice();
     }, []);
+
+    // Handle device pairing
+    const handlePairing = async () => {
+        if (!pairingCode || pairingCode.length !== 6) {
+            setError("Please enter the 6-digit pairing code");
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const result = await apiClient.kioskPairDevice(pairingCode, deviceName || undefined);
+
+            // Store the device token
+            localStorage.setItem(KIOSK_TOKEN_KEY, result.deviceToken);
+            localStorage.setItem(KIOSK_CAMPGROUND_KEY, JSON.stringify(result.campground));
+
+            // Set campground info
+            setCampground(result.campground);
+            setCampgroundCenter({
+                latitude: result.campground.latitude,
+                longitude: result.campground.longitude
+            });
+
+            // Go to home screen
+            setPairingCode("");
+            setDeviceName("");
+            setState("home");
+        } catch (err: any) {
+            setError(err?.message || "Invalid or expired pairing code. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Lookup reservation
     const handleLookup = async () => {
@@ -328,7 +434,12 @@ export default function KioskPage() {
         const departure = addDays(arrival, selectedNights);
 
         try {
-            const sites = await apiClient.getPublicAvailability(CAMPGROUND_SLUG, {
+            if (!campground?.slug) {
+                setError("Device not configured. Please restart kiosk.");
+                setLoading(false);
+                return;
+            }
+            const sites = await apiClient.getPublicAvailability(campground.slug, {
                 arrivalDate: format(arrival, "yyyy-MM-dd"),
                 departureDate: format(departure, "yyyy-MM-dd")
             });
@@ -360,9 +471,15 @@ export default function KioskPage() {
                 return;
             }
 
+            if (!campground?.slug) {
+                setError("Device not configured. Please restart kiosk.");
+                setLoading(false);
+                return;
+            }
+
             // 1. Create Reservation
             const newRes = await apiClient.createPublicReservation({
-                campgroundSlug: CAMPGROUND_SLUG,
+                campgroundSlug: campground.slug,
                 siteId: selectedSite.id,
                 arrivalDate: format(arrival, "yyyy-MM-dd"),
                 departureDate: format(departure, "yyyy-MM-dd"),
@@ -432,12 +549,92 @@ export default function KioskPage() {
             className="min-h-screen bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center p-8"
             onClick={handleActivity}
         >
+            {/* Setup/Pairing Screen */}
+            {state === "setup" && (
+                <Card className="w-full max-w-lg shadow-2xl bg-white/95 backdrop-blur">
+                    <CardHeader className="text-center pb-6 pt-10">
+                        <div className="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                            <Tablet className="w-10 h-10 text-green-600" />
+                        </div>
+                        <CardTitle className="text-3xl font-bold text-gray-900">Kiosk Setup</CardTitle>
+                        <CardDescription className="text-lg">
+                            Enter the 6-digit pairing code from your campground settings
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6 px-10 pb-10">
+                        {loading ? (
+                            <div className="flex flex-col items-center gap-4 py-8">
+                                <Loader2 className="w-12 h-12 animate-spin text-green-600" />
+                                <p className="text-gray-600">Validating device...</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Pairing Code
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        placeholder="000000"
+                                        value={pairingCode}
+                                        onChange={(e) => setPairingCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                        className="h-16 text-4xl text-center tracking-[0.5em] font-mono"
+                                        maxLength={6}
+                                        inputMode="numeric"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Device Name (optional)
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        placeholder="e.g., Front Gate Kiosk"
+                                        value={deviceName}
+                                        onChange={(e) => setDeviceName(e.target.value)}
+                                        className="h-12"
+                                    />
+                                </div>
+
+                                {error && (
+                                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+                                        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                        {error}
+                                    </div>
+                                )}
+
+                                <Button
+                                    onClick={handlePairing}
+                                    disabled={loading || pairingCode.length !== 6}
+                                    className="w-full h-14 text-xl bg-green-600 hover:bg-green-700"
+                                >
+                                    {loading ? (
+                                        <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                                    ) : (
+                                        <CheckCircle className="w-6 h-6 mr-2" />
+                                    )}
+                                    Pair Device
+                                </Button>
+
+                                <div className="text-center text-sm text-gray-500 pt-4 border-t">
+                                    <p>To get a pairing code:</p>
+                                    <p className="mt-1">Dashboard → Settings → Kiosk Devices → Generate Code</p>
+                                </div>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
             {/* Home Screen */}
             {state === "home" && (
                 <Card className="w-full max-w-4xl shadow-2xl bg-white/95 backdrop-blur">
                     <CardContent className="p-16 text-center space-y-12">
                         <div>
-                            <h1 className="text-6xl font-bold text-green-900 mb-4">Welcome to Camp Everyday</h1>
+                            <h1 className="text-6xl font-bold text-green-900 mb-4">
+                                Welcome to {campground?.name || "Check-In"}
+                            </h1>
                             <p className="text-2xl text-green-700">Please select an option to begin</p>
                         </div>
 

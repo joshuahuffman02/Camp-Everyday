@@ -8559,6 +8559,142 @@ export const apiClient = {
       metadata: Record<string, any> | null;
     }>;
   },
+
+  // ==================== KIOSK DEVICE PAIRING ====================
+
+  /**
+   * Pair a kiosk device using a 6-digit pairing code (public, no auth required)
+   */
+  async kioskPairDevice(code: string, deviceName?: string) {
+    const res = await fetch(`${API_BASE}/kiosk/pair`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, deviceName }),
+    });
+    return parseResponse<{
+      deviceToken: string;
+      deviceId: string;
+      campground: {
+        id: string;
+        name: string;
+        slug: string;
+        heroImageUrl: string | null;
+        latitude: number | null;
+        longitude: number | null;
+      };
+    }>(res);
+  },
+
+  /**
+   * Validate kiosk device token and get campground info (public, uses X-Kiosk-Token header)
+   */
+  async kioskGetDeviceInfo(deviceToken: string) {
+    const res = await fetch(`${API_BASE}/kiosk/me`, {
+      method: "GET",
+      headers: { "X-Kiosk-Token": deviceToken },
+    });
+    return res.json() as Promise<{
+      valid: boolean;
+      error?: string;
+      deviceId?: string;
+      deviceName?: string;
+      campground?: {
+        id: string;
+        name: string;
+        slug: string;
+        heroImageUrl: string | null;
+        latitude: number | null;
+        longitude: number | null;
+        checkInTime: string | null;
+        checkOutTime: string | null;
+      };
+      features?: {
+        allowWalkIns: boolean;
+        allowCheckIn: boolean;
+        allowPayments: boolean;
+      };
+    }>;
+  },
+
+  /**
+   * Generate a pairing code for a campground (staff auth required)
+   */
+  async kioskGeneratePairingCode(campgroundId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/kiosk/pairing-code`, {
+      method: "POST",
+      headers: scopedHeaders(),
+    });
+    return parseResponse<{ code: string; expiresAt: string }>(res);
+  },
+
+  /**
+   * List all kiosk devices for a campground (staff auth required)
+   */
+  async kioskListDevices(campgroundId: string) {
+    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/kiosk/devices`);
+    return data as Array<{
+      id: string;
+      name: string;
+      status: string;
+      lastSeenAt: string | null;
+      userAgent: string | null;
+      allowWalkIns: boolean;
+      allowCheckIn: boolean;
+      allowPayments: boolean;
+      createdAt: string;
+      revokedAt: string | null;
+    }>;
+  },
+
+  /**
+   * Update a kiosk device's settings (staff auth required)
+   */
+  async kioskUpdateDevice(campgroundId: string, deviceId: string, data: {
+    name?: string;
+    allowWalkIns?: boolean;
+    allowCheckIn?: boolean;
+    allowPayments?: boolean;
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/kiosk/devices/${deviceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(data),
+    });
+    return parseResponse<unknown>(res);
+  },
+
+  /**
+   * Revoke a kiosk device (staff auth required)
+   */
+  async kioskRevokeDevice(campgroundId: string, deviceId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/kiosk/devices/${deviceId}/revoke`, {
+      method: "POST",
+      headers: scopedHeaders(),
+    });
+    return parseResponse<unknown>(res);
+  },
+
+  /**
+   * Re-enable a revoked kiosk device (staff auth required)
+   */
+  async kioskEnableDevice(campgroundId: string, deviceId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/kiosk/devices/${deviceId}/enable`, {
+      method: "POST",
+      headers: scopedHeaders(),
+    });
+    return parseResponse<unknown>(res);
+  },
+
+  /**
+   * Delete a kiosk device permanently (staff auth required)
+   */
+  async kioskDeleteDevice(campgroundId: string, deviceId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/kiosk/devices/${deviceId}`, {
+      method: "DELETE",
+      headers: scopedHeaders(),
+    });
+    return parseResponse<{ deleted: boolean }>(res);
+  },
 };
 
 export type PublicCampgroundList = z.infer<typeof PublicCampgroundListSchema>;

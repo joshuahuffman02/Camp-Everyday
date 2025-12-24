@@ -1290,6 +1290,10 @@ model Campground {
   externalPosSales           ExternalPosSale[]
   productExternalMappings    ProductExternalMapping[]
 
+  // Kiosk device management
+  kioskDevices               KioskDevice[]
+  kioskPairingCodes          KioskPairingCode[]
+
   // Soft delete
   deletedAt DateTime?
   deletedBy String?
@@ -7541,4 +7545,56 @@ model ProductExternalMapping {
   @@unique([campgroundId, provider, productId])
   @@index([campgroundId, provider])
   @@index([productId])
+}
+
+// =============================================================================
+// KIOSK DEVICE MANAGEMENT
+// =============================================================================
+
+// Paired kiosk devices (iPads, tablets at check-in stations)
+model KioskDevice {
+  id              String    @id @default(cuid())
+  campgroundId    String
+
+  name            String    // "Front Gate Kiosk", "Lobby iPad", etc.
+  deviceToken     String    @unique // Secret token for API auth
+
+  status          String    @default("active") // active, disabled, revoked
+  lastSeenAt      DateTime?
+  userAgent       String?   // Browser/device info
+
+  // Features enabled for this kiosk
+  allowWalkIns    Boolean   @default(true)
+  allowCheckIn    Boolean   @default(true)
+  allowPayments   Boolean   @default(true)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  revokedAt       DateTime?
+
+  campground      Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@index([campgroundId])
+  @@index([deviceToken])
+}
+
+// Temporary pairing codes for kiosk setup
+model KioskPairingCode {
+  id              String    @id @default(cuid())
+  campgroundId    String
+
+  code            String    // 6-digit code like "847291"
+  expiresAt       DateTime
+
+  usedAt          DateTime?
+  usedByDeviceId  String?   // Which device used this code
+
+  createdAt       DateTime  @default(now())
+  createdById     String?   // Staff user who generated it
+
+  campground      Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@unique([campgroundId, code])
+  @@index([campgroundId])
+  @@index([code])
 }

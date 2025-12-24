@@ -52,19 +52,70 @@ export default function CampgroundSettingsPage() {
     const [referralMessage, setReferralMessage] = useState<string | null>(null);
 
     // Tab navigation
-    type SettingsTab = "general" | "data" | "marketing" | "billing";
+    type SettingsTab = "general" | "data" | "marketing" | "billing" | "kiosk";
     const [activeTab, setActiveTab] = useState<SettingsTab>("general");
     const locationSearch = typeof window !== "undefined" ? window.location.search : "";
+
+    // Kiosk device state
+    const [kioskPairingCode, setKioskPairingCode] = useState<{ code: string; expiresAt: string } | null>(null);
+    const [kioskMessage, setKioskMessage] = useState<string | null>(null);
 
     const queryClient = useQueryClient();
 
     useEffect(() => {
         if (!locationSearch) return;
         const tab = new URLSearchParams(locationSearch).get("tab");
-        if (tab && ["general", "data", "marketing", "billing"].includes(tab)) {
+        if (tab && ["general", "data", "marketing", "billing", "kiosk"].includes(tab)) {
             setActiveTab(tab as SettingsTab);
         }
     }, [locationSearch]);
+
+    // Kiosk devices query
+    const kioskDevicesQuery = useQuery({
+        queryKey: ["kiosk-devices", campgroundId],
+        queryFn: () => apiClient.kioskListDevices(campgroundId),
+        enabled: !!campgroundId && activeTab === "kiosk"
+    });
+
+    // Generate pairing code mutation
+    const generatePairingCodeMutation = useMutation({
+        mutationFn: () => apiClient.kioskGeneratePairingCode(campgroundId),
+        onSuccess: (data) => {
+            setKioskPairingCode(data);
+            setKioskMessage(null);
+        },
+        onError: (err: any) => setKioskMessage(err?.message || "Failed to generate pairing code")
+    });
+
+    // Revoke device mutation
+    const revokeDeviceMutation = useMutation({
+        mutationFn: (deviceId: string) => apiClient.kioskRevokeDevice(campgroundId, deviceId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["kiosk-devices", campgroundId] });
+            setKioskMessage("Device revoked successfully");
+        },
+        onError: (err: any) => setKioskMessage(err?.message || "Failed to revoke device")
+    });
+
+    // Enable device mutation
+    const enableDeviceMutation = useMutation({
+        mutationFn: (deviceId: string) => apiClient.kioskEnableDevice(campgroundId, deviceId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["kiosk-devices", campgroundId] });
+            setKioskMessage("Device enabled successfully");
+        },
+        onError: (err: any) => setKioskMessage(err?.message || "Failed to enable device")
+    });
+
+    // Delete device mutation
+    const deleteDeviceMutation = useMutation({
+        mutationFn: (deviceId: string) => apiClient.kioskDeleteDevice(campgroundId, deviceId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["kiosk-devices", campgroundId] });
+            setKioskMessage("Device deleted successfully");
+        },
+        onError: (err: any) => setKioskMessage(err?.message || "Failed to delete device")
+    });
 
     const campgroundQuery = useQuery({
         queryKey: ["campground", campgroundId],
@@ -368,7 +419,7 @@ export default function CampgroundSettingsPage() {
 
                 {/* Horizontal Tab Bar */}
                 <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm overflow-x-auto">
-                    {([{ key: "general", label: "General" }, { key: "data", label: "Data" }, { key: "marketing", label: "Marketing" }, { key: "billing", label: "Billing" }] as const).map((tab) => (
+                    {([{ key: "general", label: "General" }, { key: "data", label: "Data" }, { key: "marketing", label: "Marketing" }, { key: "billing", label: "Billing" }, { key: "kiosk", label: "Kiosk" }] as const).map((tab) => (
                         <Button key={tab.key} size="sm" variant={activeTab === tab.key ? "default" : "ghost"} className="whitespace-nowrap" onClick={() => setActiveTab(tab.key)}>{tab.label}</Button>
                     ))}
                 </div>
@@ -924,6 +975,138 @@ export default function CampgroundSettingsPage() {
                                     </div>
                                 </div>
                             )}
+                        </Card>
+                    </>)}
+
+                    {/* Kiosk Tab */}
+                    {activeTab === "kiosk" && (<>
+                        <Card className="p-6 space-y-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Kiosk Devices</h2>
+                                    <p className="text-sm text-slate-600">
+                                        Pair iPad/tablet kiosks for self-service check-in. Devices can work 24/7 without staff login.
+                                    </p>
+                                </div>
+                                {kioskDevicesQuery.isFetching && <span className="text-xs text-slate-500">Refreshing…</span>}
+                            </div>
+
+                            {/* Generate Pairing Code */}
+                            <div className="bg-slate-50 rounded-lg p-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="font-medium text-slate-900">Pair New Device</h3>
+                                        <p className="text-sm text-slate-600">Generate a 6-digit code to pair a new kiosk device.</p>
+                                    </div>
+                                    <Button
+                                        onClick={() => generatePairingCodeMutation.mutate()}
+                                        disabled={generatePairingCodeMutation.isPending}
+                                    >
+                                        {generatePairingCodeMutation.isPending ? "Generating..." : "Generate Pairing Code"}
+                                    </Button>
+                                </div>
+
+                                {kioskPairingCode && (
+                                    <div className="bg-white rounded-lg border border-slate-200 p-6 text-center">
+                                        <p className="text-sm text-slate-600 mb-2">Enter this code on the kiosk:</p>
+                                        <div className="text-5xl font-mono font-bold tracking-[0.3em] text-slate-900 mb-2">
+                                            {kioskPairingCode.code}
+                                        </div>
+                                        <p className="text-xs text-slate-500">
+                                            Expires {new Date(kioskPairingCode.expiresAt).toLocaleTimeString()}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {kioskMessage && (
+                                <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded text-sm">
+                                    {kioskMessage}
+                                </div>
+                            )}
+
+                            {/* Devices List */}
+                            <div className="space-y-2">
+                                <h3 className="font-medium text-slate-900">Paired Devices</h3>
+                                {kioskDevicesQuery.isLoading ? (
+                                    <p className="text-sm text-slate-600">Loading devices...</p>
+                                ) : kioskDevicesQuery.data?.length === 0 ? (
+                                    <p className="text-sm text-slate-500 italic">
+                                        No kiosk devices paired yet. Generate a pairing code above to get started.
+                                    </p>
+                                ) : (
+                                    <div className="rounded border divide-y">
+                                        {kioskDevicesQuery.data?.map((device) => (
+                                            <div key={device.id} className="p-4 flex items-center justify-between">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium text-slate-900">{device.name}</span>
+                                                        <Badge
+                                                            variant={device.status === "active" ? "default" : "secondary"}
+                                                            className={device.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}
+                                                        >
+                                                            {device.status}
+                                                        </Badge>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500">
+                                                        Last seen: {device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Never"}
+                                                    </p>
+                                                    <div className="flex gap-2 text-xs text-slate-500">
+                                                        {device.allowCheckIn && <span className="bg-slate-100 px-1.5 py-0.5 rounded">Check-in</span>}
+                                                        {device.allowWalkIns && <span className="bg-slate-100 px-1.5 py-0.5 rounded">Walk-ins</span>}
+                                                        {device.allowPayments && <span className="bg-slate-100 px-1.5 py-0.5 rounded">Payments</span>}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {device.status === "active" ? (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => revokeDeviceMutation.mutate(device.id)}
+                                                            disabled={revokeDeviceMutation.isPending}
+                                                        >
+                                                            Revoke
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => enableDeviceMutation.mutate(device.id)}
+                                                            disabled={enableDeviceMutation.isPending}
+                                                        >
+                                                            Re-enable
+                                                        </Button>
+                                                    )}
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        onClick={() => {
+                                                            if (confirm("Delete this device permanently?")) {
+                                                                deleteDeviceMutation.mutate(device.id);
+                                                            }
+                                                        }}
+                                                        disabled={deleteDeviceMutation.isPending}
+                                                    >
+                                                        Delete
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Instructions */}
+                            <div className="bg-slate-50 rounded-lg p-4 text-sm text-slate-600 space-y-2">
+                                <h3 className="font-medium text-slate-900">Setup Instructions</h3>
+                                <ol className="list-decimal list-inside space-y-1">
+                                    <li>On your iPad/tablet, open the browser and navigate to <code className="bg-white px-1 py-0.5 rounded border text-xs">{typeof window !== 'undefined' ? window.location.origin : ''}/kiosk</code></li>
+                                    <li>Generate a pairing code above</li>
+                                    <li>Enter the 6-digit code on the kiosk screen</li>
+                                    <li>The device will automatically connect to this campground</li>
+                                    <li>Enable Guided Access (iOS) or lock the browser for production use</li>
+                                </ol>
+                            </div>
                         </Card>
                     </>)}
                 </div>
