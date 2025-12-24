@@ -77,6 +77,7 @@ import { GroupBookingsModule } from "./group-bookings/group-bookings.module";
 // Phase 4 imports
 import { NotificationTriggersModule } from "./notification-triggers/notification-triggers.module";
 import { StoredValueModule } from "./stored-value/stored-value.module";
+import { GuestWalletModule } from "./guest-wallet/guest-wallet.module";
 import { PosModule } from "./pos/pos.module";
 // Phase 3 imports
 import { DynamicPricingModule } from "./dynamic-pricing/dynamic-pricing.module";
@@ -189,6 +190,7 @@ import { FeatureProgressModule } from "./feature-progress/feature-progress.modul
     // Phase 4 modules
     NotificationTriggersModule,
     StoredValueModule,
+    GuestWalletModule,
     PosModule,
     AccessControlModule,
     BillingModule,

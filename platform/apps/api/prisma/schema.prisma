@@ -1884,6 +1884,7 @@ model Guest {
   signatureArtifacts        SignatureArtifact[]
   coiUploads                CoiUpload[]
   storedValueCodes          StoredValueCode[]
+  walletAccounts            StoredValueAccount[] @relation("GuestWallet")
   loyaltyProfile            LoyaltyProfile?
   activityBookings          ActivityBooking[]
   memberships               GuestMembership[]
@@ -5609,12 +5610,18 @@ model StoredValueAccount {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
+  // Guest wallet - when guestId is set, this is a guest's personal wallet
+  // Null guestId = gift card/store credit; non-null = guest wallet
+  guestId          String?
+
   campground Campground          @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  guest      Guest?              @relation("GuestWallet", fields: [guestId], references: [id], onDelete: SetNull)
   codes      StoredValueCode[]
   ledger     StoredValueLedger[]
   holds      StoredValueHold[]
 
   @@index([campgroundId])
+  @@index([guestId])
   @@index([status])
 }
 
