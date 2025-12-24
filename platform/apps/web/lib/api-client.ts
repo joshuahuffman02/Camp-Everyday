@@ -72,7 +72,7 @@ const CampgroundWithAnalyticsSchema = CampgroundSchema.extend({
   gaMeasurementId: z.string().nullable().optional(),
   metaPixelId: z.string().nullable().optional(),
   aiSuggestionsEnabled: z.boolean().optional().default(false),
-});
+}).passthrough();
 const CampgroundArray = z.array(CampgroundWithAnalyticsSchema);
 const SiteArray = z.array(SiteSchema);
 const ReservationArray = z.array(ReservationSchema);
@@ -439,13 +439,14 @@ const ReferralProgramSchema = z.object({
 const FormTemplateArray = z.array(FormTemplateSchema);
 const FormSubmissionArray = z.array(FormSubmissionSchema);
 
+// Use lenient parsing for public campground - API may return extra fields
 const PublicCampgroundDetailSchema = CampgroundWithAnalyticsSchema.extend({
-  siteClasses: z.array(SiteClassSchema),
-  events: z.array(EventSchema),
+  siteClasses: z.array(z.record(z.any())),
+  events: z.array(z.record(z.any())),
   promotions: z.array(PromotionSchema).optional().default([]),
   showPublicMap: z.boolean().optional().default(false),
   isPreview: z.boolean().optional(),
-});
+}).passthrough();
 
 export const CreatePublicWaitlistSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
