@@ -275,6 +275,7 @@ export class OnboardingService {
         const sitesData = (sanitized as any).sites || [];
         const sessionData = session.data as any;
         const siteClassIds = sessionData?.site_classes?.siteClassIds || [];
+        const siteClassesData = sessionData?.site_classes?.siteClasses || [];
 
         // Delete existing sites for this campground (idempotent re-save)
         await this.prisma.site.deleteMany({ where: { campgroundId } });
@@ -283,14 +284,23 @@ export class OnboardingService {
           // Map the temp siteClassId to actual database ID
           const siteClassIndex = parseInt(site.siteClassId?.replace('temp-', '') || '0');
           const actualSiteClassId = siteClassIds[siteClassIndex];
+          const siteClassInfo = siteClassesData[siteClassIndex] || {};
 
           if (actualSiteClassId) {
+            // Get siteType from siteClass, default to 'rv'
+            const siteType = siteClassInfo.siteType || 'rv';
+            const maxOccupancy = siteClassInfo.maxOccupancy || 6;
+
             await this.prisma.site.create({
               data: {
                 campgroundId,
                 siteClassId: actualSiteClassId,
                 name: site.name || `Site ${site.siteNumber}`,
                 siteNumber: site.siteNumber,
+                siteType,
+                maxOccupancy,
+                rigMaxLength: site.rigMaxLength || null,
+                powerAmps: site.powerAmps || null,
                 status: "available",
               },
             });
