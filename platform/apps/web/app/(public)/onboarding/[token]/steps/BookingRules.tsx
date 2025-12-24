@@ -36,8 +36,7 @@ const advanceBookingOptions = [
   {
     days: 90,
     label: "90 Days",
-    description: "Most common for seasonal planning",
-    recommended: true,
+    description: "Common for seasonal planning",
   },
   {
     days: 180,
@@ -47,7 +46,8 @@ const advanceBookingOptions = [
   {
     days: 365,
     label: "1 Year",
-    description: "Maximum advance planning",
+    description: "Capture planners and returners early",
+    recommended: true,
   },
   {
     days: null,
@@ -66,7 +66,7 @@ export function BookingRules({
 }: BookingRulesProps) {
   const prefersReducedMotion = useReducedMotion();
   const [advanceBookingDays, setAdvanceBookingDays] = useState<number | null>(
-    initialData?.advanceBookingDays ?? 90
+    initialData?.advanceBookingDays ?? 365
   );
   const [minNights, setMinNights] = useState<number>(
     initialData?.minNights || 1
@@ -341,14 +341,22 @@ export function BookingRules({
                   >
                     -
                   </button>
-                  <div className="flex-1 text-center">
-                    <div className="text-xl font-bold text-white">
-                      {longTermMinNights}
-                    </div>
-                    <div className="text-xs text-slate-400">nights</div>
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      min="7"
+                      max="365"
+                      value={longTermMinNights}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 7;
+                        setLongTermMinNights(Math.max(7, Math.min(365, val)));
+                      }}
+                      className="w-full text-center text-xl font-bold text-white bg-slate-800/50 border border-slate-600 rounded-lg py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <div className="text-xs text-slate-400 text-center mt-1">nights</div>
                   </div>
                   <button
-                    onClick={() => setLongTermMinNights(longTermMinNights + 7)}
+                    onClick={() => setLongTermMinNights(Math.min(365, longTermMinNights + 7))}
                     className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition-colors"
                   >
                     +

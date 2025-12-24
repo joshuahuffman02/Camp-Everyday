@@ -13,12 +13,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+export interface PreArrivalReminder {
+  days: number;
+  enabled: boolean;
+  description: string;
+}
+
 export interface CommunicationSetupData {
   customDomain?: string;
   useCustomDomain: boolean;
   sendConfirmation: boolean;
-  sendPreArrival: boolean;
-  preArrivalDays: number;
+  preArrivalReminders: PreArrivalReminder[];
   sendPostStay: boolean;
   enableNpsSurvey: boolean;
   npsSendHour?: number;
@@ -38,35 +43,22 @@ const SPRING_CONFIG = {
   damping: 25,
 };
 
-const automatedEmails = [
+const DEFAULT_PRE_ARRIVAL_REMINDERS: PreArrivalReminder[] = [
   {
-    id: "confirmation",
-    title: "Booking Confirmation",
-    description: "Sent immediately after a successful reservation",
-    timing: "Sent immediately",
-    defaultOn: true,
+    days: 30,
+    enabled: false,
+    description: "Early reminder with upsells and add-ons",
   },
   {
-    id: "preArrival",
-    title: "Pre-Arrival Reminder",
-    description: "Remind guests about their upcoming stay",
-    timing: "Sent before check-in",
-    defaultOn: true,
-    hasDaysSelector: true,
+    days: 7,
+    enabled: true,
+    description: "Week-out reminder with arrival details",
   },
   {
-    id: "postStay",
-    title: "Post-Stay Thank You",
-    description: "Thank guests and encourage future bookings",
-    timing: "Sent after check-out",
-    defaultOn: true,
+    days: 1,
+    enabled: true,
+    description: "Day-before reminder with check-in info",
   },
-];
-
-const preArrivalDaysOptions = [
-  { value: 1, label: "1 day before" },
-  { value: 3, label: "3 days before" },
-  { value: 7, label: "7 days before" },
 ];
 
 export function CommunicationSetup({
@@ -90,11 +82,8 @@ export function CommunicationSetup({
   const [sendConfirmation, setSendConfirmation] = useState(
     initialData?.sendConfirmation ?? true
   );
-  const [sendPreArrival, setSendPreArrival] = useState(
-    initialData?.sendPreArrival ?? true
-  );
-  const [preArrivalDays, setPreArrivalDays] = useState(
-    initialData?.preArrivalDays || 3
+  const [preArrivalReminders, setPreArrivalReminders] = useState<PreArrivalReminder[]>(
+    initialData?.preArrivalReminders || DEFAULT_PRE_ARRIVAL_REMINDERS
   );
   const [sendPostStay, setSendPostStay] = useState(
     initialData?.sendPostStay ?? true
@@ -103,6 +92,14 @@ export function CommunicationSetup({
     initialData?.enableNpsSurvey ?? false
   );
 
+  const togglePreArrivalReminder = (days: number) => {
+    setPreArrivalReminders((prev) =>
+      prev.map((r) =>
+        r.days === days ? { ...r, enabled: !r.enabled } : r
+      )
+    );
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -110,8 +107,7 @@ export function CommunicationSetup({
         customDomain: useCustomDomain ? customDomain : undefined,
         useCustomDomain,
         sendConfirmation,
-        sendPreArrival,
-        preArrivalDays,
+        preArrivalReminders,
         sendPostStay,
         enableNpsSurvey,
         npsSendHour: enableNpsSurvey ? 10 : undefined,
@@ -292,79 +288,64 @@ export function CommunicationSetup({
               </div>
             </div>
 
-            {/* Pre-Arrival Reminder */}
-            <div
-              className={cn(
-                "p-4 rounded-xl border-2 transition-all",
-                sendPreArrival
-                  ? "border-blue-500 bg-blue-500/10"
-                  : "border-slate-700 bg-slate-800/30"
-              )}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h4
-                    className={cn(
-                      "font-semibold",
-                      sendPreArrival ? "text-blue-400" : "text-white"
-                    )}
-                  >
-                    Pre-Arrival Reminder
-                  </h4>
-                  <p className="text-sm text-slate-400 mt-1">
-                    Remind guests about their upcoming stay
-                  </p>
-                  <div className="mt-2 text-xs text-slate-500 bg-slate-900/50 rounded px-2 py-1 inline-block">
-                    Sent before check-in
-                  </div>
+            {/* Pre-Arrival Reminders - Multiple */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-white">Pre-Arrival Reminders</h4>
+                <span className="text-xs text-slate-500">Select multiple</span>
+              </div>
 
-                  {sendPreArrival && (
-                    <motion.div
-                      initial={
-                        prefersReducedMotion ? {} : { opacity: 0, y: -10 }
-                      }
-                      animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
-                      className="mt-3 flex items-center gap-2"
-                    >
-                      <span className="text-sm text-slate-400">Send:</span>
-                      <div className="flex gap-2">
-                        {preArrivalDaysOptions.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setPreArrivalDays(option.value)}
-                            className={cn(
-                              "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
-                              preArrivalDays === option.value
-                                ? "bg-blue-500 text-white"
-                                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                            )}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSendPreArrival(!sendPreArrival)}
+              {preArrivalReminders.map((reminder) => (
+                <div
+                  key={reminder.days}
                   className={cn(
-                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ml-4",
-                    sendPreArrival ? "bg-blue-500" : "bg-slate-600"
+                    "p-4 rounded-xl border-2 transition-all",
+                    reminder.enabled
+                      ? "border-blue-500 bg-blue-500/10"
+                      : "border-slate-700 bg-slate-800/30"
                   )}
                 >
-                  <motion.span
-                    layout
-                    transition={SPRING_CONFIG}
-                    className={cn(
-                      "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                      sendPreArrival ? "translate-x-6" : "translate-x-1"
-                    )}
-                  />
-                </button>
-              </div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4
+                        className={cn(
+                          "font-semibold",
+                          reminder.enabled ? "text-blue-400" : "text-white"
+                        )}
+                      >
+                        {reminder.days === 30
+                          ? "1 Month Before"
+                          : reminder.days === 7
+                          ? "1 Week Before"
+                          : "Day Before"}
+                      </h4>
+                      <p className="text-sm text-slate-400 mt-1">
+                        {reminder.description}
+                      </p>
+                      <div className="mt-2 text-xs text-slate-500 bg-slate-900/50 rounded px-2 py-1 inline-block">
+                        {reminder.days} {reminder.days === 1 ? "day" : "days"} before check-in
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => togglePreArrivalReminder(reminder.days)}
+                      className={cn(
+                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ml-4",
+                        reminder.enabled ? "bg-blue-500" : "bg-slate-600"
+                      )}
+                    >
+                      <motion.span
+                        layout
+                        transition={SPRING_CONFIG}
+                        className={cn(
+                          "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                          reminder.enabled ? "translate-x-6" : "translate-x-1"
+                        )}
+                      />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Post-Stay Thank You */}

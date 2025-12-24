@@ -347,7 +347,12 @@ export function WaiversDocuments({
           transition={{ delay: 0.2 }}
           className="space-y-4"
         >
-          <h3 className="font-medium text-white">Additional documents</h3>
+          <div>
+            <h3 className="font-medium text-white">Required acknowledgments</h3>
+            <p className="text-sm text-slate-400 mt-1">
+              Select which additional documents guests must acknowledge
+            </p>
+          </div>
 
           <div className="space-y-3">
             {/* Park Rules Acknowledgment */}
@@ -368,10 +373,10 @@ export function WaiversDocuments({
                       requireParkRulesAck ? "text-blue-400" : "text-white"
                     )}
                   >
-                    Park rules acknowledgment
+                    Park rules signature
                   </div>
                   <div className="text-sm text-slate-400 mt-1">
-                    Guests confirm they've read and agree to park rules
+                    Require signature on park rules (you'll set up the rules in the next step)
                   </div>
                 </div>
                 <div
@@ -416,7 +421,7 @@ export function WaiversDocuments({
                     Vehicle registration form
                   </div>
                   <div className="text-sm text-slate-400 mt-1">
-                    Collect make, model, and license plate information
+                    Collect RV/vehicle make, model, length, and license plate
                   </div>
                 </div>
                 <div
@@ -461,7 +466,7 @@ export function WaiversDocuments({
                     Pet policy agreement
                   </div>
                   <div className="text-sm text-slate-400 mt-1">
-                    Guests with pets must agree to pet rules and fees
+                    Guests with pets acknowledge rules, fees, and breed restrictions
                   </div>
                 </div>
                 <div
@@ -485,6 +490,10 @@ export function WaiversDocuments({
               </div>
             </button>
           </div>
+
+          <p className="text-xs text-slate-500 mt-2">
+            You can add more custom documents in Settings after setup
+          </p>
         </motion.div>
 
         {/* Info box */}

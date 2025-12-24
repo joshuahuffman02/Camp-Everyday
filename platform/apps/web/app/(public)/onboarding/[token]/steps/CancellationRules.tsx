@@ -689,12 +689,50 @@ export function CancellationRules({
                   transition={{ duration: 0.2 }}
                   className="overflow-hidden"
                 >
-                  <div className="mt-3 p-4 bg-slate-800/30 border border-slate-700 rounded-lg">
+                  <div className="mt-3 p-4 bg-slate-800/30 border border-slate-700 rounded-lg space-y-4">
                     <p className="text-sm text-slate-400">
-                      This feature allows you to create specific cancellation rules for
-                      different site types (e.g., stricter policy for premium sites). Add
-                      this in your dashboard after setup.
+                      Apply site-specific rules by selecting which site types each tier applies to.
+                      Leave all unchecked to apply to all sites.
                     </p>
+
+                    {rules.map((rule) => (
+                      <div key={rule.id} className="border-t border-slate-700 pt-3">
+                        <p className="text-sm font-medium text-white mb-2">
+                          {rule.daysBeforeArrival}+ days: {formatFeeDisplay(rule)}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {siteClasses.map((sc) => {
+                            const isApplied = rule.appliesTo?.includes(sc.id) ?? false;
+                            return (
+                              <button
+                                key={sc.id}
+                                type="button"
+                                onClick={() => {
+                                  const current = rule.appliesTo || [];
+                                  const newAppliesTo = isApplied
+                                    ? current.filter((id) => id !== sc.id)
+                                    : [...current, sc.id];
+                                  updateRule(rule.id, {
+                                    appliesTo: newAppliesTo.length > 0 ? newAppliesTo : undefined,
+                                  });
+                                }}
+                                className={cn(
+                                  "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                                  isApplied
+                                    ? "bg-rose-500 text-white"
+                                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                )}
+                              >
+                                {sc.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {(!rule.appliesTo || rule.appliesTo.length === 0) && (
+                          <p className="text-xs text-slate-500 mt-1">Applies to all site types</p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </motion.div>
               )}
