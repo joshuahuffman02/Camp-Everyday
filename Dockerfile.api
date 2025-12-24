@@ -21,12 +21,14 @@ RUN pnpm --filter @campreserv/shared build
 # Build API
 FROM shared AS api-builder
 ARG CACHE_BUST=v17
+# Force complete rebuild - no cache
+RUN echo "Cache bust timestamp: $(date +%s)"
 COPY platform/apps/api ./platform/apps/api
 # Force prisma regeneration - CACHE_BUST=${CACHE_BUST}
 RUN echo "Regenerating Prisma client - ${CACHE_BUST}" && \
     rm -rf node_modules/.prisma node_modules/@prisma/client platform/apps/api/node_modules/.prisma && \
     pnpm --filter @campreserv/api prisma:generate
-RUN pnpm --filter @campreserv/api build
+RUN echo "Building API with forwardRef fix..." && pnpm --filter @campreserv/api build
 
 # Production image for API
 FROM base AS api
