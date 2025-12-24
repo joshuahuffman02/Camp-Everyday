@@ -49,26 +49,38 @@ export class CampgroundsController {
   ) {
     if (!token) throw new BadRequestException("Preview token required");
 
-    // Validate the onboarding token and get the associated campground
-    const session = await this.prisma.onboardingSession.findFirst({
+    // Find the onboarding invite by token, then get the session and campground
+    const invite = await this.prisma.onboardingInvite.findUnique({
       where: { token },
-      include: { campground: true },
+      include: {
+        session: {
+          include: { campground: true }
+        },
+        campground: true, // Invite may have campground directly
+      },
     });
 
-    if (!session || !session.campground) {
-      throw new NotFoundException("Invalid preview token or campground not found");
+    if (!invite) {
+      throw new NotFoundException("Invalid preview token");
     }
 
-    // Verify the slug matches the session's campground
-    if (session.campground.slug !== slug) {
+    // Get campground from session (created during onboarding) or from invite
+    const campground = invite.session?.campground || invite.campground;
+
+    if (!campground) {
+      throw new NotFoundException("Campground not found - complete park profile first");
+    }
+
+    // Verify the slug matches
+    if (campground.slug !== slug) {
       throw new NotFoundException("Campground not found");
     }
 
-    // Return the campground data (bypassing isPublished check)
-    const campground = await this.campgrounds.findBySlug(slug);
-    if (!campground) throw new NotFoundException("Campground not found");
+    // Return the full campground data (bypassing isPublished check)
+    const fullCampground = await this.campgrounds.findBySlug(slug);
+    if (!fullCampground) throw new NotFoundException("Campground not found");
 
-    return { ...campground, isPreview: true };
+    return { ...fullCampground, isPreview: true };
   }
 
   // Admin endpoints (auth required)

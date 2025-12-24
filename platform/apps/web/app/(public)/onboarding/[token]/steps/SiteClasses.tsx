@@ -220,7 +220,7 @@ function SiteClassWizard({
     onComplete(data as SiteClassData);
   };
 
-  const canComplete = data.siteType && data.name && data.defaultRate && data.maxOccupancy;
+  const canComplete = data.siteType && data.name && data.maxOccupancy;
 
   return (
     <motion.div
@@ -364,36 +364,21 @@ function SiteClassWizard({
               </p>
             </div>
 
-            {/* Rate and occupancy */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-sm text-slate-300">Nightly Rate</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                  <Input
-                    type="number"
-                    value={data.defaultRate || ""}
-                    onChange={(e) =>
-                      setData((prev) => ({ ...prev, defaultRate: parseFloat(e.target.value) || 0 }))
-                    }
-                    className="bg-slate-800/50 border-slate-700 text-white pl-7"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm text-slate-300 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-slate-500" />
-                  Max Guests
-                </Label>
-                <Input
-                  type="number"
-                  value={data.maxOccupancy || ""}
-                  onChange={(e) =>
-                    setData((prev) => ({ ...prev, maxOccupancy: parseInt(e.target.value) || 1 }))
-                  }
-                  className="bg-slate-800/50 border-slate-700 text-white"
-                />
-              </div>
+            {/* Max occupancy */}
+            <div className="space-y-2">
+              <Label className="text-sm text-slate-300 flex items-center gap-2">
+                <Users className="w-4 h-4 text-slate-500" />
+                Max Guests
+              </Label>
+              <Input
+                type="number"
+                value={data.maxOccupancy || ""}
+                onChange={(e) =>
+                  setData((prev) => ({ ...prev, maxOccupancy: parseInt(e.target.value) || 1 }))
+                }
+                placeholder="6"
+                className="bg-slate-800/50 border-slate-700 text-white"
+              />
             </div>
 
             {/* Pet friendly */}
@@ -449,7 +434,7 @@ function SiteClassWizard({
                     <div className="flex-1">
                       <p className="font-medium text-white">{data.name || "Unnamed"}</p>
                       <p className="text-sm text-slate-500">
-                        ${data.defaultRate}/night • {data.maxOccupancy} guests
+                        {data.maxOccupancy} guests max
                         {data.siteType === "rv" && data.electricAmps && data.electricAmps.length > 0 && (
                           <> • {data.electricAmps.join("/")}A</>
                         )}
@@ -514,7 +499,7 @@ function SiteClassCard({
         <div>
           <p className="font-medium text-white">{siteClass.name}</p>
           <p className="text-sm text-slate-500">
-            ${siteClass.defaultRate}/night • {siteClass.maxOccupancy} guests
+            {siteClass.maxOccupancy} guests max
             {siteClass.siteType === "rv" && siteClass.electricAmps.length > 0 && (
               <>
                 {" "}
