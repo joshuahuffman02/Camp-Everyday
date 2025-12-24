@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { MapPin, Phone, Mail, Globe, Upload, Check, ChevronDown, X, Loader2 } from "lucide-react";
+import { MapPin, Phone, Mail, Globe, Upload, Check, ChevronDown, ChevronUp, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/popover";
 import { US_TIMEZONES } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
+import { AmenityPicker } from "@/components/onboarding/AmenityPicker";
+import { PARK_AMENITIES } from "@/lib/amenities";
 
 interface ParkProfileData {
   name: string;
@@ -40,6 +42,7 @@ interface ParkProfileData {
   postalCode: string;
   timezone: string;
   logoUrl?: string;
+  amenities: string[];
 }
 
 interface ParkProfileProps {
@@ -180,6 +183,7 @@ export function ParkProfile({
   const [saving, setSaving] = useState(false);
   const [stateOpen, setStateOpen] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [amenitiesExpanded, setAmenitiesExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [data, setData] = useState<ParkProfileData>({
@@ -193,6 +197,7 @@ export function ParkProfile({
     postalCode: initialData?.postalCode || "",
     timezone: initialData?.timezone || "",
     logoUrl: initialData?.logoUrl || "",
+    amenities: initialData?.amenities || [],
   });
 
   // Update data when initialData changes (e.g., when signup data loads)
@@ -210,6 +215,7 @@ export function ParkProfile({
         postalCode: initialData.postalCode || prev.postalCode,
         timezone: initialData.timezone || prev.timezone,
         logoUrl: initialData.logoUrl || prev.logoUrl,
+        amenities: initialData.amenities || prev.amenities,
       }));
     }
   }, [initialData]);
@@ -538,11 +544,55 @@ export function ParkProfile({
           </p>
         </motion.div>
 
-        {/* Continue button */}
+        {/* Park Amenities */}
         <motion.div
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
           animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
+          className="border-t border-slate-700 pt-6"
+        >
+          <button
+            type="button"
+            onClick={() => setAmenitiesExpanded(!amenitiesExpanded)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div>
+              <h3 className="text-sm font-medium text-white">Park Amenities</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {data.amenities.length > 0
+                  ? `${data.amenities.length} selected`
+                  : "Select amenities your park offers"}
+              </p>
+            </div>
+            {amenitiesExpanded ? (
+              <ChevronUp className="w-5 h-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-slate-400" />
+            )}
+          </button>
+
+          {amenitiesExpanded && (
+            <motion.div
+              initial={prefersReducedMotion ? {} : { opacity: 0, height: 0 }}
+              animate={prefersReducedMotion ? {} : { opacity: 1, height: "auto" }}
+              className="mt-4"
+            >
+              <AmenityPicker
+                options={PARK_AMENITIES}
+                selected={data.amenities}
+                onChange={(amenities) => setData((prev) => ({ ...prev, amenities }))}
+                columns={4}
+                size="sm"
+              />
+            </motion.div>
+          )}
+        </motion.div>
+
+        {/* Continue button */}
+        <motion.div
+          initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+          animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
           className="pt-4"
         >
           <Button

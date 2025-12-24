@@ -35,6 +35,7 @@ interface WizardState {
     email?: string;
     city: string;
     state: string;
+    amenities?: string[];
   };
   stripeConnected?: boolean;
   stripeAccountId?: string;
@@ -49,6 +50,8 @@ interface WizardState {
     petFriendly?: boolean;
     electricAmps?: number[];
     rvOrientation?: string;
+    amenityTags?: string[];
+    photos?: string[];
   }>;
   sites?: Array<{
     id: string;
@@ -548,6 +551,8 @@ export default function OnboardingPage() {
               petFriendly: c.petFriendly ?? true,
               electricAmps: c.electricAmps || [],
               rvOrientation: c.rvOrientation as "back_in" | "pull_through" | undefined,
+              amenityTags: c.amenityTags || [],
+              photos: c.photos || [],
             }))}
             onSave={handleSiteClassesSave}
             onNext={() => goToStep("sites_builder")}

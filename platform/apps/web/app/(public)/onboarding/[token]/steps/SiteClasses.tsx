@@ -28,6 +28,9 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { SiteTypeSelector, type SiteBaseType } from "@/components/onboarding/SiteTypeSelector";
 import { RvConfigPanel, type RvOrientation } from "@/components/onboarding/RvConfigPanel";
+import { AmenityPicker } from "@/components/onboarding/AmenityPicker";
+import { SiteClassPhotoUpload } from "@/components/onboarding/SiteClassPhotoUpload";
+import { SITE_CLASS_AMENITIES } from "@/lib/amenities";
 
 interface SiteClassData {
   id?: string;
@@ -43,6 +46,9 @@ interface SiteClassData {
   defaultRate: number;
   maxOccupancy: number;
   petFriendly: boolean;
+  // Amenities and photos
+  amenityTags: string[];
+  photos: string[];
 }
 
 interface SiteClassesProps {
@@ -128,6 +134,8 @@ function getDefaultsForType(type: SiteBaseType): Partial<SiteClassData> {
         maxOccupancy: 6,
         petFriendly: true,
         defaultRate: 55,
+        amenityTags: [],
+        photos: [],
       };
     case "tent":
       return {
@@ -137,6 +145,8 @@ function getDefaultsForType(type: SiteBaseType): Partial<SiteClassData> {
         maxOccupancy: 4,
         petFriendly: true,
         defaultRate: 25,
+        amenityTags: ["fire_pit"],
+        photos: [],
       };
     case "cabin":
       return {
@@ -146,6 +156,8 @@ function getDefaultsForType(type: SiteBaseType): Partial<SiteClassData> {
         maxOccupancy: 4,
         petFriendly: false,
         defaultRate: 125,
+        amenityTags: [],
+        photos: [],
       };
     case "glamping":
       return {
@@ -155,6 +167,8 @@ function getDefaultsForType(type: SiteBaseType): Partial<SiteClassData> {
         maxOccupancy: 4,
         petFriendly: false,
         defaultRate: 150,
+        amenityTags: [],
+        photos: [],
       };
   }
 }
@@ -176,6 +190,8 @@ function SiteClassWizard({
     petFriendly: true,
     maxOccupancy: 4,
     defaultRate: 50,
+    amenityTags: [],
+    photos: [],
   });
 
   const handleTypeSelect = (type: SiteBaseType) => {
@@ -392,6 +408,30 @@ function SiteClassWizard({
               />
             </div>
 
+            {/* Site Amenities */}
+            <div className="space-y-3">
+              <Label className="text-sm text-slate-300">Site Amenities</Label>
+              <AmenityPicker
+                options={SITE_CLASS_AMENITIES}
+                selected={data.amenityTags || []}
+                onChange={(tags) => setData((prev) => ({ ...prev, amenityTags: tags }))}
+                columns={4}
+                size="sm"
+              />
+            </div>
+
+            {/* Photos */}
+            <div className="space-y-3">
+              <Label className="text-sm text-slate-300">Photos (Optional)</Label>
+              <SiteClassPhotoUpload
+                photos={data.photos || []}
+                onPhotosChange={(photos) => setData((prev) => ({ ...prev, photos }))}
+              />
+              <p className="text-xs text-slate-500">
+                Add photos of this site type. You can add individual site photos later in your dashboard.
+              </p>
+            </div>
+
             {/* Summary */}
             <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700">
               <h4 className="text-sm font-medium text-slate-400 mb-3">Summary</h4>
@@ -525,6 +565,8 @@ export function SiteClasses({
     initialClasses.map((c) => ({
       ...c,
       electricAmps: c.electricAmps || [],
+      amenityTags: c.amenityTags || [],
+      photos: c.photos || [],
     }))
   );
   const [saving, setSaving] = useState(false);
