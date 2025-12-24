@@ -818,9 +818,13 @@ export function DashboardShell({ children, className, title, subtitle }: { child
             </button>
           </div>
           <div className="h-full overflow-y-auto px-4 py-4 space-y-4">
-            {favoritesItems.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-[11px] uppercase tracking-wide text-slate-400">Favorites</div>
+            <div className="space-y-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Menu</div>
+              {favoritesItems.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-slate-400">
+                  No pages pinned yet. Use "Customize Menu" below to add pages.
+                </div>
+              ) : (
                 <div className="space-y-1">
                   {favoritesItems.map((item) => {
                     const baseHref = item.href.split(/[?#]/)[0];
@@ -843,40 +847,8 @@ export function DashboardShell({ children, className, title, subtitle }: { child
                     );
                   })}
                 </div>
-              </div>
-            )}
-
-            {/* Primary Navigation - Only show when no custom pins */}
-            {!hasCustomPins && navSections.map((section) => (
-              <div key={`m-${section.heading}`} className="space-y-1">
-                {section.items.map((item) => {
-                  const baseHref = item.href.split(/[?#]/)[0];
-                  const isActive = currentPath === baseHref || currentPath.startsWith(baseHref + "/");
-                  return (
-                    <Link
-                      key={`m-${section.heading}-${item.href}`}
-                      href={item.href}
-                      title={"tooltip" in item && item.tooltip ? item.tooltip : item.label}
-                      aria-current={isActive ? "page" : undefined}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-3 text-base",
-                        isActive ? "bg-slate-800 text-white font-semibold" : "bg-slate-800/40 text-slate-100 hover:bg-slate-800"
-                      )}
-                      onClick={() => setMobileNavOpen(false)}
-                      data-tour={item.dataTour}
-                    >
-                      <Icon name={(item.icon as IconName) ?? "sparkles"} active={isActive} />
-                      <span className="flex-1">{item.label}</span>
-                      {(item as any).badge && (item as any).badge > 0 && (
-                        <span className="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                          {(item as any).badge > 99 ? "99+" : (item as any).badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
+              )}
+            </div>
 
             {/* All Pages link for customization */}
             <div className="mt-4 pt-4 border-t border-slate-700">
@@ -993,14 +965,22 @@ export function DashboardShell({ children, className, title, subtitle }: { child
                 </button>
               </div>
             )}
-            {/* Favorites with drag-and-drop reordering */}
-            {favoritesItems.length > 0 && (
-              <div className="space-y-1">
-                {!collapsed && (
-                  <div className="px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Pinned
-                  </div>
-                )}
+            {/* Pinned pages with drag-and-drop reordering */}
+            <div className="space-y-1">
+              {!collapsed && (
+                <div className="px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Menu
+                </div>
+              )}
+              {favoritesItems.length === 0 && !collapsed && (
+                <div className="px-3 py-4 text-sm text-slate-500">
+                  No pages pinned yet.{" "}
+                  <Link href="/all-pages" className="text-teal-400 hover:underline">
+                    Add pages
+                  </Link>
+                </div>
+              )}
+              {favoritesItems.length > 0 && (
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -1027,66 +1007,10 @@ export function DashboardShell({ children, className, title, subtitle }: { child
                     </div>
                   </SortableContext>
                 </DndContext>
-              </div>
-            )}
+              )}
+            </div>
 
 
-            {/* Primary Navigation - Only show when user has no custom pins, or in edit mode to add more */}
-            {(!hasCustomPins || pinEditMode) && navSections.map((section) => (
-              <div key={section.heading} className="space-y-1">
-                {!collapsed && hasCustomPins && pinEditMode && (
-                  <div className="px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 mt-2">
-                    Available to Pin
-                  </div>
-                )}
-                {section.items
-                  // In edit mode with custom pins, only show items that aren't already pinned
-                  .filter((item) => !hasCustomPins || !isPinned(item.href))
-                  .map((item) => {
-                  const baseHref = item.href.split(/[?#]/)[0];
-                  const isActive = currentPath === baseHref || currentPath.startsWith(baseHref + "/");
-                  const itemIsPinned = isPinned(item.href);
-                  return (
-                    <Link
-                      key={`${section.heading}-${item.href}-${item.label}`}
-                      className={cn(
-                        "flex items-center justify-between rounded-md px-3 py-2.5 text-sm md:text-[15px] text-slate-400 hover:bg-slate-800 hover:text-white transition-colors",
-                        isActive && "bg-slate-800 text-white font-semibold"
-                      )}
-                      href={item.href}
-                      aria-current={isActive ? "page" : undefined}
-                      title={"tooltip" in item && item.tooltip ? item.tooltip : item.label}
-                      data-tour={item.dataTour}
-                    >
-                      <span className={cn("flex items-center gap-2", collapsed && "justify-center w-full")}>
-                        <Icon name={(item.icon as IconName) ?? "sparkles"} active={isActive} />
-                        {!collapsed && item.label}
-                      </span>
-                      {(item as any).soon && !collapsed && (
-                        <span className="ml-2 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800">
-                          Soon
-                        </span>
-                      )}
-                      {!collapsed && pinEditMode && (
-                        <PinButton
-                          pinned={itemIsPinned}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            togglePin(item.href);
-                          }}
-                        />
-                      )}
-                      {(item as any).badge && (item as any).badge > 0 && !collapsed && (
-                        <span className="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                          {(item as any).badge > 99 ? "99+" : (item as any).badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
 
             {/* All Pages link */}
             {!collapsed && (
