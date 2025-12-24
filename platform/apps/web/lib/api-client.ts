@@ -300,6 +300,7 @@ const OnboardingSessionSchema = z.object({
   inviteId: z.string(),
   organizationId: z.string().nullable().optional(),
   campgroundId: z.string().nullable().optional(),
+  campgroundSlug: z.string().nullable().optional(),
   status: OnboardingStatusEnum,
   currentStep: OnboardingStepEnum,
   completedSteps: z.array(OnboardingStepEnum).default([]),

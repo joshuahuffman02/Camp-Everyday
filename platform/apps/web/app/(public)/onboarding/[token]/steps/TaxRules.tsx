@@ -97,6 +97,12 @@ export function TaxRules({
     setRules((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const updateRuleRate = (index: number, newRate: number) => {
+    setRules((prev) =>
+      prev.map((rule, i) => (i === index ? { ...rule, rate: newRate } : rule))
+    );
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -211,12 +217,21 @@ export function TaxRules({
                     <div className="flex-1">
                       <p className="font-medium text-white">{rule.name}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-medium text-white">
-                        {rule.type === "percentage"
-                          ? `${rule.rate}%`
-                          : `$${rule.rate.toFixed(2)}`}
-                      </p>
+                    <div className="flex items-center gap-1">
+                      {rule.type === "flat" && (
+                        <span className="text-slate-400">$</span>
+                      )}
+                      <input
+                        type="number"
+                        min="0"
+                        step={rule.type === "percentage" ? "0.1" : "0.01"}
+                        value={rule.rate}
+                        onChange={(e) => updateRuleRate(index, parseFloat(e.target.value) || 0)}
+                        className="w-16 px-2 py-1 text-right font-medium text-white bg-slate-700/50 border border-slate-600 rounded focus:border-emerald-500 focus:outline-none"
+                      />
+                      {rule.type === "percentage" && (
+                        <span className="text-slate-400">%</span>
+                      )}
                     </div>
                     <button
                       onClick={() => removeRule(index)}
