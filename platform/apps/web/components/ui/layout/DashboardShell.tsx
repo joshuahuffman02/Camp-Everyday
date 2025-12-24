@@ -308,6 +308,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
     togglePin,
     setSidebarCollapsed,
     reorderPages,
+    hasCustomPins,
   } = useMenuConfig();
 
   // DnD sensors for drag-and-drop reordering
@@ -845,8 +846,8 @@ export function DashboardShell({ children, className, title, subtitle }: { child
               </div>
             )}
 
-            {/* Primary Navigation - No accordion for mobile */}
-            {navSections.map((section) => (
+            {/* Primary Navigation - Only show when no custom pins */}
+            {!hasCustomPins && navSections.map((section) => (
               <div key={`m-${section.heading}`} className="space-y-1">
                 {section.items.map((item) => {
                   const baseHref = item.href.split(/[?#]/)[0];
@@ -876,6 +877,29 @@ export function DashboardShell({ children, className, title, subtitle }: { child
                 })}
               </div>
             ))}
+
+            {/* All Pages link for customization */}
+            <div className="mt-4 pt-4 border-t border-slate-700">
+              <Link
+                href="/all-pages"
+                className="flex items-center gap-3 rounded-lg px-3 py-3 text-base bg-slate-800/40 text-slate-100 hover:bg-slate-800"
+                onClick={() => setMobileNavOpen(false)}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <span>Customize Menu</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -1007,10 +1031,18 @@ export function DashboardShell({ children, className, title, subtitle }: { child
             )}
 
 
-            {/* Primary Navigation - No accordion, always visible */}
-            {navSections.map((section) => (
+            {/* Primary Navigation - Only show when user has no custom pins, or in edit mode to add more */}
+            {(!hasCustomPins || pinEditMode) && navSections.map((section) => (
               <div key={section.heading} className="space-y-1">
-                {section.items.map((item) => {
+                {!collapsed && hasCustomPins && pinEditMode && (
+                  <div className="px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 mt-2">
+                    Available to Pin
+                  </div>
+                )}
+                {section.items
+                  // In edit mode with custom pins, only show items that aren't already pinned
+                  .filter((item) => !hasCustomPins || !isPinned(item.href))
+                  .map((item) => {
                   const baseHref = item.href.split(/[?#]/)[0];
                   const isActive = currentPath === baseHref || currentPath.startsWith(baseHref + "/");
                   const itemIsPinned = isPinned(item.href);
