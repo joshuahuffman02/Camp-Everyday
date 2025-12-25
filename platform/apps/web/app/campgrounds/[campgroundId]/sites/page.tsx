@@ -47,6 +47,9 @@ import {
   Filter,
   PawPrint,
   Accessibility,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Input } from "../../../../components/ui/input";
 import { cn } from "../../../../lib/utils";
@@ -154,6 +157,10 @@ export default function SitesPage() {
   const [filterClass, setFilterClass] = useState("__all__");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
 
+  // Sorting state
+  const [sortBy, setSortBy] = useState<"name" | "siteNumber" | "type" | "class" | "rate" | "status">("siteNumber");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
   // Bulk selection state
   const [selectedSites, setSelectedSites] = useState<Set<string>>(new Set());
 
@@ -229,7 +236,9 @@ export default function SitesPage() {
   // Filtered sites based on search and filters
   const filteredSites = useMemo(() => {
     if (!data) return [];
-    return data.filter((site) => {
+
+    // Filter first
+    const filtered = data.filter((site) => {
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -247,7 +256,42 @@ export default function SitesPage() {
       if (filterActive === "inactive" && site.isActive !== false) return false;
       return true;
     });
-  }, [data, searchQuery, filterType, filterClass, filterActive]);
+
+    // Then sort
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "siteNumber":
+          // Natural sort for site numbers (e.g., "A1", "A2", "A10" instead of "A1", "A10", "A2")
+          comparison = a.siteNumber.localeCompare(b.siteNumber, undefined, { numeric: true, sensitivity: "base" });
+          break;
+        case "type":
+          comparison = (a.siteType || "").localeCompare(b.siteType || "");
+          break;
+        case "class":
+          const classA = classesQuery.data?.find(c => c.id === a.siteClassId)?.name || "";
+          const classB = classesQuery.data?.find(c => c.id === b.siteClassId)?.name || "";
+          comparison = classA.localeCompare(classB);
+          break;
+        case "rate":
+          const rateA = classesQuery.data?.find(c => c.id === a.siteClassId)?.defaultRate || 0;
+          const rateB = classesQuery.data?.find(c => c.id === b.siteClassId)?.defaultRate || 0;
+          comparison = rateA - rateB;
+          break;
+        case "status":
+          const statusA = a.isActive !== false ? 1 : 0;
+          const statusB = b.isActive !== false ? 1 : 0;
+          comparison = statusA - statusB;
+          break;
+      }
+      return sortDir === "asc" ? comparison : -comparison;
+    });
+
+    return sorted;
+  }, [data, searchQuery, filterType, filterClass, filterActive, sortBy, sortDir, classesQuery.data]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -606,6 +650,37 @@ export default function SitesPage() {
                 <SelectItem value="inactive">Inactive only</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Sorting */}
+            <div className="flex items-center gap-1 ml-2 pl-2 border-l border-border">
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+                <SelectTrigger className="w-[130px] bg-background border-border">
+                  <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="siteNumber">Site #</SelectItem>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="type">Type</SelectItem>
+                  <SelectItem value="class">Class</SelectItem>
+                  <SelectItem value="rate">Rate</SelectItem>
+                  <SelectItem value="status">Status</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+                className="h-9 w-9 p-0"
+              >
+                {sortDir === "asc" ? (
+                  <ArrowUp className="h-4 w-4" />
+                ) : (
+                  <ArrowDown className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+
             {(searchQuery || filterType !== "__all__" || filterClass !== "__all__" || filterActive !== "all") && (
               <Button
                 variant="ghost"
@@ -1116,13 +1191,18 @@ export default function SitesPage() {
                             });
                           }}
                           className={cn(
-                            "px-2 py-1 text-xs rounded transition-colors",
+                            "group flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium rounded-full transition-all",
                             site.isActive !== false
                               ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-400 dark:hover:bg-emerald-900/70"
-                              : "bg-muted text-muted-foreground hover:bg-muted/80"
+                              : "bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-400 dark:hover:bg-red-900/70"
                           )}
                           disabled={quickUpdateSite.isPending}
+                          title={site.isActive !== false ? "Click to deactivate" : "Click to activate"}
                         >
+                          <span className={cn(
+                            "w-2 h-2 rounded-full transition-colors",
+                            site.isActive !== false ? "bg-emerald-500" : "bg-red-500"
+                          )} />
                           {site.isActive !== false ? "Active" : "Inactive"}
                         </button>
                       </TableCell>
