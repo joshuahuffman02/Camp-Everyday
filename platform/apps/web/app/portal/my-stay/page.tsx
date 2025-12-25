@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, MapPin, Users, LogOut, Loader2, MessageCircle, Gift, CalendarDays, Clock, Flame, Sparkles, Trees, Mail, Package, Truck, Store, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
-import { addDays, differenceInCalendarDays, format, isWithinInterval, formatDistanceToNow } from "date-fns";
+import { differenceInCalendarDays, format, formatDistanceToNow } from "date-fns";
 import { GuestChatPanel } from "@/components/portal/GuestChatPanel";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { loadQueue as loadQueueGeneric, saveQueue as saveQueueGeneric, registerBackgroundSync } from "@/lib/offline-queue";
 import { randomId } from "@/lib/random-id";
 import { Label } from "@/components/ui/label";
+import type { AddOn } from "@campreserv/shared";
 
 // Define local types until we have shared types fully integrated
 type GuestData = {
@@ -52,85 +53,43 @@ type UpsellOption = {
     priceCents: number;
     type: "service" | "product" | "activity";
     windowLabel: string;
-    availableFrom: Date;
-    availableTo: Date;
-    slots?: number;
 };
 
-const buildUpsellDate = (date: Date, hour: number, minute = 0) => {
-    const next = new Date(date);
-    next.setHours(hour, minute, 0, 0);
-    return next;
-};
-
-const buildUpsellsForStay = (reservation: GuestData["reservations"][0]): UpsellOption[] => {
+const buildUpsellsForStay = (
+    reservation: GuestData["reservations"][0],
+    addOns: AddOn[]
+): UpsellOption[] => {
     const arrival = new Date(reservation.arrivalDate);
     const departure = new Date(reservation.departureDate);
-    const stayWindow = { start: arrival, end: buildUpsellDate(departure, 23, 59) };
     const nights = Math.max(1, differenceInCalendarDays(departure, arrival));
+    const guestCount = Math.max(1, reservation.adults + reservation.children);
 
-    const lateCheckoutDay = buildUpsellDate(departure, 13); // 1:00 PM checkout
-    const firewoodWindowStart = buildUpsellDate(arrival, 16);
-    const firewoodWindowEnd = buildUpsellDate(addDays(arrival, Math.max(0, nights - 1)), 20);
+    return addOns
+        .filter((addOn) => addOn.isActive ?? true)
+        .map((addOn) => {
+            const pricingType = addOn.pricingType ?? "flat";
+            const multiplier =
+                pricingType === "per_night"
+                    ? nights
+                    : pricingType === "per_person"
+                        ? guestCount
+                        : 1;
+            const windowLabel =
+                pricingType === "per_night"
+                    ? `Per night - ${nights} night${nights === 1 ? "" : "s"}`
+                    : pricingType === "per_person"
+                        ? `Per person - ${guestCount} guest${guestCount === 1 ? "" : "s"}`
+                        : "One-time fee";
 
-    const activitySlots = [
-        {
-            id: "sunset-paddle",
-            title: "Sunset paddle + s'mores kit",
-            startsAt: buildUpsellDate(addDays(arrival, Math.min(1, nights - 1)), 17),
-            priceCents: 3500,
-            slots: 6,
-            icon: "activity" as const,
-        },
-        {
-            id: "guided-hike",
-            title: "Guided nature walk",
-            startsAt: buildUpsellDate(addDays(arrival, Math.min(2, nights - 1)), 9),
-            priceCents: 2500,
-            slots: 8,
-            icon: "activity" as const,
-        },
-    ];
-
-    const options: UpsellOption[] = [
-        {
-            id: "late-checkout",
-            title: "Late checkout",
-            description: "Sleep in and head out at 1:00 PM if the next site is clear.",
-            priceCents: 2000,
-            type: "service",
-            windowLabel: `Departure ${format(departure, "EEE, MMM d")}`,
-            availableFrom: lateCheckoutDay,
-            availableTo: lateCheckoutDay,
-        },
-        {
-            id: "firewood-bundle",
-            title: "Firewood bundle + starter",
-            description: "Have a bundle delivered to your site before dusk.",
-            priceCents: 1200,
-            type: "product",
-            windowLabel: `${format(firewoodWindowStart, "EEE")} after ${format(firewoodWindowStart, "h:mm a")}`,
-            availableFrom: firewoodWindowStart,
-            availableTo: firewoodWindowEnd,
-        },
-        ...activitySlots
-            .filter((slot) => isWithinInterval(slot.startsAt, stayWindow))
-            .map((slot) => ({
-                id: slot.id,
-                title: slot.title,
-                description: "Reserve a spot while availability lasts.",
-                priceCents: slot.priceCents,
-                type: "activity" as const,
-                windowLabel: `${format(slot.startsAt, "EEE h:mm a")} • ${slot.slots} spots left`,
-                availableFrom: slot.startsAt,
-                availableTo: slot.startsAt,
-                slots: slot.slots,
-            })),
-    ];
-
-    return options.filter((option) =>
-        isWithinInterval(option.availableFrom, stayWindow)
-    );
+            return {
+                id: addOn.id,
+                title: addOn.name,
+                description: addOn.description || "Add to your stay.",
+                priceCents: addOn.priceCents * multiplier,
+                type: "service",
+                windowLabel,
+            };
+        });
 };
 
 const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -144,6 +103,8 @@ export default function MyStayPage() {
     const [events, setEvents] = useState<any[]>([]);
     const [eventsLoading, setEventsLoading] = useState(false);
     const [products, setProducts] = useState<any[]>([]);
+    const [addOns, setAddOns] = useState<AddOn[]>([]);
+    const [addOnsLoading, setAddOnsLoading] = useState(false);
     const [cart, setCart] = useState<Record<string, { name: string; priceCents: number; qty: number }>>({});
     const [orderLoading, setOrderLoading] = useState(false);
     const [queuedUpsells, setQueuedUpsells] = useState(0);
@@ -190,7 +151,10 @@ export default function MyStayPage() {
 
     const currentReservation = upcoming[0];
     const upsellQueueKey = currentReservation ? `campreserv:portal:upsells:${currentReservation.campground.slug}` : null;
-    const targetedUpsells = useMemo(() => currentReservation ? buildUpsellsForStay(currentReservation) : [], [currentReservation]);
+    const targetedUpsells = useMemo(
+        () => (currentReservation ? buildUpsellsForStay(currentReservation, addOns) : []),
+        [currentReservation, addOns]
+    );
 
     useEffect(() => {
         if (!upsellQueueKey) return;
@@ -229,6 +193,23 @@ export default function MyStayPage() {
             }
         };
         loadProducts();
+    }, [token, currentReservation]);
+
+    useEffect(() => {
+        const loadAddOns = async () => {
+            if (!token || !currentReservation) return;
+            setAddOnsLoading(true);
+            try {
+                const data = await apiClient.getPortalAddOns(token, currentReservation.campground.slug);
+                setAddOns(data);
+            } catch (err) {
+                console.error("Failed to load add-ons", err);
+                setAddOns([]);
+            } finally {
+                setAddOnsLoading(false);
+            }
+        };
+        loadAddOns();
     }, [token, currentReservation]);
 
     // Load orders for this reservation (stubbed data for now)
@@ -556,9 +537,11 @@ export default function MyStayPage() {
                                                 )}
                                             </CardHeader>
                                             <CardContent className="space-y-4">
-                                                {targetedUpsells.length === 0 ? (
+                                                {addOnsLoading ? (
+                                                    <p className="text-sm text-muted-foreground">Loading add-ons...</p>
+                                                ) : targetedUpsells.length === 0 ? (
                                                     <p className="text-sm text-muted-foreground">
-                                                        No upsells match your stay right now. Check back closer to arrival.
+                                                        No add-ons available right now.
                                                     </p>
                                                 ) : (
                                                     <div className="grid gap-3 sm:grid-cols-2">
@@ -594,7 +577,7 @@ export default function MyStayPage() {
                                                     </div>
                                                 )}
                                                 <p className="text-xs text-muted-foreground">
-                                                    Adds are queued locally per campground and sync when connectivity is back.
+                                                    Add-ons are queued locally per campground and sync when connectivity is back.
                                                 </p>
                                             </CardContent>
                                         </Card>

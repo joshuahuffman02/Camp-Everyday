@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
-import { Bot, Send, User, Sparkles, TrendingUp, DollarSign, Calendar } from "lucide-react";
+import { Bot, Send, User, Sparkles, TrendingUp, DollarSign, Calendar, Settings } from "lucide-react";
+import Link from "next/link";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -209,25 +210,35 @@ export default function AiAssistantPage() {
         <motion.div variants={staggerChild} transition={SPRING_CONFIG}>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-                <Sparkles className="h-8 w-8 text-emerald-600" />
+              <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+                <Sparkles className="h-8 w-8 text-emerald-500" />
                 AI Assistant
               </h1>
-              <p className="text-slate-600 mt-2">
+              <p className="text-muted-foreground mt-2">
                 Your intelligent partner for guest communication, pricing, and insights
               </p>
             </div>
-            {campground && (
-              <Badge variant="outline" className="text-sm">
-                {campground.name}
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {campground && (
+                <Badge variant="outline" className="text-sm">
+                  {campground.name}
+                </Badge>
+              )}
+              {campgroundId && (
+                <Link href={`/campgrounds/${campgroundId}/ai`}>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Settings className="h-4 w-4" />
+                    AI Settings
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         </motion.div>
 
         {/* Quick Actions */}
         <motion.div variants={staggerChild} transition={SPRING_CONFIG}>
-          <Card className="border-slate-200 bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm">
+          <Card className="border-border bg-card/80 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg">Quick Actions</CardTitle>
               <CardDescription>Get started with common tasks</CardDescription>
@@ -240,8 +251,8 @@ export default function AiAssistantPage() {
                     type="button"
                     onClick={() => handleQuickAction(action.prompt)}
                     className={cn(
-                      "flex flex-col items-start gap-2 rounded-lg border border-slate-200 bg-white p-4 text-left transition-all",
-                      "hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md",
+                      "flex flex-col items-start gap-2 rounded-lg border border-border bg-card p-4 text-left transition-all",
+                      "hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:shadow-md",
                       "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                     )}
                     variants={prefersReducedMotion ? undefined : staggerChild}
@@ -250,12 +261,12 @@ export default function AiAssistantPage() {
                     whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
                   >
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">
                         {action.icon}
                       </div>
-                      <span className="font-semibold text-slate-900">{action.label}</span>
+                      <span className="font-semibold text-foreground">{action.label}</span>
                     </div>
-                    <p className="text-xs text-slate-600">{action.description}</p>
+                    <p className="text-xs text-muted-foreground">{action.description}</p>
                   </motion.button>
                 ))}
               </div>
@@ -265,18 +276,18 @@ export default function AiAssistantPage() {
 
         {/* Chat Interface */}
         <motion.div variants={staggerChild} transition={SPRING_CONFIG}>
-          <Card className="border-slate-200 bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm">
+          <Card className="border-border bg-card/80 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg">Conversation</CardTitle>
               <CardDescription>Chat with your AI assistant</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Messages */}
-              <div className="h-[500px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4">
+              <div className="h-[500px] overflow-y-auto rounded-xl border border-border bg-background p-4">
                 <div className="space-y-4">
                   {messages.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      <Sparkles className="h-8 w-8 mx-auto mb-3 text-slate-400" />
+                    <div className="rounded-lg border border-dashed border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
+                      <Sparkles className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
                       <p>Start a conversation with your AI assistant</p>
                       <p className="text-xs mt-1">Try asking about pricing, occupancy, or drafting a guest reply</p>
                     </div>
@@ -291,8 +302,8 @@ export default function AiAssistantPage() {
                       transition={prefersReducedMotion ? undefined : { delay: index * 0.05, ...SPRING_CONFIG }}
                     >
                       {msg.role === "assistant" && (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex-shrink-0">
-                          <Bot className="h-4 w-4 text-emerald-600" />
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50 flex-shrink-0">
+                          <Bot className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
                       )}
                       <div
@@ -300,22 +311,22 @@ export default function AiAssistantPage() {
                           "max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm",
                           msg.role === "user"
                             ? "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"
-                            : "bg-slate-100 text-slate-900 border border-slate-200"
+                            : "bg-muted text-foreground border border-border"
                         )}
                       >
                         <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                         <div
                           className={cn(
                             "mt-2 text-[10px]",
-                            msg.role === "user" ? "text-emerald-100" : "text-slate-500"
+                            msg.role === "user" ? "text-emerald-100" : "text-muted-foreground"
                           )}
                         >
                           {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </div>
                       </div>
                       {msg.role === "user" && (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 flex-shrink-0">
-                          <User className="h-4 w-4 text-slate-600" />
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted flex-shrink-0">
+                          <User className="h-4 w-4 text-muted-foreground" />
                         </div>
                       )}
                     </motion.div>
@@ -327,14 +338,14 @@ export default function AiAssistantPage() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                     >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100">
-                        <Bot className="h-4 w-4 text-emerald-600" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50">
+                        <Bot className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       </div>
-                      <div className="rounded-2xl bg-slate-100 border border-slate-200 px-4 py-3 shadow-sm">
+                      <div className="rounded-2xl bg-muted border border-border px-4 py-3 shadow-sm">
                         <div className="flex gap-1">
-                          <div className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" />
-                          <div className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.1s]" />
-                          <div className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
+                          <div className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce" />
+                          <div className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce [animation-delay:0.1s]" />
+                          <div className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce [animation-delay:0.2s]" />
                         </div>
                       </div>
                     </motion.div>
@@ -344,17 +355,17 @@ export default function AiAssistantPage() {
               </div>
 
               {/* Input */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+              <div className="rounded-xl border border-border bg-muted p-3 shadow-sm">
                 <Textarea
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask me anything about your campground, guests, pricing, or operations..."
-                  className="min-h-[100px] bg-white border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/20"
+                  className="min-h-[100px] bg-background border-border focus:border-emerald-400 focus:ring-emerald-400/20"
                   disabled={chatMutation.isPending}
                 />
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-muted-foreground">
                     Press Enter to send, Shift+Enter for new line
                   </span>
                   <Button
@@ -374,16 +385,16 @@ export default function AiAssistantPage() {
 
         {/* Recent Conversations (Stubbed) */}
         <motion.div variants={staggerChild} transition={SPRING_CONFIG}>
-          <Card className="border-slate-200 bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm">
+          <Card className="border-border bg-card/80 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-slate-600" />
+                <Calendar className="h-5 w-5 text-muted-foreground" />
                 Recent Conversations
               </CardTitle>
               <CardDescription>Your conversation history will appear here</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+              <div className="rounded-lg border border-dashed border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
                 <p>No previous conversations yet</p>
                 <p className="text-xs mt-1">Start chatting to build your conversation history</p>
               </div>
