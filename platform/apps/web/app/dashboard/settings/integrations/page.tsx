@@ -272,11 +272,33 @@ export default function IntegrationsSettingsPage() {
         <div className="space-y-8">
             <Breadcrumbs items={[{ label: "Settings" }, { label: "Integrations" }]} />
 
-            {/* Header */}
+            {/* Beta Banner */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={SPRING_CONFIG}
+                className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+                        <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                        <p className="font-medium text-amber-900 dark:text-amber-100">
+                            Integrations Beta
+                        </p>
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                            We're actively adding new integrations. Some may require additional setup.
+                        </p>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* Header */}
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...SPRING_CONFIG, delay: 0.05 }}
                 className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"
             >
                 <div className="space-y-1">
