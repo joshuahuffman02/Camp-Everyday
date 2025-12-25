@@ -27,7 +27,7 @@ interface NotificationTrigger {
   enabled: boolean;
   templateId: string | null;
   delayMinutes: number;
-  conditions: any;
+  conditions?: any;
   createdAt: string;
   updatedAt: string;
   template?: {

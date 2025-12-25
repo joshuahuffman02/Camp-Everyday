@@ -6214,7 +6214,8 @@ export const apiClient = {
         primaryLastName: z.string().optional().nullable(),
         email: z.string().optional().nullable()
       }).optional().nullable(),
-      reservation: z.object({ id: z.string() }).optional().nullable()
+      reservation: z.object({ id: z.string() }).optional().nullable(),
+      replies: z.array(ReviewReplySchema).optional()
     })).parse(data);
   },
   async moderateReview(payload: { reviewId: string; status: "approved" | "rejected" | "pending"; reasons?: string[]; notes?: string }) {

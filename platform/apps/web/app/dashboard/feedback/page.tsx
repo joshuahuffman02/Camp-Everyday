@@ -33,6 +33,9 @@ import {
   Crown,
   Zap,
   ChevronRight,
+  MessageCircle,
+  Reply,
+  Building2,
 } from "lucide-react";
 
 // Animation variants
@@ -103,6 +106,8 @@ export default function FeedbackDashboard() {
   const [showRemoved, setShowRemoved] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [surveyName, setSurveyName] = useState("Guest NPS");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
 
   // Show celebration for high NPS scores
   useEffect(() => {
@@ -159,6 +164,22 @@ export default function FeedbackDashboard() {
         pending: "Review moved back to pending.",
       };
       setSuccessMessage(messages[variables.status] || "Review updated!");
+      setTimeout(() => setSuccessMessage(null), 4000);
+    }
+  });
+
+  const replyMutation = useMutation({
+    mutationFn: (payload: { reviewId: string; body: string }) =>
+      apiClient.replyReview({
+        reviewId: payload.reviewId,
+        authorType: "staff",
+        body: payload.body
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reviews-admin", selectedCampground?.id] });
+      setReplyingTo(null);
+      setReplyText("");
+      setSuccessMessage("Reply posted! Guests will see your response.");
       setTimeout(() => setSuccessMessage(null), 4000);
     }
   });
@@ -752,73 +773,182 @@ export default function FeedbackDashboard() {
                           : "border-slate-200 bg-slate-50/50"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          {/* Rating and Status */}
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="flex items-center gap-1">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star
-                                  key={star}
-                                  className={`w-4 h-4 ${
-                                    star <= review.rating
-                                      ? "text-amber-400 fill-amber-400"
-                                      : "text-slate-300"
-                                  }`}
-                                  aria-hidden="true"
-                                />
-                              ))}
-                              <span className="sr-only">{review.rating} out of 5 stars</span>
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            {/* Rating and Status */}
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star
+                                    key={star}
+                                    className={`w-4 h-4 ${
+                                      star <= review.rating
+                                        ? "text-amber-400 fill-amber-400"
+                                        : "text-slate-300"
+                                    }`}
+                                    aria-hidden="true"
+                                  />
+                                ))}
+                                <span className="sr-only">{review.rating} out of 5 stars</span>
+                              </div>
+                              <StatusBadge status={review.status} />
                             </div>
-                            <StatusBadge status={review.status} />
+
+                            {/* Review Content */}
+                            {review.title && (
+                              <h4 className="font-semibold text-slate-900 mb-1">{review.title}</h4>
+                            )}
+                            {review.body && (
+                              <p className="text-sm text-slate-700">{review.body}</p>
+                            )}
                           </div>
 
-                          {/* Review Content */}
-                          {review.title && (
-                            <h4 className="font-semibold text-slate-900 mb-1">{review.title}</h4>
-                          )}
-                          {review.body && (
-                            <p className="text-sm text-slate-700 line-clamp-3">{review.body}</p>
-                          )}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {review.status !== "approved" && (
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => moderateMutation.mutate({ reviewId: review.id, status: "approved" })}
-                              className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-                              aria-label={`Approve review: ${review.title || 'Untitled'}`}
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              Approve
-                            </motion.button>
-                          )}
-                          {review.status !== "rejected" && review.status !== "removed" && (
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {review.status !== "approved" && (
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => moderateMutation.mutate({ reviewId: review.id, status: "approved" })}
+                                className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                                aria-label={`Approve review: ${review.title || 'Untitled'}`}
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                Approve
+                              </motion.button>
+                            )}
+                            {review.status !== "rejected" && review.status !== "removed" && (
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => moderateMutation.mutate({ reviewId: review.id, status: "rejected" })}
+                                className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+                                aria-label={`Reject review: ${review.title || 'Untitled'}`}
+                              >
+                                <XCircle className="w-4 h-4" />
+                                Reject
+                              </motion.button>
+                            )}
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
                               onClick={() => moderateMutation.mutate({ reviewId: review.id, status: "rejected" })}
-                              className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
-                              aria-label={`Reject review: ${review.title || 'Untitled'}`}
+                              className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-red-200 text-red-700 bg-red-50 font-medium hover:bg-red-100 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                              aria-label={`Remove review: ${review.title || 'Untitled'}`}
                             >
-                              <XCircle className="w-4 h-4" />
-                              Reject
+                              <Trash2 className="w-4 h-4" />
+                              <span className="sr-only sm:not-sr-only">Remove</span>
                             </motion.button>
-                          )}
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => moderateMutation.mutate({ reviewId: review.id, status: "rejected" })}
-                            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-red-200 text-red-700 bg-red-50 font-medium hover:bg-red-100 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                            aria-label={`Remove review: ${review.title || 'Untitled'}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            <span className="sr-only sm:not-sr-only">Remove</span>
-                          </motion.button>
+                          </div>
                         </div>
+
+                        {/* Existing Replies */}
+                        {review.replies && review.replies.length > 0 && (
+                          <div className="ml-4 pl-4 border-l-2 border-slate-200 space-y-3">
+                            {review.replies.map((reply) => (
+                              <div key={reply.id} className="bg-blue-50 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <Building2 className="w-3 h-3 text-blue-600" />
+                                  </div>
+                                  <span className="text-xs font-semibold text-blue-700">
+                                    {reply.authorType === "staff" ? "Management Response" : "Guest"}
+                                  </span>
+                                  {reply.createdAt && (
+                                    <span className="text-xs text-slate-500">
+                                      {new Date(reply.createdAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-slate-700">{reply.body}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Reply Form or Button */}
+                        {replyingTo === review.id ? (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="ml-4 pl-4 border-l-2 border-blue-200"
+                          >
+                            <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                                  <Building2 className="w-4 h-4 text-blue-600" />
+                                </div>
+                                <span className="text-sm font-semibold text-blue-700">Your Public Response</span>
+                              </div>
+                              <textarea
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                                placeholder="Write a professional, helpful response that will be visible to all guests..."
+                                className="w-full border border-blue-200 rounded-lg px-4 py-3 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow resize-none"
+                                rows={3}
+                                aria-label="Reply to review"
+                              />
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-blue-600">
+                                  This response will be publicly visible on your reviews page.
+                                </p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setReplyingTo(null);
+                                      setReplyText("");
+                                    }}
+                                    className="px-3 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    disabled={!replyText.trim() || replyMutation.isPending}
+                                    onClick={() => replyMutation.mutate({ reviewId: review.id, body: replyText.trim() })}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                  >
+                                    {replyMutation.isPending ? (
+                                      <>
+                                        <motion.div
+                                          animate={{ rotate: 360 }}
+                                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                          className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                                        />
+                                        Posting...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Send className="w-4 h-4" />
+                                        Post Reply
+                                      </>
+                                    )}
+                                  </motion.button>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ) : (
+                          <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => setReplyingTo(review.id)}
+                              className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              {review.replies && review.replies.length > 0 ? "Add Another Reply" : "Reply Publicly"}
+                            </motion.button>
+                            {review.replies && review.replies.length > 0 && (
+                              <span className="text-xs text-slate-500">
+                                {review.replies.length} {review.replies.length === 1 ? "reply" : "replies"}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ))}

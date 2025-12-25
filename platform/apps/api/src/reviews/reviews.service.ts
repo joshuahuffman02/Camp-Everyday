@@ -215,7 +215,17 @@ export class ReviewsService {
       include: {
         moderation: true,
         guest: { select: { primaryFirstName: true, primaryLastName: true, email: true } },
-        reservation: { select: { id: true } }
+        reservation: { select: { id: true } },
+        replies: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            authorType: true,
+            authorId: true,
+            body: true,
+            createdAt: true
+          }
+        }
       }
     });
   }
