@@ -498,6 +498,7 @@ Request: "${params.anonymizedText}"${historyBlock}`;
 
       const registry = ACTION_REGISTRY[actionType as Exclude<ActionType, "none">];
       const parameters = this.resolveParameters(actionInput?.parameters ?? {}, params.tokenMap);
+      this.applyRelativeDateDefaults(actionType, parameters, params.anonymizedText, params.timeZone);
       const sensitivity = (actionInput?.sensitivity as "low" | "medium" | "high" | undefined) ?? registry.sensitivity;
       const impactArea = (actionInput?.impactArea as ImpactArea | undefined) ?? registry.impactArea;
 
@@ -780,6 +781,57 @@ User request: "${params.anonymizedText}"${historyBlock}`;
 
   private formatWeekdayInTimeZone(date: Date, timeZone: string) {
     return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "long" }).format(date);
+  }
+
+  private getZonedDateInfo(date: Date, timeZone: string) {
+    const formatted = this.formatDateInTimeZone(date, timeZone);
+    const [year, month, day] = formatted.split("-").map((value) => Number(value));
+    const utcDate = new Date(Date.UTC(year, month - 1, day));
+    return { utcDate, dayOfWeek: utcDate.getUTCDay() };
+  }
+
+  private addDaysUtc(date: Date, days: number) {
+    return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+  }
+
+  private formatDateUtc(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private inferRelativeDateRange(requestText: string, timeZone: string) {
+    const normalized = requestText.toLowerCase();
+    const nextWeekendMatch = /\bnext\s+(week-?end|wknd)\b/.test(normalized);
+    if (!nextWeekendMatch) return null;
+
+    const { utcDate, dayOfWeek } = this.getZonedDateInfo(new Date(), timeZone);
+    let daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+    if (daysUntilFriday === 0) {
+      daysUntilFriday = 7;
+    }
+
+    const arrival = this.addDaysUtc(utcDate, daysUntilFriday);
+    const departure = this.addDaysUtc(arrival, 2);
+
+    return {
+      arrivalDate: this.formatDateUtc(arrival),
+      departureDate: this.formatDateUtc(departure)
+    };
+  }
+
+  private applyRelativeDateDefaults(
+    actionType: ActionType,
+    parameters: Record<string, any>,
+    requestText: string,
+    timeZone: string
+  ) {
+    if (!["lookup_availability", "create_hold", "block_site"].includes(actionType)) return;
+    if (parameters.arrivalDate && parameters.departureDate) return;
+
+    const inferred = this.inferRelativeDateRange(requestText, timeZone);
+    if (!inferred) return;
+
+    if (!parameters.arrivalDate) parameters.arrivalDate = inferred.arrivalDate;
+    if (!parameters.departureDate) parameters.departureDate = inferred.departureDate;
   }
 
   private resolveUserRole(user: any, campgroundId: string): { role: string; mode: PartnerMode } {
