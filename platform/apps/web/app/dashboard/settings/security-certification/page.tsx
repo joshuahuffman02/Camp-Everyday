@@ -155,7 +155,9 @@ export default function SecurityCertificationPage() {
     if (certificationLevel === "excellence") return null;
     const tierOrder: SecurityCertificationLevel[] = ["none", "basic", "standard", "advanced", "excellence"];
     const currentIndex = tierOrder.indexOf(certificationLevel);
-    const nextTier = tierOrder[currentIndex + 1] as keyof typeof SECURITY_CERTIFICATION_THRESHOLDS;
+    const nextTierIndex = currentIndex + 1;
+    if (nextTierIndex >= tierOrder.length) return null;
+    const nextTier = tierOrder[nextTierIndex];
     if (!nextTier || nextTier === "none") return null;
     const threshold = SECURITY_CERTIFICATION_THRESHOLDS[nextTier];
     const pointsNeeded = threshold.minPoints - stats.totalPoints;
