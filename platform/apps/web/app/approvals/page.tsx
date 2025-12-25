@@ -17,7 +17,25 @@ import { Label } from "@/components/ui/label";
 import { useWhoami } from "@/hooks/use-whoami";
 
 const APPROVER_ROLES = new Set(["owner", "manager", "admin", "finance"]);
-const URGENT_AGE_HOURS = 24;
+const PREFERENCES_STORAGE_KEY = "campreserv:approvalsPreferences";
+
+type QueuePreferences = {
+  urgentPendingSecond: boolean;
+  urgentAgeHours: string;
+  urgentPolicyThreshold: boolean;
+  urgentCustomAmountEnabled: boolean;
+  urgentCustomAmount: string;
+  sortMode: "urgent" | "newest" | "oldest";
+};
+
+const DEFAULT_PREFERENCES: QueuePreferences = {
+  urgentPendingSecond: true,
+  urgentAgeHours: "24",
+  urgentPolicyThreshold: true,
+  urgentCustomAmountEnabled: false,
+  urgentCustomAmount: "",
+  sortMode: "urgent"
+};
 
 function statusVariant(status: string) {
   switch (status) {
@@ -66,12 +84,30 @@ export default function ApprovalsPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [urgentOnly, setUrgentOnly] = useState(false);
   const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
+  const [preferences, setPreferences] = useState<QueuePreferences>(DEFAULT_PREFERENCES);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     setCampgroundId(localStorage.getItem("campreserv:selectedCampground"));
     setOrgId(localStorage.getItem("campreserv:selectedOrg"));
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored) as Partial<QueuePreferences>;
+      setPreferences((prev) => ({ ...prev, ...parsed }));
+    } catch {
+      // ignore malformed preferences
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences));
+  }, [preferences]);
 
   const memberships = whoami?.user?.memberships ?? [];
   const ownershipRoles = whoami?.user?.ownershipRoles ?? [];
@@ -129,6 +165,11 @@ export default function ApprovalsPage() {
   const policies = approvalsQuery.data?.policies ?? [];
   const policyMap = useMemo(() => new Map(policies.map((policy) => [policy.id, policy])), [policies]);
   const requests = approvalsQuery.data?.requests ?? [];
+  const sampleCurrency = requests.find((req) => req.currency)?.currency || "USD";
+  const ageHours = Math.max(0, Number(preferences.urgentAgeHours));
+  const customAmount = Number(preferences.urgentCustomAmount);
+  const hasCustomAmount =
+    preferences.urgentCustomAmountEnabled && Number.isFinite(customAmount) && customAmount > 0;
 
   const approverKeys = useMemo(() => {
     return [approverId, whoami?.user?.id, whoami?.user?.email].filter(Boolean) as string[];
@@ -136,19 +177,32 @@ export default function ApprovalsPage() {
 
   const enrichedRequests = useMemo(() => {
     const now = Date.now();
-    const cutoffMs = URGENT_AGE_HOURS * 60 * 60 * 1000;
+    const cutoffMs = ageHours * 60 * 60 * 1000;
     return requests.map((req) => {
       const policy = policyMap.get(req.policyId);
       const createdAtMs = Date.parse(req.createdAt);
       const isOpen = req.status === "pending" || req.status === "pending_second";
-      const isStale = Number.isFinite(createdAtMs) && now - createdAtMs > cutoffMs;
+      const matchesPendingSecond = preferences.urgentPendingSecond && req.status === "pending_second";
+      const isStale = ageHours > 0 && Number.isFinite(createdAtMs) && now - createdAtMs > cutoffMs;
       const thresholdCents = policy?.thresholdCents;
       const highValue =
-        thresholdCents !== null && thresholdCents !== undefined && req.amount * 100 >= thresholdCents;
-      const urgent = isOpen && (req.status === "pending_second" || isStale || highValue);
+        preferences.urgentPolicyThreshold &&
+        thresholdCents !== null &&
+        thresholdCents !== undefined &&
+        req.amount * 100 >= thresholdCents;
+      const customValue = hasCustomAmount && req.amount >= customAmount;
+      const urgent = isOpen && (matchesPendingSecond || isStale || highValue || customValue);
       return { req, policy, createdAtMs: Number.isFinite(createdAtMs) ? createdAtMs : 0, urgent, isOpen };
     });
-  }, [requests, policyMap]);
+  }, [
+    requests,
+    policyMap,
+    ageHours,
+    customAmount,
+    hasCustomAmount,
+    preferences.urgentPendingSecond,
+    preferences.urgentPolicyThreshold
+  ]);
 
   const summary = useMemo(() => {
     const pending = requests.filter((req) => req.status === "pending").length;
@@ -186,14 +240,20 @@ export default function ApprovalsPage() {
     });
 
     result.sort((a, b) => {
-      if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
-      const statusDiff = (statusPriority[a.req.status] ?? 99) - (statusPriority[b.req.status] ?? 99);
-      if (statusDiff !== 0) return statusDiff;
-      return b.createdAtMs - a.createdAtMs;
+      if (preferences.sortMode === "urgent") {
+        if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
+        const statusDiff = (statusPriority[a.req.status] ?? 99) - (statusPriority[b.req.status] ?? 99);
+        if (statusDiff !== 0) return statusDiff;
+        return b.createdAtMs - a.createdAtMs;
+      }
+      const timeDiff =
+        preferences.sortMode === "oldest" ? a.createdAtMs - b.createdAtMs : b.createdAtMs - a.createdAtMs;
+      if (timeDiff !== 0) return timeDiff;
+      return (statusPriority[a.req.status] ?? 99) - (statusPriority[b.req.status] ?? 99);
     });
 
     return result;
-  }, [enrichedRequests, search, statusFilter, typeFilter, urgentOnly]);
+  }, [enrichedRequests, search, statusFilter, typeFilter, urgentOnly, preferences.sortMode]);
 
   const scopeLabel = campgroundId
     ? scopedMembership?.campground?.name || campgroundId
@@ -478,6 +538,101 @@ export default function ApprovalsPage() {
                   <div className="text-xs text-slate-600">{policy.description}</div>
                 </div>
               ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Queue preferences</CardTitle>
+            <CardDescription>Customize urgency rules and sorting for this browser.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="space-y-3">
+              <div className="text-xs font-semibold uppercase text-slate-500">Urgency rules</div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="urgent-pending-second">Pending second approvals</Label>
+                <Switch
+                  id="urgent-pending-second"
+                  checked={preferences.urgentPendingSecond}
+                  onCheckedChange={(checked) =>
+                    setPreferences((prev) => ({ ...prev, urgentPendingSecond: checked }))
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="urgent-age-hours">Older than (hours)</Label>
+                <Input
+                  id="urgent-age-hours"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={preferences.urgentAgeHours}
+                  onChange={(e) =>
+                    setPreferences((prev) => ({ ...prev, urgentAgeHours: e.target.value }))
+                  }
+                  className="w-24"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="urgent-policy-threshold">Above policy threshold</Label>
+                <Switch
+                  id="urgent-policy-threshold"
+                  checked={preferences.urgentPolicyThreshold}
+                  onCheckedChange={(checked) =>
+                    setPreferences((prev) => ({ ...prev, urgentPolicyThreshold: checked }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="urgent-custom-toggle">Above custom amount</Label>
+                  <Switch
+                    id="urgent-custom-toggle"
+                    checked={preferences.urgentCustomAmountEnabled}
+                    onCheckedChange={(checked) =>
+                      setPreferences((prev) => ({ ...prev, urgentCustomAmountEnabled: checked }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-slate-500">Custom amount ({sampleCurrency})</span>
+                  <Input
+                    id="urgent-custom-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={preferences.urgentCustomAmount}
+                    onChange={(e) =>
+                      setPreferences((prev) => ({ ...prev, urgentCustomAmount: e.target.value }))
+                    }
+                    className="w-28"
+                    disabled={!preferences.urgentCustomAmountEnabled}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Sort order</Label>
+              <Select
+                value={preferences.sortMode}
+                onValueChange={(value) =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    sortMode: value as QueuePreferences["sortMode"]
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">Urgent first</SelectItem>
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="oldest">Oldest first</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-xs text-slate-500">Preferences are saved locally for this browser.</div>
           </CardContent>
         </Card>
 
