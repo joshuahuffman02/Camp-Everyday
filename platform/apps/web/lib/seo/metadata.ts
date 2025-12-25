@@ -16,7 +16,7 @@ interface MetadataOptions {
   publishedTime?: string;
   modifiedTime?: string;
   authors?: string[];
-  type?: "website" | "article" | "product";
+  type?: "website" | "article";
 }
 
 /**

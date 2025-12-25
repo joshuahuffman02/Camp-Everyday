@@ -27,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Individual campground pages
     const campgroundUrls: MetadataRoute.Sitemap = campgrounds.map((campground) => ({
       url: `${baseUrl}/park/${campground.slug}`,
-      lastModified: campground.updatedAt ? new Date(campground.updatedAt) : now,
+      lastModified: now,
       changeFrequency: "daily" as const,
       priority: 0.8,
     }));
@@ -45,13 +45,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     campgrounds.forEach((cg) => {
       if (cg.state) {
         const existing = stateMap.get(cg.state);
-        const cgDate = cg.updatedAt ? new Date(cg.updatedAt) : now;
-        if (!existing || cgDate > existing.lastModified) {
-          stateMap.set(cg.state, {
-            count: (existing?.count || 0) + 1,
-            lastModified: cgDate
-          });
-        }
+        stateMap.set(cg.state, {
+          count: (existing?.count || 0) + 1,
+          lastModified: now
+        });
       }
     });
 
@@ -70,14 +67,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (cg.city && cg.state) {
         const key = `${cg.city}-${cg.state}`;
         const existing = cityMap.get(key);
-        const cgDate = cg.updatedAt ? new Date(cg.updatedAt) : now;
-        if (!existing || cgDate > existing.lastModified) {
-          cityMap.set(key, {
-            state: cg.state,
-            count: (existing?.count || 0) + 1,
-            lastModified: cgDate
-          });
-        }
+        cityMap.set(key, {
+          state: cg.state,
+          count: (existing?.count || 0) + 1,
+          lastModified: now
+        });
       }
     });
 
