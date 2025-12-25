@@ -32,6 +32,14 @@ export class IssueStoredValueDto {
   codeOptions?: { pin?: string; generatePin?: boolean };
 
   @IsOptional()
+  @IsIn(["campground", "organization", "global"])
+  scopeType?: "campground" | "organization" | "global";
+
+  @IsOptional()
+  @IsString()
+  scopeId?: string;
+
+  @IsOptional()
   @IsBoolean()
   taxableLoad?: boolean;
 
@@ -71,6 +79,10 @@ export class RedeemStoredValueDto {
 
   @IsString()
   currency!: string;
+
+  @IsOptional()
+  @IsString()
+  redeemCampgroundId?: string;
 
   @IsOptional()
   @IsBoolean()

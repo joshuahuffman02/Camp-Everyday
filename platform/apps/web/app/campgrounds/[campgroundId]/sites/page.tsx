@@ -80,6 +80,7 @@ const POWER_AMP_OPTIONS = [
   { value: "20", label: "20 amp" },
   { value: "30", label: "30 amp" },
   { value: "50", label: "50 amp" },
+  { value: "100", label: "100 amp" },
 ] as const;
 
 type SiteFormState = {

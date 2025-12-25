@@ -87,7 +87,7 @@ const rvOrientationOptions = [
 ];
 
 // Electric amp options
-const electricAmpOptions = [15, 20, 30, 50];
+const electricAmpOptions = [15, 20, 30, 50, 100];
 
 // Equipment type options
 const equipmentTypeOptions = [
