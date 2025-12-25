@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 type RedemptionChannel = "reservation" | "pos" | "manual";
 type GiftCardHistory = {
@@ -268,21 +269,6 @@ export default function GiftCardsPage() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [cards]);
 
-  const billingExplainer = (
-    <Card className="border-amber-200 bg-amber-50">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base text-amber-900">Guest vs reservation billing</CardTitle>
-        <CardDescription className="text-amber-800">
-          Guest wallets and transferring charges between guest and reservation are on the roadmap; today credits live in the stored value ledger.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="text-sm text-amber-900 space-y-1">
-        <p>Planned: per-guest wallets and move/merge tools between guest and their reservations.</p>
-        <p>Current workflow: issue a gift card/credit and apply it to the needed reservation or POS order.</p>
-      </CardContent>
-    </Card>
-  );
-
   const handleIssue = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!campgroundId) {
@@ -395,7 +381,6 @@ export default function GiftCardsPage() {
 
   return (
     <DashboardShell>
-      {billingExplainer}
       <Breadcrumbs
         items={[
           { label: "Finance", href: "/finance" },
@@ -409,6 +394,18 @@ export default function GiftCardsPage() {
           Issue and redeem gift cards against reservations or POS orders. Balances are tracked in the stored value ledger—no external processors needed.
         </p>
       </div>
+
+      <Card className="mb-4 border-slate-200 bg-slate-50">
+        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">Wallets are available in Guest profiles.</div>
+            <div className="text-xs text-slate-600">View balances and add guest credit from the Wallet tab.</div>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/guests">Open Guests</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -436,6 +433,29 @@ export default function GiftCardsPage() {
           </CardHeader>
         </Card>
       </div>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Apply wallet to reservation/POS</CardTitle>
+          <CardDescription>Use guest wallet credit alongside gift cards and stored value.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-600">
+            <li>
+              Open the guest profile to add wallet credit or review balances.{" "}
+              <Link className="text-slate-900 underline" href="/guests">
+                Go to Guests
+              </Link>
+              .
+            </li>
+            <li>In POS checkout, select the guest and choose Guest wallet as the payment method.</li>
+            <li>
+              For reservations, guests can apply wallet credit in the Guest Portal, or staff can redeem a gift card/credit
+              below using the reservation ID.
+            </li>
+          </ol>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2 mt-4">
         <Card>

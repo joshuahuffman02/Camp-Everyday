@@ -55,6 +55,14 @@ import {
   staggerContainer,
   staggerChild,
 } from "../../../../lib/animations";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../../components/ui/table";
 
 // Site type configuration with icons
 const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
@@ -64,14 +72,6 @@ const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; col
   group: { icon: <Users className="h-4 w-4" />, label: "Group", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400" },
   glamping: { icon: <Sparkles className="h-4 w-4" />, label: "Glamping", color: "bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-400" },
 };
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../../../components/ui/table";
 
 // Standard power amp options for RV sites
 const POWER_AMP_OPTIONS = [
