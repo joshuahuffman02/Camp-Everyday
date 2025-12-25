@@ -121,13 +121,13 @@ export default function AccessibilitySettingsPage() {
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: () =>
-      apiClient.updateCampgroundProfile(campgroundId!, {
+      apiClient.updateAccessibilitySettings(campgroundId!, {
         adaAssessment: assessmentData,
         adaCertificationLevel: certificationLevel,
         adaAccessibleSiteCount: accessibleSiteCount,
         adaTotalSiteCount: totalSiteCount,
         adaAssessmentUpdatedAt: new Date().toISOString(),
-      } as any),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["campground", campgroundId] });
       toast({
@@ -391,81 +391,215 @@ export default function AccessibilitySettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Guidance Card - What to do to become ADA compliant */}
+        {/* Detailed Guide - What Makes a Site ADA Compliant */}
         <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Lightbulb className="w-5 h-5 text-blue-600" />
-              How to Achieve ADA Compliance
+              What Makes a Campsite ADA Compliant?
             </CardTitle>
             <CardDescription>
-              Follow these steps to improve your accessibility certification level
+              Use this guide to evaluate and improve accessibility at each site
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            {/* Step-by-step guide for site compliance */}
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Site Dimensions */}
+              <div className="p-4 rounded-lg bg-white border border-slate-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <span className="text-blue-700 font-bold text-sm">1</span>
+                  </div>
+                  <h4 className="font-semibold text-slate-900">Site Dimensions</h4>
+                </div>
+                <ul className="text-sm text-slate-600 space-y-2 ml-10">
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Minimum 20' × 36' level pad area</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Firm, stable surface (gravel, pavement, or compacted soil)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Maximum 2% cross-slope, 5% running slope</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Clear ground space for wheelchair maneuvering (60" turning radius)</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Access Routes */}
+              <div className="p-4 rounded-lg bg-white border border-slate-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <span className="text-blue-700 font-bold text-sm">2</span>
+                  </div>
+                  <h4 className="font-semibold text-slate-900">Access Routes</h4>
+                </div>
+                <ul className="text-sm text-slate-600 space-y-2 ml-10">
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>36" minimum clear width pathway to site</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>No steps or abrupt level changes (use ramps if needed)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Connected path to restrooms and amenities</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Well-maintained, no loose gravel or hazards</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Utility Connections */}
+              <div className="p-4 rounded-lg bg-white border border-slate-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <span className="text-blue-700 font-bold text-sm">3</span>
+                  </div>
+                  <h4 className="font-semibold text-slate-900">Utility Connections</h4>
+                </div>
+                <ul className="text-sm text-slate-600 space-y-2 ml-10">
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Electric/water hookups at 15"-48" height</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Clear floor space in front of connections</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Easy-to-operate handles/valves</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>No reaching over obstructions required</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Site Amenities */}
+              <div className="p-4 rounded-lg bg-white border border-slate-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <span className="text-blue-700 font-bold text-sm">4</span>
+                  </div>
+                  <h4 className="font-semibold text-slate-900">Site Amenities</h4>
+                </div>
+                <ul className="text-sm text-slate-600 space-y-2 ml-10">
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Accessible picnic table (extended end for wheelchair)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Fire ring/grill with level access and reach</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Tent pad on firm, level surface</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-1">•</span>
+                    <span>Trash receptacle within reach range</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* How to mark sites as accessible */}
+            <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+              <h4 className="font-semibold text-emerald-900 mb-2 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5" />
+                How to Mark a Site as Accessible
+              </h4>
+              <ol className="text-sm text-emerald-800 space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">1.</span>
+                  <span>Go to <a href={`/campgrounds/${campgroundId}/sites`} className="underline hover:no-underline font-medium">Campground → Sites</a></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">2.</span>
+                  <span>Click on the site you want to mark as accessible</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">3.</span>
+                  <span>In the site editor, find the <strong>"Accessible"</strong> toggle and enable it</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">4.</span>
+                  <span>Save your changes - the site will now count toward your accessible unit total</span>
+                </li>
+              </ol>
+            </div>
+
+            {/* Your current progress */}
             {certificationLevel === "none" && (
-              <div className="p-4 rounded-lg bg-white border border-blue-100">
-                <h4 className="font-semibold text-slate-900 mb-2">Getting Started</h4>
-                <ul className="text-sm text-slate-600 space-y-2">
+              <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                <h4 className="font-semibold text-amber-900 mb-2">Your Next Steps</h4>
+                <ul className="text-sm text-amber-800 space-y-2">
                   <li className="flex items-start gap-2">
-                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
-                    <span><strong>Mark accessible sites:</strong> Go to site management and enable "Accessible" on sites with level/paved access, appropriate dimensions, and accessible amenities.</span>
+                    <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
+                    <span><strong>Evaluate your sites:</strong> Walk through each site with the checklist above</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
-                    <span><strong>Meet scoping requirements:</strong> For {totalSiteCount} sites, you need at least {requiredUnits} accessible units per ADA guidelines.</span>
+                    <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
+                    <span><strong>Mark compliant sites:</strong> Enable "Accessible" on sites that meet the criteria (you need {requiredUnits} for {totalSiteCount} total sites)</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
-                    <span><strong>Complete the checklist:</strong> Work through the accessibility checklist below, starting with required items marked with a "Required" badge.</span>
+                    <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
+                    <span><strong>Complete the checklist below:</strong> Check off features your campground already has</span>
                   </li>
                 </ul>
               </div>
             )}
 
             {certificationLevel === "friendly" && (
-              <div className="p-4 rounded-lg bg-white border border-emerald-100">
+              <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200">
                 <h4 className="font-semibold text-emerald-800 mb-2">Great progress! To reach ADA Compliant:</h4>
                 <ul className="text-sm text-slate-600 space-y-2">
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5" />
-                    <span>Complete all <strong>required</strong> checklist items (look for "Required" badges)</span>
+                    <span>Complete all <strong>required</strong> checklist items (look for "Required" badges below)</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5" />
-                    <span>Ensure restrooms have accessible stalls with grab bars and turning space</span>
+                    <span>Ensure restrooms have accessible stalls with grab bars and 60" turning space</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5" />
-                    <span>Verify parking has van-accessible spaces with proper signage</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5" />
-                    <span>Check that routes to amenities are firm, stable, and at least 36" wide</span>
+                    <span>Verify parking has van-accessible spaces (96" wide + 96" access aisle)</span>
                   </li>
                 </ul>
               </div>
             )}
 
             {certificationLevel === "compliant" && (
-              <div className="p-4 rounded-lg bg-white border border-amber-100">
-                <h4 className="font-semibold text-amber-800 mb-2">Almost there! To reach ADA Excellence:</h4>
+              <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                <h4 className="font-semibold text-blue-800 mb-2">Almost there! To reach ADA Excellence:</h4>
                 <ul className="text-sm text-slate-600 space-y-2">
                   <li className="flex items-start gap-2">
-                    <Award className="w-4 h-4 text-amber-500 mt-0.5" />
+                    <Award className="w-4 h-4 text-blue-500 mt-0.5" />
                     <span>Add accessible picnic tables at each accessible site</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Award className="w-4 h-4 text-amber-500 mt-0.5" />
-                    <span>Install visual or tactile alerts for notifications</span>
+                    <Award className="w-4 h-4 text-blue-500 mt-0.5" />
+                    <span>Install roll-in showers in at least one shower facility</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Award className="w-4 h-4 text-amber-500 mt-0.5" />
-                    <span>Provide accessible fishing or viewing platforms if applicable</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Award className="w-4 h-4 text-amber-500 mt-0.5" />
-                    <span>Consider roll-in showers and service animal relief areas</span>
+                    <Award className="w-4 h-4 text-blue-500 mt-0.5" />
+                    <span>Provide visual/tactile alerts and service animal relief areas</span>
                   </li>
                 </ul>
               </div>
@@ -479,8 +613,7 @@ export default function AccessibilitySettingsPage() {
                 </h4>
                 <p className="text-sm text-amber-700">
                   Your campground provides exceptional accessibility features. Display your badge proudly on your
-                  booking page and marketing materials. Consider sharing your accessibility features in your
-                  property description to attract guests who need accessible accommodations.
+                  booking page and marketing materials. Guests searching for accessible camping will see your certification.
                 </p>
               </div>
             )}
@@ -488,15 +621,20 @@ export default function AccessibilitySettingsPage() {
             {/* Quick wins section */}
             {certificationLevel !== "excellence" && (
               <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                <h4 className="font-semibold text-slate-900 mb-2">Quick Wins (Highest Point Items)</h4>
+                <h4 className="font-semibold text-slate-900 mb-2">Quick Wins (Highest Point Items Not Yet Complete)</h4>
                 <div className="space-y-2">
                   {ADA_CHECKLIST
                     .filter(item => !completedItems.has(item.id))
                     .sort((a, b) => b.points - a.points)
-                    .slice(0, 3)
+                    .slice(0, 5)
                     .map(item => (
                       <div key={item.id} className="flex items-center justify-between p-2 bg-white rounded border border-slate-100">
-                        <span className="text-sm text-slate-700">{item.label}</span>
+                        <div>
+                          <span className="text-sm text-slate-700">{item.label}</span>
+                          {item.required && (
+                            <Badge variant="outline" className="ml-2 text-xs">Required</Badge>
+                          )}
+                        </div>
                         <Badge variant="secondary" className="ml-2">{item.points} pts</Badge>
                       </div>
                     ))}

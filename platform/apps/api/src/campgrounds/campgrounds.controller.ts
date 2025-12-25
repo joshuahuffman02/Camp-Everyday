@@ -260,6 +260,26 @@ export class CampgroundsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Patch("campgrounds/:id/accessibility")
+  updateAccessibilitySettings(
+    @Param("id") id: string,
+    @Body() body: {
+      adaAssessment?: any;
+      adaCertificationLevel?: string;
+      adaAccessibleSiteCount?: number;
+      adaTotalSiteCount?: number;
+      adaAssessmentUpdatedAt?: string;
+      adaVerified?: boolean;
+      adaVerifiedAt?: string | null;
+      adaVerifiedBy?: string | null;
+    },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateAccessibilitySettings(id, body, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get("organizations/:organizationId/campgrounds")
   listByOrganization(@Param("organizationId") organizationId: string) {
     return this.campgrounds.listByOrganization(organizationId);

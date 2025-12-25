@@ -1343,5 +1343,35 @@ export class CampgroundsService {
 
     return deleted;
   }
+
+  async updateAccessibilitySettings(
+    id: string,
+    data: {
+      adaAssessment?: any;
+      adaCertificationLevel?: string;
+      adaAccessibleSiteCount?: number;
+      adaTotalSiteCount?: number;
+      adaAssessmentUpdatedAt?: string;
+      adaVerified?: boolean;
+      adaVerifiedAt?: string | null;
+      adaVerifiedBy?: string | null;
+    },
+    organizationId?: string
+  ) {
+    await this.assertCampgroundScoped(id, organizationId);
+    return this.prisma.campground.update({
+      where: { id },
+      data: {
+        adaAssessment: data.adaAssessment ?? undefined,
+        adaCertificationLevel: data.adaCertificationLevel ?? undefined,
+        adaAccessibleSiteCount: data.adaAccessibleSiteCount ?? undefined,
+        adaTotalSiteCount: data.adaTotalSiteCount ?? undefined,
+        adaAssessmentUpdatedAt: data.adaAssessmentUpdatedAt ? new Date(data.adaAssessmentUpdatedAt) : undefined,
+        adaVerified: data.adaVerified ?? undefined,
+        adaVerifiedAt: data.adaVerifiedAt ? new Date(data.adaVerifiedAt) : undefined,
+        adaVerifiedBy: data.adaVerifiedBy ?? undefined,
+      }
+    });
+  }
 }
 

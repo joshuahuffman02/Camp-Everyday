@@ -63,11 +63,24 @@ type ActionHighlight = {
 const ACTION_LABELS: Record<string, string> = {
   lookup_availability: "Lookup availability",
   create_hold: "Create hold",
+  block_site: "Block site (maintenance)",
+  create_maintenance_ticket: "Create maintenance ticket",
+  create_operational_task: "Create ops task",
+  update_housekeeping_status: "Update housekeeping",
+  generate_billing_schedule: "Generate billing schedule",
   move_reservation: "Move reservation",
   adjust_rate: "Adjust rate",
 };
 
-const EXECUTABLE_ACTIONS = new Set(["lookup_availability", "create_hold"]);
+const EXECUTABLE_ACTIONS = new Set([
+  "lookup_availability",
+  "create_hold",
+  "block_site",
+  "create_maintenance_ticket",
+  "create_operational_task",
+  "update_housekeeping_status",
+  "generate_billing_schedule"
+]);
 
 function formatValue(value: any) {
   if (value === null || value === undefined) return "-";
@@ -121,6 +134,27 @@ function buildActionSummary(draft: ActionDraft) {
       if (siteLabel) return `Drafting a hold for ${siteLabel}.`;
       if (dateRange) return `Drafting a hold for ${dateRange}.`;
       return "Drafting a temporary hold.";
+    case "block_site":
+      if (siteLabel && dateRange) return `Blocking ${siteLabel} for maintenance (${dateRange}).`;
+      if (siteLabel) return `Blocking ${siteLabel} for maintenance.`;
+      if (dateRange) return `Blocking a site for maintenance (${dateRange}).`;
+      return "Blocking a site for maintenance.";
+    case "create_maintenance_ticket":
+      if (params.issue && siteLabel) return `Creating a maintenance ticket for ${siteLabel}: ${params.issue}.`;
+      if (params.issue) return `Creating a maintenance ticket: ${params.issue}.`;
+      return siteLabel ? `Creating a maintenance ticket for ${siteLabel}.` : "Creating a maintenance ticket.";
+    case "create_operational_task":
+      if (params.title || params.task || params.summary) {
+        const label = params.title ?? params.task ?? params.summary;
+        return `Creating an operations task: ${label}.`;
+      }
+      return "Creating an operations task.";
+    case "update_housekeeping_status":
+      const statusLabel = params.status ?? params.housekeepingStatus;
+      if (siteLabel && statusLabel) return `Updating housekeeping for ${siteLabel} to ${statusLabel}.`;
+      return siteLabel ? `Updating housekeeping for ${siteLabel}.` : "Updating housekeeping status.";
+    case "generate_billing_schedule":
+      return "Generating a billing schedule for the reservation.";
     case "move_reservation":
       if (reservationLabel && dateRange) return `Drafting a move for ${reservationLabel} to ${dateRange}.`;
       if (reservationLabel) return `Drafting a move for ${reservationLabel}.`;
@@ -154,6 +188,12 @@ function buildActionHighlights(draft: ActionDraft) {
 
   if (params.reservationId) addItem("reservationId", "Reservation", formatId(params.reservationId));
   if (params.holdMinutes) addItem("holdMinutes", "Hold length", `${params.holdMinutes} mins`);
+  if (params.issue) addItem("issue", "Issue", String(params.issue));
+  if (params.reason) addItem("reason", "Reason", String(params.reason));
+  if (params.priority) addItem("priority", "Priority", String(params.priority));
+  if (params.status) addItem("status", "Status", String(params.status));
+  if (params.housekeepingStatus) addItem("housekeepingStatus", "Housekeeping", String(params.housekeepingStatus));
+  if (params.type) addItem("type", "Type", String(params.type));
 
   if (params.newSiteNumber) {
     addItem("newSiteNumber", "New site", String(params.newSiteNumber));
@@ -220,7 +260,7 @@ export function SupportChatWidget() {
           id: "partner-welcome",
           role: "assistant",
           content:
-            "I can help with availability checks, temporary holds, and operational guidance. Tell me what you want to do, and I will draft the action.",
+            "I can draft and run actions across availability, holds, maintenance, operations, and billing. Tell me what you want to do and I will draft the action (beta).",
         },
       ]);
     }
@@ -517,14 +557,19 @@ export function SupportChatWidget() {
       {!isSupportMode && (
         <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-[11px] text-emerald-800">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-semibold">Staff actions</span>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">Staff actions</span>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                Beta
+              </span>
+            </div>
             <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-emerald-700">
               {campgroundId ? `Campground ${formatId(campgroundId)}` : "Select a campground"}
             </span>
           </div>
           <div className="mt-1 text-emerald-700">
             {campgroundId
-              ? "Actions run with your permissions. Ask for availability checks or holds."
+              ? "Actions run with your permissions. Review before confirming; I can still guide anything I can't run."
               : "Select a campground in the top bar to run actions."}
           </div>
         </div>
@@ -876,8 +921,9 @@ export function SupportChatWidget() {
         ) : (
           [
             "Check availability for next weekend",
-            "Hold site 12 for June 10-12",
-            "Show high occupancy dates",
+            "Block site 12 for maintenance June 10-20",
+            "Create maintenance ticket for site 7: broken pedestal",
+            "Mark site 3 housekeeping clean",
           ].map((prompt) => (
             <button
               key={prompt}
@@ -905,7 +951,7 @@ export function SupportChatWidget() {
               }
             }}
             onKeyDown={handleKeyDown}
-            placeholder={isSupportMode ? "Ask a question..." : "Ask for availability, holds, or drafts..."}
+            placeholder={isSupportMode ? "Ask a question..." : "Ask for actions, maintenance, billing, or drafts..."}
             className={`flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 text-sm ${
               isSupportMode ? "focus:ring-blue-500/20 focus:border-blue-500" : "focus:ring-emerald-500/20 focus:border-emerald-500"
             }`}

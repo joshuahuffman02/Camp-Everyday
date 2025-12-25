@@ -60,6 +60,11 @@ const IMPACT_VARIANTS: Record<ImpactSummary["level"], "success" | "warning" | "e
 const ACTION_LABELS: Record<string, string> = {
   lookup_availability: "Lookup availability",
   create_hold: "Create hold",
+  block_site: "Block site (maintenance)",
+  create_maintenance_ticket: "Create maintenance ticket",
+  create_operational_task: "Create ops task",
+  update_housekeeping_status: "Update housekeeping",
+  generate_billing_schedule: "Generate billing schedule",
   move_reservation: "Move reservation",
   adjust_rate: "Adjust rate",
 };
@@ -165,11 +170,12 @@ export function AiPartnerPanel({ campgroundId, enabled = true }: { campgroundId:
         <CardTitle className="flex items-center gap-2 text-lg">
           <ShieldCheck className="h-5 w-5 text-emerald-600" />
           Host (Staff)
+          <Badge variant="warning">Beta</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Ask for availability checks, temporary holds, or operational guidance. Drafted actions include impact summaries and confirmation prompts.
+          Ask for availability checks, maintenance blocks, operations tasks, or billing actions. Actions run with your permissions (beta), and I can guide anything I can't run.
         </div>
 
         {!enabled && (
@@ -336,7 +342,7 @@ export function AiPartnerPanel({ campgroundId, enabled = true }: { campgroundId:
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Host to check availability, place a hold, or draft a change..."
+            placeholder="Ask Host to check availability, block a site, create tasks, or draft a change..."
             className="min-h-[84px] bg-white"
             disabled={chatMutation.isPending || !enabled}
           />

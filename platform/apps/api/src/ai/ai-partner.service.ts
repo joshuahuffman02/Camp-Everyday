@@ -12,6 +12,8 @@ import { PublicReservationsService } from "../public-reservations/public-reserva
 import { MaintenanceService } from "../maintenance/maintenance.service";
 import { OperationsService } from "../operations/operations.service";
 import { RepeatChargesService } from "../repeat-charges/repeat-charges.service";
+import { ReservationsService } from "../reservations/reservations.service";
+import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
 type PartnerMode = "staff" | "admin";
 type PersonaKey = "revenue" | "operations" | "marketing" | "accounting" | "hospitality" | "compliance" | "general";
 
@@ -23,6 +25,8 @@ type ActionType =
   | "create_operational_task"
   | "update_housekeeping_status"
   | "generate_billing_schedule"
+  | "refund_reservation"
+  | "send_guest_message"
   | "move_reservation"
   | "adjust_rate"
   | "none";
@@ -135,6 +139,19 @@ const ACTION_REGISTRY: Record<
     sensitivity: "medium",
     confirmByDefault: true
   },
+  refund_reservation: {
+    resource: "payments",
+    action: "write",
+    impactArea: "revenue",
+    sensitivity: "high",
+    confirmByDefault: true
+  },
+  send_guest_message: {
+    resource: "communications",
+    action: "write",
+    impactArea: "hospitality",
+    sensitivity: "low"
+  },
   move_reservation: {
     resource: "reservations",
     action: "write",
@@ -166,7 +183,9 @@ export class AiPartnerService {
     private readonly publicReservations: PublicReservationsService,
     private readonly maintenance: MaintenanceService,
     private readonly operations: OperationsService,
-    private readonly repeatCharges: RepeatChargesService
+    private readonly repeatCharges: RepeatChargesService,
+    private readonly reservations: ReservationsService,
+    private readonly pricingV2: PricingV2Service
   ) {}
 
   async chat(request: PartnerChatRequest): Promise<AiPartnerResponse> {
@@ -571,6 +590,8 @@ Request: "${params.anonymizedText}"${historyBlock}`;
                       "create_operational_task",
                       "update_housekeeping_status",
                       "generate_billing_schedule",
+                      "refund_reservation",
+                      "send_guest_message",
                       "move_reservation",
                       "adjust_rate",
                       "none"
@@ -642,8 +663,10 @@ Allowed actions (choose one; use none when you can only guide):
 - create_operational_task (title, type, optional priority/dueDate/siteId/siteNumber/assignedTo)
 - update_housekeeping_status (siteId or siteNumber, status: clean|dirty|inspecting)
 - generate_billing_schedule (reservationId)
-- move_reservation (write: draft only)
-- adjust_rate (write: draft only)
+- refund_reservation (reservationId, amountCents, destination: card|wallet, reason)
+- send_guest_message (guestId or reservationId, message, optional subject)
+- move_reservation (reservationId, newArrivalDate/newDepartureDate, newSiteId/newSiteNumber)
+- adjust_rate (siteClassId or siteClassName, adjustmentType: flat|percent, adjustmentValue, optional startDate/endDate/reason)
 - none
 
 For pricing/availability/policy/revenue-impacting actions:
@@ -894,6 +917,233 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
+  private async executeBlockSite(campground: { id: string }, draft: ActionDraft, user: any) {
+    const { siteId, siteNumber, arrivalDate, departureDate, reason } = draft.parameters;
+    if (!arrivalDate || !departureDate) return null;
+
+    const resolvedSiteId = await this.resolveSiteId(campground.id, { siteId, siteNumber });
+    if (!resolvedSiteId) return null;
+
+    try {
+      const title = reason ? `Site blocked: ${reason}` : "Site blocked for maintenance";
+      const ticket = await this.maintenance.create({
+        campgroundId: campground.id,
+        siteId: resolvedSiteId,
+        title,
+        description: reason,
+        isBlocking: true,
+        outOfOrder: true,
+        outOfOrderReason: reason,
+        outOfOrderUntil: departureDate,
+        priority: "high" as any,
+      });
+
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: { ticketId: ticket.id, outOfOrderUntil: ticket.outOfOrderUntil }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "maintenanceTicket",
+        entityId: ticket.id,
+        after: {
+          siteId: resolvedSiteId,
+          arrivalDate,
+          departureDate,
+          outOfOrder: true
+        }
+      });
+
+      return {
+        action,
+        message: `Blocked site ${siteNumber ?? resolvedSiteId} from ${arrivalDate} to ${departureDate}.`
+      };
+    } catch (err) {
+      this.logger.warn("Block site failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
+  private async executeMaintenanceTicket(campground: { id: string }, draft: ActionDraft, user: any) {
+    const { siteId, siteNumber, issue, priority } = draft.parameters;
+    if (!issue) return null;
+
+    const resolvedSiteId = await this.resolveSiteId(campground.id, { siteId, siteNumber });
+    if (siteNumber && !resolvedSiteId) return null;
+
+    try {
+      const ticket = await this.maintenance.create({
+        campgroundId: campground.id,
+        siteId: resolvedSiteId,
+        title: issue,
+        priority: (priority as any) ?? "medium"
+      });
+
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: { ticketId: ticket.id, status: ticket.status }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "maintenanceTicket",
+        entityId: ticket.id,
+        after: { siteId: resolvedSiteId, issue, priority: priority ?? "medium" }
+      });
+
+      return {
+        action,
+        message: `Created a maintenance ticket${resolvedSiteId ? ` for site ${siteNumber ?? resolvedSiteId}` : ""}.`
+      };
+    } catch (err) {
+      this.logger.warn("Maintenance ticket create failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
+  private async executeOperationalTask(campground: { id: string }, draft: ActionDraft, user: any) {
+    const { title, task, summary, description, type, priority, dueDate, assignedTo, siteId, siteNumber } = draft.parameters;
+    const taskTitle = title ?? task ?? summary;
+    if (!taskTitle) return null;
+
+    const resolvedSiteId = await this.resolveSiteId(campground.id, { siteId, siteNumber });
+    if (siteNumber && !resolvedSiteId) return null;
+
+    try {
+      const created = await this.operations.createTask(
+        campground.id,
+        {
+          title: taskTitle,
+          description,
+          type: type ?? "maintenance",
+          priority: priority ?? "medium",
+          assignedTo,
+          dueDate: dueDate ? new Date(dueDate) : undefined,
+          siteId: resolvedSiteId
+        },
+        user
+      );
+
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: { taskId: created.id, status: created.status }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "operationalTask",
+        entityId: created.id,
+        after: { title: taskTitle, type: created.type, siteId: resolvedSiteId }
+      });
+
+      return {
+        action,
+        message: `Created a ${created.type} task: ${created.title}.`
+      };
+    } catch (err) {
+      this.logger.warn("Operational task create failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
+  private async executeUpdateHousekeeping(campground: { id: string }, draft: ActionDraft, user: any) {
+    const { siteId, siteNumber, status, housekeepingStatus } = draft.parameters;
+    const nextStatus = status ?? housekeepingStatus;
+    if (!nextStatus) return null;
+
+    const resolvedSiteId = await this.resolveSiteId(campground.id, { siteId, siteNumber });
+    if (!resolvedSiteId) return null;
+
+    try {
+      const updated = await this.operations.updateSiteHousekeeping(resolvedSiteId, String(nextStatus), user);
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: { siteId: resolvedSiteId, housekeepingStatus: updated.housekeepingStatus }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "site",
+        entityId: resolvedSiteId,
+        after: { housekeepingStatus: updated.housekeepingStatus }
+      });
+
+      return {
+        action,
+        message: `Updated housekeeping status for site ${siteNumber ?? resolvedSiteId} to ${updated.housekeepingStatus}.`
+      };
+    } catch (err) {
+      this.logger.warn("Housekeeping update failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
+  private async executeGenerateBillingSchedule(campground: { id: string }, draft: ActionDraft, user: any) {
+    const { reservationId } = draft.parameters;
+    if (!reservationId) return null;
+
+    try {
+      const charges = await this.repeatCharges.generateCharges(String(reservationId));
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: { reservationId, chargeCount: charges.length }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "reservation",
+        entityId: String(reservationId),
+        after: { repeatChargeCount: charges.length }
+      });
+
+      return {
+        action,
+        message: `Generated ${charges.length} billing installments for reservation ${reservationId}.`
+      };
+    } catch (err) {
+      this.logger.warn("Billing schedule generation failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
+  private async executeWriteAction(campground: { id: string }, draft: ActionDraft, user: any) {
+    if (draft.actionType === "create_hold") {
+      return this.executeHold(campground, draft, user);
+    }
+    if (draft.actionType === "block_site") {
+      return this.executeBlockSite(campground, draft, user);
+    }
+    if (draft.actionType === "create_maintenance_ticket") {
+      return this.executeMaintenanceTicket(campground, draft, user);
+    }
+    if (draft.actionType === "create_operational_task") {
+      return this.executeOperationalTask(campground, draft, user);
+    }
+    if (draft.actionType === "update_housekeeping_status") {
+      return this.executeUpdateHousekeeping(campground, draft, user);
+    }
+    if (draft.actionType === "generate_billing_schedule") {
+      return this.executeGenerateBillingSchedule(campground, draft, user);
+    }
+    return null;
+  }
+
   private buildEvidenceLinks(actionType: ActionType, parameters: Record<string, any>): EvidenceLink[] {
     if (actionType === "lookup_availability") {
       const params = new URLSearchParams();
@@ -907,6 +1157,25 @@ User request: "${params.anonymizedText}"${historyBlock}`;
       if (parameters.departureDate) params.set("departureDate", parameters.departureDate);
       if (parameters.siteId) params.set("siteId", parameters.siteId);
       return [{ label: "Calendar hold", url: `/calendar?${params.toString()}` }];
+    }
+    if (actionType === "block_site") {
+      const params = new URLSearchParams();
+      if (parameters.arrivalDate) params.set("arrivalDate", parameters.arrivalDate);
+      if (parameters.departureDate) params.set("departureDate", parameters.departureDate);
+      if (parameters.siteId) params.set("siteId", parameters.siteId);
+      return [
+        { label: "Maintenance", url: "/maintenance" },
+        { label: "Calendar view", url: `/calendar?${params.toString()}` }
+      ];
+    }
+    if (actionType === "create_maintenance_ticket") {
+      return [{ label: "Maintenance", url: "/maintenance" }];
+    }
+    if (actionType === "create_operational_task" || actionType === "update_housekeeping_status") {
+      return [{ label: "Operations", url: "/operations" }];
+    }
+    if (actionType === "generate_billing_schedule") {
+      return [{ label: "Repeat charges", url: "/billing/repeat-charges" }];
     }
     if (actionType === "move_reservation" && parameters.reservationId) {
       return [{ label: "Reservation", url: `/reservations/${parameters.reservationId}` }];

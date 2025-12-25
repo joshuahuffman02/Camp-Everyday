@@ -2482,6 +2482,27 @@ export const apiClient = {
     const result = await parseResponse<unknown>(res);
     return CampgroundWithAnalyticsSchema.parse(result);
   },
+  async updateAccessibilitySettings(
+    campgroundId: string,
+    data: {
+      adaAssessment?: any;
+      adaCertificationLevel?: string;
+      adaAccessibleSiteCount?: number;
+      adaTotalSiteCount?: number;
+      adaAssessmentUpdatedAt?: string;
+      adaVerified?: boolean;
+      adaVerifiedAt?: string | null;
+      adaVerifiedBy?: string | null;
+    }
+  ) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/accessibility`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(data)
+    });
+    const result = await parseResponse<unknown>(res);
+    return CampgroundWithAnalyticsSchema.parse(result);
+  },
   async listTemplates(campgroundId: string, status?: string) {
     const params = new URLSearchParams();
     if (campgroundId) params.set("campgroundId", campgroundId);
