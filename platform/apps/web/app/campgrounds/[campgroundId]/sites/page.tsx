@@ -77,14 +77,7 @@ const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; col
 };
 
 // Standard power amp options for RV sites
-const POWER_AMP_OPTIONS = [
-  { value: "", label: "None" },
-  { value: "15", label: "15 amp" },
-  { value: "20", label: "20 amp" },
-  { value: "30", label: "30 amp" },
-  { value: "50", label: "50 amp" },
-  { value: "100", label: "100 amp" },
-] as const;
+const POWER_AMP_OPTIONS = [15, 20, 30, 50, 100] as const;
 
 type SiteFormState = {
   name: string;
@@ -95,7 +88,7 @@ type SiteFormState = {
   hookupsPower: boolean;
   hookupsWater: boolean;
   hookupsSewer: boolean;
-  powerAmps: string;
+  powerAmps: number[];
   petFriendly: boolean;
   accessible: boolean;
   minNights: number | "";
@@ -116,7 +109,7 @@ const defaultSiteForm: SiteFormState = {
   hookupsPower: false,
   hookupsWater: false,
   hookupsSewer: false,
-  powerAmps: "",
+  powerAmps: [],
   petFriendly: true,
   accessible: false,
   minNights: "",
@@ -225,7 +218,7 @@ export default function SitesPage() {
       hookupsPower: state.hookupsPower,
       hookupsWater: state.hookupsWater,
       hookupsSewer: state.hookupsSewer,
-      powerAmps: state.powerAmps ? parseInt(state.powerAmps, 10) : (opts?.clearEmptyAsNull ? null : undefined),
+      powerAmps: state.powerAmps.length > 0 ? state.powerAmps : (opts?.clearEmptyAsNull ? null : undefined),
       petFriendly: state.petFriendly,
       accessible: state.accessible,
       minNights: parseOptionalNumber(state.minNights),
@@ -951,19 +944,30 @@ export default function SitesPage() {
                         Sewer
                       </label>
                       {formState.hookupsPower && (
-                        <Select
-                          value={formState.powerAmps || "none"}
-                          onValueChange={(value) => setFormState((s) => ({ ...s, powerAmps: value === "none" ? "" : value }))}
-                        >
-                          <SelectTrigger className="w-[100px] h-8 bg-background border-border">
-                            <SelectValue placeholder="Amps" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {POWER_AMP_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value || "none"} value={opt.value || "none"}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-1 ml-2">
+                          {POWER_AMP_OPTIONS.map((amp) => (
+                            <button
+                              key={amp}
+                              type="button"
+                              onClick={() => {
+                                setFormState((s) => ({
+                                  ...s,
+                                  powerAmps: s.powerAmps.includes(amp)
+                                    ? s.powerAmps.filter((a) => a !== amp)
+                                    : [...s.powerAmps, amp].sort((a, b) => a - b)
+                                }));
+                              }}
+                              className={cn(
+                                "px-2 py-1 text-xs rounded-md border transition-all",
+                                formState.powerAmps.includes(amp)
+                                  ? "border-amber-500 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300"
+                                  : "border-border bg-background text-muted-foreground hover:border-amber-300"
+                              )}
+                            >
+                              {amp}A
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-3 md:col-span-2">
@@ -1213,7 +1217,11 @@ export default function SitesPage() {
                                   isInheritedHookups ? "text-amber-500/70 dark:text-amber-400/70" : "text-amber-600 dark:text-amber-400"
                                 )}>
                                   <Zap className="h-3.5 w-3.5" />
-                                  {site.powerAmps && <span className="text-xs">{site.powerAmps}</span>}
+                                  {(Array.isArray(site.powerAmps) ? site.powerAmps : (site.powerAmps ? [site.powerAmps] : cls?.electricAmps))?.length > 0 && (
+                                    <span className="text-xs">
+                                      {(Array.isArray(site.powerAmps) ? site.powerAmps : (site.powerAmps ? [site.powerAmps] : cls?.electricAmps))?.join("/")}A
+                                    </span>
+                                  )}
                                 </span>
                               )}
                               {effectiveWater && (
@@ -1283,7 +1291,7 @@ export default function SitesPage() {
                                   hookupsPower: site.hookupsPower ?? cls?.hookupsPower ?? false,
                                   hookupsWater: site.hookupsWater ?? cls?.hookupsWater ?? false,
                                   hookupsSewer: site.hookupsSewer ?? cls?.hookupsSewer ?? false,
-                                  powerAmps: site.powerAmps?.toString() ?? "",
+                                  powerAmps: Array.isArray(site.powerAmps) ? site.powerAmps : (site.powerAmps ? [site.powerAmps] : (cls?.electricAmps ?? [])),
                                   petFriendly: site.petFriendly ?? cls?.petFriendly ?? false,
                                   accessible: site.accessible ?? cls?.accessible ?? false,
                                   minNights: site.minNights ?? cls?.minNights ?? "",
@@ -1413,20 +1421,31 @@ export default function SitesPage() {
                                 onChange={(e) => setEditForm((s) => (s ? { ...s, rigMaxLength: e.target.value === "" ? "" : Number(e.target.value) } : s))}
                                 className="bg-background border-border"
                               />
-                              <Select
-                                value={editForm.powerAmps || "none"}
-                                onValueChange={(value) => setEditForm((s) => (s ? { ...s, powerAmps: value === "none" ? "" : value } : s))}
-                              >
-                                <SelectTrigger className="bg-background border-border">
-                                  <SelectValue placeholder="Power amps" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">Power amps</SelectItem>
-                                  {POWER_AMP_OPTIONS.filter(o => o.value).map((opt) => (
-                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground mr-1">Power:</span>
+                                {POWER_AMP_OPTIONS.map((amp) => (
+                                  <button
+                                    key={amp}
+                                    type="button"
+                                    onClick={() => {
+                                      setEditForm((s) => s ? {
+                                        ...s,
+                                        powerAmps: s.powerAmps.includes(amp)
+                                          ? s.powerAmps.filter((a) => a !== amp)
+                                          : [...s.powerAmps, amp].sort((a, b) => a - b)
+                                      } : s);
+                                    }}
+                                    className={cn(
+                                      "px-2 py-1 text-xs rounded-md border transition-all",
+                                      editForm.powerAmps.includes(amp)
+                                        ? "border-amber-500 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300"
+                                        : "border-border bg-background text-muted-foreground hover:border-amber-300"
+                                    )}
+                                  >
+                                    {amp}A
+                                  </button>
+                                ))}
+                              </div>
                               <Input
                                 type="number"
                                 placeholder="Min nights"
