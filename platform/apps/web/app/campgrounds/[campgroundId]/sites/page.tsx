@@ -150,8 +150,8 @@ export default function SitesPage() {
 
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("");
-  const [filterClass, setFilterClass] = useState("");
+  const [filterType, setFilterType] = useState("__all__");
+  const [filterClass, setFilterClass] = useState("__all__");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
 
   // Bulk selection state
@@ -239,9 +239,9 @@ export default function SitesPage() {
         }
       }
       // Type filter
-      if (filterType && site.siteType !== filterType) return false;
+      if (filterType && filterType !== "__all__" && site.siteType !== filterType) return false;
       // Class filter
-      if (filterClass && site.siteClassId !== filterClass) return false;
+      if (filterClass && filterClass !== "__all__" && site.siteClassId !== filterClass) return false;
       // Active filter
       if (filterActive === "active" && !site.isActive) return false;
       if (filterActive === "inactive" && site.isActive !== false) return false;
@@ -574,7 +574,7 @@ export default function SitesPage() {
                 <SelectValue placeholder="All types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All types</SelectItem>
+                <SelectItem value="__all__">All types</SelectItem>
                 {Object.entries(siteTypeConfig).map(([key, config]) => (
                   <SelectItem key={key} value={key}>
                     <span className="flex items-center gap-2">
@@ -590,7 +590,7 @@ export default function SitesPage() {
                 <SelectValue placeholder="All classes" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All classes</SelectItem>
+                <SelectItem value="__all__">All classes</SelectItem>
                 {classesQuery.data?.map((cls) => (
                   <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
                 ))}
@@ -606,14 +606,14 @@ export default function SitesPage() {
                 <SelectItem value="inactive">Inactive only</SelectItem>
               </SelectContent>
             </Select>
-            {(searchQuery || filterType || filterClass || filterActive !== "all") && (
+            {(searchQuery || filterType !== "__all__" || filterClass !== "__all__" || filterActive !== "all") && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setSearchQuery("");
-                  setFilterType("");
-                  setFilterClass("");
+                  setFilterType("__all__");
+                  setFilterClass("__all__");
                   setFilterActive("all");
                 }}
                 className="gap-1 text-muted-foreground hover:text-foreground"
