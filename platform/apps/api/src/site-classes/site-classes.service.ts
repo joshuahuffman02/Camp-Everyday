@@ -25,12 +25,15 @@ export class SiteClassesService {
   }
 
   update(id: string, data: Partial<CreateSiteClassDto>) {
-    const { campgroundId, siteType, ...rest } = data;
+    const { campgroundId, siteType, extraAdultFee, extraChildFee, ...rest } = data;
     return this.prisma.siteClass.update({
       where: { id },
       data: {
         ...rest,
-        ...(siteType ? { siteType: siteType as SiteType } : {})
+        ...(siteType ? { siteType: siteType as SiteType } : {}),
+        // Map frontend field names to Prisma field names
+        ...(extraAdultFee !== undefined ? { extraAdultFeeCents: extraAdultFee } : {}),
+        ...(extraChildFee !== undefined ? { extraChildFeeCents: extraChildFee } : {}),
       }
     });
   }

@@ -84,6 +84,13 @@ export class CreateSiteClassDto {
   @IsInt()
   extraChildFeeCents?: number;
 
+  // Alternative field names (frontend sends without Cents suffix)
+  @IsOptional()
+  extraAdultFee?: number | null;
+
+  @IsOptional()
+  extraChildFee?: number | null;
+
   // Metered utility defaults
   @IsOptional()
   @IsBoolean()
