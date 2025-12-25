@@ -149,7 +149,7 @@ const ACTION_REGISTRY: Record<
   send_guest_message: {
     resource: "communications",
     action: "write",
-    impactArea: "hospitality",
+    impactArea: "none",
     sensitivity: "low"
   },
   move_reservation: {
@@ -664,7 +664,7 @@ Allowed actions (choose one; use none when you can only guide):
 - update_housekeeping_status (siteId or siteNumber, status: clean|dirty|inspecting)
 - generate_billing_schedule (reservationId)
 - refund_reservation (reservationId, amountCents, destination: card|wallet, reason)
-- send_guest_message (guestId or reservationId, message, optional subject)
+- send_guest_message (guestId or reservationId, message, optional subject; logs a guest note)
 - move_reservation (reservationId, newArrivalDate/newDepartureDate, newSiteId/newSiteNumber)
 - adjust_rate (siteClassId or siteClassName, adjustmentType: flat|percent, adjustmentValue, optional startDate/endDate/reason)
 - none
@@ -817,6 +817,26 @@ User request: "${params.anonymizedText}"${historyBlock}`;
       select: { id: true }
     });
     return site?.id;
+  }
+
+  private async resolveSiteClass(campgroundId: string, params: { siteClassId?: string; siteClassName?: string }) {
+    if (params.siteClassId) {
+      const siteClass = await this.prisma.siteClass.findUnique({
+        where: { id: params.siteClassId },
+        select: { id: true, name: true, defaultRate: true, campgroundId: true }
+      });
+      if (!siteClass || siteClass.campgroundId !== campgroundId) return null;
+      return siteClass;
+    }
+    if (!params.siteClassName) return null;
+    const siteClass = await this.prisma.siteClass.findFirst({
+      where: {
+        campgroundId,
+        name: { equals: String(params.siteClassName), mode: "insensitive" }
+      },
+      select: { id: true, name: true, defaultRate: true }
+    });
+    return siteClass ?? null;
   }
 
   private async executeReadAction(campground: { id: string; slug: string; name: string }, draft: ActionDraft) {
@@ -1096,6 +1116,12 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     if (!reservationId) return null;
 
     try {
+      const reservation = await this.prisma.reservation.findUnique({
+        where: { id: String(reservationId) },
+        select: { campgroundId: true }
+      });
+      if (!reservation || reservation.campgroundId !== campground.id) return null;
+
       const charges = await this.repeatCharges.generateCharges(String(reservationId));
       const action: ActionDraft = {
         ...draft,
@@ -1122,6 +1148,272 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
+  private async executeRefundReservation(campground: { id: string }, draft: ActionDraft, user: any) {
+    const { reservationId, amountCents, destination, reason } = draft.parameters;
+    const amount = Number(amountCents);
+    if (!reservationId || !Number.isFinite(amount) || amount <= 0) return null;
+
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: String(reservationId) },
+      select: { id: true, campgroundId: true }
+    });
+    if (!reservation || reservation.campgroundId !== campground.id) return null;
+
+    try {
+      const updated = await this.reservations.refundPayment(
+        String(reservationId),
+        amount,
+        {
+          destination: destination === "wallet" ? "wallet" : "card",
+          reason: reason ? String(reason) : undefined
+        }
+      );
+
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: {
+          reservationId: String(reservationId),
+          refundedCents: amount,
+          paidAmount: updated.paidAmount,
+          balanceAmount: updated.balanceAmount
+        }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "reservation",
+        entityId: String(reservationId),
+        after: { refundedCents: amount, destination: destination ?? "card" }
+      });
+
+      return {
+        action,
+        message: `Recorded a ${amount} cent refund for reservation ${reservationId}. Confirm processor refund if needed.`
+      };
+    } catch (err) {
+      this.logger.warn("Reservation refund failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
+  private async executeSendGuestMessage(campground: { id: string }, draft: ActionDraft, user: any) {
+    const { guestId, reservationId, message, body, subject } = draft.parameters;
+    const noteBody = message ?? body;
+    if (!noteBody || (!guestId && !reservationId)) return null;
+
+    let resolvedGuestId: string | null = guestId ? String(guestId) : null;
+    let resolvedReservationId: string | null = reservationId ? String(reservationId) : null;
+    let organizationId: string | null = null;
+
+    if (resolvedReservationId) {
+      const reservation = await this.prisma.reservation.findUnique({
+        where: { id: resolvedReservationId },
+        select: { campgroundId: true, guestId: true, campground: { select: { organizationId: true } } }
+      });
+      if (!reservation || reservation.campgroundId !== campground.id) return null;
+      resolvedGuestId = resolvedGuestId ?? reservation.guestId;
+      organizationId = reservation.campground?.organizationId ?? null;
+    } else if (resolvedGuestId) {
+      const match = await this.prisma.reservation.findFirst({
+        where: { guestId: resolvedGuestId, campgroundId: campground.id },
+        select: { id: true, campground: { select: { organizationId: true } } }
+      });
+      if (!match) return null;
+      organizationId = match.campground?.organizationId ?? null;
+    }
+
+    try {
+      const communication = await (this.prisma as any).communication.create({
+        data: {
+          campgroundId: campground.id,
+          organizationId,
+          guestId: resolvedGuestId ?? null,
+          reservationId: resolvedReservationId ?? null,
+          type: "note",
+          direction: "outbound",
+          subject: subject ? String(subject) : null,
+          body: String(noteBody),
+          preview: String(noteBody).slice(0, 280),
+          status: "sent",
+          provider: "internal"
+        }
+      });
+
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: { communicationId: communication.id }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "communication",
+        entityId: communication.id,
+        after: { reservationId: resolvedReservationId, guestId: resolvedGuestId }
+      });
+
+      return {
+        action,
+        message: "Logged an outbound guest note in the communications timeline."
+      };
+    } catch (err) {
+      this.logger.warn("Guest note create failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
+  private async executeMoveReservation(campground: { id: string }, draft: ActionDraft, user: any) {
+    const {
+      reservationId,
+      newArrivalDate,
+      newDepartureDate,
+      arrivalDate,
+      departureDate,
+      newSiteId,
+      newSiteNumber,
+      siteId,
+      siteNumber
+    } = draft.parameters;
+    if (!reservationId) return null;
+
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: String(reservationId) },
+      select: { campgroundId: true }
+    });
+    if (!reservation || reservation.campgroundId !== campground.id) return null;
+
+    const targetArrival = newArrivalDate ?? arrivalDate;
+    const targetDeparture = newDepartureDate ?? departureDate;
+    const targetSiteId = newSiteId ?? siteId;
+    const targetSiteNumber = newSiteNumber ?? siteNumber;
+    const resolvedSiteId = await this.resolveSiteId(campground.id, {
+      siteId: targetSiteId,
+      siteNumber: targetSiteNumber
+    });
+    if (targetSiteNumber && !resolvedSiteId) return null;
+
+    const updatePayload: Record<string, any> = { updatedBy: user?.id ?? null };
+    if (targetArrival) updatePayload.arrivalDate = String(targetArrival);
+    if (targetDeparture) updatePayload.departureDate = String(targetDeparture);
+    if (resolvedSiteId) updatePayload.siteId = resolvedSiteId;
+
+    if (Object.keys(updatePayload).length <= 1) return null;
+
+    try {
+      const updated = await this.reservations.update(String(reservationId), updatePayload as any);
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: {
+          reservationId: String(reservationId),
+          siteId: updated.siteId,
+          arrivalDate: updated.arrivalDate,
+          departureDate: updated.departureDate
+        }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "reservation",
+        entityId: String(reservationId),
+        after: { siteId: updated.siteId, arrivalDate: updated.arrivalDate, departureDate: updated.departureDate }
+      });
+
+      return {
+        action,
+        message: `Moved reservation ${reservationId} to site ${updated.siteId}.`
+      };
+    } catch (err) {
+      this.logger.warn("Move reservation failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
+  private async executeAdjustRate(campground: { id: string }, draft: ActionDraft, user: any) {
+    const {
+      siteClassId,
+      siteClassName,
+      adjustmentType,
+      adjustmentValue,
+      newRateCents,
+      stackMode,
+      startDate,
+      endDate,
+      reason,
+      name,
+      dowMask,
+      priority,
+      type
+    } = draft.parameters;
+
+    const resolvedClass = await this.resolveSiteClass(campground.id, { siteClassId, siteClassName });
+    const desiredRate = newRateCents !== undefined ? Number(newRateCents) : null;
+    let resolvedAdjustment = adjustmentValue !== undefined ? Number(adjustmentValue) : null;
+
+    if (!Number.isFinite(resolvedAdjustment ?? NaN) && desiredRate !== null) {
+      if (!resolvedClass) return null;
+      resolvedAdjustment = desiredRate - Number(resolvedClass.defaultRate ?? 0);
+    }
+
+    if (!Number.isFinite(resolvedAdjustment ?? NaN)) return null;
+
+    const ruleName = name
+      ? String(name)
+      : reason
+        ? `AI Adjustment: ${reason}`
+        : "AI Adjustment";
+
+    try {
+      const created = await this.pricingV2.create(
+        campground.id,
+        {
+          name: ruleName,
+          type: (type ?? "event") as any,
+          priority: Number.isFinite(Number(priority)) ? Number(priority) : 10,
+          stackMode: (stackMode ?? (desiredRate !== null ? "override" : "additive")) as any,
+          adjustmentType: (adjustmentType ?? "flat") as any,
+          adjustmentValue: resolvedAdjustment,
+          siteClassId: resolvedClass?.id ?? null,
+          startDate: startDate ? String(startDate) : null,
+          endDate: endDate ? String(endDate) : null,
+          dowMask: Array.isArray(dowMask) ? dowMask.map((v: any) => Number(v)).filter((v: number) => Number.isFinite(v)) : undefined,
+          active: true
+        },
+        user?.id ?? null
+      );
+
+      const action: ActionDraft = {
+        ...draft,
+        status: "executed",
+        result: { ruleId: created.id, name: created.name }
+      };
+
+      await this.audit.record({
+        campgroundId: campground.id,
+        actorId: user?.id ?? null,
+        action: "ai.partner.execute",
+        entity: "pricingRuleV2",
+        entityId: created.id,
+        after: { adjustmentValue: resolvedAdjustment, adjustmentType: adjustmentType ?? "flat" }
+      });
+
+      return {
+        action,
+        message: `Created pricing rule "${created.name}".`
+      };
+    } catch (err) {
+      this.logger.warn("Adjust rate failed", err instanceof Error ? err.message : `${err}`);
+      return null;
+    }
+  }
+
   private async executeWriteAction(campground: { id: string }, draft: ActionDraft, user: any) {
     if (draft.actionType === "create_hold") {
       return this.executeHold(campground, draft, user);
@@ -1140,6 +1432,18 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
     if (draft.actionType === "generate_billing_schedule") {
       return this.executeGenerateBillingSchedule(campground, draft, user);
+    }
+    if (draft.actionType === "refund_reservation") {
+      return this.executeRefundReservation(campground, draft, user);
+    }
+    if (draft.actionType === "send_guest_message") {
+      return this.executeSendGuestMessage(campground, draft, user);
+    }
+    if (draft.actionType === "move_reservation") {
+      return this.executeMoveReservation(campground, draft, user);
+    }
+    if (draft.actionType === "adjust_rate") {
+      return this.executeAdjustRate(campground, draft, user);
     }
     return null;
   }
@@ -1176,6 +1480,18 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
     if (actionType === "generate_billing_schedule") {
       return [{ label: "Repeat charges", url: "/billing/repeat-charges" }];
+    }
+    if (actionType === "refund_reservation") {
+      if (parameters.reservationId) {
+        return [{ label: "Reservation", url: `/reservations/${parameters.reservationId}` }];
+      }
+      return [{ label: "Payments", url: "/finance" }];
+    }
+    if (actionType === "send_guest_message") {
+      if (parameters.reservationId) {
+        return [{ label: "Messages", url: `/messages?reservationId=${parameters.reservationId}` }];
+      }
+      return [{ label: "Messages", url: "/messages" }];
     }
     if (actionType === "move_reservation" && parameters.reservationId) {
       return [{ label: "Reservation", url: `/reservations/${parameters.reservationId}` }];

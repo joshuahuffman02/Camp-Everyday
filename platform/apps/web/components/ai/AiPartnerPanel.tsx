@@ -65,6 +65,8 @@ const ACTION_LABELS: Record<string, string> = {
   create_operational_task: "Create ops task",
   update_housekeeping_status: "Update housekeeping",
   generate_billing_schedule: "Generate billing schedule",
+  refund_reservation: "Refund reservation",
+  send_guest_message: "Send guest note",
   move_reservation: "Move reservation",
   adjust_rate: "Adjust rate",
 };
@@ -175,7 +177,7 @@ export function AiPartnerPanel({ campgroundId, enabled = true }: { campgroundId:
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Ask for availability checks, maintenance blocks, operations tasks, or billing actions. Actions run with your permissions (beta), and I can guide anything I can't run.
+          Ask for availability checks, maintenance blocks, ops tasks, refunds, guest notes, or rate moves. Actions run with your permissions (beta), and I can guide anything I can't run.
         </div>
 
         {!enabled && (
@@ -342,7 +344,7 @@ export function AiPartnerPanel({ campgroundId, enabled = true }: { campgroundId:
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Host to check availability, block a site, create tasks, or draft a change..."
+            placeholder="Ask Host to check availability, block a site, refund, log a guest note, or adjust rates..."
             className="min-h-[84px] bg-white"
             disabled={chatMutation.isPending || !enabled}
           />

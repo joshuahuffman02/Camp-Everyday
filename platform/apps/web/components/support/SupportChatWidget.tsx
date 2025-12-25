@@ -68,6 +68,8 @@ const ACTION_LABELS: Record<string, string> = {
   create_operational_task: "Create ops task",
   update_housekeeping_status: "Update housekeeping",
   generate_billing_schedule: "Generate billing schedule",
+  refund_reservation: "Refund reservation",
+  send_guest_message: "Send guest note",
   move_reservation: "Move reservation",
   adjust_rate: "Adjust rate",
 };
@@ -79,7 +81,11 @@ const EXECUTABLE_ACTIONS = new Set([
   "create_maintenance_ticket",
   "create_operational_task",
   "update_housekeeping_status",
-  "generate_billing_schedule"
+  "generate_billing_schedule",
+  "refund_reservation",
+  "send_guest_message",
+  "move_reservation",
+  "adjust_rate"
 ]);
 
 function formatValue(value: any) {
@@ -118,12 +124,18 @@ function toLabel(value: string) {
 
 function buildActionSummary(draft: ActionDraft) {
   const params = draft.parameters ?? {};
-  const dateRange = formatDateRange(params.arrivalDate, params.departureDate);
-  const siteLabel = params.siteNumber
-    ? `Site ${params.siteNumber}`
-    : params.siteId
-      ? `Site ${formatId(params.siteId)}`
-      : null;
+  const primaryArrival = params.newArrivalDate ?? params.arrivalDate;
+  const primaryDeparture = params.newDepartureDate ?? params.departureDate;
+  const dateRange = formatDateRange(primaryArrival, primaryDeparture);
+  const siteLabel = params.newSiteNumber
+    ? `Site ${params.newSiteNumber}`
+    : params.newSiteId
+      ? `Site ${formatId(params.newSiteId)}`
+      : params.siteNumber
+        ? `Site ${params.siteNumber}`
+        : params.siteId
+          ? `Site ${formatId(params.siteId)}`
+          : null;
   const reservationLabel = params.reservationId ? `Reservation ${formatId(params.reservationId)}` : null;
 
   switch (draft.actionType) {
@@ -155,12 +167,25 @@ function buildActionSummary(draft: ActionDraft) {
       return siteLabel ? `Updating housekeeping for ${siteLabel}.` : "Updating housekeeping status.";
     case "generate_billing_schedule":
       return "Generating a billing schedule for the reservation.";
+    case "refund_reservation":
+      if (params.amountCents && reservationLabel) {
+        return `Refunding ${params.amountCents} cents for ${reservationLabel}.`;
+      }
+      if (reservationLabel) return `Refunding ${reservationLabel}.`;
+      return "Refunding a reservation.";
+    case "send_guest_message":
+      if (params.subject) return `Logging a guest note: ${params.subject}.`;
+      return "Logging a guest note.";
     case "move_reservation":
-      if (reservationLabel && dateRange) return `Drafting a move for ${reservationLabel} to ${dateRange}.`;
+      if (reservationLabel && siteLabel && dateRange) return `Moving ${reservationLabel} to ${siteLabel} (${dateRange}).`;
+      if (reservationLabel && siteLabel) return `Moving ${reservationLabel} to ${siteLabel}.`;
+      if (reservationLabel && dateRange) return `Moving ${reservationLabel} to ${dateRange}.`;
       if (reservationLabel) return `Drafting a move for ${reservationLabel}.`;
       return "Drafting a reservation move.";
     case "adjust_rate":
-      return dateRange ? `Drafting a rate adjustment for ${dateRange}.` : "Drafting a rate adjustment.";
+      if (params.siteClassName && dateRange) return `Adjusting rates for ${params.siteClassName} (${dateRange}).`;
+      if (params.siteClassName) return `Adjusting rates for ${params.siteClassName}.`;
+      return dateRange ? `Adjusting rates for ${dateRange}.` : "Adjusting rates.";
     default:
       return "";
   }
@@ -194,6 +219,14 @@ function buildActionHighlights(draft: ActionDraft) {
   if (params.status) addItem("status", "Status", String(params.status));
   if (params.housekeepingStatus) addItem("housekeepingStatus", "Housekeeping", String(params.housekeepingStatus));
   if (params.type) addItem("type", "Type", String(params.type));
+  if (params.amountCents) addItem("amountCents", "Amount (cents)", String(params.amountCents));
+  if (params.destination) addItem("destination", "Destination", String(params.destination));
+  if (params.subject) addItem("subject", "Subject", String(params.subject));
+  if (params.message || params.body) addItem("message", "Message", formatValue(params.message ?? params.body));
+  if (params.adjustmentType) addItem("adjustmentType", "Adjustment type", String(params.adjustmentType));
+  if (params.adjustmentValue) addItem("adjustmentValue", "Adjustment", String(params.adjustmentValue));
+  if (params.newRateCents) addItem("newRateCents", "New rate (cents)", String(params.newRateCents));
+  if (params.siteClassName) addItem("siteClassName", "Site class", String(params.siteClassName));
 
   if (params.newSiteNumber) {
     addItem("newSiteNumber", "New site", String(params.newSiteNumber));
@@ -923,7 +956,9 @@ export function SupportChatWidget() {
             "Check availability for next weekend",
             "Block site 12 for maintenance June 10-20",
             "Create maintenance ticket for site 7: broken pedestal",
-            "Mark site 3 housekeeping clean",
+            "Move reservation ABC123 to site 4 July 10-12",
+            "Refund reservation ABC123 5000 cents",
+            "Log guest note for reservation ABC123: late arrival",
           ].map((prompt) => (
             <button
               key={prompt}
@@ -951,7 +986,7 @@ export function SupportChatWidget() {
               }
             }}
             onKeyDown={handleKeyDown}
-            placeholder={isSupportMode ? "Ask a question..." : "Ask for actions, maintenance, billing, or drafts..."}
+            placeholder={isSupportMode ? "Ask a question..." : "Ask for actions, maintenance, billing, messaging, or drafts..."}
             className={`flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 text-sm ${
               isSupportMode ? "focus:ring-blue-500/20 focus:border-blue-500" : "focus:ring-emerald-500/20 focus:border-emerald-500"
             }`}
