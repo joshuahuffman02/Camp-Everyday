@@ -45,7 +45,17 @@ import {
   CheckCircle2,
   PawPrint,
   Accessibility,
+  Truck,
+  ArrowLeft,
+  ArrowRight,
+  Gauge,
+  Flame,
+  Table2,
+  TreeDeciduous,
+  Cable,
+  Wifi,
 } from "lucide-react";
+import { SITE_CLASS_AMENITIES } from "../../../../lib/amenities";
 import { cn } from "../../../../lib/utils";
 import {
   SPRING_CONFIG,
@@ -702,6 +712,33 @@ export default function SiteClassesPage() {
                   const siteCount = sitesPerClass[cls.id] || 0;
                   const hasHookups = cls.hookupsPower || cls.hookupsWater || cls.hookupsSewer;
 
+                  // Extended fields from onboarding
+                  const extCls = cls as any;
+                  const rentalType = extCls.rentalType || "transient";
+                  const rvOrientation = extCls.rvOrientation;
+                  const electricAmps = extCls.electricAmps as number[] | undefined;
+                  const equipmentTypes = extCls.equipmentTypes as string[] | undefined;
+                  const slideOutsAccepted = extCls.slideOutsAccepted;
+                  const occupantsIncluded = extCls.occupantsIncluded;
+                  const extraAdultFee = extCls.extraAdultFee;
+                  const extraChildFee = extCls.extraChildFee;
+                  const meteredEnabled = extCls.meteredEnabled;
+                  const meteredType = extCls.meteredType;
+                  const amenityTags = extCls.amenityTags as string[] | undefined;
+
+                  const rentalTypeLabels: Record<string, string> = {
+                    transient: "Nightly",
+                    weekly: "Weekly",
+                    monthly: "Monthly",
+                    seasonal: "Seasonal",
+                    annual: "Annual",
+                  };
+
+                  const orientationLabels: Record<string, { label: string; icon: React.ReactNode }> = {
+                    "pull-through": { label: "Pull-Through", icon: <ArrowRight className="h-3 w-3" /> },
+                    "back-in": { label: "Back-In", icon: <ArrowLeft className="h-3 w-3" /> },
+                  };
+
                   return (
                     <motion.div
                       key={cls.id}
@@ -716,11 +753,16 @@ export default function SiteClassesPage() {
                         <CardContent className="p-4">
                           {/* Header */}
                           <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Badge className={cn("text-xs flex items-center gap-1", typeConfig.color)}>
                                 {typeConfig.icon}
                                 {typeConfig.label}
                               </Badge>
+                              {rentalType !== "transient" && (
+                                <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800">
+                                  {rentalTypeLabels[rentalType] || rentalType}
+                                </Badge>
+                              )}
                               {!cls.isActive && (
                                 <Badge variant="outline" className="text-xs text-muted-foreground">
                                   Inactive
@@ -793,11 +835,40 @@ export default function SiteClassesPage() {
                             </p>
                           )}
 
+                          {/* RV Configuration (only for RV sites) */}
+                          {cls.siteType === "rv" && (rvOrientation || (electricAmps && electricAmps.length > 0)) && (
+                            <div className="flex flex-wrap gap-2 mb-3 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30">
+                              {rvOrientation && orientationLabels[rvOrientation] && (
+                                <div className="flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400">
+                                  {orientationLabels[rvOrientation].icon}
+                                  <span>{orientationLabels[rvOrientation].label}</span>
+                                </div>
+                              )}
+                              {electricAmps && electricAmps.length > 0 && (
+                                <div className="flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400">
+                                  <Gauge className="h-3 w-3" />
+                                  <span>{electricAmps.join("/")}A</span>
+                                </div>
+                              )}
+                              {slideOutsAccepted && slideOutsAccepted !== "none" && (
+                                <div className="flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400">
+                                  <Truck className="h-3 w-3" />
+                                  <span>Slide-outs: {slideOutsAccepted}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Features */}
                           <div className="flex flex-wrap gap-2 mb-3">
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Users className="h-3.5 w-3.5" />
-                              {cls.maxOccupancy} guests
+                              {occupantsIncluded || cls.maxOccupancy} guests
+                              {(extraAdultFee || extraChildFee) && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  (+fees)
+                                </span>
+                              )}
                             </div>
                             {hasHookups && (
                               <div className="flex items-center gap-1">
@@ -806,9 +877,42 @@ export default function SiteClassesPage() {
                                 {cls.hookupsSewer && <Waves className="h-3.5 w-3.5 text-slate-500" />}
                               </div>
                             )}
+                            {meteredEnabled && (
+                              <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                                <Gauge className="h-3.5 w-3.5" />
+                                {meteredType === "electric" ? "Metered" : meteredType === "propane" ? "Propane" : "Metered"}
+                              </div>
+                            )}
                             {cls.petFriendly && <PawPrint className="h-3.5 w-3.5 text-orange-500" />}
                             {cls.accessible && <Accessibility className="h-3.5 w-3.5 text-blue-500" />}
                           </div>
+
+                          {/* Amenity Tags */}
+                          {amenityTags && amenityTags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {amenityTags.slice(0, 4).map((tag) => {
+                                const amenity = SITE_CLASS_AMENITIES.find((a) => a.id === tag);
+                                if (!amenity) return null;
+                                return (
+                                  <Badge
+                                    key={tag}
+                                    variant="secondary"
+                                    className="text-[10px] py-0 px-1.5 bg-muted text-muted-foreground"
+                                  >
+                                    {amenity.label}
+                                  </Badge>
+                                );
+                              })}
+                              {amenityTags.length > 4 && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] py-0 px-1.5 bg-muted text-muted-foreground"
+                                >
+                                  +{amenityTags.length - 4} more
+                                </Badge>
+                              )}
+                            </div>
+                          )}
 
                           {/* Site Count */}
                           <div className="pt-3 border-t border-border">
