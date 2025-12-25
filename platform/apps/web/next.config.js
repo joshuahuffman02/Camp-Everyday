@@ -124,19 +124,6 @@ const nextConfig = {
     ],
   },
 
-  // Webpack configuration for performance
-  webpack: (config, { dev, isServer }) => {
-    // Production optimizations
-    if (!dev && !isServer) {
-      // Enable tree shaking for icons
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        "lucide-react": "lucide-react/dist/esm/icons",
-      };
-    }
-
-    return config;
-  },
 };
 
 module.exports = nextConfig;

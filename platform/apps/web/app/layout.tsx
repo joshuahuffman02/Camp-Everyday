@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     default: SEO_CONFIG.defaultTitle,
   },
   description: SEO_CONFIG.defaultDescription,
-  keywords: SEO_CONFIG.keywords,
+  keywords: [...SEO_CONFIG.keywords],
   manifest: "/manifest.webmanifest",
   applicationName: SEO_CONFIG.siteName,
   authors: [{ name: "Camp Everyday Team" }],
