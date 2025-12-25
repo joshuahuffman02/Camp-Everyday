@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { TableEmpty } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, MessageSquare, Users, Send, User, Clock, CheckCheck, Search, Plus, Hash, ClipboardList, ClipboardCheck, HeartPulse } from "lucide-react";
+import { Loader2, MessageSquare, Users, Send, User, Clock, CheckCheck, Search, Plus, Hash, ClipboardList, ClipboardCheck, HeartPulse, Info, AlertCircle, Sparkles } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
 import { MobileQuickActionsBar } from "@/components/staff/MobileQuickActionsBar";
+import { cn } from "@/lib/utils";
+
+const SPRING_CONFIG = {
+    type: "spring" as const,
+    stiffness: 300,
+    damping: 25,
+};
 
 type Message = {
     id: string;
@@ -67,10 +75,52 @@ export default function MessagesPage() {
     const [activeTab, setActiveTab] = useState("guests");
     const [guestFilter, setGuestFilter] = useState<"all" | "overdue">("all");
     const [overdueNotified, setOverdueNotified] = useState(false);
+    const [sendSuccess, setSendSuccess] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
     const activeFilterCount =
         (statusFilter !== "all" ? 1 : 0) +
         (dateRange.start ? 1 : 0) +
         (dateRange.end ? 1 : 0);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyPress = (e: KeyboardEvent) => {
+            // Ignore if user is typing in an input
+            if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
+                return;
+            }
+
+            // Cmd/Ctrl + K: Focus search
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                const searchInput = document.querySelector('input[placeholder="Search..."]') as HTMLInputElement;
+                searchInput?.focus();
+            }
+
+            // G then G: Go to guests tab
+            // G then T: Go to team tab
+            // G then N: Go to needs reply
+            if (e.key === 'g') {
+                const handleSecondKey = (e2: KeyboardEvent) => {
+                    if (e2.key === 'g') {
+                        setActiveTab('guests');
+                        setGuestFilter('all');
+                    } else if (e2.key === 't') {
+                        setActiveTab('team');
+                    } else if (e2.key === 'n') {
+                        setActiveTab('guests');
+                        setGuestFilter('overdue');
+                    }
+                    window.removeEventListener('keydown', handleSecondKey);
+                };
+                window.addEventListener('keydown', handleSecondKey);
+                setTimeout(() => window.removeEventListener('keydown', handleSecondKey), 1000);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
+    }, []);
 
     // Internal Chat State
     const [selectedInternalConversationId, setSelectedInternalConversationId] = useState<string | null>(null);
@@ -281,11 +331,12 @@ export default function MessagesPage() {
         if (!conv) return;
 
         setSending(true);
+        const messageContent = newMessage.trim();
         try {
             const guestId = conv.messages[0]?.guest?.id || "";
             const message = await apiClient.sendReservationMessage(
                 selectedReservationId,
-                newMessage.trim(),
+                messageContent,
                 "staff",
                 guestId
             );
@@ -297,8 +348,22 @@ export default function MessagesPage() {
                 )
             );
             setNewMessage("");
+            setSendSuccess(true);
+            setTimeout(() => setSendSuccess(false), 1500);
+            toast({
+                title: "Message sent",
+                description: "Your message was delivered to the guest.",
+                variant: "default"
+            });
+            // Scroll to bottom after sending
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         } catch (err) {
             console.error("Failed to send message:", err);
+            toast({
+                title: "Failed to send message",
+                description: "Please try again or contact support if the problem persists.",
+                variant: "destructive"
+            });
         } finally {
             setSending(false);
         }
@@ -313,6 +378,11 @@ export default function MessagesPage() {
             queryClient.invalidateQueries({ queryKey: ["internal-messages", selectedInternalConversationId] });
         } catch (err) {
             console.error("Failed to send internal message:", err);
+            toast({
+                title: "Failed to send message",
+                description: "Please try again or contact support if the problem persists.",
+                variant: "destructive"
+            });
         } finally {
             setSending(false);
         }
@@ -377,8 +447,8 @@ export default function MessagesPage() {
             <DashboardShell>
                 <div className="flex items-center justify-center min-h-[60vh]">
                     <div className="text-center">
-                        <h2 className="text-2xl font-bold text-slate-900 mb-2">No Campground Selected</h2>
-                        <p className="text-slate-600">Select a campground to view messages</p>
+                        <h2 className="text-2xl font-bold text-foreground mb-2">No Campground Selected</h2>
+                        <p className="text-muted-foreground">Select a campground to view messages</p>
                     </div>
                 </div>
             </DashboardShell>
@@ -388,127 +458,155 @@ export default function MessagesPage() {
     return (
         <DashboardShell>
             <div className="space-y-4 pb-24 md:pb-10" id="messages-shell">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    <Card>
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={SPRING_CONFIG}
+                    className="flex items-center justify-between mb-2"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25">
+                            <MessageSquare className="h-5 w-5" />
+                        </div>
+                        <h1 className="text-2xl font-bold text-foreground">Messages</h1>
+                    </div>
+                    <div className="text-xs text-muted-foreground hidden md:block">
+                        Shortcuts: <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">⌘K</kbd> search • <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">GN</kbd> needs reply
+                    </div>
+                </motion.div>
+
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...SPRING_CONFIG, delay: 0.05 }}
+                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
+                >
+                    <Card className="group hover:shadow-md transition-shadow">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm text-slate-500">Conversations</CardTitle>
+                            <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                                <MessageSquare className="h-4 w-4 transition-colors group-hover:text-blue-500" />
+                                Conversations
+                            </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0">
-                            <div className="text-2xl font-semibold text-slate-900">{totalConversations}</div>
-                            <div className="text-xs text-slate-500">Total active</div>
+                            <div className="text-2xl font-semibold text-foreground">{totalConversations}</div>
+                            <div className="text-xs text-muted-foreground">Total active</div>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card className="group hover:shadow-md transition-shadow">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm text-slate-500">Unread</CardTitle>
+                            <CardTitle className="text-sm text-muted-foreground">Unread</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0">
-                            <div className="text-2xl font-semibold text-slate-900">{unreadCount}</div>
-                            <div className="text-xs text-slate-500">Guest messages unseen</div>
+                            <div className="text-2xl font-semibold text-foreground">{unreadCount}</div>
+                            <div className="text-xs text-muted-foreground">Guest messages unseen</div>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card className={cn(
+                        "group transition-all",
+                        overdueCount > 0
+                            ? "border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/20 hover:shadow-amber-100 dark:hover:shadow-amber-900/50"
+                            : "hover:shadow-md"
+                    )}>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm text-slate-500">Needs reply</CardTitle>
+                            <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                                <Clock className={cn(
+                                    "h-4 w-4 transition-colors",
+                                    overdueCount > 0 ? "text-amber-600 dark:text-amber-400" : "group-hover:text-emerald-500"
+                                )} />
+                                Needs reply
+                            </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0">
-                            <div className="text-2xl font-semibold text-amber-700">{overdueCount}</div>
-                            <div className="text-xs text-slate-500">Over SLA ({SLA_MINUTES} min)</div>
+                            <div className={cn(
+                                "text-2xl font-semibold",
+                                overdueCount > 0
+                                    ? "text-amber-700 dark:text-amber-400"
+                                    : "text-emerald-700 dark:text-emerald-400"
+                            )}>
+                                {overdueCount}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                                {overdueCount > 0 ? `Over ${SLA_MINUTES} min SLA` : `Within ${SLA_MINUTES} min SLA`}
+                            </div>
+                            {overdueCount > 0 && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="mt-2 w-full border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-xs"
+                                    onClick={() => {
+                                        setActiveTab("guests");
+                                        setGuestFilter("overdue");
+                                    }}
+                                >
+                                    View overdue
+                                </Button>
+                            )}
                         </CardContent>
                     </Card>
-                </div>
+                </motion.div>
 
                 {/* Mobile quick actions */}
                 <div className="md:hidden">
-                    <div className="rounded-2xl border bg-white shadow-sm p-3 flex flex-wrap gap-2">
+                    <div className="rounded-2xl border bg-card shadow-sm p-2 flex flex-wrap gap-2">
                         <Button
                             size="sm"
-                            variant={activeTab === "guests" ? "secondary" : "outline"}
-                            className="flex-1 min-w-[120px]"
-                            onClick={() => setActiveTab("guests")}
+                            variant={activeTab === "guests" && guestFilter === "all" ? "default" : "outline"}
+                            className="flex-1"
+                            onClick={() => {
+                                setActiveTab("guests");
+                                setGuestFilter("all");
+                            }}
                         >
-                            Guest inbox
+                            <User className="h-4 w-4 mr-1.5" />
+                            Guests
                         </Button>
                         <Button
                             size="sm"
-                            variant={activeTab === "team" ? "secondary" : "outline"}
-                            className="flex-1 min-w-[120px]"
+                            variant={activeTab === "guests" && guestFilter === "overdue" ? "destructive" : "outline"}
+                            className="flex-1 relative"
+                            onClick={() => {
+                                setActiveTab("guests");
+                                setGuestFilter("overdue");
+                            }}
+                        >
+                            <Clock className="h-4 w-4 mr-1.5" />
+                            Needs reply
+                            {overdueCount > 0 && (
+                                <Badge variant="secondary" className="ml-1.5 bg-white/20 text-[10px] px-1">
+                                    {overdueCount}
+                                </Badge>
+                            )}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={activeTab === "team" ? "default" : "outline"}
+                            className="flex-1"
                             onClick={() => setActiveTab("team")}
                         >
-                            Team chat
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant={guestFilter === "overdue" ? "secondary" : "outline"}
-                            className="flex-1 min-w-[120px]"
-                            onClick={() => setGuestFilter(guestFilter === "overdue" ? "all" : "overdue")}
-                        >
-                            {guestFilter === "overdue" ? "All guests" : "Needs reply"}
+                            <Users className="h-4 w-4 mr-1.5" />
+                            Team
                         </Button>
                     </div>
                 </div>
 
-                <div className="rounded-2xl border bg-white shadow-sm p-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <span className="font-semibold text-slate-700">Filters</span>
-                            {activeFilterCount > 0 && (
-                                <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold">
-                                {activeFilterCount} active
-                                </span>
-                            )}
-                        </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex gap-1">
-                            {(["all", "failed"] as const).map((f) => (
-                                <button
-                                    key={f}
-                                    className={`rounded-full border px-2 py-1 text-[11px] ${statusFilter === f ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600"}`}
-                                    onClick={() => setStatusFilter(f)}
-                                >
-                                    {f === "failed" ? "Failed only" : "All"}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                            <input
-                                type="date"
-                                className="rounded border border-slate-200 px-2 py-1"
-                                value={dateRange.start}
-                                onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
-                            />
-                            <span>to</span>
-                            <input
-                                type="date"
-                                className="rounded border border-slate-200 px-2 py-1"
-                                value={dateRange.end}
-                                onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
-                            />
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                    const start = new Date();
-                                    start.setDate(start.getDate() - 6);
-                                    const end = new Date();
-                                    const fmt = (d: Date) => d.toISOString().slice(0, 10);
-                                    setDateRange({ start: fmt(start), end: fmt(end) });
-                                }}
-                            >
-                                Last 7 days
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                    const today = new Date().toISOString().slice(0, 10);
-                                    setDateRange({ start: today, end: today });
-                                }}
-                            >
-                                Today
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => setDateRange({ start: "", end: "" })}>
-                                Clear dates
-                            </Button>
+                {/* Advanced filters - only show if needed */}
+                {(statusFilter !== "all" || dateRange.start || dateRange.end || activeFilterCount > 0) && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="rounded-2xl border bg-card shadow-sm p-3 flex flex-col gap-3"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span className="font-semibold text-foreground">Advanced Filters</span>
+                                {activeFilterCount > 0 && (
+                                    <span className="rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-[11px] font-semibold">
+                                        {activeFilterCount} active
+                                    </span>
+                                )}
+                            </div>
                             <Button
                                 size="sm"
                                 variant="ghost"
@@ -517,12 +615,83 @@ export default function MessagesPage() {
                                     setStatusFilter("all");
                                     setSearchTerm("");
                                 }}
+                                className="text-xs"
                             >
                                 Clear all
                             </Button>
                         </div>
-                    </div>
-                </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                            {/* Status filter */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground font-medium">Status:</span>
+                                <div className="flex gap-1">
+                                    {(["all", "failed"] as const).map((f) => (
+                                        <button
+                                            key={f}
+                                            className={cn(
+                                                "rounded-full border px-3 py-1 text-xs transition-colors",
+                                                statusFilter === f
+                                                    ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 font-medium"
+                                                    : "border-border text-muted-foreground hover:border-muted-foreground"
+                                            )}
+                                            onClick={() => setStatusFilter(f)}
+                                        >
+                                            {f === "failed" ? "Failed messages" : "All messages"}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Date range filter */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-muted-foreground font-medium">Date:</span>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <input
+                                        type="date"
+                                        className="rounded border border-input bg-background text-foreground px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                                        value={dateRange.start}
+                                        onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+                                    />
+                                    <span className="text-muted-foreground">to</span>
+                                    <input
+                                        type="date"
+                                        className="rounded border border-input bg-background text-foreground px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                                        value={dateRange.end}
+                                        onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="flex gap-1">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-xs h-7"
+                                        onClick={() => {
+                                            const today = new Date().toISOString().slice(0, 10);
+                                            setDateRange({ start: today, end: today });
+                                        }}
+                                    >
+                                        Today
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-xs h-7"
+                                        onClick={() => {
+                                            const start = new Date();
+                                            start.setDate(start.getDate() - 6);
+                                            const end = new Date();
+                                            const fmt = (d: Date) => d.toISOString().slice(0, 10);
+                                            setDateRange({ start: fmt(start), end: fmt(end) });
+                                        }}
+                                    >
+                                        Last 7 days
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
 
                 <div className="flex flex-col gap-4 lg:flex-row lg:h-[calc(100vh-12rem)]">
                 {/* Sidebar */}
@@ -562,15 +731,17 @@ export default function MessagesPage() {
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search..."
+                                    placeholder={activeTab === "guests" ? "Search guests or sites..." : "Search channels or people..."}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-9"
+                                    title={activeTab === "guests" ? "Search by guest name or site number" : "Search by channel name or team member"}
                                 />
                                 {searchTerm && (
                                     <button
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
                                         onClick={() => setSearchTerm("")}
+                                        aria-label="Clear search"
                                     >
                                         ×
                                     </button>
@@ -578,77 +749,177 @@ export default function MessagesPage() {
                             </div>
                         </div>
 
-                        <div className="overflow-y-auto px-4" style={{ display: activeTab === "guests" ? "block" : "none", flex: activeTab === "guests" ? 1 : "none" }}>
-                            <div className="flex items-center justify-between mb-2 text-sm">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-muted-foreground">SLA: {SLA_MINUTES} min</span>
-                                    {overdueCount > 0 && (
-                                        <span className="text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200 text-[11px] font-semibold">
-                                            {overdueCount} conversations need reply
-                                        </span>
+                        {/* Guest filter controls - always visible above list */}
+                        {activeTab === "guests" && (
+                            <div className="px-4 pb-3 border-b">
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant={guestFilter === "all" ? "default" : "outline"}
+                                            onClick={() => setGuestFilter("all")}
+                                            className="flex-1 sm:flex-none"
+                                        >
+                                            All guests
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant={guestFilter === "overdue" ? "destructive" : "outline"}
+                                            onClick={() => setGuestFilter("overdue")}
+                                            className="flex-1 sm:flex-none"
+                                        >
+                                            Needs reply
+                                            {overdueCount > 0 && (
+                                                <Badge variant="secondary" className="ml-1.5 bg-white/20">
+                                                    {overdueCount}
+                                                </Badge>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                        <span>SLA: {SLA_MINUTES} min</span>
+                                        <div className="group relative">
+                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                            <div className="invisible group-hover:visible absolute left-0 top-5 z-50 w-64 p-2 bg-popover text-popover-foreground text-xs rounded-md border shadow-lg">
+                                                Service Level Agreement: Guest messages should be replied to within {SLA_MINUTES} minutes. Overdue conversations are highlighted in amber.
+                                            </div>
+                                        </div>
+                                        {overdueCount > 0 && guestFilter === "all" && (
+                                            <span className="text-amber-700 dark:text-amber-400 font-medium">
+                                                • {overdueCount} overdue
+                                            </span>
+                                        )}
+                                    </div>
+                                    {statusFilter === "all" && (
+                                        <button
+                                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                                            onClick={() => setStatusFilter("failed")}
+                                            title="View messages that failed to send"
+                                        >
+                                            <AlertCircle className="h-3 w-3" />
+                                            View failed
+                                        </button>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        size="sm"
-                                        variant={guestFilter === "all" ? "secondary" : "ghost"}
-                                        onClick={() => setGuestFilter("all")}
-                                    >
-                                        All
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant={guestFilter === "overdue" ? "secondary" : "ghost"}
-                                        onClick={() => setGuestFilter("overdue")}
-                                    >
-                                        Needs reply
-                                    </Button>
-                                </div>
                             </div>
+                        )}
+
+                        <div className="overflow-y-auto px-4" style={{ display: activeTab === "guests" ? "block" : "none", flex: activeTab === "guests" ? 1 : "none" }}>
                             {loadingConversations ? (
                                 <div className="flex justify-center py-8">
                                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                                 </div>
                             ) : filteredConversations.length === 0 ? (
-                                <div className="flex flex-col items-center gap-2 text-muted-foreground py-4 border border-dashed rounded-md bg-muted/30">
-                                    <MessageSquare className="h-8 w-8 opacity-50" />
-                                    <p>No guest conversations yet</p>
-                                </div>
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="flex flex-col items-center gap-3 text-center py-8 px-4 border border-dashed rounded-lg bg-muted/30"
+                                >
+                                    {guestFilter === "overdue" ? (
+                                        <>
+                                            <motion.div
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                                className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30"
+                                            >
+                                                <Sparkles className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                                            </motion.div>
+                                            <div>
+                                                <p className="font-semibold text-foreground">All caught up!</p>
+                                                <p className="text-sm text-muted-foreground mt-1">
+                                                    No conversations need reply. Great work staying on top of guest messages!
+                                                </p>
+                                            </div>
+                                        </>
+                                    ) : searchTerm ? (
+                                        <>
+                                            <Search className="h-10 w-10 text-muted-foreground/50" />
+                                            <div>
+                                                <p className="font-medium text-foreground">No matches found</p>
+                                                <p className="text-sm text-muted-foreground mt-1">Try searching for a different guest or site</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <MessageSquare className="h-10 w-10 text-muted-foreground/50" />
+                                            <div>
+                                                <p className="font-medium text-foreground">No guest messages yet</p>
+                                                <p className="text-sm text-muted-foreground mt-1">Guest conversations will appear here when they send messages</p>
+                                            </div>
+                                        </>
+                                    )}
+                                </motion.div>
                             ) : (
                                 <div className="space-y-2 pb-4">
-                                    {filteredConversations.map(conv => (
-                                        <button
-                                            key={conv.reservationId}
-                                            onClick={() => handleSelectConversation(conv)}
-                                            className={`w-full text-left p-3 rounded-lg transition-colors ${selectedReservationId === conv.reservationId
-                                                ? "bg-primary/10 border border-primary/20"
-                                                : "hover:bg-muted"
-                                                }`}
-                                        >
-                                            <div className="flex items-start justify-between">
-                                                <div className="font-medium truncate">{conv.guestName}</div>
-                                                {conv.unreadCount > 0 && (
-                                                    <Badge variant="destructive" className="ml-2 flex-shrink-0">
-                                                        {conv.unreadCount}
-                                                    </Badge>
+                                    <AnimatePresence mode="popLayout">
+                                        {filteredConversations.map((conv, index) => {
+                                            const isOverdue = isConversationOverdue(conv);
+                                            return (
+                                            <motion.button
+                                                key={conv.reservationId}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                transition={{ delay: index * 0.02, duration: 0.2 }}
+                                                layout
+                                                onClick={() => handleSelectConversation(conv)}
+                                                className={cn(
+                                                    "w-full text-left p-3 rounded-lg transition-all duration-200 relative group",
+                                                    selectedReservationId === conv.reservationId
+                                                        ? "bg-primary/10 border border-primary/20 shadow-sm"
+                                                        : isOverdue
+                                                        ? "bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 border border-amber-200 dark:border-amber-800"
+                                                        : "hover:bg-muted border border-transparent hover:border-border"
                                                 )}
-                                            </div>
-                                            <div className="text-sm text-muted-foreground truncate">
-                                                {conv.siteName} • {conv.status.replace("_", " ")}
-                                            </div>
-                                            {conv.lastMessage && (
-                                                <div className="text-sm text-muted-foreground truncate mt-1">
-                                                    {conv.lastMessage.senderType === "staff" && "You: "}
-                                                    {conv.lastMessage.content}
+                                            >
+                                                {/* Overdue indicator stripe */}
+                                                {isOverdue && (
+                                                    <motion.div
+                                                        layoutId={`overdue-${conv.reservationId}`}
+                                                        className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 dark:bg-amber-400 rounded-l-lg"
+                                                    />
+                                                )}
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="font-medium truncate flex items-center gap-2 text-foreground">
+                                                        {conv.guestName}
+                                                        {isOverdue && (
+                                                            <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 text-[10px] px-1.5 py-0">
+                                                                SLA
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    {conv.unreadCount > 0 && (
+                                                        <motion.div
+                                                            initial={{ scale: 0 }}
+                                                            animate={{ scale: 1 }}
+                                                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                                        >
+                                                            <Badge variant="destructive" className="ml-2 flex-shrink-0">
+                                                                {conv.unreadCount}
+                                                            </Badge>
+                                                        </motion.div>
+                                                    )}
                                                 </div>
-                                            )}
-                                            {conv.lastMessage && (
-                                                <div className="text-xs text-muted-foreground mt-1">
-                                                    {formatDistanceToNow(new Date(conv.lastMessage.createdAt), { addSuffix: true })}
+                                                <div className="text-sm text-muted-foreground truncate">
+                                                    {conv.siteName} • {conv.status.replace("_", " ")}
                                                 </div>
-                                            )}
-                                        </button>
-                                    ))}
+                                                {conv.lastMessage && (
+                                                    <div className="text-sm text-muted-foreground truncate mt-1">
+                                                        {conv.lastMessage.senderType === "staff" && <span className="font-medium">You: </span>}
+                                                        {conv.lastMessage.content}
+                                                    </div>
+                                                )}
+                                                {conv.lastMessage && (
+                                                    <div className="text-xs text-muted-foreground mt-1">
+                                                        {formatDistanceToNow(new Date(conv.lastMessage.createdAt), { addSuffix: true })}
+                                                    </div>
+                                                )}
+                                            </motion.button>
+                                        );})}
+                                    </AnimatePresence>
                                 </div>
                             )}
                         </div>
@@ -902,41 +1173,53 @@ export default function MessagesPage() {
 
                             <div className="flex-1 overflow-y-auto p-3 sm:p-4">
                                 <div className="space-y-4">
-                                    {selectedConversation.messages.map((msg) => {
-                                        const isStaff = msg.senderType === "staff";
-                                        const badgeClasses = isStaff
-                                            ? "bg-blue-100 text-blue-700 border border-blue-200"
-                                            : "bg-emerald-100 text-emerald-700 border border-emerald-200";
-                                        return (
-                                        <div
-                                            key={msg.id}
-                                            className={`flex ${isStaff ? "justify-end" : "justify-start"}`}
-                                        >
-                                            <div
-                                                className={`max-w-[85%] sm:max-w-[70%] rounded-lg p-3 ${isStaff
-                                                    ? "bg-primary text-primary-foreground"
-                                                    : "bg-muted"
-                                                    }`}
+                                    <AnimatePresence mode="popLayout">
+                                        {selectedConversation.messages.map((msg, index) => {
+                                            const isStaff = msg.senderType === "staff";
+                                            const badgeClasses = isStaff
+                                                ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                                                : "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
+                                            return (
+                                            <motion.div
+                                                key={msg.id}
+                                                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                transition={{ delay: index * 0.02, duration: 0.2 }}
+                                                className={`flex ${isStaff ? "justify-end" : "justify-start"}`}
                                             >
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${badgeClasses}`}>
-                                                        {isStaff ? "Staff" : "Guest"}
-                                                    </span>
-                                                </div>
-                                                <div className="text-sm">{msg.content}</div>
-                                                <div
-                                                    className={`flex items-center gap-1 mt-1 text-xs ${isStaff ? "text-primary-foreground/70" : "text-muted-foreground"
+                                                <motion.div
+                                                    whileHover={{ scale: 1.01 }}
+                                                    className={`max-w-[85%] sm:max-w-[65%] rounded-lg p-3 ${isStaff
+                                                        ? "bg-primary text-primary-foreground"
+                                                        : "bg-muted"
                                                         }`}
                                                 >
-                                                    <Clock className="h-3 w-3" />
-                                                    {format(new Date(msg.createdAt), "h:mm a")}
-                                                    {isStaff && msg.readAt && (
-                                                        <CheckCheck className="h-3 w-3 ml-1" />
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );})}
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${badgeClasses}`}>
+                                                            {isStaff ? "Staff" : "Guest"}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-sm">{msg.content}</div>
+                                                    <div
+                                                        className={`flex items-center gap-1 mt-1 text-xs ${isStaff ? "text-primary-foreground/70" : "text-muted-foreground"
+                                                            }`}
+                                                    >
+                                                        <Clock className="h-3 w-3" />
+                                                        {format(new Date(msg.createdAt), "h:mm a")}
+                                                        {isStaff && msg.readAt && (
+                                                            <motion.div
+                                                                initial={{ scale: 0 }}
+                                                                animate={{ scale: 1 }}
+                                                                transition={{ delay: 0.3, type: "spring" }}
+                                                            >
+                                                                <CheckCheck className="h-3 w-3 ml-1 text-emerald-400" />
+                                                            </motion.div>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            </motion.div>
+                                        );})}
+                                    </AnimatePresence>
                                 </div>
                             </div>
 
@@ -946,12 +1229,48 @@ export default function MessagesPage() {
                                         placeholder="Type a message..."
                                         value={newMessage}
                                         onChange={(e) => setNewMessage(e.target.value)}
-                                        onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                                        onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
+                                        className="transition-all focus:ring-2 focus:ring-primary/20"
                                     />
-                                    <Button onClick={handleSendMessage} disabled={sending || !newMessage.trim()}>
-                                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                    <Button
+                                        onClick={handleSendMessage}
+                                        disabled={sending || !newMessage.trim()}
+                                        className="relative overflow-hidden"
+                                    >
+                                        <AnimatePresence mode="wait">
+                                            {sendSuccess ? (
+                                                <motion.div
+                                                    key="success"
+                                                    initial={{ scale: 0, rotate: -180 }}
+                                                    animate={{ scale: 1, rotate: 0 }}
+                                                    exit={{ scale: 0 }}
+                                                    transition={{ duration: 0.3, type: "spring" }}
+                                                >
+                                                    <CheckCheck className="h-4 w-4" />
+                                                </motion.div>
+                                            ) : sending ? (
+                                                <motion.div
+                                                    key="loading"
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                >
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                </motion.div>
+                                            ) : (
+                                                <motion.div
+                                                    key="send"
+                                                    initial={{ x: 0 }}
+                                                    whileHover={{ x: 2 }}
+                                                    transition={{ duration: 0.15 }}
+                                                >
+                                                    <Send className="h-4 w-4" />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </Button>
                                 </div>
+                                <div ref={messagesEndRef} />
                             </div>
                         </>
                     ) : (

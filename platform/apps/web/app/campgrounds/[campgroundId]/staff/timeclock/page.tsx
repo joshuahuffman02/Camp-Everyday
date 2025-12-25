@@ -1,14 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useWhoami } from "@/hooks/use-whoami";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StaffNavigation } from "@/components/staff/StaffNavigation";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Clock,
+  LogIn,
+  LogOut,
+  CheckCircle2,
+  AlertCircle,
+  User,
+  Calendar,
+  Sparkles,
+  Timer,
+  Coffee,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Shift = {
   id: string;
@@ -20,14 +29,29 @@ type Shift = {
   status?: string;
 };
 
+const SPRING_CONFIG = {
+  type: "spring" as const,
+  stiffness: 200,
+  damping: 20,
+};
+
 export default function TimeclockPage({ params }: { params: { campgroundId: string } }) {
   const { data: whoami } = useWhoami();
   const [resolvedCampgroundId, setResolvedCampgroundId] = useState<string | null>(params.campgroundId || null);
   const [shiftId, setShiftId] = useState("");
   const [note, setNote] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loadingShifts, setLoadingShifts] = useState(false);
+  const [clockingIn, setClockingIn] = useState(false);
+  const [clockingOut, setClockingOut] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update clock every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (resolvedCampgroundId && resolvedCampgroundId !== "undefined") return;
@@ -63,152 +87,300 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
   const call = async (action: "clock-in" | "clock-out") => {
     setStatus(null);
     if (!shiftId) {
-      setStatus("Enter a shift ID to record time.");
+      setStatus({ type: "error", message: "Please select or enter a shift ID first." });
       return;
     }
-    const res = await fetch(`/api/staff/shifts/${shiftId}/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ note })
-    });
-    if (res.ok) {
-      setStatus(action === "clock-in" ? "Clock-in recorded" : "Clock-out recorded");
-    } else {
-      setStatus("Unable to record. Check the shift ID and try again.");
+
+    if (action === "clock-in") setClockingIn(true);
+    else setClockingOut(true);
+
+    try {
+      const res = await fetch(`/api/staff/shifts/${shiftId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note })
+      });
+
+      if (res.ok) {
+        setStatus({
+          type: "success",
+          message: action === "clock-in"
+            ? "You're clocked in! Have a great shift."
+            : "You're clocked out! Great work today."
+        });
+        // Clear form on success
+        setShiftId("");
+        setNote("");
+      } else {
+        setStatus({ type: "error", message: "Unable to record. Please check the shift ID and try again." });
+      }
+    } catch {
+      setStatus({ type: "error", message: "Connection error. Please try again." });
+    } finally {
+      setClockingIn(false);
+      setClockingOut(false);
     }
   };
 
+  const selectedShift = shifts.find(s => s.id === shiftId);
+
   return (
     <DashboardShell>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">Staff</p>
-            <h1 className="text-2xl font-bold text-slate-900">Time clock</h1>
-            <p className="text-slate-600 text-sm">
-              Clock in/out against scheduled shifts for this campground.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={resolvedCampgroundId ? `/campgrounds/${resolvedCampgroundId}/staff-scheduling` : "#"}
-              className="text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-              aria-disabled={!resolvedCampgroundId}
-            >
-              View schedule →
-            </Link>
-            <Link
-              href={resolvedCampgroundId ? `/campgrounds/${resolvedCampgroundId}/staff/approvals` : "#"}
-              className="text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-              aria-disabled={!resolvedCampgroundId}
-            >
-              Timesheet approvals →
-            </Link>
-          </div>
-        </div>
+      <motion.div
+        className="space-y-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={SPRING_CONFIG}
+      >
+        <StaffNavigation campgroundId={params.campgroundId} />
 
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>Record a shift</CardTitle>
-                <CardDescription>Use the shift ID from Scheduling to clock in or out.</CardDescription>
-              </div>
-              <Badge variant="secondary" className="text-[11px]">
-                {resolvedCampgroundId ? `Campground ${resolvedCampgroundId}` : "Select campground"}
-              </Badge>
+        {/* Status Toast */}
+        <AnimatePresence>
+          {status && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className={cn(
+                "fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg",
+                status.type === "success" && "bg-emerald-600 text-white",
+                status.type === "error" && "bg-red-600 text-white",
+                status.type === "info" && "bg-blue-600 text-white"
+              )}
+              role="status"
+              aria-live="polite"
+            >
+              {status.type === "success" && <CheckCircle2 className="w-5 h-5" />}
+              {status.type === "error" && <AlertCircle className="w-5 h-5" />}
+              <span className="font-medium">{status.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Live Clock Display */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...SPRING_CONFIG, delay: 0.1 }}
+          className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-8 text-center shadow-xl"
+        >
+          <div className="text-slate-400 text-sm font-medium mb-2">
+            {currentTime.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+          </div>
+          <div className="text-5xl md:text-7xl font-bold text-white font-mono tracking-tight">
+            {currentTime.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </div>
+          {whoami?.user && (
+            <div className="mt-4 flex items-center justify-center gap-2 text-slate-300">
+              <User className="w-4 h-4" />
+              <span className="text-sm">
+                {(whoami as any)?.user?.name || (whoami as any)?.user?.email || "Staff Member"}
+              </span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!resolvedCampgroundId && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Choose a campground first (saved selection is required to load your shifts).
+          )}
+        </motion.div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Select Shift Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...SPRING_CONFIG, delay: 0.15 }}
+            className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Select Your Shift</h2>
+                  <p className="text-sm text-slate-600">Choose from your scheduled shifts</p>
+                </div>
               </div>
-            )}
-            {whoami?.user?.id && resolvedCampgroundId && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <div className="font-semibold text-slate-900">Signed in as</div>
-                <div>{(whoami as any)?.user?.name || (whoami as any)?.user?.email || (whoami as any)?.user?.id}</div>
-              </div>
-            )}
-            {resolvedCampgroundId && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <div className="font-semibold text-slate-900 mb-1">My shifts</div>
-                {loadingShifts ? (
-                  <div className="text-xs text-slate-500">Loading shifts…</div>
-                ) : shifts.length === 0 ? (
-                  <div className="text-xs text-slate-500">No recent shifts found for you. You can still enter an ID manually.</div>
-                ) : (
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <Select value={shiftId} onValueChange={setShiftId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select your shift" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {shifts.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {new Date(s.shiftDate).toLocaleDateString()} · {new Date(s.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} – {new Date(s.endTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {s.role || "Shift"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {!resolvedCampgroundId ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  Please select a campground first.
+                </div>
+              ) : loadingShifts ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-16 bg-slate-100 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : shifts.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Coffee className="w-6 h-6 text-slate-400" />
                   </div>
-                )}
+                  <p className="text-slate-600 text-sm">No shifts found for this week.</p>
+                  <p className="text-slate-500 text-xs mt-1">You can still enter a shift ID manually below.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {shifts.map((shift) => (
+                    <motion.button
+                      key={shift.id}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      onClick={() => setShiftId(shift.id)}
+                      className={cn(
+                        "w-full text-left rounded-lg border-2 p-4 transition-all",
+                        shiftId === shift.id
+                          ? "border-teal-500 bg-teal-50"
+                          : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-900">
+                            {shift.role || "Shift"}
+                          </div>
+                          <div className="text-sm text-slate-600">
+                            {new Date(shift.shiftDate).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                            {" "}&middot;{" "}
+                            {new Date(shift.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                            {" - "}
+                            {new Date(shift.endTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                          </div>
+                        </div>
+                        {shiftId === shift.id && (
+                          <div className="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center">
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              )}
+
+              {/* Manual Entry */}
+              <div className="pt-4 border-t border-slate-100">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Or enter shift ID manually
+                </label>
+                <input
+                  type="text"
+                  value={shiftId}
+                  onChange={(e) => setShiftId(e.target.value)}
+                  placeholder="shift_cuid..."
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow"
+                />
               </div>
-            )}
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="space-y-1">
-                <span className="text-sm text-slate-700 font-medium">Shift ID</span>
-                <Input
-              placeholder="shift_cuid"
-              value={shiftId}
-              onChange={(e) => setShiftId(e.target.value)}
-              data-testid="timeclock-shift-id"
-            />
-                <p className="text-xs text-slate-500">
-                  Find this in Staff Scheduling under the shift details.
-                </p>
-          </label>
-          <label className="space-y-1">
-                <span className="text-sm text-slate-700 font-medium">Note (optional)</span>
-                <Input
-              placeholder="Front desk"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-                <p className="text-xs text-slate-500">E.g., location or task for this shift.</p>
-          </label>
-        </div>
-
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={() => call("clock-in")} data-testid="timeclock-in">
-            Clock In
-              </Button>
-              <Button variant="outline" onClick={() => call("clock-out")} data-testid="timeclock-out">
-            Clock Out
-              </Button>
-              <Button variant="ghost" onClick={() => { setShiftId(""); setNote(""); setStatus(null); }}>
-                Clear
-              </Button>
-        </div>
-
-        {status && (
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm" role="status">
-            {status}
-          </div>
-        )}
-
-            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              <div className="font-semibold text-slate-900 mb-1">Tips</div>
-              <ul className="list-disc pl-4 space-y-1 text-slate-600">
-                <li>Shift IDs come from Staff Scheduling. Create shifts there first.</li>
-                <li>Clock-ins/outs log to the same shift so approvals see both.</li>
-                <li>If you clock out late, add a note so managers have context.</li>
-              </ul>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </motion.div>
+
+          {/* Clock Actions Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...SPRING_CONFIG, delay: 0.2 }}
+            className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <Timer className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Record Time</h2>
+                  <p className="text-sm text-slate-600">Clock in or out for your shift</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Selected Shift Display */}
+              {selectedShift && (
+                <div className="rounded-lg bg-teal-50 border border-teal-200 p-4">
+                  <div className="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-1">Selected Shift</div>
+                  <div className="font-semibold text-slate-900">{selectedShift.role || "Shift"}</div>
+                  <div className="text-sm text-slate-600">
+                    {new Date(selectedShift.shiftDate).toLocaleDateString()}
+                    {" "}&middot;{" "}
+                    {new Date(selectedShift.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                    {" - "}
+                    {new Date(selectedShift.endTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </div>
+                </div>
+              )}
+
+              {/* Note Field */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Add a note <span className="text-slate-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="e.g., Front desk, Pool area..."
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow"
+                />
+              </div>
+
+              {/* Clock Buttons */}
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  disabled={!shiftId || clockingIn}
+                  onClick={() => call("clock-in")}
+                  className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                >
+                  {clockingIn ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                    />
+                  ) : (
+                    <LogIn className="w-5 h-5" />
+                  )}
+                  <span>Clock In</span>
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  disabled={!shiftId || clockingOut}
+                  onClick={() => call("clock-out")}
+                  className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-slate-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+                >
+                  {clockingOut ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                    />
+                  ) : (
+                    <LogOut className="w-5 h-5" />
+                  )}
+                  <span>Clock Out</span>
+                </motion.button>
+              </div>
+
+              {/* Tips */}
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 mt-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  Quick Tips
+                </div>
+                <ul className="text-xs text-slate-600 space-y-1">
+                  <li>&bull; Shift IDs are found in Staff Scheduling</li>
+                  <li>&bull; Clock-ins and clock-outs are recorded with timestamps</li>
+                  <li>&bull; Add notes to explain late arrivals or early departures</li>
+                </ul>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </motion.div>
     </DashboardShell>
   );
 }

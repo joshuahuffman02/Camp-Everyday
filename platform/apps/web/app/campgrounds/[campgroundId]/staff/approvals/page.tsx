@@ -1,11 +1,23 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StaffNavigation } from "@/components/staff/StaffNavigation";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+  Inbox,
+  Loader2,
+  User,
+  Calendar,
+  Timer,
+  CheckSquare,
+  Sparkles,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Shift = {
   id: string;
@@ -15,12 +27,22 @@ type Shift = {
   userId: string;
   role?: string | null;
   status?: string;
+  scheduledMinutes?: number | null;
+  actualMinutes?: number | null;
+};
+
+const SPRING_CONFIG = {
+  type: "spring" as const,
+  stiffness: 200,
+  damping: 20,
 };
 
 export default function ApprovalsQueue({ params }: { params: { campgroundId: string } }) {
   const [shifts, setShifts] = useState<Shift[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState<Set<string>>(new Set());
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -34,7 +56,7 @@ export default function ApprovalsQueue({ params }: { params: { campgroundId: str
       if (!res.ok) throw new Error("Failed to load");
       setShifts(await res.json());
     } catch (err) {
-      setError("Could not load submitted shifts.");
+      setError("Could not load submitted shifts. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -45,96 +67,239 @@ export default function ApprovalsQueue({ params }: { params: { campgroundId: str
   }, []);
 
   const decide = async (shiftId: string, status: "approve" | "reject") => {
-    await fetch(`/api/staff/shifts/${shiftId}/${status}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approverId: "manager-placeholder" })
-    });
-    await load();
+    setProcessing((prev) => new Set([...prev, shiftId]));
+    try {
+      await fetch(`/api/staff/shifts/${shiftId}/${status}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approverId: "manager-placeholder" })
+      });
+      setSuccessMessage(status === "approve" ? "Shift approved!" : "Shift rejected.");
+      setTimeout(() => setSuccessMessage(null), 3000);
+      await load();
+    } finally {
+      setProcessing((prev) => {
+        const next = new Set(prev);
+        next.delete(shiftId);
+        return next;
+      });
+    }
   };
 
   const submittedCount = useMemo(() => shifts.length, [shifts]);
 
+  const formatDuration = (minutes?: number | null) => {
+    if (!minutes) return null;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins > 0 ? `${mins}m` : ""}`.trim();
+  };
+
   return (
     <DashboardShell>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">Staff</p>
-            <h1 className="text-2xl font-bold text-slate-900">Timesheet approvals</h1>
-            <p className="text-slate-600 text-sm">Review submitted shifts and approve for payroll.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href={`/campgrounds/${params.campgroundId}/staff/timeclock`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-800">
-              Time clock →
-            </Link>
-            <Link href={`/campgrounds/${params.campgroundId}/staff-scheduling`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-800">
-              Scheduling →
-            </Link>
-      </div>
-        </div>
+      <motion.div
+        className="space-y-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={SPRING_CONFIG}
+      >
+        <StaffNavigation campgroundId={params.campgroundId} />
 
-        {error && (
-          <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {error}
+        {/* Success Toast */}
+        <AnimatePresence>
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 bg-emerald-600 text-white rounded-lg shadow-lg"
+              role="status"
+              aria-live="polite"
+            >
+              <CheckCircle2 className="w-5 h-5" />
+              <span className="font-medium">{successMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Stats Cards */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...SPRING_CONFIG, delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+        >
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pending Approval</div>
+                <div className="text-3xl font-bold text-slate-900 mt-1">{submittedCount}</div>
+              </div>
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center",
+                submittedCount > 0 ? "bg-amber-100" : "bg-emerald-100"
+              )}>
+                {submittedCount > 0 ? (
+                  <Clock className="w-6 h-6 text-amber-600" />
+                ) : (
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                )}
+              </div>
+            </div>
+            {submittedCount > 0 && (
+              <p className="text-xs text-amber-600 mt-2">
+                {submittedCount} timesheet{submittedCount !== 1 ? "s" : ""} waiting for review
+              </p>
+            )}
           </div>
+
+          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 p-5">
+            <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium">
+              <Sparkles className="w-4 h-4" />
+              Quick Tip
+            </div>
+            <p className="text-xs text-emerald-800 mt-2">
+              Review timesheets promptly to ensure accurate payroll processing. Check hours against scheduled times.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Timer className="w-4 h-4 text-slate-500" />
+              <span className="text-sm font-medium text-slate-700">Approval Workflow</span>
+            </div>
+            <ul className="text-xs text-slate-600 mt-2 space-y-1">
+              <li>1. Staff submits timesheet</li>
+              <li>2. Manager reviews & approves</li>
+              <li>3. Ready for payroll export</li>
+            </ul>
+          </div>
+        </motion.div>
+
+        {/* Error State */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2"
+          >
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {error}
+            <button onClick={load} className="ml-auto text-red-800 underline text-xs font-medium">
+              Retry
+            </button>
+          </motion.div>
         )}
 
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-3">
+        {/* Shifts List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...SPRING_CONFIG, delay: 0.15 }}
+          className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+        >
+          <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
+                <CheckSquare className="w-5 h-5 text-slate-600" />
+              </div>
               <div>
-                <CardTitle>Submitted shifts</CardTitle>
-                <CardDescription>Approve or reject shifts submitted by staff.</CardDescription>
+                <h2 className="text-lg font-semibold text-slate-900">Submitted Timesheets</h2>
+                <p className="text-sm text-slate-600">Approve or reject staff timesheet submissions</p>
               </div>
-              <Badge variant="secondary" className="text-[11px]">
-                {submittedCount} pending
-              </Badge>
             </div>
-          </CardHeader>
-          <CardContent className="divide-y p-0">
-            {shifts.map((shift) => (
-              <div key={shift.id} className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="font-semibold text-slate-900 text-sm">
-                    {shift.role || "Shift"} · {shift.userId}
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    {shift.shiftDate?.slice(0, 10)} · {new Date(shift.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} -{" "}
-                    {new Date(shift.endTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                  </div>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-sm">Loading timesheets...</span>
+              </div>
+            ) : shifts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                  <Inbox className="w-8 h-8 text-emerald-600" />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                  onClick={() => decide(shift.id, "approve")}
-                  data-testid={`approve-${shift.id}`}
-                >
-                  Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-rose-300 text-rose-700 hover:bg-rose-50"
-                  onClick={() => decide(shift.id, "reject")}
-                  data-testid={`reject-${shift.id}`}
-                >
-                  Reject
-                  </Button>
+                <h3 className="text-lg font-semibold text-slate-900">All caught up!</h3>
+                <p className="text-sm text-slate-600 mt-1 max-w-md">
+                  No timesheets waiting for approval. When staff submit their timesheets, they'll appear here.
+                </p>
               </div>
-            </div>
-          ))}
-          {!loading && !shifts.length && (
-              <div className="px-4 py-4 text-sm text-slate-500" data-testid="approvals-empty">
-              No submissions waiting.
-            </div>
-          )}
-            {loading && (
-              <div className="px-4 py-4 text-sm text-slate-500">Loading…</div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {shifts.map((shift, index) => (
+                  <motion.div
+                    key={shift.id}
+                    layout
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ ...SPRING_CONFIG, delay: index * 0.03 }}
+                    className="flex flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                        <User className="w-5 h-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-900">
+                          {shift.role || "Shift"}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{new Date(shift.shiftDate).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
+                          <span>&middot;</span>
+                          <span>
+                            {new Date(shift.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - {new Date(shift.endTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        {(shift.scheduledMinutes || shift.actualMinutes) && (
+                          <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                            {shift.scheduledMinutes && (
+                              <span>Scheduled: {formatDuration(shift.scheduledMinutes)}</span>
+                            )}
+                            {shift.actualMinutes && (
+                              <span className="text-emerald-600 font-medium">Actual: {formatDuration(shift.actualMinutes)}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 md:flex-shrink-0">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        disabled={processing.has(shift.id)}
+                        onClick={() => decide(shift.id, "approve")}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium disabled:opacity-50 hover:bg-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                      >
+                        {processing.has(shift.id) ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4" />
+                        )}
+                        Approve
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        disabled={processing.has(shift.id)}
+                        onClick={() => decide(shift.id, "reject")}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-200 text-red-700 bg-red-50 text-sm font-medium disabled:opacity-50 hover:bg-red-100 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Reject
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </motion.div>
+      </motion.div>
     </DashboardShell>
   );
 }
