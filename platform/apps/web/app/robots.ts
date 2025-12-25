@@ -1,12 +1,44 @@
 import { MetadataRoute } from "next";
+import { getBaseUrl } from "@/lib/seo";
 
+/**
+ * Robots.txt configuration for SEO
+ * Controls crawler access and points to sitemap
+ */
 export default function robots(): MetadataRoute.Robots {
-    const baseUrl = (process.env.NEXT_PUBLIC_APP_BASE || "https://campeveryday.com").replace(/\/+$/, "");
-    return {
-        rules: {
-            userAgent: "*",
-            allow: "/",
-        },
-        sitemap: `${baseUrl}/sitemap.xml`,
-    };
+  const baseUrl = getBaseUrl();
+
+  return {
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: [
+          "/api/",
+          "/dashboard/",
+          "/admin/",
+          "/portal/",
+          "/onboarding/",
+          "/sign/",
+          "/signup/confirm",
+          "/_next/",
+          "/private/",
+        ],
+      },
+      {
+        userAgent: "GPTBot",
+        disallow: ["/"],
+      },
+      {
+        userAgent: "CCBot",
+        disallow: ["/"],
+      },
+      {
+        userAgent: "Google-Extended",
+        disallow: ["/"],
+      },
+    ],
+    sitemap: `${baseUrl}/sitemap.xml`,
+    host: baseUrl,
+  };
 }

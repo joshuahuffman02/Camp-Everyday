@@ -88,7 +88,7 @@ importers:
       '@aws-sdk/s3-request-presigner': 3.948.0
       '@campreserv/shared': link:../../packages/shared
       '@codegenie/serverless-express': 4.17.1
-      '@google/adk': 0.2.1
+      '@google/adk': 0.2.1_@opentelemetry+api@1.9.0
       '@nestjs/common': 10.4.20_26q5nehxwcs3ri7zvy3wttpjeq
       '@nestjs/config': 4.0.2_d7wabo3ln2lhn3a3ctrkkbwyym
       '@nestjs/core': 10.4.20_ckonxzgiymdtimkdiovrfjr6qq
@@ -206,6 +206,7 @@ importers:
       tailwindcss-animate: ^1.0.7
       typescript: ^5.6.3
       vitest: ^2.1.5
+      web-vitals: ^4.2.4
       zod: ^3.23.8
     dependencies:
       '@campreserv/shared': link:../../packages/shared
@@ -248,6 +249,7 @@ importers:
       swr: 2.3.7_react@18.3.1
       tailwind-merge: 2.6.0
       tailwindcss: 3.4.19
+      web-vitals: 4.2.4
       zod: 3.23.8
     devDependencies:
       '@playwright/test': 1.57.0
@@ -2114,7 +2116,7 @@ packages:
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
     dev: false
 
-  /@google/adk/0.2.1:
+  /@google/adk/0.2.1_@opentelemetry+api@1.9.0:
     resolution: {integrity: sha512-9NcE03GQ0pK0s7RWy8d3tCMwF1euWfsQf4yxJxAMZQ+lJsz0bPDne2M+fvk0zrRWxvmL73bycOpY+pP7R5iKqw==}
     peerDependencies:
       '@google-cloud/opentelemetry-cloud-monitoring-exporter': ^0.21.0
@@ -2134,6 +2136,7 @@ packages:
     dependencies:
       '@google/genai': 1.32.0_fmsnx4odojkz22ibtgbpx6m74u
       '@modelcontextprotocol/sdk': 1.25.1_zod@3.25.76
+      '@opentelemetry/api': 1.9.0
       google-auth-library: 10.5.0
       zod: 3.25.76
     transitivePeerDependencies:
@@ -14489,6 +14492,10 @@ packages:
   /web-streams-polyfill/3.3.3:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
     engines: {node: '>= 8'}
+    dev: false
+
+  /web-vitals/4.2.4:
+    resolution: {integrity: sha512-r4DIlprAGwJ7YM11VZp4R884m0Vmgr6EAKe3P+kO0PPj3Unqyvv59rczf6UiGcb9Z8QxZVcqKNwv/g0WNdWwsw==}
     dev: false
 
   /webidl-conversions/3.0.1:

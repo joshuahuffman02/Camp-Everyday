@@ -8,6 +8,7 @@ import { FloatingTicketWidget } from "@/components/support/FloatingTicketWidget"
 import { SkipToContent } from "@/components/ui/skip-to-content";
 import { SyncStatusProvider } from "@/contexts/SyncStatusContext";
 import { FeatureTourProvider } from "@/components/tours/FeatureTourProvider";
+import { WebVitals } from "@/components/analytics/WebVitals";
 
 export default function ClientRoot({ children }: { children: ReactNode }) {
   const { toast } = useToast();
@@ -58,6 +59,7 @@ export default function ClientRoot({ children }: { children: ReactNode }) {
         {children}
         <FloatingTicketWidget />
         <Toaster />
+        <WebVitals />
       </FeatureTourProvider>
     </SyncStatusProvider>
   );

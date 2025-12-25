@@ -2,41 +2,82 @@ import "./globals.css";
 import { ReactNode } from "react";
 import { Providers } from "./providers";
 import ClientRoot from "./client-root";
+import { RootJsonLd } from "@/components/seo";
+import { SEO_CONFIG } from "@/lib/seo";
 
-import { Metadata } from "next";
+import { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://campeveryday.com"),
+  metadataBase: new URL(SEO_CONFIG.siteUrl),
   title: {
     template: "%s | Camp Everyday",
-    default: "Camp Everyday - Find your perfect camping adventure"
+    default: SEO_CONFIG.defaultTitle,
   },
-  description: "Discover and book the best camping spots, RV parks, and glamping experiences.",
+  description: SEO_CONFIG.defaultDescription,
+  keywords: SEO_CONFIG.keywords,
   manifest: "/manifest.webmanifest",
+  applicationName: SEO_CONFIG.siteName,
+  authors: [{ name: "Camp Everyday Team" }],
+  creator: "Camp Everyday",
+  publisher: "Camp Everyday",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   openGraph: {
     type: "website",
-    locale: "en_US",
-    url: "https://campeveryday.com",
-    siteName: "Camp Everyday",
+    locale: SEO_CONFIG.locale,
+    url: SEO_CONFIG.siteUrl,
+    siteName: SEO_CONFIG.siteName,
     images: [
       {
         url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "Camp Everyday"
-      }
-    ]
+        alt: SEO_CONFIG.siteName,
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    site: "@campeveryday",
-    creator: "@campeveryday"
-  }
+    site: SEO_CONFIG.twitterHandle,
+    creator: SEO_CONFIG.twitterHandle,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  verification: {
+    // Add these when you have them:
+    // google: "your-google-verification-code",
+    // yandex: "your-yandex-verification-code",
+    // bing: "your-bing-verification-code",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: SEO_CONFIG.themeColor,
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <RootJsonLd />
+        <link rel="dns-prefetch" href="//images.unsplash.com" />
+        <link rel="preconnect" href="//images.unsplash.com" crossOrigin="anonymous" />
+      </head>
       <body suppressHydrationWarning>
         <Providers>
           <ClientRoot>{children}</ClientRoot>
