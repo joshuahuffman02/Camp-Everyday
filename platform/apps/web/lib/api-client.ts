@@ -7541,6 +7541,14 @@ export const apiClient = {
     });
     return parseResponse<unknown>(res);
   },
+  async testNotificationTrigger(id: string, email: string) {
+    const res = await fetch(`${API_BASE}/notification-triggers/${id}/test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify({ email }),
+    });
+    return parseResponse<unknown>(res);
+  },
 
   // ---------------------------------------------------------------------------
   // Incidents & COI

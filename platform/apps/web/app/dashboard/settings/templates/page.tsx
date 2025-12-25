@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormField } from "@/components/ui/form-field";
 import { FormTextarea } from "@/components/ui/form-textarea";
@@ -247,14 +248,22 @@ export default function TemplatesPage() {
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600" />
               </div>
             ) : templates.length === 0 ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-                <div className="text-4xl mb-3">📧</div>
-                <p className="text-slate-500">No templates yet</p>
+              <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl p-8 text-center border border-violet-100">
+                <div className="text-5xl mb-4 motion-safe:animate-bounce">✨</div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  Create Your First Template
+                </h3>
+                <p className="text-slate-600 mb-6 max-w-sm mx-auto">
+                  Templates let you customize the emails and SMS your guests receive.
+                  Start from scratch or use one of our prebuilt templates below.
+                </p>
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="mt-4 text-violet-600 hover:text-violet-700 text-sm font-medium"
+                  className="px-6 py-2.5 bg-violet-600 text-white rounded-lg font-medium
+                    hover:bg-violet-700 active:scale-[0.98] transition-all
+                    focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
                 >
-                  Create your first template →
+                  Create Template
                 </button>
               </div>
             ) : (
@@ -542,6 +551,8 @@ function CreateTemplateModal({
   onClose: () => void;
   onCreated: (template: Template) => void;
 }) {
+  const firstInputRef = useRef<HTMLInputElement>(null);
+
   const {
     register,
     handleSubmit,
@@ -559,6 +570,16 @@ function CreateTemplateModal({
 
   const channel = watch("channel");
 
+  // Focus management and escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    firstInputRef.current?.focus();
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const onSubmit = async (data: CreateTemplateFormData) => {
     try {
       const result = await apiClient.createCampaignTemplate(campgroundId, {
@@ -575,12 +596,27 @@ function CreateTemplateModal({
     }
   };
 
+  // Combine register with ref
+  const nameRegister = register("name");
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-template-title"
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:duration-200">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-slate-900">New Template</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
+          <h2 id="create-template-title" className="text-xl font-bold text-slate-900">New Template</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close dialog"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded
+              focus-visible:ring-2 focus-visible:ring-violet-500"
+          >
+            ✕
+          </button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -589,28 +625,40 @@ function CreateTemplateModal({
             placeholder="Booking Confirmation"
             error={errors.name?.message}
             showSuccess
-            {...register("name")}
+            {...nameRegister}
+            ref={(e) => {
+              nameRegister.ref(e);
+              (firstInputRef as any).current = e;
+            }}
           />
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Channel</label>
-            <div className="flex gap-2">
+            <label id="channel-label" className="block text-sm font-medium text-slate-700 mb-1">Channel</label>
+            <div className="flex gap-2" role="radiogroup" aria-labelledby="channel-label">
               <button
                 type="button"
+                role="radio"
+                aria-checked={channel === "email"}
                 onClick={() => setValue("channel", "email", { shouldValidate: true })}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${channel === "email"
-                  ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
-                  : "bg-slate-50 text-slate-600 border border-slate-200"
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
+                  focus-visible:ring-2 focus-visible:ring-violet-500
+                  ${channel === "email"
+                    ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
+                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300"
                   }`}
               >
                 📧 Email
               </button>
               <button
                 type="button"
+                role="radio"
+                aria-checked={channel === "sms"}
                 onClick={() => setValue("channel", "sms", { shouldValidate: true })}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${channel === "sms"
-                  ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
-                  : "bg-slate-50 text-slate-600 border border-slate-200"
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
+                  focus-visible:ring-2 focus-visible:ring-violet-500
+                  ${channel === "sms"
+                    ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
+                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300"
                   }`}
               >
                 📱 SMS
@@ -619,9 +667,11 @@ function CreateTemplateModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+            <label htmlFor="category-select" className="block text-sm font-medium text-slate-700 mb-1">Category</label>
             <select
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+              id="category-select"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg
+                focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               {...register("category")}
             >
               {CATEGORIES.map(cat => (
@@ -634,14 +684,19 @@ function CreateTemplateModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50"
+              className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg
+                hover:bg-slate-50 transition-colors
+                focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!watch("name")?.trim()}
-              className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg
+                hover:bg-violet-700 active:scale-[0.98] transition-all duration-150
+                disabled:opacity-50
+                focus-visible:ring-2 focus-visible:ring-violet-500"
             >
               Create Template
             </button>
@@ -741,8 +796,12 @@ function PrebuiltTemplatesGallery({
       </div>
 
       <div className="mt-4 pt-4 border-t border-slate-100">
-        <p className="text-xs text-slate-400">
-          💡 <strong>Tip:</strong> After adding a template, you can customize the content and attach it to notification triggers in Settings → Notification Triggers.
+        <p className="text-xs text-slate-500">
+          💡 <strong>Tip:</strong> After adding a template, you can customize the content and attach it to{" "}
+          <Link href="/dashboard/settings/notification-triggers" className="text-violet-600 hover:text-violet-700 underline">
+            notification triggers
+          </Link>{" "}
+          to automate guest communication.
         </p>
       </div>
     </div>

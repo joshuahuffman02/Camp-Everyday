@@ -388,6 +388,78 @@ export class NotificationTriggersService {
   }
 
   /**
+   * Send a test notification to verify the trigger is configured correctly
+   */
+  async sendTestNotification(triggerId: string, testEmail: string) {
+    this.logger.log(`Sending test notification for trigger ${triggerId} to ${testEmail}`);
+
+    // Get the trigger with its template
+    const trigger = await this.prisma.notificationTrigger.findUnique({
+      where: { id: triggerId },
+      include: { template: true, campground: { select: { name: true } } }
+    });
+
+    if (!trigger) {
+      throw new Error('Trigger not found');
+    }
+
+    // Create sample payload with test data
+    const samplePayload: TriggerPayload = {
+      campgroundId: trigger.campgroundId,
+      reservationId: 'TEST-RES-12345',
+      guestEmail: testEmail,
+      guestName: 'Test Guest',
+      siteNumber: 'A-15',
+      arrivalDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      departureDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
+      amountCents: 15000, // $150.00
+    };
+
+    const template = trigger.template;
+    const campgroundName = (trigger as any).campground?.name || 'Sample Campground';
+
+    // Build email content using template or defaults
+    const subject = template?.subject
+      ? this.interpolate(template.subject, samplePayload, { name: campgroundName })
+      : `[TEST] ${this.getDefaultSubject(trigger.event as TriggerEvent, campgroundName)}`;
+
+    const html = template?.html
+      ? this.interpolate(template.html, samplePayload, { name: campgroundName })
+      : this.getDefaultHtml(trigger.event as TriggerEvent, samplePayload, campgroundName);
+
+    // Add test notice banner
+    const testBanner = `
+      <div style="background: #FEF3C7; border: 1px solid #F59E0B; padding: 12px; margin-bottom: 16px; border-radius: 8px;">
+        <strong>🧪 This is a test notification</strong><br/>
+        <span style="font-size: 14px; color: #92400E;">This is a preview of what your guests will receive when the "${trigger.event}" event is triggered.</span>
+      </div>
+    `;
+
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          ${testBanner}
+          ${html}
+        </body>
+      </html>
+    `;
+
+    // Send via email service
+    if (trigger.channel === 'email' || trigger.channel === 'both') {
+      await this.emailService.sendEmail({
+        to: testEmail,
+        subject: subject.startsWith('[TEST]') ? subject : `[TEST] ${subject}`,
+        html: fullHtml,
+        campgroundId: trigger.campgroundId,
+      });
+    }
+
+    this.logger.log(`Test notification sent successfully to ${testEmail}`);
+    return { success: true, message: `Test ${trigger.channel} notification sent to ${testEmail}` };
+  }
+
+  /**
    * Process scheduled notifications (runs every minute)
    */
   @Cron(CronExpression.EVERY_MINUTE)
