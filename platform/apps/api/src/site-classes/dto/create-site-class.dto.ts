@@ -56,6 +56,34 @@ export class CreateSiteClassDto {
   @IsString({ each: true })
   amenityTags?: string[];
 
+  // Rental type
+  @IsOptional()
+  @IsString()
+  rentalType?: string;
+
+  // Equipment & dimensions
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  equipmentTypes?: string[];
+
+  @IsOptional()
+  @IsString()
+  slideOutsAccepted?: string;
+
+  // Guest pricing
+  @IsOptional()
+  @IsInt()
+  occupantsIncluded?: number;
+
+  @IsOptional()
+  @IsInt()
+  extraAdultFeeCents?: number;
+
+  @IsOptional()
+  @IsInt()
+  extraChildFeeCents?: number;
+
   // Metered utility defaults
   @IsOptional()
   @IsBoolean()

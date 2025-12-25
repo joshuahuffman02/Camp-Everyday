@@ -629,6 +629,7 @@ model SiteClass {
   meteredRatePlanId String?
   meteredAutoEmail  Boolean  @default(false)
   tags              String[] @default([])
+  amenityTags       String[] @default([])
   glCode            String?
   clientAccount     String?
   minNights         Int?
