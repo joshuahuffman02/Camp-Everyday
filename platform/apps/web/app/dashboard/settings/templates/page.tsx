@@ -16,6 +16,10 @@ import {
   X,
   Sparkles,
   Plus,
+  Zap,
+  ArrowRight,
+  Link as LinkIcon,
+  ExternalLink,
 } from "lucide-react";
 
 interface Template {
@@ -52,84 +56,281 @@ const CATEGORIES = [
   "general",
 ];
 
+// Improved prebuilt templates with better styling and content
 const PREBUILT_TEMPLATES = [
   {
     name: "Booking Confirmation",
     category: "confirmation",
     channel: "email" as const,
-    subject: "Your reservation at {{campground_name}} is confirmed!",
-    html: `<h1>Hi {{guest_name}}!</h1>
-<p>Great news! Your reservation has been confirmed.</p>
-<p><strong>Reservation Details:</strong></p>
-<ul>
-  <li>Site: {{site_number}}</li>
-  <li>Check-in: {{arrival_date}}</li>
-  <li>Check-out: {{departure_date}}</li>
-  <li>Confirmation #: {{reservation_id}}</li>
-</ul>
-<p>We can't wait to welcome you!</p>
-<p>— The {{campground_name}} Team</p>`,
+    subject: "Confirmed! Your reservation at {{campground_name}}",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%); color: white; padding: 32px; border-radius: 12px 12px 0 0; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; }
+    .details-box { background: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: #64748b; font-size: 14px; }
+    .detail-value { font-weight: 600; color: #1e293b; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+    .button { display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Reservation Confirmed!</h1>
+    </div>
+    <div class="content">
+      <p>Hi {{guest_name}},</p>
+      <p>Great news! Your camping adventure is officially booked. We're excited to host you!</p>
+
+      <div class="details-box">
+        <div class="detail-row">
+          <span class="detail-label">Site</span>
+          <span class="detail-value">{{site_number}}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Check-in</span>
+          <span class="detail-value">{{arrival_date}}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Check-out</span>
+          <span class="detail-value">{{departure_date}}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Confirmation #</span>
+          <span class="detail-value">{{reservation_id}}</span>
+        </div>
+      </div>
+
+      <p>Need to make changes? Just reply to this email or give us a call.</p>
+      <p>See you soon!</p>
+      <p><strong>The {{campground_name}} Team</strong></p>
+    </div>
+    <div class="footer">
+      {{campground_name}}
+    </div>
+  </div>
+</body>
+</html>`,
     textBody: null,
   },
   {
-    name: "Booking Reminder (3 Days)",
+    name: "Check-in Reminder (24h)",
     category: "reminder",
     channel: "email" as const,
-    subject: "Your camping trip is almost here!",
-    html: `<h1>Hey {{guest_name}}!</h1>
-<p>Your adventure at {{campground_name}} starts in just 3 days!</p>
-<p><strong>Quick reminder:</strong></p>
-<ul>
-  <li>Site: {{site_number}}</li>
-  <li>Arrival: {{arrival_date}}</li>
-  <li>Departure: {{departure_date}}</li>
-</ul>
-<p>Don't forget to pack the s'mores supplies! 🏕️</p>`,
+    subject: "Tomorrow's the day! Your check-in details",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 32px; border-radius: 12px 12px 0 0; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; }
+    .info-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin: 20px 0; }
+    .checklist { background: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .checklist h3 { margin-top: 0; color: #475569; }
+    .checklist ul { margin: 0; padding-left: 20px; }
+    .checklist li { padding: 4px 0; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Your Adventure Awaits!</h1>
+    </div>
+    <div class="content">
+      <p>Hey {{guest_name}}!</p>
+      <p>Your camping trip at {{campground_name}} is just <strong>one day away</strong>!</p>
+
+      <div class="info-box">
+        <strong>Your Check-in Details:</strong><br>
+        Site {{site_number}} on {{arrival_date}}<br>
+        Check-in time: After 2:00 PM
+      </div>
+
+      <div class="checklist">
+        <h3>Quick Packing Checklist:</h3>
+        <ul>
+          <li>Tent & sleeping gear</li>
+          <li>Flashlight/lantern</li>
+          <li>First aid kit</li>
+          <li>Reservation confirmation</li>
+          <li>Valid ID</li>
+        </ul>
+      </div>
+
+      <p>Questions? Just reply to this email or call us.</p>
+      <p>Safe travels!</p>
+      <p><strong>The {{campground_name}} Team</strong></p>
+    </div>
+    <div class="footer">
+      {{campground_name}}
+    </div>
+  </div>
+</body>
+</html>`,
     textBody: null,
   },
   {
-    name: "Check-In Reminder",
+    name: "Check-In SMS",
     category: "reminder",
     channel: "sms" as const,
     subject: null,
     html: null,
-    textBody: "Hi {{guest_name}}! Your check-in at {{campground_name}} is today. Site {{site_number}} is ready for you. See you soon!",
+    textBody: "Hi {{guest_name}}! Reminder: Your check-in at {{campground_name}} is today. Site {{site_number}} is ready. Check-in after 2pm. See you soon!",
   },
   {
     name: "Payment Received",
     category: "payment",
     channel: "email" as const,
     subject: "Payment received - Thank you!",
-    html: `<h1>Payment Confirmed</h1>
-<p>Hi {{guest_name}},</p>
-<p>We've received your payment of {{amount}}.</p>
-<p><strong>Reservation:</strong> {{reservation_id}}<br/>
-<strong>Remaining balance:</strong> {{balance_due}}</p>
-<p>Thank you for choosing {{campground_name}}!</p>`,
+    html: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 32px; border-radius: 12px 12px 0 0; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; }
+    .amount-box { background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+    .amount { font-size: 32px; font-weight: bold; color: #059669; }
+    .details { background: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Payment Confirmed</h1>
+    </div>
+    <div class="content">
+      <p>Hi {{guest_name}},</p>
+      <p>We've received your payment. Thank you!</p>
+
+      <div class="amount-box">
+        <div class="amount">{{amount}}</div>
+        <div style="color: #64748b; font-size: 14px;">Payment received</div>
+      </div>
+
+      <div class="details">
+        <strong>Reservation:</strong> {{reservation_id}}<br>
+        <strong>Remaining balance:</strong> {{balance_due}}
+      </div>
+
+      <p>Thank you for choosing {{campground_name}}!</p>
+    </div>
+    <div class="footer">
+      {{campground_name}}
+    </div>
+  </div>
+</body>
+</html>`,
     textBody: null,
   },
   {
-    name: "Payment Due Reminder",
+    name: "Balance Due Reminder",
     category: "payment",
     channel: "email" as const,
-    subject: "Friendly reminder: Balance due for your upcoming stay",
-    html: `<h1>Balance Reminder</h1>
-<p>Hi {{guest_name}},</p>
-<p>Just a friendly reminder that you have an outstanding balance of <strong>{{balance_due}}</strong> for your reservation at {{campground_name}}.</p>
-<p><strong>Reservation:</strong> {{reservation_id}}<br/>
-<strong>Arrival:</strong> {{arrival_date}}</p>
-<p>Please complete your payment to secure your site.</p>`,
+    subject: "Friendly reminder: Balance due for your stay",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 32px; border-radius: 12px 12px 0 0; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; }
+    .balance-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+    .balance { font-size: 32px; font-weight: bold; color: #d97706; }
+    .button { display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 20px; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Payment Reminder</h1>
+    </div>
+    <div class="content">
+      <p>Hi {{guest_name}},</p>
+      <p>Just a friendly reminder that you have an outstanding balance for your upcoming stay at {{campground_name}}.</p>
+
+      <div class="balance-box">
+        <div class="balance">{{balance_due}}</div>
+        <div style="color: #64748b; font-size: 14px;">Balance due</div>
+      </div>
+
+      <p><strong>Reservation:</strong> {{reservation_id}}<br>
+      <strong>Arrival:</strong> {{arrival_date}}</p>
+
+      <p>Please complete your payment to secure your site. If you've already paid, please disregard this message.</p>
+
+      <p>Questions? Just reply to this email.</p>
+    </div>
+    <div class="footer">
+      {{campground_name}}
+    </div>
+  </div>
+</body>
+</html>`,
     textBody: null,
   },
   {
     name: "Check-Out Thank You",
     category: "confirmation",
     channel: "email" as const,
-    subject: "Thanks for staying with us!",
-    html: `<h1>Thanks for visiting, {{guest_name}}!</h1>
-<p>We hope you had an amazing time at {{campground_name}}!</p>
-<p>We'd love to hear about your experience. If you have a moment, please leave us a review.</p>
-<p>Safe travels, and we hope to see you again soon! 🌲</p>`,
+    subject: "Thanks for staying with us, {{guest_name}}!",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%); color: white; padding: 32px; border-radius: 12px 12px 0 0; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; text-align: center; }
+    .stars { font-size: 32px; margin: 20px 0; }
+    .review-prompt { background: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .button { display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Thanks for Visiting!</h1>
+    </div>
+    <div class="content">
+      <p>Hey {{guest_name}},</p>
+      <p>We hope you had an amazing time at {{campground_name}}!</p>
+
+      <div class="review-prompt">
+        <p><strong>How was your stay?</strong></p>
+        <p style="color: #64748b; font-size: 14px;">We'd love to hear about your experience. Your feedback helps us improve and helps other campers find their perfect spot.</p>
+      </div>
+
+      <p>We hope to see you again soon!</p>
+      <p>Safe travels,</p>
+      <p><strong>The {{campground_name}} Team</strong></p>
+    </div>
+    <div class="footer">
+      {{campground_name}}
+    </div>
+  </div>
+</body>
+</html>`,
     textBody: null,
   },
   {
@@ -137,11 +338,44 @@ const PREBUILT_TEMPLATES = [
     category: "booking",
     channel: "email" as const,
     subject: "Your reservation has been cancelled",
-    html: `<h1>Reservation Cancelled</h1>
-<p>Hi {{guest_name}},</p>
-<p>Your reservation ({{reservation_id}}) at {{campground_name}} has been cancelled as requested.</p>
-<p>If this was a mistake or you'd like to rebook, please contact us.</p>
-<p>We hope to host you another time!</p>`,
+    html: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #64748b; color: white; padding: 32px; border-radius: 12px 12px 0 0; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; }
+    .info-box { background: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0; }
+    .button { display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Reservation Cancelled</h1>
+    </div>
+    <div class="content">
+      <p>Hi {{guest_name}},</p>
+      <p>Your reservation has been cancelled as requested.</p>
+
+      <div class="info-box">
+        <strong>Cancelled Reservation:</strong> {{reservation_id}}<br>
+        <strong>Original Dates:</strong> {{arrival_date}} - {{departure_date}}
+      </div>
+
+      <p>If this was a mistake or you'd like to rebook, please contact us or visit our website.</p>
+      <p>We hope to host you another time!</p>
+      <p><strong>The {{campground_name}} Team</strong></p>
+    </div>
+    <div class="footer">
+      {{campground_name}}
+    </div>
+  </div>
+</body>
+</html>`,
     textBody: null,
   },
   {
@@ -150,27 +384,7 @@ const PREBUILT_TEMPLATES = [
     channel: "sms" as const,
     subject: null,
     html: null,
-    textBody: "Welcome to {{campground_name}}, {{guest_name}}! Your site {{site_number}} is ready. Office hours: 8am-8pm. Enjoy your stay!",
-  },
-  {
-    name: "Seasonal Promotion",
-    category: "marketing",
-    channel: "email" as const,
-    subject: "Special offer just for you! 🏕️",
-    html: `<h1>{{guest_name}}, we miss you!</h1>
-<p>It's been a while since your last visit to {{campground_name}}.</p>
-<p>Book your next adventure and enjoy exclusive returning guest rates!</p>
-<p>Use code <strong>WELCOME10</strong> for 10% off your next stay.</p>
-<p>See you soon under the stars! ⭐</p>`,
-    textBody: null,
-  },
-  {
-    name: "Weather Alert",
-    category: "operational",
-    channel: "sms" as const,
-    subject: null,
-    html: null,
-    textBody: "{{campground_name}} Alert: Weather advisory in effect. Please secure loose items and check in at the office if you need assistance.",
+    textBody: "Welcome to {{campground_name}}! Site {{site_number}} is ready for you. Office: 8am-8pm. WiFi password at the office. Enjoy your stay!",
   },
 ];
 
@@ -188,12 +402,21 @@ type TemplateEditorFormData = {
   textBody: string;
 };
 
+// Success toast state
+interface SuccessToast {
+  message: string;
+  templateName: string;
+  show: boolean;
+}
+
 export default function TemplatesPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const [successToast, setSuccessToast] = useState<SuccessToast | null>(null);
   const queryClient = useQueryClient();
+  const templateListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -223,6 +446,24 @@ export default function TemplatesPage() {
     return acc;
   }, {} as Record<string, Template[]>);
 
+  // Show success toast and auto-hide
+  const showSuccessToast = (templateName: string) => {
+    setSuccessToast({ message: "Template added!", templateName, show: true });
+    setTimeout(() => {
+      setSuccessToast(null);
+    }, 5000);
+  };
+
+  // Handle template added from prebuilt gallery
+  const handleTemplateAdded = (templateName: string) => {
+    queryClient.invalidateQueries({ queryKey: ["campaign-templates"] });
+    showSuccessToast(templateName);
+    // Scroll the template list into view
+    setTimeout(() => {
+      templateListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
+  };
+
   if (!campgroundId) {
     return (
       <div>
@@ -234,25 +475,100 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div>
+    <div className="relative">
+      {/* Success Toast */}
+      {successToast?.show && (
+        <div className="fixed top-4 right-4 z-50 motion-safe:animate-in motion-safe:slide-in-from-top-2 motion-safe:fade-in motion-safe:duration-300">
+          <div className="bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <div className="p-1 bg-emerald-500 rounded-full">
+              <Check className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="font-medium">{successToast.message}</div>
+              <div className="text-sm text-emerald-100">"{successToast.templateName}" is ready to use</div>
+            </div>
+            <Link
+              href="/dashboard/settings/notification-triggers"
+              className="ml-4 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 rounded text-sm font-medium flex items-center gap-1 transition-colors"
+            >
+              <Zap className="h-3.5 w-3.5" /> Connect to Trigger
+            </Link>
+            <button
+              onClick={() => setSuccessToast(null)}
+              className="ml-2 text-emerald-200 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="p-6 max-w-[1600px] mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Email & SMS Templates</h1>
-            <p className="text-slate-500 mt-1">Create and manage notification templates</p>
+            <p className="text-slate-500 mt-1">Create message templates, then connect them to triggers to automate sending</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700 transition-colors flex items-center gap-2"
           >
-            <span>+</span> New Template
+            <Plus className="h-4 w-4" /> New Template
           </button>
+        </div>
+
+        {/* Workflow Hint */}
+        <div className="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-100 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-white rounded-lg border border-violet-200">
+                <FileText className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <div className="font-medium text-slate-900">1. Create Template</div>
+                <div className="text-slate-500">Design your message</div>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-slate-300" />
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-white rounded-lg border border-violet-200">
+                <LinkIcon className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <div className="font-medium text-slate-900">2. Connect to Trigger</div>
+                <div className="text-slate-500">Choose when to send</div>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-slate-300" />
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-white rounded-lg border border-violet-200">
+                <Zap className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <div className="font-medium text-slate-900">3. Automatic!</div>
+                <div className="text-slate-500">Guests get notified</div>
+              </div>
+            </div>
+            <div className="ml-auto">
+              <Link
+                href="/dashboard/settings/notification-triggers"
+                className="text-violet-600 hover:text-violet-700 font-medium flex items-center gap-1"
+              >
+                Go to Triggers <ExternalLink className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Templates List */}
-          <div className="lg:col-span-1 space-y-4">
+          <div className="lg:col-span-1 space-y-4" ref={templateListRef}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-slate-900">Your Templates</h2>
+              <span className="text-sm text-slate-500">{templates.length} total</span>
+            </div>
+
             {templatesQuery.isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600" />
@@ -260,16 +576,15 @@ export default function TemplatesPage() {
             ) : templates.length === 0 ? (
               <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl p-8 text-center border border-violet-100">
                 <div className="flex justify-center mb-4">
-                <div className="p-4 bg-violet-100 rounded-full">
-                  <Sparkles className="h-10 w-10 text-violet-600" />
+                  <div className="p-4 bg-violet-100 rounded-full">
+                    <Sparkles className="h-10 w-10 text-violet-600" />
+                  </div>
                 </div>
-              </div>
                 <h3 className="text-xl font-bold text-slate-900 mb-2">
-                  Create Your First Template
+                  No Templates Yet
                 </h3>
                 <p className="text-slate-600 mb-6 max-w-sm mx-auto">
-                  Templates let you customize the emails and SMS your guests receive.
-                  Start from scratch or use one of our prebuilt templates below.
+                  Start by adding a prebuilt template below, or create a custom one from scratch.
                 </p>
                 <button
                   onClick={() => setShowCreateModal(true)}
@@ -300,8 +615,8 @@ export default function TemplatesPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <div className="font-medium text-slate-900">{template.name}</div>
-                              <div className="text-xs text-slate-500">
-                                {template.channel === "email" ? <Mail className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />} {template.channel}
+                              <div className="text-xs text-slate-500 flex items-center gap-1">
+                                {template.channel === "email" ? <Mail className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />} {template.channel}
                               </div>
                             </div>
                           </div>
@@ -333,8 +648,9 @@ export default function TemplatesPage() {
             ) : (
               <div className="bg-white rounded-xl border border-slate-200 h-[500px] flex items-center justify-center">
                 <div className="text-center text-slate-400">
-                  <div className="text-4xl mb-3">✨</div>
-                  <p>Select a template to edit</p>
+                  <FileText className="h-12 w-12 mx-auto mb-3 text-slate-300" />
+                  <p className="font-medium">Select a template to edit</p>
+                  <p className="text-sm">Or add one from the prebuilt gallery below</p>
                 </div>
               </div>
             )}
@@ -346,7 +662,7 @@ export default function TemplatesPage() {
                 {TEMPLATE_VARIABLES.map(v => (
                   <div
                     key={v.key}
-                    className="px-2 py-1 bg-slate-50 rounded text-xs cursor-pointer hover:bg-slate-100"
+                    className="px-2 py-1 bg-slate-50 rounded text-xs cursor-pointer hover:bg-slate-100 transition-colors"
                     onClick={() => navigator.clipboard.writeText(v.key)}
                     title={`Click to copy: ${v.key}`}
                   >
@@ -363,9 +679,7 @@ export default function TemplatesPage() {
         <PrebuiltTemplatesGallery
           campgroundId={campgroundId}
           existingTemplateNames={templates.map((t: Template) => t.name)}
-          onTemplateAdded={() => {
-            queryClient.invalidateQueries({ queryKey: ["campaign-templates"] });
-          }}
+          onTemplateAdded={handleTemplateAdded}
         />
 
         {/* Create Modal */}
@@ -398,6 +712,7 @@ function TemplateEditor({
   previewMode: boolean;
   onTogglePreview: () => void;
 }) {
+  const [saved, setSaved] = useState(false);
   const {
     register,
     handleSubmit,
@@ -423,6 +738,7 @@ function TemplateEditor({
       html: template.html ?? "",
       textBody: template.textBody ?? "",
     });
+    setSaved(false);
   }, [template, reset]);
 
   const onSubmit = async (data: any) => {
@@ -434,6 +750,8 @@ function TemplateEditor({
         textBody: data.textBody || undefined,
       });
       onSave();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error("Failed to save template:", err);
     }
@@ -471,7 +789,7 @@ function TemplateEditor({
           <button
             type="button"
             onClick={onTogglePreview}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${previewMode ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600"
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${previewMode ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
           >
             {previewMode ? "Edit" : "Preview"}
@@ -479,17 +797,27 @@ function TemplateEditor({
           <button
             type="button"
             onClick={onDelete}
-            className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-sm"
+            className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-sm transition-colors"
           >
             Delete
           </button>
           <button
             type="button"
             onClick={handleSubmit(onSubmit)}
-            disabled={!isDirty}
-            className="px-4 py-1.5 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+            disabled={!isDirty && !saved}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+              saved
+                ? "bg-emerald-600 text-white"
+                : "bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+            }`}
           >
-            Save
+            {saved ? (
+              <>
+                <Check className="h-4 w-4" /> Saved
+              </>
+            ) : (
+              "Save"
+            )}
           </button>
         </div>
       </div>
@@ -517,7 +845,7 @@ function TemplateEditor({
             </div>
             {template.channel === "email" ? (
               <div
-                className="p-4 prose prose-sm max-w-none"
+                className="p-4 bg-white"
                 dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
             ) : (
@@ -655,7 +983,7 @@ function CreateTemplateModal({
                 aria-checked={channel === "email"}
                 onClick={() => setValue("channel", "email", { shouldValidate: true })}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
-                  focus-visible:ring-2 focus-visible:ring-violet-500
+                  focus-visible:ring-2 focus-visible:ring-violet-500 flex items-center justify-center gap-1.5
                   ${channel === "email"
                     ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
                     : "bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300"
@@ -669,7 +997,7 @@ function CreateTemplateModal({
                 aria-checked={channel === "sms"}
                 onClick={() => setValue("channel", "sms", { shouldValidate: true })}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
-                  focus-visible:ring-2 focus-visible:ring-violet-500
+                  focus-visible:ring-2 focus-visible:ring-violet-500 flex items-center justify-center gap-1.5
                   ${channel === "sms"
                     ? "bg-violet-100 text-violet-700 border-2 border-violet-300"
                     : "bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300"
@@ -728,9 +1056,10 @@ function PrebuiltTemplatesGallery({
 }: {
   campgroundId: string;
   existingTemplateNames: string[];
-  onTemplateAdded: () => void;
+  onTemplateAdded: (templateName: string) => void;
 }) {
   const [addingTemplate, setAddingTemplate] = useState<string | null>(null);
+  const [recentlyAdded, setRecentlyAdded] = useState<string | null>(null);
 
   const handleAddTemplate = async (template: typeof PREBUILT_TEMPLATES[0]) => {
     setAddingTemplate(template.name);
@@ -743,7 +1072,10 @@ function PrebuiltTemplatesGallery({
         html: template.html || undefined,
         textBody: template.textBody || undefined,
       });
-      onTemplateAdded();
+      setRecentlyAdded(template.name);
+      onTemplateAdded(template.name);
+      // Clear recently added after animation
+      setTimeout(() => setRecentlyAdded(null), 2000);
     } catch (err) {
       console.error("Failed to add prebuilt template:", err);
     } finally {
@@ -757,8 +1089,10 @@ function PrebuiltTemplatesGallery({
     <div className="mt-8 bg-white rounded-xl border border-slate-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2"><FileText className="h-5 w-5" /> Prebuilt Templates</h3>
-          <p className="text-sm text-slate-500">One-click add common campground notification templates</p>
+          <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <FileText className="h-5 w-5" /> Prebuilt Templates
+          </h3>
+          <p className="text-sm text-slate-500">Professional templates ready to use - just click to add</p>
         </div>
       </div>
 
@@ -766,18 +1100,24 @@ function PrebuiltTemplatesGallery({
         {PREBUILT_TEMPLATES.map(template => {
           const added = alreadyAdded(template.name);
           const isAdding = addingTemplate === template.name;
+          const justAdded = recentlyAdded === template.name;
 
           return (
             <div
               key={template.name}
-              className={`border rounded-lg p-4 transition-all ${added
-                  ? "bg-slate-50 border-slate-200 opacity-60"
-                  : "bg-white border-slate-200 hover:border-violet-300 hover:shadow-sm"
-                }`}
+              className={`border rounded-lg p-4 transition-all duration-300 ${
+                justAdded
+                  ? "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500 ring-opacity-50"
+                  : added
+                    ? "bg-slate-50 border-slate-200"
+                    : "bg-white border-slate-200 hover:border-violet-300 hover:shadow-sm"
+              }`}
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-600">{template.channel === "email" ? <Mail className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}</span>
+                  <span className="text-slate-600">
+                    {template.channel === "email" ? <Mail className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
+                  </span>
                   <span className="font-medium text-slate-900 text-sm">{template.name}</span>
                 </div>
                 <span className="text-[10px] uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
@@ -791,17 +1131,31 @@ function PrebuiltTemplatesGallery({
                   : template.textBody?.slice(0, 60) + "..."}
               </p>
 
-              {added ? (
-                <span className="text-xs text-green-600 flex items-center gap-1">
-                  <Check className="h-3.5 w-3.5" /> Already added
+              {justAdded ? (
+                <div className="flex items-center gap-2 text-emerald-600 text-sm font-medium motion-safe:animate-in motion-safe:fade-in">
+                  <Check className="h-4 w-4" /> Added! Check your templates above
+                </div>
+              ) : added ? (
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <Check className="h-3.5 w-3.5 text-emerald-600" /> Already in your templates
                 </span>
               ) : (
                 <button
                   onClick={() => handleAddTemplate(template)}
                   disabled={isAdding}
-                  className="w-full px-3 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-lg
+                    hover:bg-violet-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
-                  {isAdding ? "Adding..." : "+ Add Template"}
+                  {isAdding ? (
+                    <>
+                      <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-violet-600" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" /> Add Template
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -809,14 +1163,17 @@ function PrebuiltTemplatesGallery({
         })}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-100">
-        <p className="text-xs text-slate-500">
-          <Lightbulb className="h-4 w-4 inline" /> <strong>Tip:</strong> After adding a template, you can customize the content and attach it to{" "}
-          <Link href="/dashboard/settings/notification-triggers" className="text-violet-600 hover:text-violet-700 underline">
-            notification triggers
-          </Link>{" "}
-          to automate guest communication.
+      <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+        <p className="text-sm text-slate-500 flex items-center gap-2">
+          <Lightbulb className="h-4 w-4" />
+          <span>After adding templates, connect them to triggers to automate sending.</span>
         </p>
+        <Link
+          href="/dashboard/settings/notification-triggers"
+          className="text-violet-600 hover:text-violet-700 font-medium text-sm flex items-center gap-1"
+        >
+          Set up Triggers <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
     </div>
   );
