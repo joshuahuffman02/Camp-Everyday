@@ -225,6 +225,11 @@ const settingsCategories: SettingCategory[] = [
         href: "/dashboard/settings/import",
         description: "Import sites and guests from CSV or other systems",
       },
+      {
+        name: "ADA Accessibility",
+        href: "/dashboard/settings/accessibility",
+        description: "Certify your campground's accessibility features and earn ADA badges",
+      },
     ],
   },
 ];

@@ -38,6 +38,7 @@ const routeLabels: Record<string, string> = {
   "gamification": "Gamification",
   "jobs": "Jobs",
   "developer": "Developer",
+  "accessibility": "ADA Accessibility",
 };
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {

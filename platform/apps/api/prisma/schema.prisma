@@ -1118,6 +1118,16 @@ model Campground {
   // Public booking page settings
   showPublicMap               Boolean        @default(false)
 
+  // ADA Accessibility Certification
+  adaCertificationLevel       String?        @default("none") // none, friendly, compliant, excellence
+  adaAssessment               Json?          // Stores checklist completion data
+  adaAssessmentUpdatedAt      DateTime?
+  adaAccessibleSiteCount      Int            @default(0) // Number of accessible sites
+  adaTotalSiteCount           Int            @default(0) // Total sites for percentage calculation
+  adaVerified                 Boolean        @default(false) // Third-party verified
+  adaVerifiedAt               DateTime?
+  adaVerifiedBy               String?        // Staff ID or "self-reported"
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 

@@ -437,7 +437,9 @@ const PublicCampgroundListSchema = z.array(
     isRisingStar: z.boolean().optional().default(false),
     npsImprovement: z.number().nullable().optional(),
     // Past Campground of the Year awards
-    pastCampgroundOfYearAwards: z.array(z.number()).optional().default([])
+    pastCampgroundOfYearAwards: z.array(z.number()).optional().default([]),
+    // ADA Accessibility Certification
+    adaCertificationLevel: z.string().nullable().optional()
   })
 );
 

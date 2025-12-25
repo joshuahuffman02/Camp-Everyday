@@ -265,7 +265,8 @@ export function HomeClient() {
                 pricePerNight: undefined,
                 ratingBadge: badge,
                 npsBadge,
-                pastAwards: cg.pastCampgroundOfYearAwards || []
+                pastAwards: cg.pastCampgroundOfYearAwards || [],
+                adaCertificationLevel: cg.adaCertificationLevel || undefined
             };
         });
 
@@ -428,6 +429,7 @@ export function HomeClient() {
                                         amenities={"amenities" in campground ? campground.amenities : []}
                                         npsBadge={campground.npsBadge}
                                         pastAwards={"pastAwards" in campground ? campground.pastAwards : []}
+                                        adaCertificationLevel={"adaCertificationLevel" in campground ? campground.adaCertificationLevel : undefined}
                                         onExplore={() => trackEvent("site_card_view", { campgroundId: campground.id, page: "/" })}
                                     />
                                 </motion.div>
