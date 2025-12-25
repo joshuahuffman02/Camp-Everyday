@@ -545,6 +545,13 @@ function DeleteConfirmModal({
   );
 }
 
+interface Template {
+  id: string;
+  name: string;
+  channel: "email" | "sms" | "both";
+  subject: string | null;
+}
+
 function TriggerModal({
   campgroundId,
   trigger,
@@ -561,10 +568,27 @@ function TriggerModal({
 
   const [event, setEvent] = useState<TriggerEvent>(trigger?.event as TriggerEvent ?? "reservation_created");
   const [channel, setChannel] = useState<"email" | "sms" | "both">(trigger?.channel ?? "email");
+  const [templateId, setTemplateId] = useState<string | null>(trigger?.templateId ?? null);
   const [enabled, setEnabled] = useState(trigger?.enabled ?? true);
   const [delayMinutes, setDelayMinutes] = useState(trigger?.delayMinutes ?? 0);
   const [showCustomDelay, setShowCustomDelay] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Fetch available templates
+  const templatesQuery = useQuery({
+    queryKey: ["campaign-templates", campgroundId],
+    queryFn: () => apiClient.getCampaignTemplates(campgroundId),
+    enabled: !!campgroundId,
+  });
+
+  const templates = (templatesQuery.data ?? []) as Template[];
+
+  // Filter templates by compatible channel
+  const compatibleTemplates = templates.filter(t => {
+    if (channel === "both") return true;
+    if (t.channel === "both") return true;
+    return t.channel === channel;
+  });
 
   // Focus management and escape key
   useEffect(() => {
@@ -586,6 +610,7 @@ function TriggerModal({
           channel,
           enabled,
           delayMinutes,
+          templateId: templateId || null,
         });
       } else {
         await apiClient.createNotificationTrigger(campgroundId, {
@@ -593,6 +618,7 @@ function TriggerModal({
           channel,
           enabled,
           delayMinutes,
+          templateId: templateId || undefined,
         });
       }
       onSaved();
@@ -674,6 +700,45 @@ function TriggerModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Template Select */}
+          <div>
+            <label htmlFor="template-select" className="block text-sm font-medium text-slate-700 mb-1">
+              Use template
+            </label>
+            {templatesQuery.isLoading ? (
+              <div className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-400">
+                Loading templates...
+              </div>
+            ) : compatibleTemplates.length === 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  No {channel} templates available.{" "}
+                  <Link href="/dashboard/settings/templates" className="underline font-medium hover:text-amber-900">
+                    Create one first
+                  </Link>
+                </p>
+              </div>
+            ) : (
+              <select
+                id="template-select"
+                value={templateId ?? ""}
+                onChange={e => setTemplateId(e.target.value || null)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg
+                  focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+              >
+                <option value="">Default system message</option>
+                {compatibleTemplates.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.channel !== channel && t.channel !== "both" ? `(${t.channel})` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              Choose a template or use the default message
+            </p>
           </div>
 
           {/* Delay Presets */}
