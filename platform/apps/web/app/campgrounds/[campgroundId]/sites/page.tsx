@@ -144,6 +144,11 @@ export default function SitesPage() {
     queryFn: () => apiClient.getSites(campgroundId),
     enabled: !!campgroundId
   });
+  const classesQuery = useQuery({
+    queryKey: ["site-classes", campgroundId],
+    queryFn: () => apiClient.getSiteClasses(campgroundId),
+    enabled: !!campgroundId
+  });
   const queryClient = useQueryClient();
   const [formState, setFormState] = useState<SiteFormState>(defaultSiteForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -468,12 +473,6 @@ export default function SitesPage() {
       queryClient.invalidateQueries({ queryKey: ["sites", campgroundId] });
       toast({ title: "Site deleted", description: "Site has been removed." });
     }
-  });
-
-  const classesQuery = useQuery({
-    queryKey: ["site-classes", campgroundId],
-    queryFn: () => apiClient.getSiteClasses(campgroundId),
-    enabled: !!campgroundId
   });
 
   // Stats calculations
