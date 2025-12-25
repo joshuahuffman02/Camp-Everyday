@@ -306,7 +306,9 @@ export class OnboardingService {
                 siteType,
                 maxOccupancy,
                 rigMaxLength: site.rigMaxLength || null,
-                powerAmps: site.powerAmps || null,
+                powerAmps: site.powerAmps
+                  ? (Array.isArray(site.powerAmps) ? site.powerAmps : [site.powerAmps])
+                  : [],
                 status: "available",
               },
             });

@@ -213,9 +213,13 @@ const StoredValueCodeSchema = z.object({
   createdAt: z.string().optional()
 });
 
+const StoredValueScopeSchema = z.enum(["campground", "organization", "global"]);
+
 const StoredValueAccountSchema = z.object({
   id: z.string(),
   campgroundId: z.string(),
+  scopeType: StoredValueScopeSchema.optional().default("campground"),
+  scopeId: z.string().nullable().optional(),
   type: z.enum(["gift", "credit"]),
   currency: z.string(),
   status: z.enum(["active", "frozen", "expired"]),
@@ -224,6 +228,10 @@ const StoredValueAccountSchema = z.object({
   metadata: z.record(z.any()).nullable().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
+  campground: z.object({
+    id: z.string(),
+    name: z.string()
+  }).optional(),
   codes: z.array(StoredValueCodeSchema).optional().default([]),
   balanceCents: z.number(),
   issuedCents: z.number()
@@ -233,6 +241,9 @@ const StoredValueLedgerSchema = z.object({
   id: z.string(),
   accountId: z.string(),
   campgroundId: z.string(),
+  issuerCampgroundId: z.string().nullable().optional(),
+  scopeType: StoredValueScopeSchema.optional(),
+  scopeId: z.string().nullable().optional(),
   direction: z.string(),
   amountCents: z.number(),
   currency: z.string(),
@@ -1532,7 +1543,7 @@ const MapSiteSchema = z.object({
   }).partial(),
   hookups: z.object({
     power: z.boolean().default(false),
-    powerAmps: z.number().nullable().optional(),
+    powerAmps: z.array(z.number()).default([]),
     water: z.boolean().default(false),
     sewer: z.boolean().default(false)
   }),
@@ -4297,6 +4308,8 @@ export const apiClient = {
       walletId: string;
       guestId: string;
       campgroundId: string;
+      scopeType: "campground" | "organization" | "global";
+      scopeId: string | null;
       balanceCents: number;
       availableCents: number;
       currency: string;
@@ -4304,11 +4317,34 @@ export const apiClient = {
     return data;
   },
 
-  async addWalletCredit(campgroundId: string, guestId: string, amountCents: number, reason?: string) {
+  async getGuestWalletsForCampground(campgroundId: string, guestId: string) {
+    const data = await fetchJSON<Array<{
+      walletId: string;
+      guestId: string;
+      campgroundId: string;
+      scopeType: "campground" | "organization" | "global";
+      scopeId: string | null;
+      balanceCents: number;
+      availableCents: number;
+      currency: string;
+      campgroundName?: string;
+      campgroundSlug?: string;
+    }>>(`/campgrounds/${campgroundId}/guests/${guestId}/wallets`);
+    return data;
+  },
+
+  async addWalletCredit(
+    campgroundId: string,
+    guestId: string,
+    amountCents: number,
+    reason?: string,
+    scopeType?: "campground" | "organization" | "global",
+    scopeId?: string
+  ) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/guests/${guestId}/wallet/credit`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify({ amountCents, reason })
+      body: JSON.stringify({ amountCents, reason, scopeType, scopeId })
     });
     const data = await parseResponse<{
       walletId: string;
@@ -4318,10 +4354,11 @@ export const apiClient = {
     return data;
   },
 
-  async getWalletTransactions(campgroundId: string, guestId: string, limit?: number, offset?: number) {
+  async getWalletTransactions(campgroundId: string, guestId: string, limit?: number, offset?: number, walletId?: string) {
     const params = new URLSearchParams();
     if (limit) params.set("limit", String(limit));
     if (offset) params.set("offset", String(offset));
+    if (walletId) params.set("walletId", walletId);
     const query = params.toString() ? `?${params.toString()}` : "";
     const data = await fetchJSON<{
       transactions: Array<{
@@ -4348,6 +4385,8 @@ export const apiClient = {
     const data = await parseResponse<Array<{
       walletId: string;
       campgroundId: string;
+      scopeType: "campground" | "organization" | "global";
+      scopeId: string | null;
       campgroundName: string;
       balanceCents: number;
       availableCents: number;
@@ -4356,10 +4395,11 @@ export const apiClient = {
     return data;
   },
 
-  async getPortalWalletTransactions(token: string, campgroundId: string, limit?: number, offset?: number) {
+  async getPortalWalletTransactions(token: string, campgroundId: string, limit?: number, offset?: number, walletId?: string) {
     const params = new URLSearchParams();
     if (limit) params.set("limit", String(limit));
     if (offset) params.set("offset", String(offset));
+    if (walletId) params.set("walletId", walletId);
     const query = params.toString() ? `?${params.toString()}` : "";
     const res = await fetch(`${API_BASE}/portal/wallet/${campgroundId}/transactions${query}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -7356,6 +7396,8 @@ export const apiClient = {
     customerId?: string;
     code?: string;
     type: "gift" | "credit";
+    scopeType?: "campground" | "organization" | "global";
+    scopeId?: string;
     metadata?: Record<string, any>;
   }) {
     const res = await fetch(`${API_BASE}/stored-value/issue`, {
@@ -7372,6 +7414,7 @@ export const apiClient = {
     pin?: string;
     amountCents: number;
     currency: string;
+    redeemCampgroundId?: string;
     referenceType: string;
     referenceId: string;
     channel?: string;

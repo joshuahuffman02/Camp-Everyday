@@ -1689,7 +1689,7 @@ model Site {
   rigMaxHeight      Int?
   pullThrough       Boolean  @default(false)
   hookupsPower      Boolean  @default(false)
-  powerAmps         Int?
+  powerAmps         Int[]    @default([])
   hookupsWater      Boolean  @default(false)
   hookupsSewer      Boolean  @default(false)
   petFriendly       Boolean  @default(true)

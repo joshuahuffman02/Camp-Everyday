@@ -15,7 +15,7 @@ import { trackEvent } from "@/lib/analytics";
 import {
     Check, Moon, CalendarDays, Caravan, Tent, Car, Home, Sparkles, Users, Lock,
     Frown, CheckCircle, Shield, CreditCard, Star, Mail, Calendar, MapPin,
-    Copy, ArrowLeft, Printer, Share2, AlertCircle, Loader2
+    Copy, ArrowLeft, Printer, Share2, AlertCircle, Loader2, Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RoundUpForCharity } from "@/components/checkout/RoundUpForCharity";
@@ -574,6 +574,35 @@ function SiteStep({
         }
     };
 
+    // Amenity filter state
+    const [filters, setFilters] = useState<{
+        fullHookups: boolean;
+        petFriendly: boolean;
+        accessible: boolean;
+        pullThrough: boolean;
+    }>({
+        fullHookups: false,
+        petFriendly: false,
+        accessible: false,
+        pullThrough: false,
+    });
+
+    // Apply filters to sites
+    const filteredSites = useMemo(() => {
+        return sites.filter((site) => {
+            const sc = site.siteClass;
+            if (filters.fullHookups) {
+                if (!(sc?.hookupsPower && sc?.hookupsWater && sc?.hookupsSewer)) return false;
+            }
+            if (filters.petFriendly && !sc?.petFriendly) return false;
+            if (filters.accessible && !(site.accessible || sc?.accessible)) return false;
+            if (filters.pullThrough && !(site as any).pullThrough && !(sc as any)?.rvOrientation?.includes("pull")) return false;
+            return true;
+        });
+    }, [sites, filters]);
+
+    const hasActiveFilters = Object.values(filters).some(v => v);
+
     const availableAlternativeSites = (allSites || []).filter((site) => site.status === "available");
     const alternativeTypeSuggestions = availableAlternativeSites.reduce((acc, site) => {
         const type = normalizeSiteType(site.siteClass?.siteType || site.siteType || "other");
@@ -694,18 +723,82 @@ function SiteStep({
         );
     }
 
-    // Group by site class
-    const sitesByClass = sites.reduce((acc, site) => {
+    // Group by site class (using filtered sites)
+    const sitesByClass = filteredSites.reduce((acc, site) => {
         const className = site.siteClass?.name || "Other";
         if (!acc[className]) acc[className] = [];
         acc[className].push(site);
         return acc;
     }, {} as Record<string, AvailableSite[]>);
 
+    // Filter toggle component
+    const FilterChip = ({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active: boolean; onClick: () => void }) => (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                active
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
+            }`}
+        >
+            {icon}
+            {label}
+        </button>
+    );
+
     return (
         <div>
             <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">Choose Your Site</h2>
-            <p className="text-center text-slate-600 mb-2">{sites.length} sites found</p>
+
+            {/* Filter Panel */}
+            <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm font-medium text-slate-700">Filter by:</span>
+                    {hasActiveFilters && (
+                        <button
+                            type="button"
+                            onClick={() => setFilters({ fullHookups: false, petFriendly: false, accessible: false, pullThrough: false })}
+                            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                        >
+                            Clear all
+                        </button>
+                    )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <FilterChip
+                        label="Full Hookups"
+                        icon={<Zap className="h-3.5 w-3.5" />}
+                        active={filters.fullHookups}
+                        onClick={() => setFilters(f => ({ ...f, fullHookups: !f.fullHookups }))}
+                    />
+                    <FilterChip
+                        label="Pet Friendly"
+                        icon={<span className="text-sm">🐕</span>}
+                        active={filters.petFriendly}
+                        onClick={() => setFilters(f => ({ ...f, petFriendly: !f.petFriendly }))}
+                    />
+                    <FilterChip
+                        label="ADA Accessible"
+                        icon={<span className="text-sm">♿</span>}
+                        active={filters.accessible}
+                        onClick={() => setFilters(f => ({ ...f, accessible: !f.accessible }))}
+                    />
+                    <FilterChip
+                        label="Pull-Through"
+                        icon={<span className="text-sm">🚐</span>}
+                        active={filters.pullThrough}
+                        onClick={() => setFilters(f => ({ ...f, pullThrough: !f.pullThrough }))}
+                    />
+                </div>
+            </div>
+
+            <p className="text-center text-slate-600 mb-2">
+                {filteredSites.length} sites found
+                {hasActiveFilters && filteredSites.length !== sites.length && (
+                    <span className="text-slate-400"> (of {sites.length} total)</span>
+                )}
+            </p>
             {sites.length > 0 && sites.length <= 3 && (
                 <p className="text-center text-amber-600 text-sm font-semibold mb-4">
                     Only {sites.length} left for these dates. Sites are held for a short time during checkout.

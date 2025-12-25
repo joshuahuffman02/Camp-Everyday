@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from "class-validator";
+import { IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from "class-validator";
 
 export class CreateSiteDto {
   @IsString()
@@ -61,8 +61,9 @@ export class CreateSiteDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsInt()
-  powerAmps?: number;
+  @IsArray()
+  @IsInt({ each: true })
+  powerAmps?: number[];
 
   @IsOptional()
   @IsBoolean()

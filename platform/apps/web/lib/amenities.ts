@@ -39,6 +39,15 @@ import {
   Home,
   DoorOpen,
   Sofa,
+  Zap,
+  Users,
+  Truck,
+  PawPrint,
+  Tent,
+  Package,
+  Wind,
+  GlassWater,
+  Lightbulb,
 } from "lucide-react";
 
 export interface AmenityOption {
@@ -72,18 +81,59 @@ export const PARK_AMENITIES: AmenityOption[] = [
 
 // Site class amenities (stored in siteClass.amenityTags)
 export const SITE_CLASS_AMENITIES: AmenityOption[] = [
+  // Site surface & structure
   { id: "picnic_table", label: "Picnic Table", icon: Table2 },
   { id: "fire_pit", label: "Fire Pit", icon: Flame },
   { id: "patio", label: "Patio", icon: Armchair },
   { id: "bbq_grill", label: "BBQ Grill", icon: Flame },
+  { id: "concrete_pad", label: "Concrete Pad", icon: Square },
+  { id: "grass_pad", label: "Grass Pad", icon: Leaf },
+  { id: "gravel_pad", label: "Gravel Pad", icon: Square },
+  { id: "paved_driveway", label: "Paved Driveway", icon: Square },
+  { id: "covered", label: "Covered", icon: Sun },
+  { id: "level_site", label: "Level Site", icon: Square },
+
+  // Views & Nature
   { id: "shade", label: "Shade/Trees", icon: TreeDeciduous },
   { id: "lake_view", label: "Lake View", icon: Waves },
   { id: "river_view", label: "River View", icon: Waves },
-  { id: "concrete_pad", label: "Concrete Pad", icon: Square },
-  { id: "grass_pad", label: "Grass Pad", icon: Leaf },
+  { id: "ocean_view", label: "Ocean View", icon: Waves },
+  { id: "mountain_view", label: "Mountain View", icon: Mountain },
+  { id: "forest_view", label: "Forest View", icon: TreeDeciduous },
+  { id: "waterfront", label: "Waterfront Access", icon: Waves },
+
+  // Connectivity
   { id: "cable_tv", label: "Cable TV", icon: Cable },
   { id: "site_wifi", label: "Site WiFi", icon: WifiIcon },
-  { id: "covered", label: "Covered", icon: Sun },
+  { id: "satellite_friendly", label: "Satellite Friendly", icon: Cable },
+
+  // Parking & Access
+  { id: "extra_parking", label: "Extra Vehicle Parking", icon: Square },
+  { id: "golf_cart_parking", label: "Golf Cart Parking", icon: Square },
+  { id: "ev_charging", label: "EV Charging", icon: Zap },
+  { id: "boat_dock", label: "Boat Dock/Slip", icon: Ship },
+
+  // RV Site Features
+  { id: "pull_through", label: "Pull-Through Site", icon: Truck },
+  { id: "back_in", label: "Back-In Site", icon: Truck },
+  { id: "big_rig_friendly", label: "Big Rig Friendly", icon: Truck },
+  { id: "slide_out_space", label: "Slide-Out Space", icon: Square },
+
+  // Pet Features
+  { id: "pet_friendly", label: "Pet Friendly", icon: PawPrint },
+  { id: "fenced_pet_area", label: "Fenced Pet Area", icon: PawPrint },
+
+  // Tent Features
+  { id: "tent_platform", label: "Tent Platform", icon: Tent },
+  { id: "bear_box", label: "Bear Box/Food Locker", icon: Package },
+  { id: "lean_to", label: "Lean-To/Shelter", icon: Tent },
+
+  // Extras
+  { id: "hammock_hooks", label: "Hammock Hooks", icon: TreeDeciduous },
+  { id: "clothesline", label: "Clothesline", icon: Shirt },
+  { id: "storage_locker", label: "Storage Locker", icon: Square },
+  { id: "buddy_site", label: "Buddy Site Available", icon: Users },
+  { id: "outdoor_lighting", label: "Outdoor Lighting", icon: Lightbulb },
 ];
 
 // Cabin-specific amenities (for cabin/glamping site classes)
@@ -129,10 +179,42 @@ export const CABIN_AMENITIES: AmenityOption[] = [
 
   // Outdoor
   { id: "private_deck", label: "Private Deck/Porch", icon: Home, category: "outdoor" },
+  { id: "screen_porch", label: "Screened Porch", icon: Wind, category: "outdoor" },
   { id: "private_fire_pit", label: "Private Fire Pit", icon: Flame, category: "outdoor" },
   { id: "grill", label: "Grill", icon: Flame, category: "outdoor" },
   { id: "outdoor_seating", label: "Outdoor Seating", icon: Armchair, category: "outdoor" },
   { id: "private_entrance", label: "Private Entrance", icon: DoorOpen, category: "outdoor" },
+  { id: "hot_tub", label: "Hot Tub/Jacuzzi", icon: GlassWater, category: "outdoor" },
+
+  // Kitchen Appliances (additional)
+  { id: "dishwasher", label: "Dishwasher", icon: WashingMachine, category: "kitchen" },
+  { id: "stove_oven", label: "Stove/Oven", icon: Flame, category: "kitchen" },
+  { id: "toaster", label: "Toaster", icon: CookingPot, category: "kitchen" },
+
+  // Structure
+  { id: "loft", label: "Loft/Upper Level", icon: Home, category: "structure" },
+  { id: "multiple_rooms", label: "Multiple Rooms", icon: DoorOpen, category: "structure" },
+
+  // Policies
+  { id: "pet_friendly_cabin", label: "Pet Friendly", icon: PawPrint, category: "policies" },
+  { id: "smoke_free", label: "Smoke Free", icon: Wind, category: "policies" },
+  { id: "ada_accessible", label: "ADA Accessible", icon: Users, category: "policies" },
+];
+
+// Group site amenities (for group/pavilion sites)
+export const GROUP_AMENITIES: AmenityOption[] = [
+  { id: "pavilion", label: "Pavilion/Shelter", icon: Home, category: "structure" },
+  { id: "multiple_tables", label: "Multiple Picnic Tables", icon: Table2, category: "seating" },
+  { id: "group_fire_ring", label: "Group Fire Ring", icon: Flame, category: "outdoor" },
+  { id: "electricity", label: "Electricity Available", icon: Zap, category: "utilities" },
+  { id: "water_spigot", label: "Water Spigot", icon: GlassWater, category: "utilities" },
+  { id: "volleyball", label: "Volleyball Court", icon: Dumbbell, category: "activities" },
+  { id: "horseshoe_pit", label: "Horseshoe Pit", icon: Dumbbell, category: "activities" },
+  { id: "large_grill", label: "Large Grill/BBQ", icon: Flame, category: "outdoor" },
+  { id: "stage_area", label: "Stage/Presentation Area", icon: Square, category: "structure" },
+  { id: "restroom_nearby", label: "Restroom Nearby", icon: Bath, category: "facilities" },
+  { id: "parking_lot", label: "Nearby Parking Lot", icon: Square, category: "parking" },
+  { id: "ada_accessible_group", label: "ADA Accessible", icon: Users, category: "accessibility" },
 ];
 
 // Bed size options for room configuration
@@ -157,12 +239,28 @@ export function getAmenityLabels(ids: string[], type: "park" | "site" | "cabin")
     .filter((label): label is string => !!label);
 }
 
-// Get all amenities for a site type (combines site class + cabin amenities if applicable)
+// Get all amenities for a site type (combines site class + type-specific amenities)
 export function getAmenitiesForSiteType(siteType: string): AmenityOption[] {
   if (siteType === "cabin" || siteType === "glamping") {
     return [...SITE_CLASS_AMENITIES, ...CABIN_AMENITIES];
   }
+  if (siteType === "group") {
+    return [...SITE_CLASS_AMENITIES, ...GROUP_AMENITIES];
+  }
   return SITE_CLASS_AMENITIES;
+}
+
+// Group group amenities by category
+export function getGroupAmenitiesByCategory(): Record<string, AmenityOption[]> {
+  const grouped: Record<string, AmenityOption[]> = {};
+  for (const amenity of GROUP_AMENITIES) {
+    const category = amenity.category || "other";
+    if (!grouped[category]) {
+      grouped[category] = [];
+    }
+    grouped[category].push(amenity);
+  }
+  return grouped;
 }
 
 // Group cabin amenities by category

@@ -12,7 +12,7 @@ export interface SiteImportRow {
   hookupsPower?: boolean;
   hookupsWater?: boolean;
   hookupsSewer?: boolean;
-  powerAmps?: number;
+  powerAmps?: number | number[];
   petFriendly?: boolean;
   accessible?: boolean;
   pullThrough?: boolean;
@@ -257,7 +257,9 @@ export class SiteImportService {
           hookupsPower: item.data.hookupsPower ?? false,
           hookupsWater: item.data.hookupsWater ?? false,
           hookupsSewer: item.data.hookupsSewer ?? false,
-          powerAmps: item.data.powerAmps,
+          powerAmps: item.data.powerAmps != null
+            ? (Array.isArray(item.data.powerAmps) ? item.data.powerAmps : [item.data.powerAmps])
+            : [],
           petFriendly: item.data.petFriendly ?? true,
           accessible: item.data.accessible ?? false,
           pullThrough: item.data.pullThrough ?? false,

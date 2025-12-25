@@ -218,7 +218,7 @@ export default function SitesPage() {
       hookupsPower: state.hookupsPower,
       hookupsWater: state.hookupsWater,
       hookupsSewer: state.hookupsSewer,
-      powerAmps: state.powerAmps.length > 0 ? state.powerAmps : (opts?.clearEmptyAsNull ? null : undefined),
+      powerAmps: state.powerAmps.length > 0 ? state.powerAmps : [],
       petFriendly: state.petFriendly,
       accessible: state.accessible,
       minNights: parseOptionalNumber(state.minNights),
@@ -1217,11 +1217,10 @@ export default function SitesPage() {
                                   isInheritedHookups ? "text-amber-500/70 dark:text-amber-400/70" : "text-amber-600 dark:text-amber-400"
                                 )}>
                                   <Zap className="h-3.5 w-3.5" />
-                                  {(Array.isArray(site.powerAmps) ? site.powerAmps : (site.powerAmps ? [site.powerAmps] : cls?.electricAmps))?.length > 0 && (
-                                    <span className="text-xs">
-                                      {(Array.isArray(site.powerAmps) ? site.powerAmps : (site.powerAmps ? [site.powerAmps] : cls?.electricAmps))?.join("/")}A
-                                    </span>
-                                  )}
+                                  {(() => {
+                                    const amps = (site.powerAmps && site.powerAmps.length > 0) ? site.powerAmps : (cls?.electricAmps ?? []);
+                                    return amps.length > 0 ? <span className="text-xs">{amps.join("/")}A</span> : null;
+                                  })()}
                                 </span>
                               )}
                               {effectiveWater && (

@@ -14,27 +14,63 @@ import {
     Wifi, Waves, Flame, Droplets, Store, Fish, Ship, PlayCircle, ShowerHead, Dog,
     Footprints, Mountain, Bike, Check, Tent, Caravan, Home, Users, Sparkles,
     Star, Calendar, MapPin, Clock, Phone, Mail, Link2, Zap, Droplet, Plug, Leaf,
-    TreeDeciduous, Palette, RefreshCw
+    TreeDeciduous, Palette, RefreshCw, Truck, PawPrint, Cable, Bath, type LucideIcon
 } from "lucide-react";
+import { PARK_AMENITIES, SITE_CLASS_AMENITIES, CABIN_AMENITIES } from "@/lib/amenities";
 
 type PublicCampgroundDetail = Awaited<ReturnType<typeof apiClient.getPublicCampground>>;
 
-// Amenity icon mapping with lucide components
-const amenityIcons: Record<string, React.ReactNode> = {
-    WiFi: <Wifi className="h-5 w-5" />,
-    Pool: <Waves className="h-5 w-5" />,
-    "Hot Tub": <Flame className="h-5 w-5" />,
-    Laundry: <Droplets className="h-5 w-5" />,
-    "Camp Store": <Store className="h-5 w-5" />,
-    "Fishing Dock": <Fish className="h-5 w-5" />,
-    "Boat Ramp": <Ship className="h-5 w-5" />,
-    Playground: <PlayCircle className="h-5 w-5" />,
-    "Fire Pits": <Flame className="h-5 w-5" />,
-    Showers: <ShowerHead className="h-5 w-5" />,
-    "Pet Friendly": <Dog className="h-5 w-5" />,
-    "Hiking Trails": <Footprints className="h-5 w-5" />,
-    "Mountain Views": <Mountain className="h-5 w-5" />,
-    "Bike Rentals": <Bike className="h-5 w-5" />,
+// Helper to get amenity icon and label from our centralized definitions
+function getAmenityDisplay(amenityId: string): { icon: LucideIcon; label: string } | null {
+    // Check park amenities first
+    const parkAmenity = PARK_AMENITIES.find(a => a.id === amenityId);
+    if (parkAmenity) return { icon: parkAmenity.icon, label: parkAmenity.label };
+
+    // Check site class amenities
+    const siteAmenity = SITE_CLASS_AMENITIES.find(a => a.id === amenityId);
+    if (siteAmenity) return { icon: siteAmenity.icon, label: siteAmenity.label };
+
+    // Check cabin amenities
+    const cabinAmenity = CABIN_AMENITIES.find(a => a.id === amenityId);
+    if (cabinAmenity) return { icon: cabinAmenity.icon, label: cabinAmenity.label };
+
+    return null;
+}
+
+// Legacy amenity icon mapping for backward compatibility (display names -> icons)
+const legacyAmenityIcons: Record<string, LucideIcon> = {
+    WiFi: Wifi,
+    wifi: Wifi,
+    Pool: Waves,
+    pool: Waves,
+    "Hot Tub": Flame,
+    Laundry: Droplets,
+    laundry: Droplets,
+    "Camp Store": Store,
+    store: Store,
+    "Fishing Dock": Fish,
+    fishing: Fish,
+    "Boat Ramp": Ship,
+    boat_launch: Ship,
+    Playground: PlayCircle,
+    playground: PlayCircle,
+    "Fire Pits": Flame,
+    fire_pit_communal: Flame,
+    Showers: ShowerHead,
+    showers: ShowerHead,
+    "Pet Friendly": Dog,
+    dog_park: Dog,
+    "Hiking Trails": Footprints,
+    hiking_trails: Footprints,
+    "Mountain Views": Mountain,
+    "Bike Rentals": Bike,
+    biking_trails: Bike,
+    pickleball: Bike,
+    walking_trails: Footprints,
+    bath_house: Bath,
+    restrooms: Bath,
+    rec_room: PlayCircle,
+    dump_station: Truck,
 };
 
 // Site type icon mapping
@@ -230,15 +266,24 @@ function PhotoGallery({
 function AmenitiesGrid({ amenities }: { amenities: string[] }) {
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {amenities.map((amenity) => (
-                <div
-                    key={amenity}
-                    className="flex items-center gap-2 bg-slate-50 rounded-lg px-4 py-3 border border-slate-100"
-                >
-                    <span className="text-emerald-600">{amenityIcons[amenity] || <Check className="h-5 w-5" />}</span>
-                    <span className="text-sm font-medium text-slate-700">{amenity}</span>
-                </div>
-            ))}
+            {amenities.map((amenity) => {
+                // Try to get from our centralized definitions first
+                const amenityDisplay = getAmenityDisplay(amenity);
+                // Fall back to legacy mapping for backward compatibility
+                const LegacyIcon = legacyAmenityIcons[amenity];
+                const Icon = amenityDisplay?.icon ?? LegacyIcon ?? Check;
+                const label = amenityDisplay?.label ?? amenity;
+
+                return (
+                    <div
+                        key={amenity}
+                        className="flex items-center gap-2 bg-slate-50 rounded-lg px-4 py-3 border border-slate-100"
+                    >
+                        <span className="text-emerald-600"><Icon className="h-5 w-5" /></span>
+                        <span className="text-sm font-medium text-slate-700">{label}</span>
+                    </div>
+                );
+            })}
         </div>
     );
 }
@@ -257,6 +302,17 @@ function SiteClassCard({
     externalUrl?: string | null;
     onSelect?: (siteType?: string) => void;
 }) {
+    // Get top amenities to display (max 4 additional beyond hookups)
+    const amenityTags = (siteClass as any).amenityTags as string[] | undefined;
+    const electricAmps = (siteClass as any).electricAmps as number[] | undefined;
+    const displayAmenities = useMemo(() => {
+        if (!amenityTags || amenityTags.length === 0) return [];
+        return amenityTags.slice(0, 4).map(tag => {
+            const display = getAmenityDisplay(tag);
+            return display ? { id: tag, ...display } : null;
+        }).filter(Boolean) as Array<{ id: string; icon: LucideIcon; label: string }>;
+    }, [amenityTags]);
+
     return (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow">
             <div className="h-32 bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white">
@@ -274,7 +330,10 @@ function SiteClassCard({
                         </span>
                     )}
                     {siteClass.hookupsPower && (
-                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded inline-flex items-center gap-1"><Zap className="h-3 w-3" /> Power</span>
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded inline-flex items-center gap-1">
+                            <Zap className="h-3 w-3" />
+                            {electricAmps && electricAmps.length > 0 ? `${electricAmps.join("/")}A` : "Power"}
+                        </span>
                     )}
                     {siteClass.hookupsWater && (
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded inline-flex items-center gap-1"><Droplet className="h-3 w-3" /> Water</span>
@@ -285,6 +344,12 @@ function SiteClassCard({
                     {siteClass.petFriendly && (
                         <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded inline-flex items-center gap-1"><Dog className="h-3 w-3" /> Pets OK</span>
                     )}
+                    {/* Display additional amenities from amenityTags */}
+                    {displayAmenities.map((amenity) => (
+                        <span key={amenity.id} className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded inline-flex items-center gap-1">
+                            <amenity.icon className="h-3 w-3" /> {amenity.label}
+                        </span>
+                    ))}
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
                     <div>
