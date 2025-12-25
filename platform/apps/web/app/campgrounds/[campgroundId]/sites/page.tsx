@@ -271,20 +271,25 @@ export default function SitesPage() {
         case "type":
           comparison = (a.siteType || "").localeCompare(b.siteType || "");
           break;
-        case "class":
+        case "class": {
           const classA = classesQuery.data?.find(c => c.id === a.siteClassId)?.name || "";
           const classB = classesQuery.data?.find(c => c.id === b.siteClassId)?.name || "";
           comparison = classA.localeCompare(classB);
           break;
-        case "rate":
+        }
+        case "rate": {
           const rateA = classesQuery.data?.find(c => c.id === a.siteClassId)?.defaultRate || 0;
           const rateB = classesQuery.data?.find(c => c.id === b.siteClassId)?.defaultRate || 0;
           comparison = rateA - rateB;
           break;
-        case "status":
+        }
+        case "status": {
           const statusA = a.isActive !== false ? 1 : 0;
           const statusB = b.isActive !== false ? 1 : 0;
           comparison = statusA - statusB;
+          break;
+        }
+        default:
           break;
       }
       return sortDir === "asc" ? comparison : -comparison;
