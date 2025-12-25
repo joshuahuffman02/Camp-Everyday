@@ -17,6 +17,7 @@ import {
   SECURITY_CERTIFICATION_THRESHOLDS,
   SECURITY_RESOURCES,
   SECURITY_TEMPLATES,
+  PLATFORM_PROTECTIONS,
   calculateSecurityCertificationLevel,
   getSecurityAssessmentStats,
   getSecurityBadgeInfo,
@@ -41,6 +42,10 @@ import {
   UserCheck,
   Building2,
   Mail,
+  Lock,
+  Server,
+  Database,
+  Key,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -523,6 +528,48 @@ export default function SecurityCertificationPage() {
           </CardContent>
         </Card>
 
+        {/* Platform Protections - Handled by Campreserv */}
+        <Card className="border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950 dark:to-slate-900">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              Protected by Campreserv
+            </CardTitle>
+            <CardDescription className="dark:text-slate-400">
+              These security measures are automatically handled by the Campreserv platform - no action required
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-3">
+              {PLATFORM_PROTECTIONS.map((protection) => {
+                const IconComponent = protection.icon === "shield" ? Shield
+                  : protection.icon === "lock" ? Lock
+                  : protection.icon === "server" ? Server
+                  : protection.icon === "database" ? Database
+                  : Key;
+
+                return (
+                  <div
+                    key={protection.id}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center flex-shrink-0">
+                      <IconComponent className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-900 dark:text-white">{protection.label}</span>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{protection.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Quick Wins */}
         {certificationLevel !== "excellence" && quickWins.length > 0 && (
           <Card className="dark:bg-slate-900 dark:border-slate-700">
@@ -716,7 +763,7 @@ export default function SecurityCertificationPage() {
                                       className="h-7 text-xs"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        window.open(`/content/security-templates/${SECURITY_TEMPLATES[item.templateId!].filename}`, "_blank");
+                                        window.open(`/security-templates/${SECURITY_TEMPLATES[item.templateId!].filename}`, "_blank");
                                       }}
                                     >
                                       <Download className="w-3 h-3 mr-1" />
@@ -875,7 +922,7 @@ export default function SecurityCertificationPage() {
               {Object.entries(SECURITY_TEMPLATES).map(([id, template]) => (
                 <a
                   key={id}
-                  href={`/content/security-templates/${template.filename}`}
+                  href={`/security-templates/${template.filename}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"

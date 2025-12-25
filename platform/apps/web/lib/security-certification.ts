@@ -1,6 +1,10 @@
 /**
  * Security & Privacy Certification System (CISO-level)
- * Based on NIST Cybersecurity Framework, CIS Controls, and privacy regulations (CCPA/GDPR)
+ *
+ * This certification focuses on what CAMPGROUND OPERATORS control.
+ * Platform-level protections (encryption, infrastructure) are handled by Campreserv
+ * and displayed separately as "Protected by Campreserv".
+ *
  * References:
  * - NIST: https://www.nist.gov/cyberframework
  * - CIS Controls: https://www.cisecurity.org/controls
@@ -14,370 +18,233 @@ export interface SecurityChecklistItem {
   category: SecurityCategory;
   label: string;
   description: string;
-  required: boolean; // Important items for certification
+  required: boolean;
   points: number;
-  templateId?: string; // Links to downloadable template
-  resourceUrl?: string; // External resource link
+  templateId?: string;
+  resourceUrl?: string;
+}
+
+export interface PlatformProtection {
+  id: string;
+  label: string;
+  description: string;
+  icon: "shield" | "lock" | "server" | "database" | "key";
 }
 
 export type SecurityCategory =
-  | "data_protection"
-  | "access_control"
-  | "network_security"
+  | "access_management"
   | "physical_security"
-  | "incident_response"
   | "employee_training"
-  | "privacy_compliance"
+  | "incident_response"
+  | "privacy_practices"
   | "vendor_management";
 
 export const SECURITY_CATEGORIES: Record<SecurityCategory, { label: string; description: string }> = {
-  data_protection: {
-    label: "Data Protection",
-    description: "Encryption, retention, and secure handling of customer data"
-  },
-  access_control: {
-    label: "Access Control",
-    description: "Authentication, authorization, and user account management"
-  },
-  network_security: {
-    label: "Network Security",
-    description: "Firewalls, WiFi security, and network monitoring"
+  access_management: {
+    label: "Access Management",
+    description: "How you manage who can access your Campreserv account"
   },
   physical_security: {
     label: "Physical Security",
-    description: "Device security, office access, and physical safeguards"
-  },
-  incident_response: {
-    label: "Incident Response",
-    description: "Breach procedures, logging, and recovery planning"
+    description: "Protecting devices, documents, and your physical workspace"
   },
   employee_training: {
     label: "Employee Training",
-    description: "Security awareness and ongoing education"
+    description: "Security awareness and education for your staff"
   },
-  privacy_compliance: {
-    label: "Privacy Compliance",
-    description: "Privacy policies, consent, and data subject rights"
+  incident_response: {
+    label: "Incident Response",
+    description: "Your procedures for handling security incidents"
+  },
+  privacy_practices: {
+    label: "Privacy Practices",
+    description: "How you handle guest privacy and data requests"
   },
   vendor_management: {
     label: "Vendor Management",
-    description: "Third-party risk assessment and contracts"
+    description: "Managing third-party services that access your data"
   }
 };
 
 /**
- * Security Checklist Items
- * Comprehensive controls for campground operations
+ * Platform Protections - Handled by Campreserv
+ * These are always active and not configurable by campground operators
+ */
+export const PLATFORM_PROTECTIONS: PlatformProtection[] = [
+  {
+    id: "platform_encryption_rest",
+    label: "Data Encryption at Rest",
+    description: "All customer data is encrypted in our database using AES-256",
+    icon: "database"
+  },
+  {
+    id: "platform_encryption_transit",
+    label: "Data Encryption in Transit",
+    description: "All connections use TLS 1.3 encryption (HTTPS)",
+    icon: "lock"
+  },
+  {
+    id: "platform_pci",
+    label: "PCI-DSS Compliance",
+    description: "Payment processing through Stripe, a PCI Level 1 certified provider",
+    icon: "shield"
+  },
+  {
+    id: "platform_backups",
+    label: "Automated Encrypted Backups",
+    description: "Daily encrypted backups with 30-day retention",
+    icon: "server"
+  },
+  {
+    id: "platform_logging",
+    label: "Security Event Logging",
+    description: "All access and changes are logged with tamper-proof audit trails",
+    icon: "server"
+  },
+  {
+    id: "platform_infrastructure",
+    label: "Secure Infrastructure",
+    description: "Hosted on Railway with enterprise-grade firewalls and DDoS protection",
+    icon: "shield"
+  },
+  {
+    id: "platform_session",
+    label: "Secure Session Management",
+    description: "Automatic session timeouts and secure token handling",
+    icon: "key"
+  },
+  {
+    id: "platform_passwords",
+    label: "Password Security",
+    description: "Passwords hashed with bcrypt, minimum 12 characters required",
+    icon: "lock"
+  }
+];
+
+/**
+ * Security Checklist Items - Campground Operator Responsibilities
+ * These are things the campground controls, not the platform
  */
 export const SECURITY_CHECKLIST: SecurityChecklistItem[] = [
-  // Data Protection (8 items, ~89 points)
-  {
-    id: "data_encrypt_rest",
-    category: "data_protection",
-    label: "Encrypt customer PII at rest",
-    description: "Customer personal information is encrypted when stored in databases and backups",
-    required: true,
-    points: 15,
-    resourceUrl: "https://www.nist.gov/publications/guide-storage-encryption-technologies-end-user-devices"
-  },
-  {
-    id: "data_encrypt_transit",
-    category: "data_protection",
-    label: "Encrypt data in transit (HTTPS)",
-    description: "All data transmission uses HTTPS/TLS encryption",
-    required: true,
-    points: 15,
-    resourceUrl: "https://www.ftc.gov/business-guidance/resources/start-security-guide-business"
-  },
-  {
-    id: "data_retention_policy",
-    category: "data_protection",
-    label: "Data retention policy defined",
-    description: "Written policy specifying how long different types of data are kept and when deleted",
-    required: true,
-    points: 10,
-    templateId: "data-retention-policy"
-  },
-  {
-    id: "data_secure_deletion",
-    category: "data_protection",
-    label: "Secure deletion procedures",
-    description: "Process for permanently destroying data when no longer needed",
-    required: false,
-    points: 8
-  },
-  {
-    id: "data_classification",
-    category: "data_protection",
-    label: "Data classification system",
-    description: "Data is categorized by sensitivity level (public, internal, confidential, restricted)",
-    required: false,
-    points: 8
-  },
-  {
-    id: "data_backup_encryption",
-    category: "data_protection",
-    label: "Backup encryption enabled",
-    description: "All backup data is encrypted before storage",
-    required: true,
-    points: 10
-  },
-  {
-    id: "data_pci_compliance",
-    category: "data_protection",
-    label: "Credit card data PCI-compliant",
-    description: "Payment card handling follows PCI-DSS requirements (or uses compliant processor)",
-    required: true,
-    points: 15,
-    resourceUrl: "https://www.pcisecuritystandards.org/merchants/"
-  },
-  {
-    id: "data_no_pii_logs",
-    category: "data_protection",
-    label: "No PII in logs or error messages",
-    description: "Logs and error reports do not contain personal information",
-    required: false,
-    points: 8
-  },
-
-  // Access Control (8 items, ~75 points)
+  // Access Management (7 items)
   {
     id: "access_unique_accounts",
-    category: "access_control",
-    label: "Unique user accounts (no shared logins)",
-    description: "Each employee has their own login credentials",
+    category: "access_management",
+    label: "Unique user accounts for each employee",
+    description: "Each staff member has their own login - no shared accounts",
+    required: true,
+    points: 12
+  },
+  {
+    id: "access_mfa_enabled",
+    category: "access_management",
+    label: "Multi-factor authentication enabled",
+    description: "MFA is turned on for all user accounts in your organization",
+    required: true,
+    points: 15
+  },
+  {
+    id: "access_roles_configured",
+    category: "access_management",
+    label: "User roles properly configured",
+    description: "Staff have appropriate permission levels (not everyone is admin)",
     required: true,
     points: 10
   },
   {
-    id: "access_password_policy",
-    category: "access_control",
-    label: "Strong password policy enforced",
-    description: "Passwords require minimum length, complexity, and regular changes",
-    required: true,
-    points: 8,
-    templateId: "password-policy"
-  },
-  {
-    id: "access_mfa",
-    category: "access_control",
-    label: "Multi-factor authentication (MFA)",
-    description: "MFA is required for all administrative and sensitive system access",
-    required: true,
-    points: 15,
-    resourceUrl: "https://www.cisa.gov/mfa"
-  },
-  {
-    id: "access_rbac",
-    category: "access_control",
-    label: "Role-based access control (RBAC)",
-    description: "Users only have access to systems and data needed for their job",
-    required: true,
-    points: 10
-  },
-  {
-    id: "access_reviews",
-    category: "access_control",
-    label: "Access reviews quarterly",
-    description: "User access permissions are reviewed at least every 90 days",
+    id: "access_reviews_quarterly",
+    category: "access_management",
+    label: "Quarterly access reviews",
+    description: "Review who has access to your account at least every 90 days",
     required: false,
     points: 8
   },
   {
     id: "access_offboarding",
-    category: "access_control",
+    category: "access_management",
     label: "Immediate offboarding procedure",
-    description: "Access is revoked same-day when employees leave",
+    description: "Documented process to revoke access when employees leave",
     required: true,
-    points: 10,
+    points: 12,
     templateId: "offboarding-checklist"
   },
   {
-    id: "access_least_privilege",
-    category: "access_control",
-    label: "Least privilege principle applied",
-    description: "Users start with minimal access and are granted more only as needed",
-    required: false,
-    points: 8
-  },
-  {
-    id: "access_session_timeout",
-    category: "access_control",
-    label: "Session timeout configured",
-    description: "Inactive sessions automatically log out after a set period",
-    required: false,
-    points: 6
-  },
-
-  // Network Security (6 items, ~60 points)
-  {
-    id: "network_firewall",
-    category: "network_security",
-    label: "Firewall configured and active",
-    description: "Network firewall is in place and properly configured",
+    id: "access_onboarding",
+    category: "access_management",
+    label: "Security onboarding for new hires",
+    description: "New employees receive security training before getting access",
     required: true,
     points: 10,
-    resourceUrl: "https://www.cisa.gov/news-events/news/understanding-firewalls-home-and-small-office-use"
+    templateId: "onboarding-checklist"
   },
   {
-    id: "network_guest_wifi",
-    category: "network_security",
-    label: "Guest WiFi separated from business",
-    description: "Guest/public WiFi is on a separate network from business systems",
-    required: true,
-    points: 10
-  },
-  {
-    id: "network_vpn",
-    category: "network_security",
-    label: "VPN for remote access",
-    description: "Remote workers use VPN to connect to business systems",
+    id: "access_password_policy",
+    category: "access_management",
+    label: "Password policy communicated",
+    description: "Staff know not to reuse passwords or share credentials",
     required: false,
-    points: 10
-  },
-  {
-    id: "network_vulnerability_scanning",
-    category: "network_security",
-    label: "Regular vulnerability scanning",
-    description: "Systems are scanned for vulnerabilities at least quarterly",
-    required: false,
-    points: 12
-  },
-  {
-    id: "network_segmentation",
-    category: "network_security",
-    label: "Network segmentation",
-    description: "Critical systems are on separate network segments",
-    required: false,
-    points: 8
-  },
-  {
-    id: "network_ids",
-    category: "network_security",
-    label: "Intrusion detection/monitoring",
-    description: "Network traffic is monitored for suspicious activity",
-    required: false,
-    points: 10
+    points: 6,
+    templateId: "password-policy"
   },
 
-  // Physical Security (6 items, ~41 points)
+  // Physical Security (6 items)
   {
-    id: "physical_device_storage",
+    id: "physical_device_locks",
     category: "physical_security",
-    label: "Secure storage for devices",
-    description: "Laptops and devices are stored securely when not in use",
+    label: "Devices lock automatically",
+    description: "Computers and tablets lock after brief inactivity",
     required: true,
     points: 8
   },
   {
-    id: "physical_screen_lock",
+    id: "physical_secure_storage",
     category: "physical_security",
-    label: "Screen lock policy",
-    description: "Devices automatically lock after brief inactivity",
+    label: "Secure device storage",
+    description: "Laptops and devices stored securely when office is closed",
     required: true,
-    points: 6
-  },
-  {
-    id: "physical_visitor_access",
-    category: "physical_security",
-    label: "Visitor access controls",
-    description: "Visitors are logged and escorted in sensitive areas",
-    required: false,
-    points: 6
-  },
-  {
-    id: "physical_surveillance",
-    category: "physical_security",
-    label: "Surveillance in sensitive areas",
-    description: "Security cameras monitor areas with sensitive equipment",
-    required: false,
     points: 8
-  },
-  {
-    id: "physical_clean_desk",
-    category: "physical_security",
-    label: "Clean desk policy",
-    description: "Sensitive documents are not left visible on desks",
-    required: false,
-    points: 5
   },
   {
     id: "physical_document_disposal",
     category: "physical_security",
     label: "Secure document disposal",
-    description: "Paper documents with sensitive info are shredded",
-    required: true,
-    points: 8
-  },
-
-  // Incident Response (7 items, ~68 points)
-  {
-    id: "incident_plan",
-    category: "incident_response",
-    label: "Incident response plan documented",
-    description: "Written plan for responding to security incidents",
-    required: true,
-    points: 12,
-    templateId: "incident-response-plan"
-  },
-  {
-    id: "incident_contact",
-    category: "incident_response",
-    label: "Security contact designated",
-    description: "Specific person responsible for security incidents",
-    required: true,
-    points: 8
-  },
-  {
-    id: "incident_breach_notification",
-    category: "incident_response",
-    label: "Breach notification procedures",
-    description: "Process for notifying affected parties and regulators",
-    required: true,
-    points: 10,
-    templateId: "breach-notification-template"
-  },
-  {
-    id: "incident_logging",
-    category: "incident_response",
-    label: "Security event logging enabled",
-    description: "System and access logs are captured and stored",
+    description: "Guest info and financial documents are shredded, not trashed",
     required: true,
     points: 10
   },
   {
-    id: "incident_log_retention",
-    category: "incident_response",
-    label: "Log retention (90+ days)",
-    description: "Security logs are kept for at least 90 days",
+    id: "physical_clean_desk",
+    category: "physical_security",
+    label: "Clean desk policy",
+    description: "Sensitive documents not left visible on desks",
     required: false,
-    points: 8
+    points: 5
   },
   {
-    id: "incident_backup_tested",
-    category: "incident_response",
-    label: "Backup & recovery tested",
-    description: "Data restoration is tested at least annually",
+    id: "physical_visitor_policy",
+    category: "physical_security",
+    label: "Visitor access policy",
+    description: "Non-employees don't have unsupervised access to computers",
+    required: false,
+    points: 6
+  },
+  {
+    id: "physical_wifi_separate",
+    category: "physical_security",
+    label: "Separate guest and business WiFi",
+    description: "Guest WiFi network is separate from your office network",
     required: true,
-    points: 12
-  },
-  {
-    id: "incident_post_review",
-    category: "incident_response",
-    label: "Post-incident review process",
-    description: "Formal review conducted after security incidents",
-    required: false,
-    points: 8
+    points: 10
   },
 
-  // Employee Training (5 items, ~44 points)
+  // Employee Training (5 items)
   {
-    id: "training_awareness",
+    id: "training_security_annual",
     category: "employee_training",
-    label: "Security awareness training (annual)",
-    description: "All employees complete security training yearly",
+    label: "Annual security awareness training",
+    description: "All staff complete security training at least yearly",
     required: true,
-    points: 12,
+    points: 15,
     templateId: "security-training-checklist",
     resourceUrl: "https://www.cisa.gov/free-cybersecurity-services-and-tools"
   },
@@ -385,138 +252,168 @@ export const SECURITY_CHECKLIST: SecurityChecklistItem[] = [
     id: "training_phishing",
     category: "employee_training",
     label: "Phishing awareness training",
-    description: "Employees trained to recognize and report phishing attempts",
+    description: "Staff trained to recognize and report suspicious emails",
     required: true,
-    points: 10,
+    points: 12,
     resourceUrl: "https://www.ftc.gov/business-guidance/small-businesses/cybersecurity/phishing"
   },
   {
-    id: "training_onboarding",
+    id: "training_new_hire",
     category: "employee_training",
-    label: "New hire security onboarding",
+    label: "New hire security orientation",
     description: "Security policies covered during employee onboarding",
     required: true,
-    points: 8
-  },
-  {
-    id: "training_password",
-    category: "employee_training",
-    label: "Secure password training",
-    description: "Employees trained on password best practices",
-    required: false,
-    points: 6
+    points: 10,
+    templateId: "onboarding-checklist"
   },
   {
     id: "training_social_engineering",
     category: "employee_training",
     label: "Social engineering awareness",
-    description: "Training on recognizing manipulation attempts",
+    description: "Staff know not to give out info to unverified callers",
     required: false,
     points: 8
   },
-
-  // Privacy Compliance (7 items, ~60 points)
   {
-    id: "privacy_policy",
-    category: "privacy_compliance",
-    label: "Privacy policy published",
-    description: "Clear privacy policy available on website",
+    id: "training_incident_reporting",
+    category: "employee_training",
+    label: "Incident reporting training",
+    description: "Staff know who to contact and what to do if something seems wrong",
     required: true,
-    points: 10,
-    templateId: "privacy-policy"
+    points: 8
+  },
+
+  // Incident Response (5 items)
+  {
+    id: "incident_plan",
+    category: "incident_response",
+    label: "Incident response plan documented",
+    description: "Written plan for what to do if there's a security incident",
+    required: true,
+    points: 15,
+    templateId: "incident-response-plan"
   },
   {
-    id: "privacy_consent",
-    category: "privacy_compliance",
-    label: "Consent collection documented",
-    description: "Records of when and how consent was obtained",
+    id: "incident_contact",
+    category: "incident_response",
+    label: "Security contact designated",
+    description: "Specific person responsible for security issues",
     required: true,
     points: 8
   },
   {
-    id: "privacy_dsar",
-    category: "privacy_compliance",
-    label: "Data subject access request process",
-    description: "Process for handling requests to access personal data",
+    id: "incident_notification",
+    category: "incident_response",
+    label: "Breach notification procedure",
+    description: "Know how and when to notify guests if their data is compromised",
+    required: true,
+    points: 10,
+    templateId: "breach-notification-template"
+  },
+  {
+    id: "incident_backup_tested",
+    category: "incident_response",
+    label: "Data export/backup tested",
+    description: "You've tested exporting your data from Campreserv",
+    required: false,
+    points: 8
+  },
+  {
+    id: "incident_review_process",
+    category: "incident_response",
+    label: "Post-incident review process",
+    description: "Learn from incidents to prevent them from happening again",
+    required: false,
+    points: 6
+  },
+
+  // Privacy Practices (6 items)
+  {
+    id: "privacy_policy_posted",
+    category: "privacy_practices",
+    label: "Privacy policy on website",
+    description: "Clear privacy policy available on your campground website",
+    required: true,
+    points: 12,
+    templateId: "privacy-policy"
+  },
+  {
+    id: "privacy_consent_documented",
+    category: "privacy_practices",
+    label: "Marketing consent documented",
+    description: "You have records of guests opting in to marketing emails",
+    required: true,
+    points: 8
+  },
+  {
+    id: "privacy_data_requests",
+    category: "privacy_practices",
+    label: "Data request process",
+    description: "You can handle guest requests to see or delete their data",
     required: true,
     points: 10,
     templateId: "data-subject-request-form"
   },
   {
-    id: "privacy_deletion",
-    category: "privacy_compliance",
-    label: "Right to deletion honored",
-    description: "Process for deleting personal data on request",
-    required: true,
-    points: 10
-  },
-  {
-    id: "privacy_cookies",
-    category: "privacy_compliance",
-    label: "Cookie/tracking disclosure",
-    description: "Clear disclosure of cookies and tracking technologies",
+    id: "privacy_retention_policy",
+    category: "privacy_practices",
+    label: "Data retention policy",
+    description: "Documented policy for how long you keep guest data",
     required: false,
-    points: 8
+    points: 8,
+    templateId: "data-retention-policy"
   },
   {
-    id: "privacy_optout",
-    category: "privacy_compliance",
-    label: "Marketing opt-out available",
-    description: "Easy way for customers to unsubscribe from marketing",
+    id: "privacy_third_party_disclosure",
+    category: "privacy_practices",
+    label: "Third-party sharing disclosed",
+    description: "Guests informed about data shared with partners",
     required: false,
     points: 6
   },
   {
-    id: "privacy_third_party",
-    category: "privacy_compliance",
-    label: "Third-party data sharing disclosed",
-    description: "Customers informed about data shared with partners",
-    required: false,
-    points: 8
+    id: "privacy_optout_easy",
+    category: "privacy_practices",
+    label: "Easy marketing opt-out",
+    description: "One-click unsubscribe available on all marketing emails",
+    required: true,
+    points: 6
   },
 
-  // Vendor Management (5 items, ~40 points)
-  {
-    id: "vendor_requirements",
-    category: "vendor_management",
-    label: "Vendor security requirements",
-    description: "Security standards required of vendors in contracts",
-    required: true,
-    points: 8,
-    templateId: "vendor-security-questionnaire"
-  },
-  {
-    id: "vendor_dpa",
-    category: "vendor_management",
-    label: "Data processing agreements",
-    description: "Signed DPAs with vendors handling customer data",
-    required: true,
-    points: 10,
-    templateId: "data-processing-agreement"
-  },
+  // Vendor Management (4 items)
   {
     id: "vendor_inventory",
     category: "vendor_management",
     label: "Vendor inventory maintained",
-    description: "List of all vendors with access to systems or data",
+    description: "List of all services that have access to your data (booking sites, etc.)",
+    required: true,
+    points: 8
+  },
+  {
+    id: "vendor_security_review",
+    category: "vendor_management",
+    label: "Vendor security reviewed",
+    description: "You've checked that key vendors have reasonable security",
+    required: false,
+    points: 10,
+    templateId: "vendor-security-questionnaire"
+  },
+  {
+    id: "vendor_contracts",
+    category: "vendor_management",
+    label: "Data processing agreements",
+    description: "Contracts with vendors specify how they must protect your data",
+    required: false,
+    points: 10,
+    templateId: "data-processing-agreement"
+  },
+  {
+    id: "vendor_access_minimal",
+    category: "vendor_management",
+    label: "Minimal vendor access",
+    description: "Third parties only have access they actually need",
     required: false,
     points: 6
-  },
-  {
-    id: "vendor_backup_plans",
-    category: "vendor_management",
-    label: "Critical vendor backup plans",
-    description: "Contingency plans if key vendors become unavailable",
-    required: false,
-    points: 8
-  },
-  {
-    id: "vendor_reviews",
-    category: "vendor_management",
-    label: "Annual vendor reviews",
-    description: "Vendor security is reviewed at least yearly",
-    required: false,
-    points: 8
   }
 ];
 
@@ -525,37 +422,37 @@ export const SECURITY_CHECKLIST: SecurityChecklistItem[] = [
  */
 export const SECURITY_CERTIFICATION_THRESHOLDS = {
   basic: {
-    minPoints: 40,
-    requiredItemsRatio: 0.3, // 30% of required items
+    minPoints: 50,
+    requiredItemsRatio: 0.3,
     label: "Basic Security",
-    description: "Foundational security hygiene is in place",
-    badgeColor: "from-amber-600 to-amber-700" // Bronze
+    description: "Foundational security practices in place",
+    badgeColor: "from-amber-600 to-amber-700"
   },
   standard: {
     minPoints: 100,
-    requiredItemsRatio: 0.6, // 60% of required items
+    requiredItemsRatio: 0.6,
     label: "Standard Security",
-    description: "Industry best practices are followed",
-    badgeColor: "from-slate-400 to-slate-500" // Silver
+    description: "Strong security practices implemented",
+    badgeColor: "from-slate-400 to-slate-500"
   },
   advanced: {
-    minPoints: 180,
-    requiredItemsRatio: 0.85, // 85% of required items
+    minPoints: 160,
+    requiredItemsRatio: 0.85,
     label: "Advanced Security",
-    description: "CISO-grade security controls implemented",
-    badgeColor: "from-yellow-400 to-amber-500" // Gold
+    description: "Comprehensive security program in place",
+    badgeColor: "from-yellow-400 to-amber-500"
   },
   excellence: {
-    minPoints: 280,
-    requiredItemsRatio: 1.0, // 100% of required items
+    minPoints: 220,
+    requiredItemsRatio: 1.0,
     label: "Security Excellence",
-    description: "Enterprise-level security and privacy protection",
-    badgeColor: "from-cyan-400 to-blue-500" // Platinum
+    description: "Industry-leading security and privacy practices",
+    badgeColor: "from-cyan-400 to-blue-500"
   }
 };
 
 export interface SecurityAssessmentData {
-  completedItems: string[]; // Array of checklist item IDs
+  completedItems: string[];
   notes?: string;
   lastUpdated?: string;
 }
@@ -563,7 +460,7 @@ export interface SecurityAssessmentData {
 export interface SecurityAuditorInfo {
   verified: boolean;
   verifiedAt?: string;
-  verifiedBy?: string; // Auditor name
+  verifiedBy?: string;
   auditorEmail?: string;
   auditorOrg?: string;
 }
@@ -574,19 +471,16 @@ export interface SecurityAuditorInfo {
 export function calculateSecurityCertificationLevel(assessment: SecurityAssessmentData): SecurityCertificationLevel {
   const completedSet = new Set(assessment.completedItems);
 
-  // Calculate points
   const totalPoints = SECURITY_CHECKLIST
     .filter(item => completedSet.has(item.id))
     .reduce((sum, item) => sum + item.points, 0);
 
-  // Calculate required items completion ratio
   const requiredItems = SECURITY_CHECKLIST.filter(item => item.required);
   const completedRequired = requiredItems.filter(item => completedSet.has(item.id));
   const requiredRatio = requiredItems.length > 0
     ? completedRequired.length / requiredItems.length
     : 0;
 
-  // Determine level (check from highest to lowest)
   if (
     totalPoints >= SECURITY_CERTIFICATION_THRESHOLDS.excellence.minPoints &&
     requiredRatio >= SECURITY_CERTIFICATION_THRESHOLDS.excellence.requiredItemsRatio
@@ -641,7 +535,6 @@ export function getSecurityAssessmentStats(assessment: SecurityAssessmentData): 
   const requiredItems = SECURITY_CHECKLIST.filter(item => item.required);
   const completedRequired = requiredItems.filter(item => completedSet.has(item.id));
 
-  // Calculate per-category progress
   const categoryProgress = {} as Record<SecurityCategory, { completed: number; total: number; points: number; maxPoints: number }>;
 
   for (const category of Object.keys(SECURITY_CATEGORIES) as SecurityCategory[]) {
@@ -753,16 +646,6 @@ export const SECURITY_RESOURCES = [
     title: "CISA Free Tools & Services",
     url: "https://www.cisa.gov/free-cybersecurity-services-and-tools",
     description: "Free security tools from the Cybersecurity & Infrastructure Security Agency"
-  },
-  {
-    title: "PCI Security Standards",
-    url: "https://www.pcisecuritystandards.org/merchants/",
-    description: "Payment card industry security requirements"
-  },
-  {
-    title: "California Consumer Privacy Act (CCPA)",
-    url: "https://oag.ca.gov/privacy/ccpa",
-    description: "California privacy law requirements"
   }
 ];
 
@@ -788,6 +671,11 @@ export const SECURITY_TEMPLATES: Record<string, {
     title: "Employee Offboarding Checklist",
     description: "Checklist for revoking access when employees leave",
     filename: "offboarding-checklist.md"
+  },
+  "onboarding-checklist": {
+    title: "Employee Onboarding Checklist",
+    description: "Security checklist for new employee setup",
+    filename: "onboarding-checklist.md"
   },
   "incident-response-plan": {
     title: "Incident Response Plan",

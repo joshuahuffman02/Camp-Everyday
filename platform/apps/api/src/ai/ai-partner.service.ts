@@ -195,7 +195,14 @@ export class AiPartnerService {
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
-      select: { id: true, name: true, slug: true, aiAnonymizationLevel: true }
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        aiAnonymizationLevel: true,
+        timezone: true,
+        parkTimeZone: true
+      }
     });
 
     if (!campground) {
@@ -207,6 +214,10 @@ export class AiPartnerService {
     }
 
     const { role, mode } = this.resolveUserRole(user, campgroundId);
+    const timeZone = this.getCampgroundTimeZone(campground);
+    const now = new Date();
+    const today = this.formatDateInTimeZone(now, timeZone);
+    const weekday = this.formatWeekdayInTimeZone(now, timeZone);
 
     // Privacy Redaction
     const { anonymizedText, tokenMap } = this.privacy.anonymize(message, campground.aiAnonymizationLevel ?? "moderate");
@@ -224,6 +235,9 @@ export class AiPartnerService {
     return this.runOpenAiPartner({
       campground,
       campgroundId,
+      timeZone,
+      today,
+      weekday,
       anonymizedText,
       historyText,
       tokenMap: mergedTokenMap,
@@ -393,6 +407,9 @@ Request: "${params.anonymizedText}"${historyBlock}`;
   private async runOpenAiPartner(params: {
     campground: { id: string; name: string; slug: string; aiAnonymizationLevel: string | null };
     campgroundId: string;
+    timeZone: string;
+    today: string;
+    weekday: string;
     anonymizedText: string;
     historyText: string;
     tokenMap: Map<string, string>;
@@ -412,7 +429,10 @@ Request: "${params.anonymizedText}"${historyBlock}`;
         role: params.role,
         campgroundId: params.campgroundId,
         persona: params.persona,
-        personaPrompt
+        personaPrompt,
+        timeZone: params.timeZone,
+        today: params.today,
+        weekday: params.weekday
       });
 
       const userPrompt = this.buildUserPrompt({
@@ -631,6 +651,9 @@ Request: "${params.anonymizedText}"${historyBlock}`;
     campgroundId: string;
     persona: PersonaKey;
     personaPrompt: string;
+    timeZone: string;
+    today: string;
+    weekday: string;
   }) {
     return `You are the Active Campground AI Partner for ${params.campgroundName}.
 MODE: ${params.mode.toUpperCase()}
@@ -638,6 +661,8 @@ ROLE: ${params.role}
 PARK_SCOPE: ${params.campgroundId}
 PERSONA: ${params.persona.toUpperCase()}
 PERSONA_FOCUS: ${params.personaPrompt}
+TODAY: ${params.today} (${params.weekday})
+TIME_ZONE: ${params.timeZone}
 
 Execution pipeline (do not skip):
 1) Use injected identity and park context.
@@ -654,6 +679,11 @@ Behavior:
 Privacy rules:
 - Never request or expose personal data. Any identifiers appear as tokens like [NAME_1], [EMAIL_1].
 - Do not ask for names, emails, phone numbers, or payment details.
+
+Date handling:
+- Use TODAY and TIME_ZONE to resolve relative dates (today, tomorrow, this weekend, next weekend).
+- For "next weekend" default to Friday arrival and Sunday departure unless the user specifies another range.
+- If a relative date is unambiguous, include explicit arrivalDate/departureDate and avoid asking for dates.
 
 Allowed actions (choose one; use none when you can only guide):
 - lookup_availability (arrivalDate, departureDate, optional rigType/rigLength)
@@ -723,6 +753,33 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     a.forEach((value, key) => merged.set(key, value));
     b.forEach((value, key) => merged.set(key, value));
     return merged;
+  }
+
+  private getCampgroundTimeZone(campground: { parkTimeZone?: string | null; timezone?: string | null }) {
+    const timeZone = campground.parkTimeZone || campground.timezone || "UTC";
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+      return timeZone;
+    } catch {
+      return "UTC";
+    }
+  }
+
+  private formatDateInTimeZone(date: Date, timeZone: string) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(date);
+    const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+    const month = parts.find((part) => part.type === "month")?.value ?? "01";
+    const day = parts.find((part) => part.type === "day")?.value ?? "01";
+    return `${year}-${month}-${day}`;
+  }
+
+  private formatWeekdayInTimeZone(date: Date, timeZone: string) {
+    return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "long" }).format(date);
   }
 
   private resolveUserRole(user: any, campgroundId: string): { role: string; mode: PartnerMode } {
