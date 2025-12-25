@@ -682,9 +682,11 @@ Privacy rules:
 - Do not ask for names, emails, phone numbers, or payment details.
 
 Date handling:
-- Use TODAY and TIME_ZONE to resolve relative dates (today, tomorrow, this weekend, next weekend, next week).
+- Use TODAY and TIME_ZONE to resolve relative dates (today, tomorrow, this weekend, next weekend, this week, next week, next month).
 - For "this weekend" or "next weekend" default to Friday arrival and Sunday departure unless the user specifies another range.
+- For "this week" default to today through next Monday unless the user specifies another range.
 - For "next week" default to Monday arrival and Monday departure (7 nights) unless the user specifies another range.
+- For "next month" default to the first day of next month through the first day of the following month unless the user specifies another range.
 - If a relative date is unambiguous, include explicit arrivalDate/departureDate and avoid asking for dates.
 
 Allowed actions (choose one; use none when you can only guide):
@@ -788,7 +790,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     const formatted = this.formatDateInTimeZone(date, timeZone);
     const [year, month, day] = formatted.split("-").map((value) => Number(value));
     const utcDate = new Date(Date.UTC(year, month - 1, day));
-    return { utcDate, dayOfWeek: utcDate.getUTCDay() };
+    return { utcDate, dayOfWeek: utcDate.getUTCDay(), year, month, day };
   }
 
   private addDaysUtc(date: Date, days: number) {
@@ -801,7 +803,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
 
   private inferRelativeDateRange(requestText: string, timeZone: string) {
     const normalized = requestText.toLowerCase();
-    const { utcDate, dayOfWeek } = this.getZonedDateInfo(new Date(), timeZone);
+    const { utcDate, dayOfWeek, year, month } = this.getZonedDateInfo(new Date(), timeZone);
 
     const buildRange = (arrival: Date, nights: number) => {
       const departure = this.addDaysUtc(arrival, nights);
@@ -842,6 +844,21 @@ User request: "${params.anonymizedText}"${historyBlock}`;
       return buildRange(arrival, 2);
     }
 
+    if (/\bthis\s+week\b/.test(normalized)) {
+      const daysSinceMonday = (dayOfWeek - 1 + 7) % 7;
+      const weekStart = this.addDaysUtc(utcDate, -daysSinceMonday);
+      const weekEnd = this.addDaysUtc(weekStart, 7);
+      const arrival = weekStart < utcDate ? utcDate : weekStart;
+      let departure = weekEnd;
+      if (departure <= arrival) {
+        departure = this.addDaysUtc(arrival, 1);
+      }
+      return {
+        arrivalDate: this.formatDateUtc(arrival),
+        departureDate: this.formatDateUtc(departure)
+      };
+    }
+
     if (/\bnext\s+week\b/.test(normalized)) {
       let daysUntilNextMonday = (8 - dayOfWeek) % 7;
       if (daysUntilNextMonday === 0) {
@@ -849,6 +866,29 @@ User request: "${params.anonymizedText}"${historyBlock}`;
       }
       const arrival = this.addDaysUtc(utcDate, daysUntilNextMonday);
       return buildRange(arrival, 7);
+    }
+
+    if (/\bnext\s+month\b/.test(normalized)) {
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear += 1;
+      }
+
+      let followingMonth = nextMonth + 1;
+      let followingYear = nextYear;
+      if (followingMonth > 12) {
+        followingMonth = 1;
+        followingYear += 1;
+      }
+
+      const arrival = new Date(Date.UTC(nextYear, nextMonth - 1, 1));
+      const departure = new Date(Date.UTC(followingYear, followingMonth - 1, 1));
+      return {
+        arrivalDate: this.formatDateUtc(arrival),
+        departureDate: this.formatDateUtc(departure)
+      };
     }
 
     if (/\btomorrow\b/.test(normalized)) {
