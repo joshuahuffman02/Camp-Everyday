@@ -138,10 +138,11 @@ export default function GamificationSettingsPage() {
     setRecentBadges(listRecentBadgeUnlocks());
     setHistoryEntries(listHistoryEntries());
     setNotifications(listNotifications());
-    if (!awardBadgeId && (snapshot.badgeLibrary?.[0]?.id || listBadgeLibrary()[0]?.id)) {
-      setAwardBadgeId(snapshot.badgeLibrary?.[0]?.id || listBadgeLibrary()[0].id);
+    const firstBadgeId = snapshot.badgeLibrary?.[0]?.id || listBadgeLibrary()[0]?.id;
+    if (!awardBadgeId && firstBadgeId) {
+      setAwardBadgeId(firstBadgeId);
     }
-    if (!awardTarget && snapshot.staff[0]) setAwardTarget(snapshot.staff[0].id);
+    if (!awardTarget && snapshot.staff?.[0]?.id) setAwardTarget(snapshot.staff[0].id);
     setLoading(false);
   };
 

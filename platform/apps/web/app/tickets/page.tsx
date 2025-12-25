@@ -6,7 +6,7 @@ import { useWhoami } from "@/hooks/use-whoami";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Plus, X, Search, Loader2 } from "lucide-react";
+import { Plus, X, Search, Loader2, CheckCircle, Send } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Ticket = {
@@ -64,11 +64,17 @@ export default function TicketsPage() {
   // Create Ticket State
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [newTicket, setNewTicket] = useState({
     title: "",
     notes: "",
     category: "issue" as "issue" | "question" | "feature" | "other",
-    area: "General"
+    area: "General",
+    name: "",
+    email: "",
+    campground: "",
+    role: "Manager",
+    urgency: "Normal"
   });
 
   const loadTickets = async () => {
@@ -285,19 +291,33 @@ export default function TicketsPage() {
           status: "open",
           submitter: {
             id: (whoami as any)?.id,
-            name: (whoami as any)?.name,
-            email: (whoami as any)?.email
+            name: newTicket.name || (whoami as any)?.name,
+            email: newTicket.email || (whoami as any)?.email
+          },
+          extra: {
+            campground: newTicket.campground,
+            role: newTicket.role,
+            urgency: newTicket.urgency
           }
         }),
       });
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      setCreateOpen(false);
-      setNewTicket({
-        title: "",
-        notes: "",
-        category: "issue",
-        area: "General"
-      });
+      setSubmitted(true);
+      setTimeout(() => {
+        setCreateOpen(false);
+        setSubmitted(false);
+        setNewTicket({
+          title: "",
+          notes: "",
+          category: "issue",
+          area: "General",
+          name: "",
+          email: "",
+          campground: "",
+          role: "Manager",
+          urgency: "Normal"
+        });
+      }, 2000);
       await loadTickets();
     } catch (err) {
       console.error(err);
@@ -735,22 +755,107 @@ export default function TicketsPage() {
 
         {/* Create Ticket Dialog */}
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Ticket</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5 text-emerald-600" />
+                Submit a Support Ticket
+              </DialogTitle>
+              <p className="text-sm text-slate-600 mt-1">
+                Tell us what you need. We reply fastest to urgent operations issues.
+              </p>
             </DialogHeader>
+
+            {submitted && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex items-center gap-2 text-emerald-800 font-semibold">
+                  <CheckCircle className="h-5 w-5" />
+                  Ticket received
+                </div>
+                <p className="text-sm text-emerald-900 mt-2">
+                  Your request is in the queue. We'll follow up by email.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-4 py-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Name</label>
+                  <Input
+                    placeholder="Your name"
+                    value={newTicket.name}
+                    onChange={(e) => setNewTicket(prev => ({ ...prev, name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="your@email.com"
+                    value={newTicket.email}
+                    onChange={(e) => setNewTicket(prev => ({ ...prev, email: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Campground</label>
+                  <Input
+                    placeholder="North Woods RV"
+                    value={newTicket.campground}
+                    onChange={(e) => setNewTicket(prev => ({ ...prev, campground: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Role</label>
+                  <Select
+                    value={newTicket.role}
+                    onValueChange={(val) => setNewTicket(prev => ({ ...prev, role: val }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Owner">Owner</SelectItem>
+                      <SelectItem value="Manager">Manager</SelectItem>
+                      <SelectItem value="Front desk">Front desk</SelectItem>
+                      <SelectItem value="Maintenance">Maintenance</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Urgency</label>
+                  <Select
+                    value={newTicket.urgency}
+                    onValueChange={(val) => setNewTicket(prev => ({ ...prev, urgency: val }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Normal">Normal</SelectItem>
+                      <SelectItem value="High - Guests waiting">High - Guests waiting</SelectItem>
+                      <SelectItem value="Critical - Outage">Critical - Outage</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <label className="text-sm font-medium">Title</label>
+                <label className="text-sm font-medium text-slate-700">Title</label>
                 <Input
                   placeholder="Brief summary of the issue"
                   value={newTicket.title}
                   onChange={(e) => setNewTicket(prev => ({ ...prev, title: e.target.value }))}
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Category</label>
+                  <label className="text-sm font-medium text-slate-700">Category</label>
                   <Select
                     value={newTicket.category}
                     onValueChange={(val: any) => setNewTicket(prev => ({ ...prev, category: val }))}
@@ -767,7 +872,7 @@ export default function TicketsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Area</label>
+                  <label className="text-sm font-medium text-slate-700">Area</label>
                   <Select
                     value={newTicket.area}
                     onValueChange={(val) => setNewTicket(prev => ({ ...prev, area: val }))}
@@ -786,20 +891,41 @@ export default function TicketsPage() {
                   </Select>
                 </div>
               </div>
+
               <div className="space-y-2">
-                <label className="text-sm font-medium">Description / Notes</label>
+                <label className="text-sm font-medium text-slate-700">Details</label>
                 <Textarea
-                  placeholder="Detailed description..."
-                  rows={4}
+                  placeholder="What happened? Include reservation IDs, timestamps, or error messages."
+                  rows={5}
                   value={newTicket.notes}
                   onChange={(e) => setNewTicket(prev => ({ ...prev, notes: e.target.value }))}
                 />
               </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                <div className="font-semibold text-slate-700 mb-1">Response targets:</div>
+                <ul className="space-y-1">
+                  <li>• Critical (system down): under 15 minutes</li>
+                  <li>• Urgent (guests waiting): under 30 minutes</li>
+                  <li>• Normal: same business day</li>
+                </ul>
+              </div>
             </div>
+
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={creating || !newTicket.title.trim()}>
-                {creating ? "Creating..." : "Create Ticket"}
+              <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+              <Button onClick={handleCreate} disabled={creating || !newTicket.title.trim()} className="gap-2">
+                {creating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Submit Ticket
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

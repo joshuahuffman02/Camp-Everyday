@@ -1,44 +1,396 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
+import { Bot, Send, User, Sparkles, TrendingUp, DollarSign, Calendar } from "lucide-react";
+import { DashboardShell } from "@/components/ui/layout/DashboardShell";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { apiClient } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
+import {
+  SPRING_CONFIG,
+  fadeInUp,
+  staggerContainer,
+  staggerChild,
+  hoverScale,
+  reducedMotion as reducedMotionVariants
+} from "@/lib/animations";
 
-export default function AiRedirectPage() {
-  const router = useRouter();
+type Message = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+};
+
+type QuickAction = {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  prompt: string;
+  description: string;
+};
+
+export default function AiAssistantPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [sessionId] = useState(() => `ai_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion();
 
+  // Get campground from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("campreserv:selectedCampground");
     setCampgroundId(stored);
-    if (stored) {
-      router.replace(`/campgrounds/${stored}/ai`);
+  }, []);
+
+  // Fetch campground details
+  const { data: campground } = useQuery({
+    queryKey: ["campground", campgroundId],
+    queryFn: async () => {
+      if (!campgroundId) return null;
+      const campgrounds = await apiClient.getCampgrounds();
+      return campgrounds.find((c) => c.id === campgroundId) || null;
+    },
+    enabled: !!campgroundId,
+  });
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Initialize with welcome message
+  useEffect(() => {
+    if (messages.length === 0 && campground) {
+      setMessages([
+        {
+          id: "welcome",
+          role: "assistant",
+          content: `Hi! I'm your AI assistant for ${campground.name}. I can help you with:\n\n• Drafting replies to guest messages\n• Getting pricing suggestions based on demand\n• Analyzing occupancy trends and insights\n• Answering questions about your campground data\n\nWhat can I help you with today?`,
+          timestamp: new Date(),
+        },
+      ]);
     }
-  }, [router]);
+  }, [messages.length, campground]);
+
+  const history = useMemo(
+    () => messages.map((msg) => ({ role: msg.role, content: msg.content })),
+    [messages]
+  );
+
+  // Chat mutation using the copilot endpoint
+  const chatMutation = useMutation({
+    mutationFn: (payload: { message: string; history: { role: "user" | "assistant"; content: string }[] }) =>
+      apiClient.runCopilot({
+        campgroundId: campgroundId!,
+        action: "chat",
+        prompt: payload.message,
+        payload: { history: payload.history },
+      }),
+    onSuccess: (data) => {
+      const assistantMessage: Message = {
+        id: `msg_${Date.now()}`,
+        role: "assistant",
+        content: data?.preview || "I'm here to help. What would you like to know?",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    },
+    onError: (error) => {
+      console.error("AI chat failed:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg_${Date.now()}`,
+          role: "assistant",
+          content: "I'm having trouble connecting right now. Please try again in a moment.",
+          timestamp: new Date(),
+        },
+      ]);
+    },
+  });
+
+  const handleSend = () => {
+    const trimmed = input.trim();
+    if (!trimmed || chatMutation.isPending || !campgroundId) return;
+
+    const userMessage: Message = {
+      id: `msg_${Date.now()}`,
+      role: "user",
+      content: trimmed,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    chatMutation.mutate({ message: trimmed, history });
+    setInput("");
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleQuickAction = (prompt: string) => {
+    setInput(prompt);
+  };
+
+  const quickActions: QuickAction[] = [
+    {
+      id: "draft-reply",
+      label: "Draft Reply",
+      icon: <Send className="h-4 w-4" />,
+      prompt: "Draft a friendly reply to a guest asking about late checkout options",
+      description: "Generate professional guest responses",
+    },
+    {
+      id: "pricing",
+      label: "Pricing Insights",
+      icon: <DollarSign className="h-4 w-4" />,
+      prompt: "What are the pricing suggestions for next weekend based on current demand?",
+      description: "Get rate optimization suggestions",
+    },
+    {
+      id: "occupancy",
+      label: "Occupancy Analysis",
+      icon: <TrendingUp className="h-4 w-4" />,
+      prompt: "Show me occupancy trends and insights for the next 30 days",
+      description: "Analyze booking patterns",
+    },
+  ];
+
+  const animationVariants = prefersReducedMotion ? reducedMotionVariants : fadeInUp;
+
+  if (!campgroundId) {
+    return (
+      <DashboardShell>
+        <motion.div
+          className="flex min-h-[60vh] items-center justify-center"
+          initial={animationVariants.initial}
+          animate={animationVariants.animate}
+          transition={SPRING_CONFIG}
+        >
+          <Card className="max-w-lg border-slate-200 bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-emerald-600" />
+                AI Assistant
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-600">
+              <p>Select a campground to start using your AI assistant.</p>
+              <p className="text-xs text-slate-500">
+                The AI can help with guest replies, pricing suggestions, occupancy insights, and more.
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </DashboardShell>
+    );
+  }
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center px-6">
-      <Card className="max-w-lg border-slate-200">
-        <CardHeader>
-          <CardTitle>AI Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-slate-600">
-          {campgroundId ? (
-            <p>Redirecting to your campground AI settings...</p>
-          ) : (
-            <>
-              <p>Select a campground to manage AI settings and the AI partner.</p>
-              <Link
-                href="/campgrounds?all=true"
-                className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-              >
-                Choose a campground
-              </Link>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <DashboardShell>
+      <motion.div
+        className="space-y-6"
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+      >
+        {/* Header */}
+        <motion.div variants={staggerChild} transition={SPRING_CONFIG}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
+                <Sparkles className="h-8 w-8 text-emerald-600" />
+                AI Assistant
+              </h1>
+              <p className="text-slate-600 mt-2">
+                Your intelligent partner for guest communication, pricing, and insights
+              </p>
+            </div>
+            {campground && (
+              <Badge variant="outline" className="text-sm">
+                {campground.name}
+              </Badge>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Quick Actions */}
+        <motion.div variants={staggerChild} transition={SPRING_CONFIG}>
+          <Card className="border-slate-200 bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">Quick Actions</CardTitle>
+              <CardDescription>Get started with common tasks</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {quickActions.map((action, index) => (
+                  <motion.button
+                    key={action.id}
+                    type="button"
+                    onClick={() => handleQuickAction(action.prompt)}
+                    className={cn(
+                      "flex flex-col items-start gap-2 rounded-lg border border-slate-200 bg-white p-4 text-left transition-all",
+                      "hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md",
+                      "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                    )}
+                    variants={prefersReducedMotion ? undefined : staggerChild}
+                    transition={SPRING_CONFIG}
+                    whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
+                    whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        {action.icon}
+                      </div>
+                      <span className="font-semibold text-slate-900">{action.label}</span>
+                    </div>
+                    <p className="text-xs text-slate-600">{action.description}</p>
+                  </motion.button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Chat Interface */}
+        <motion.div variants={staggerChild} transition={SPRING_CONFIG}>
+          <Card className="border-slate-200 bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">Conversation</CardTitle>
+              <CardDescription>Chat with your AI assistant</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Messages */}
+              <div className="h-[500px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4">
+                <div className="space-y-4">
+                  {messages.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                      <Sparkles className="h-8 w-8 mx-auto mb-3 text-slate-400" />
+                      <p>Start a conversation with your AI assistant</p>
+                      <p className="text-xs mt-1">Try asking about pricing, occupancy, or drafting a guest reply</p>
+                    </div>
+                  )}
+
+                  {messages.map((msg, index) => (
+                    <motion.div
+                      key={msg.id}
+                      className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}
+                      initial={prefersReducedMotion ? undefined : { opacity: 0, y: 10 }}
+                      animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+                      transition={prefersReducedMotion ? undefined : { delay: index * 0.05, ...SPRING_CONFIG }}
+                    >
+                      {msg.role === "assistant" && (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex-shrink-0">
+                          <Bot className="h-4 w-4 text-emerald-600" />
+                        </div>
+                      )}
+                      <div
+                        className={cn(
+                          "max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm",
+                          msg.role === "user"
+                            ? "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"
+                            : "bg-slate-100 text-slate-900 border border-slate-200"
+                        )}
+                      >
+                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        <div
+                          className={cn(
+                            "mt-2 text-[10px]",
+                            msg.role === "user" ? "text-emerald-100" : "text-slate-500"
+                          )}
+                        >
+                          {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
+                      {msg.role === "user" && (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 flex-shrink-0">
+                          <User className="h-4 w-4 text-slate-600" />
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+
+                  {chatMutation.isPending && (
+                    <motion.div
+                      className="flex gap-3 justify-start"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100">
+                        <Bot className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div className="rounded-2xl bg-slate-100 border border-slate-200 px-4 py-3 shadow-sm">
+                        <div className="flex gap-1">
+                          <div className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" />
+                          <div className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.1s]" />
+                          <div className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+                <Textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask me anything about your campground, guests, pricing, or operations..."
+                  className="min-h-[100px] bg-white border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/20"
+                  disabled={chatMutation.isPending}
+                />
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    Press Enter to send, Shift+Enter for new line
+                  </span>
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-md"
+                    onClick={handleSend}
+                    disabled={!input.trim() || chatMutation.isPending}
+                  >
+                    Send
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Recent Conversations (Stubbed) */}
+        <motion.div variants={staggerChild} transition={SPRING_CONFIG}>
+          <Card className="border-slate-200 bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-slate-600" />
+                Recent Conversations
+              </CardTitle>
+              <CardDescription>Your conversation history will appear here</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                <p>No previous conversations yet</p>
+                <p className="text-xs mt-1">Start chatting to build your conversation history</p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </motion.div>
+    </DashboardShell>
   );
 }

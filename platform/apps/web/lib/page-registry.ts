@@ -465,7 +465,7 @@ export const PAGE_REGISTRY: PageDefinition[] = [
     keywords: ["move inventory", "stock transfer"],
   },
   {
-    href: "/inventory",
+    href: "/store/inventory",
     label: "Inventory",
     icon: "form",
     category: "store",
@@ -1553,14 +1553,7 @@ export const PAGE_REGISTRY: PageDefinition[] = [
     description: "Technical documentation",
     keywords: ["tech", "stack", "architecture"],
   },
-  {
-    href: "/campguide",
-    label: "Camp Guide",
-    icon: "camp",
-    category: "operations",
-    description: "Guest camping guide",
-    keywords: ["guide", "tips", "info"],
-  },
+  // Note: /campguide now redirects to /ai - removed from registry
 ];
 
 /**

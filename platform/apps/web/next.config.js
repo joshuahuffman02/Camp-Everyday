@@ -108,6 +108,12 @@ const nextConfig = {
         destination: "/park/:slug",
         permanent: true,
       },
+      // Redirect /help/contact to /tickets (consolidated)
+      {
+        source: "/help/contact",
+        destination: "/tickets",
+        permanent: true,
+      },
     ];
   },
 

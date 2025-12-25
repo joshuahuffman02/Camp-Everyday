@@ -7,7 +7,7 @@ import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { apiClient } from "../../lib/api-client";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
-import { Plus, Calendar, Clock, Users, DollarSign, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Calendar, Clock, Users, DollarSign, Trash2, AlertTriangle, LayoutGrid, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -16,6 +16,24 @@ import { useToast } from "../../components/ui/use-toast";
 import { Badge } from "../../components/ui/badge";
 import { TableEmpty } from "../../components/ui/table";
 import { Switch } from "../../components/ui/switch";
+import { Calendar as BigCalendar, dateFnsLocalizer, Views } from "react-big-calendar";
+import { format, parse, startOfWeek, getDay } from "date-fns";
+import { enUS } from "date-fns/locale";
+import "react-big-calendar/lib/css/react-big-calendar.css";
+import { CreateEventDialog } from "../../components/events/CreateEventDialog";
+import { Event } from "@campreserv/shared";
+
+const locales = {
+    "en-US": enUS,
+};
+
+const localizer = dateFnsLocalizer({
+    format,
+    parse,
+    startOfWeek,
+    getDay,
+    locales,
+});
 
 type ActivityRecord = {
     id: string;
@@ -247,7 +265,9 @@ function ActivityCard({ activity, onManageSessions, onDelete }: ActivityCardProp
 export default function ActivitiesPage() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const [viewMode, setViewMode] = useState<"cards" | "calendar">("cards");
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
     const [newActivity, setNewActivity] = useState({
         name: "",
         description: "",
@@ -276,6 +296,12 @@ export default function ActivitiesPage() {
         queryKey: ["activities", campgroundId],
         queryFn: () => apiClient.getActivities(campgroundId),
         enabled: !!campgroundId
+    });
+
+    const { data: events, isLoading: eventsLoading } = useQuery<Event[]>({
+        queryKey: ["events", campgroundId],
+        queryFn: () => apiClient.getEvents(campgroundId),
+        enabled: !!campgroundId && viewMode === "calendar"
     });
 
     const { data: sessions, refetch: refetchSessions } = useQuery({
@@ -351,10 +377,22 @@ export default function ActivitiesPage() {
 
     // ... (rest of the component)
 
+    const calendarEvents = events?.map(event => ({
+        id: event.id,
+        title: event.title,
+        start: new Date(event.startDate),
+        end: event.endDate ? new Date(event.endDate) : new Date(event.startDate),
+        allDay: event.isAllDay,
+        resource: event
+    })) || [];
+
+    const handleSelectEvent = (event: any) => {
+        // TODO: Open edit dialog
+        console.log("Selected event:", event);
+    };
+
     return (
         <DashboardShell>
-            {/* ... (existing JSX) ... */}
-
             {/* Session Management Dialog */}
             <Dialog open={!!selectedActivityForSessions} onOpenChange={(open) => !open && setSelectedActivityForSessions(null)}>
                 <DialogContent className="max-w-3xl">
@@ -424,103 +462,164 @@ export default function ActivitiesPage() {
                 </DialogContent>
             </Dialog>
 
+            {/* Create Activity Dialog */}
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create New Activity</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label>Name</Label>
+                            <Input
+                                value={newActivity.name}
+                                onChange={(e) => setNewActivity({ ...newActivity, name: e.target.value })}
+                                placeholder="e.g. Morning Yoga"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Description</Label>
+                            <Textarea
+                                value={newActivity.description}
+                                onChange={(e) => setNewActivity({ ...newActivity, description: e.target.value })}
+                                placeholder="Activity details..."
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label>Price ($)</Label>
+                                <Input
+                                    type="number"
+                                    value={newActivity.price}
+                                    onChange={(e) => setNewActivity({ ...newActivity, price: e.target.value })}
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Duration (mins)</Label>
+                                <Input
+                                    type="number"
+                                    value={newActivity.duration}
+                                    onChange={(e) => setNewActivity({ ...newActivity, duration: e.target.value })}
+                                    placeholder="60"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Capacity (people)</Label>
+                            <Input
+                                type="number"
+                                value={newActivity.capacity}
+                                onChange={(e) => setNewActivity({ ...newActivity, capacity: e.target.value })}
+                                placeholder="20"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+                        <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
+                            {createMutation.isPending ? "Creating..." : "Create Activity"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Create Event Dialog */}
+            <CreateEventDialog
+                open={isCreateEventOpen}
+                onOpenChange={setIsCreateEventOpen}
+                campgroundId={campgroundId}
+                onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ["events", campgroundId] });
+                }}
+            />
+
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900">Activities & Facilities</h1>
                         <p className="text-slate-500">Manage guided tours, rentals, and facility bookings.</p>
                     </div>
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="w-4 h-4 mr-2" />
-                                New Activity
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Create New Activity</DialogTitle>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid gap-2">
-                                    <Label>Name</Label>
-                                    <Input
-                                        value={newActivity.name}
-                                        onChange={(e) => setNewActivity({ ...newActivity, name: e.target.value })}
-                                        placeholder="e.g. Morning Yoga"
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Description</Label>
-                                    <Textarea
-                                        value={newActivity.description}
-                                        onChange={(e) => setNewActivity({ ...newActivity, description: e.target.value })}
-                                        placeholder="Activity details..."
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="grid gap-2">
-                                        <Label>Price ($)</Label>
-                                        <Input
-                                            type="number"
-                                            value={newActivity.price}
-                                            onChange={(e) => setNewActivity({ ...newActivity, price: e.target.value })}
-                                            placeholder="0.00"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label>Duration (mins)</Label>
-                                        <Input
-                                            type="number"
-                                            value={newActivity.duration}
-                                            onChange={(e) => setNewActivity({ ...newActivity, duration: e.target.value })}
-                                            placeholder="60"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Capacity (people)</Label>
-                                    <Input
-                                        type="number"
-                                        value={newActivity.capacity}
-                                        onChange={(e) => setNewActivity({ ...newActivity, capacity: e.target.value })}
-                                        placeholder="20"
-                                    />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button variant="ghost" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-                                <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-                                    {createMutation.isPending ? "Creating..." : "Create Activity"}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                    <Button onClick={() => viewMode === "cards" ? setIsCreateOpen(true) : setIsCreateEventOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        {viewMode === "cards" ? "New Activity" : "Add Event"}
+                    </Button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {activities?.map((activity) => (
-                        <ActivityCard
-                            key={activity.id}
-                            activity={activity}
-                            onManageSessions={setSelectedActivityForSessions}
-                            onDelete={handleDelete}
-                        />
-                    ))}
-                    {activities?.length === 0 && (
-                        <div className="col-span-full text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                            <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                            <div className="overflow-hidden rounded border border-slate-200 bg-white">
-                              <table className="w-full text-sm">
-                                <tbody>
-                                  <TableEmpty>No activities yet</TableEmpty>
-                                </tbody>
-                              </table>
-                            </div>
-                            <p className="text-slate-500">Create your first activity to get started.</p>
-                        </div>
-                    )}
+                {/* View Toggle */}
+                <div className="flex gap-2 border-b border-slate-200">
+                    <button
+                        onClick={() => setViewMode("cards")}
+                        className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                            viewMode === "cards"
+                                ? "border-slate-900 text-slate-900 font-medium"
+                                : "border-transparent text-slate-500 hover:text-slate-700"
+                        }`}
+                    >
+                        <LayoutGrid className="w-4 h-4" />
+                        Cards
+                    </button>
+                    <button
+                        onClick={() => setViewMode("calendar")}
+                        className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                            viewMode === "calendar"
+                                ? "border-slate-900 text-slate-900 font-medium"
+                                : "border-transparent text-slate-500 hover:text-slate-700"
+                        }`}
+                    >
+                        <Calendar className="w-4 h-4" />
+                        Calendar
+                    </button>
                 </div>
+
+                {/* Cards View */}
+                {viewMode === "cards" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {activities?.map((activity) => (
+                            <ActivityCard
+                                key={activity.id}
+                                activity={activity}
+                                onManageSessions={setSelectedActivityForSessions}
+                                onDelete={handleDelete}
+                            />
+                        ))}
+                        {activities?.length === 0 && (
+                            <div className="col-span-full text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                <LayoutGrid className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                <div className="overflow-hidden rounded border border-slate-200 bg-white">
+                                  <table className="w-full text-sm">
+                                    <tbody>
+                                      <TableEmpty>No activities yet</TableEmpty>
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <p className="text-slate-500">Create your first activity to get started.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Calendar View */}
+                {viewMode === "calendar" && (
+                    <div className="bg-white rounded-lg shadow p-4" style={{ height: "600px" }}>
+                        {eventsLoading ? (
+                            <div className="flex h-full items-center justify-center">
+                                <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+                            </div>
+                        ) : (
+                            <BigCalendar
+                                localizer={localizer}
+                                events={calendarEvents}
+                                startAccessor="start"
+                                endAccessor="end"
+                                style={{ height: "100%" }}
+                                views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+                                defaultView={Views.MONTH}
+                                onSelectEvent={handleSelectEvent}
+                            />
+                        )}
+                    </div>
+                )}
             </div>
         </DashboardShell>
     );
