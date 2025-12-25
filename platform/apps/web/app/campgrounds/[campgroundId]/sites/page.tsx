@@ -844,13 +844,36 @@ export default function SitesPage() {
               </Select>
               <Select
                 value={formState.siteClassId || "none"}
-                onValueChange={(value) => setFormState((s) => ({ ...s, siteClassId: value === "none" ? "" : value }))}
+                onValueChange={(value) => {
+                  const classId = value === "none" ? "" : value;
+                  const selectedClass = classesQuery.data?.find(c => c.id === classId);
+
+                  if (selectedClass) {
+                    // Auto-fill from class defaults
+                    setFormState((s) => ({
+                      ...s,
+                      siteClassId: classId,
+                      siteType: selectedClass.siteType || s.siteType,
+                      maxOccupancy: selectedClass.maxOccupancy || s.maxOccupancy,
+                      rigMaxLength: selectedClass.rigMaxLength ?? s.rigMaxLength,
+                      hookupsPower: selectedClass.hookupsPower ?? s.hookupsPower,
+                      hookupsWater: selectedClass.hookupsWater ?? s.hookupsWater,
+                      hookupsSewer: selectedClass.hookupsSewer ?? s.hookupsSewer,
+                      petFriendly: selectedClass.petFriendly ?? s.petFriendly,
+                      accessible: selectedClass.accessible ?? s.accessible,
+                      minNights: selectedClass.minNights ?? s.minNights,
+                      maxNights: selectedClass.maxNights ?? s.maxNights,
+                    }));
+                  } else {
+                    setFormState((s) => ({ ...s, siteClassId: classId }));
+                  }
+                }}
               >
                 <SelectTrigger className="bg-background border-border">
-                  <SelectValue placeholder="Select class (sets pricing)" />
+                  <SelectValue placeholder="Select class (inherits settings)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Select class (sets pricing)</SelectItem>
+                  <SelectItem value="none">No class</SelectItem>
                   {classesQuery.data?.map((cls) => (
                     <SelectItem key={cls.id} value={cls.id}>
                       {cls.name} (${(cls.defaultRate / 100).toFixed(2)})
@@ -1091,7 +1114,13 @@ export default function SitesPage() {
                 const isSelected = selectedSites.has(site.id);
                 const isInactive = site.isActive === false;
 
-                const hasHookups = site.hookupsPower || site.hookupsWater || site.hookupsSewer;
+                // Inherit hookups from class if site doesn't have its own
+                const siteHasOwnHookups = site.hookupsPower || site.hookupsWater || site.hookupsSewer;
+                const effectivePower = site.hookupsPower ?? cls?.hookupsPower ?? false;
+                const effectiveWater = site.hookupsWater ?? cls?.hookupsWater ?? false;
+                const effectiveSewer = site.hookupsSewer ?? cls?.hookupsSewer ?? false;
+                const hasHookups = effectivePower || effectiveWater || effectiveSewer;
+                const isInheritedHookups = !siteHasOwnHookups && cls && (cls.hookupsPower || cls.hookupsWater || cls.hookupsSewer);
 
                 return (
                   <React.Fragment key={site.id}>
@@ -1166,17 +1195,42 @@ export default function SitesPage() {
                         )}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
-                        <div className="flex items-center gap-1" title={`Power: ${site.hookupsPower ? 'Yes' : 'No'}, Water: ${site.hookupsWater ? 'Yes' : 'No'}, Sewer: ${site.hookupsSewer ? 'Yes' : 'No'}`}>
+                        <div
+                          className={cn(
+                            "flex items-center gap-1",
+                            isInheritedHookups && "opacity-70"
+                          )}
+                          title={isInheritedHookups
+                            ? `Inherited from ${cls?.name}: Power: ${effectivePower ? 'Yes' : 'No'}, Water: ${effectiveWater ? 'Yes' : 'No'}, Sewer: ${effectiveSewer ? 'Yes' : 'No'}`
+                            : `Power: ${effectivePower ? 'Yes' : 'No'}, Water: ${effectiveWater ? 'Yes' : 'No'}, Sewer: ${effectiveSewer ? 'Yes' : 'No'}`
+                          }
+                        >
                           {hasHookups ? (
                             <>
-                              {site.hookupsPower && (
-                                <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
+                              {effectivePower && (
+                                <span className={cn(
+                                  "inline-flex items-center gap-0.5",
+                                  isInheritedHookups ? "text-amber-500/70 dark:text-amber-400/70" : "text-amber-600 dark:text-amber-400"
+                                )}>
                                   <Zap className="h-3.5 w-3.5" />
                                   {site.powerAmps && <span className="text-xs">{site.powerAmps}</span>}
                                 </span>
                               )}
-                              {site.hookupsWater && <Droplet className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
-                              {site.hookupsSewer && <Waves className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />}
+                              {effectiveWater && (
+                                <Droplet className={cn(
+                                  "h-3.5 w-3.5",
+                                  isInheritedHookups ? "text-blue-400/70 dark:text-blue-400/70" : "text-blue-500 dark:text-blue-400"
+                                )} />
+                              )}
+                              {effectiveSewer && (
+                                <Waves className={cn(
+                                  "h-3.5 w-3.5",
+                                  isInheritedHookups ? "text-slate-400/70 dark:text-slate-400/70" : "text-slate-500 dark:text-slate-400"
+                                )} />
+                              )}
+                              {isInheritedHookups && (
+                                <span className="text-[10px] text-muted-foreground ml-1" title="Inherited from class">↖</span>
+                              )}
                             </>
                           ) : (
                             <span className="text-muted-foreground">—</span>
