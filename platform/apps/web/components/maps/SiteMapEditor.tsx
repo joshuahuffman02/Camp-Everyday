@@ -351,12 +351,16 @@ const KeyboardShortcutsHelp = ({ open, onClose }: { open: boolean; onClose: () =
   const shortcuts = [
     { key: "Click", desc: "Add point to polygon" },
     { key: "Enter", desc: "Finish current shape" },
-    { key: "Escape", desc: "Cancel drawing / Exit fullscreen" },
+    { key: "Escape", desc: "Cancel drawing / editing" },
     { key: "Backspace", desc: "Undo last point" },
     { key: "Shift + Click", desc: "Snap to 45° angles" },
     { key: "1-4", desc: "Quick select preset shape" },
     { key: "S", desc: "Toggle snap to grid" },
     { key: "F", desc: "Toggle fullscreen" },
+    { key: "Drag shape", desc: "Move entire shape" },
+    { key: "Drag ↻", desc: "Rotate shape" },
+    { key: "Drag corners", desc: "Resize shape" },
+    { key: "Drag vertices", desc: "Adjust individual points" },
   ];
 
   return (
@@ -760,21 +764,68 @@ export function SiteMapEditor({
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (dragIndex !== null && editingPoints) {
-      const point = getSvgPoint(event);
-      if (!point) return;
-      setEditingPoints((prev) => {
-        if (!prev) return prev;
-        const next = [...prev];
-        next[dragIndex] = point;
-        return next;
-      });
+    const point = getSvgPoint(event);
+    if (!point) return;
+
+    // Handle different drag modes
+    if (dragMode && initialPoints && dragStart) {
+      if (dragMode === "vertex" && dragIndex !== null) {
+        // Dragging a single vertex
+        setEditingPoints((prev) => {
+          if (!prev) return prev;
+          const next = [...prev];
+          next[dragIndex] = point;
+          return next;
+        });
+      } else if (dragMode === "move") {
+        // Moving the whole shape
+        const delta = { x: point.x - dragStart.x, y: point.y - dragStart.y };
+        setEditingPoints(translatePoints(initialPoints, delta));
+      } else if (dragMode === "rotate") {
+        // Rotating around center
+        const center = centroidFromPoints(initialPoints) ?? getBoundingBox(initialPoints).center;
+        const startAngle = Math.atan2(dragStart.y - center.y, dragStart.x - center.x);
+        const currentAngle = Math.atan2(point.y - center.y, point.x - center.x);
+        const angleDelta = currentAngle - startAngle;
+        setEditingPoints(rotatePoints(initialPoints, center, angleDelta));
+      } else if (dragMode === "resize" && resizeCorner !== null) {
+        // Scaling from opposite corner
+        const bbox = getBoundingBox(initialPoints);
+        const corners = [
+          { x: bbox.min.x, y: bbox.min.y }, // TL - 0
+          { x: bbox.max.x, y: bbox.min.y }, // TR - 1
+          { x: bbox.max.x, y: bbox.max.y }, // BR - 2
+          { x: bbox.min.x, y: bbox.max.y }, // BL - 3
+        ];
+        const anchor = corners[(resizeCorner + 2) % 4]; // Opposite corner
+        const originalWidth = bbox.max.x - bbox.min.x;
+        const originalHeight = bbox.max.y - bbox.min.y;
+
+        const newWidth = Math.abs(point.x - anchor.x);
+        const newHeight = Math.abs(point.y - anchor.y);
+
+        const scaleX = originalWidth > 0 ? newWidth / originalWidth : 1;
+        const scaleY = originalHeight > 0 ? newHeight / originalHeight : 1;
+
+        // Scale from anchor point
+        const scaled = initialPoints.map(p => ({
+          x: anchor.x + (p.x - anchor.x) * scaleX * (point.x < anchor.x ? -1 : 1) * (resizeCorner === 0 || resizeCorner === 3 ? -1 : 1),
+          y: anchor.y + (p.y - anchor.y) * scaleY * (point.y < anchor.y ? -1 : 1) * (resizeCorner === 0 || resizeCorner === 1 ? -1 : 1)
+        }));
+        setEditingPoints(scaled);
+      }
       return;
     }
-    if (!isDrawing) return;
+
+    // Set hover point for preview
+    if (!isDrawing) {
+      setHoverPoint(point);
+      return;
+    }
+
     const anchor = draftPoints.length ? draftPoints[draftPoints.length - 1] : null;
-    const point = getSvgPoint(event, anchor);
-    setHoverPoint(point);
+    const snapPoint = getSvgPoint(event, anchor);
+    setHoverPoint(snapPoint);
   };
 
   const handleStartDraw = (targetId?: string | null) => {
@@ -911,9 +962,14 @@ export function SiteMapEditor({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (dragIndex === null || !editingPoints) return;
+    if (!dragMode || !editingPoints) return;
     event.preventDefault();
     commitEditing(editingPoints);
+    // Clear all drag state
+    setDragMode(null);
+    setDragStart(null);
+    setInitialPoints(null);
+    setResizeCorner(null);
   };
 
   // Keyboard shortcuts
@@ -981,9 +1037,14 @@ export function SiteMapEditor({
           setSelectedPreset("freeform");
           announce("Drawing cancelled");
         }
-        if (dragIndex !== null) {
+        if (dragMode !== null) {
           setEditingPoints(null);
           setDragIndex(null);
+          setDragMode(null);
+          setDragStart(null);
+          setInitialPoints(null);
+          setResizeCorner(null);
+          announce("Edit cancelled");
         }
         return;
       }
@@ -1623,14 +1684,38 @@ export function SiteMapEditor({
                   );
                 })}
 
-              {/* Selected shape */}
-              {activePoints.length >= 3 && (
+              {/* Selected shape - clickable for moving */}
+              {activePoints.length >= 3 && !isDrawing && (
                 <path
                   d={pointsToPath(activePoints, true)}
                   fill="rgba(59,130,246,0.25)"
                   stroke="#2563eb"
                   strokeWidth={3}
-                  className="drop-shadow-sm"
+                  className="drop-shadow-sm cursor-move"
+                  style={{ cursor: "move" }}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    const point = getSvgPoint(event);
+                    if (!point || !pointInPolygon(point, activePoints)) return;
+                    setEditingPoints([...activePoints]);
+                    setInitialPoints([...activePoints]);
+                    setDragStart(point);
+                    setDragMode("move");
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    announce("Drag to move shape");
+                  }}
+                />
+              )}
+
+              {/* Selected shape outline when drawing (non-interactive) */}
+              {activePoints.length >= 3 && isDrawing && (
+                <path
+                  d={pointsToPath(activePoints, true)}
+                  fill="rgba(59,130,246,0.15)"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  strokeDasharray="4 2"
+                  className="pointer-events-none"
                 />
               )}
 
@@ -1653,7 +1738,150 @@ export function SiteMapEditor({
                 />
               ))}
 
-              {/* Editable handles for selected shape */}
+              {/* Transform controls for selected shape */}
+              {!isDrawing && activePoints.length >= 3 && (() => {
+                const bbox = getBoundingBox(activePoints);
+                const center = centroidFromPoints(activePoints) ?? bbox.center;
+                const handleSize = Math.min(viewBox.width, viewBox.height) * 0.012;
+                const rotateHandleDistance = handleSize * 4;
+
+                // Corner positions for resize handles
+                const corners = [
+                  { x: bbox.min.x, y: bbox.min.y, cursor: "nwse-resize" }, // TL
+                  { x: bbox.max.x, y: bbox.min.y, cursor: "nesw-resize" }, // TR
+                  { x: bbox.max.x, y: bbox.max.y, cursor: "nwse-resize" }, // BR
+                  { x: bbox.min.x, y: bbox.max.y, cursor: "nesw-resize" }, // BL
+                ];
+
+                return (
+                  <g>
+                    {/* Bounding box outline */}
+                    <rect
+                      x={bbox.min.x}
+                      y={bbox.min.y}
+                      width={bbox.max.x - bbox.min.x}
+                      height={bbox.max.y - bbox.min.y}
+                      fill="none"
+                      stroke="#94a3b8"
+                      strokeWidth={1}
+                      strokeDasharray="4 2"
+                      className="pointer-events-none"
+                    />
+
+                    {/* Rotation handle - above center */}
+                    <g>
+                      {/* Line from center to rotation handle */}
+                      <line
+                        x1={center.x}
+                        y1={bbox.min.y}
+                        x2={center.x}
+                        y2={bbox.min.y - rotateHandleDistance}
+                        stroke="#94a3b8"
+                        strokeWidth={1}
+                        strokeDasharray="2 2"
+                        className="pointer-events-none"
+                      />
+                      {/* Rotation handle circle */}
+                      <circle
+                        cx={center.x}
+                        cy={bbox.min.y - rotateHandleDistance}
+                        r={handleSize}
+                        fill="#f97316"
+                        stroke="#fff"
+                        strokeWidth={2}
+                        className="cursor-grab"
+                        style={{ cursor: "grab" }}
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                          const point = getSvgPoint(event);
+                          if (!point) return;
+                          setEditingPoints([...activePoints]);
+                          setInitialPoints([...activePoints]);
+                          setDragStart(point);
+                          setDragMode("rotate");
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          announce("Drag to rotate shape");
+                        }}
+                      />
+                      {/* Rotation icon indicator */}
+                      <text
+                        x={center.x}
+                        y={bbox.min.y - rotateHandleDistance}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        className="fill-white text-[8px] font-bold pointer-events-none select-none"
+                        style={{ fontSize: handleSize * 0.8 }}
+                      >
+                        ↻
+                      </text>
+                    </g>
+
+                    {/* Resize handles at corners */}
+                    {corners.map((corner, idx) => (
+                      <rect
+                        key={`resize-${idx}`}
+                        x={corner.x - handleSize / 2}
+                        y={corner.y - handleSize / 2}
+                        width={handleSize}
+                        height={handleSize}
+                        fill="#8b5cf6"
+                        stroke="#fff"
+                        strokeWidth={2}
+                        rx={2}
+                        style={{ cursor: corner.cursor }}
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                          const point = getSvgPoint(event);
+                          if (!point) return;
+                          setEditingPoints([...activePoints]);
+                          setInitialPoints([...activePoints]);
+                          setDragStart(point);
+                          setDragMode("resize");
+                          setResizeCorner(idx);
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          announce("Drag to resize shape");
+                        }}
+                      />
+                    ))}
+
+                    {/* Center move handle */}
+                    <circle
+                      cx={center.x}
+                      cy={center.y}
+                      r={handleSize * 1.2}
+                      fill="#3b82f6"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      className="cursor-move"
+                      style={{ cursor: "move" }}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        const point = getSvgPoint(event);
+                        if (!point) return;
+                        setEditingPoints([...activePoints]);
+                        setInitialPoints([...activePoints]);
+                        setDragStart(point);
+                        setDragMode("move");
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        announce("Drag to move shape");
+                      }}
+                    />
+                    {/* Move icon */}
+                    <text
+                      x={center.x}
+                      y={center.y}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-white text-[8px] font-bold pointer-events-none select-none"
+                      style={{ fontSize: handleSize * 0.8 }}
+                    >
+                      ✥
+                    </text>
+                  </g>
+                );
+              })()}
+
+              {/* Vertex handles for selected shape */}
               {!isDrawing &&
                 activePoints.map((point, idx) => (
                   <circle
@@ -1664,13 +1892,18 @@ export function SiteMapEditor({
                     fill="#2563eb"
                     stroke="#fff"
                     strokeWidth={2}
-                    className="cursor-move"
+                    className="cursor-crosshair"
+                    style={{ cursor: "crosshair" }}
                     onPointerDown={(event) => {
                       event.stopPropagation();
                       if (!activePoints.length) return;
                       setEditingPoints([...activePoints]);
+                      setInitialPoints([...activePoints]);
+                      setDragStart(getSvgPoint(event));
                       setDragIndex(idx);
+                      setDragMode("vertex");
                       event.currentTarget.setPointerCapture(event.pointerId);
+                      announce("Drag to adjust vertex");
                     }}
                   />
                 ))}
