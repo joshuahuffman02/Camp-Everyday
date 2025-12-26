@@ -5102,6 +5102,46 @@ export const apiClient = {
     const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/messages/unread-count`);
     return z.object({ unreadCount: z.number() }).parse(data);
   },
+  async getConversations(campgroundId: string) {
+    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/conversations`);
+    return z.array(z.object({
+      reservationId: z.string(),
+      guestName: z.string(),
+      siteName: z.string(),
+      status: z.string(),
+      unreadCount: z.number(),
+      messages: z.array(z.object({
+        id: z.string(),
+        campgroundId: z.string(),
+        reservationId: z.string(),
+        guestId: z.string().nullable(),
+        senderType: z.enum(["guest", "staff"]),
+        content: z.string(),
+        readAt: z.string().nullable(),
+        createdAt: z.string(),
+        guest: z.object({
+          id: z.string(),
+          primaryFirstName: z.string().nullable(),
+          primaryLastName: z.string().nullable()
+        }).nullable()
+      })),
+      lastMessage: z.object({
+        id: z.string(),
+        campgroundId: z.string(),
+        reservationId: z.string(),
+        guestId: z.string().nullable(),
+        senderType: z.enum(["guest", "staff"]),
+        content: z.string(),
+        readAt: z.string().nullable(),
+        createdAt: z.string(),
+        guest: z.object({
+          id: z.string(),
+          primaryFirstName: z.string().nullable(),
+          primaryLastName: z.string().nullable()
+        }).nullable()
+      }).nullable()
+    })).parse(data);
+  },
 
   // Internal Conversations
   async getInternalConversations(campgroundId: string) {

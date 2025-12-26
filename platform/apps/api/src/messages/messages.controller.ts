@@ -37,6 +37,12 @@ export class MessagesController {
         return this.messagesService.getUnreadCount(campgroundId);
     }
 
+    // Get all conversations for a campground (batch endpoint for messages page)
+    @Get('campgrounds/:campgroundId/conversations')
+    async getConversations(@Param('campgroundId') campgroundId: string) {
+        return this.messagesService.getConversations(campgroundId);
+    }
+
     // Guest portal endpoints (protected by guest-jwt)
     @Get('portal/reservations/:id/messages')
     @UseGuards(AuthGuard('guest-jwt'))

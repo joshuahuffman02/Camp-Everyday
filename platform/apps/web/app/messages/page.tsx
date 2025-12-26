@@ -33,7 +33,7 @@ type Message = {
     senderType: "guest" | "staff";
     createdAt: string;
     readAt: string | null;
-    guest?: { id: string; primaryFirstName: string; primaryLastName: string } | null;
+    guest?: { id: string; primaryFirstName: string | null; primaryLastName: string | null } | null;
 };
 
 type InternalMessage = {
@@ -154,100 +154,84 @@ export default function MessagesPage() {
         enabled: !!campground?.id
     });
 
-    // Build conversations from reservations with messages
-    const [conversations, setConversations] = useState<Conversation[]>([]);
-    const [loadingConversations, setLoadingConversations] = useState(true);
+    // Fetch all conversations in a single API call (much faster than N sequential calls)
+    const { data: rawConversations = [], isLoading: loadingConversations } = useQuery({
+        queryKey: ["conversations", campground?.id],
+        queryFn: () => apiClient.getConversations(campground!.id),
+        enabled: !!campground?.id,
+        staleTime: 30000, // Cache for 30 seconds
+    });
 
-    useEffect(() => {
-        if (!reservations.length) {
-            setLoadingConversations(false);
-            return;
-        }
-
-        const loadMessages = async () => {
-            setLoadingConversations(true);
-            const convs: Conversation[] = [];
-
-            for (const res of reservations as any[]) {
-                try {
-                    const messages = await apiClient.getReservationMessages(res.id);
-                    const filteredMsgs = messages.filter((m: any) => {
-                        const isFailed =
-                            (m.status || "").toLowerCase().includes("fail") ||
-                            (m.status || "").toLowerCase().includes("bounce") ||
-                            (m.status || "").toLowerCase().includes("error");
-                        const inStatus = statusFilter === "all" ? true : isFailed;
-                        const withinDate = (() => {
-                            if (!dateRange.start && !dateRange.end) return true;
-                            const created = new Date(m.createdAt);
-                            const startOk = dateRange.start ? created >= new Date(dateRange.start) : true;
-                            const endOk = dateRange.end ? created <= new Date(dateRange.end) : true;
-                            return startOk && endOk;
-                        })();
-                        return inStatus && withinDate;
-                    });
-
-                    if (filteredMsgs.length > 0) {
-                        const unreadCount = filteredMsgs.filter(
-                            (m) => m.senderType === "guest" && !m.readAt
-                        ).length;
-                        convs.push({
-                            reservationId: res.id,
-                            guestName: `${res.guest?.primaryFirstName || ""} ${res.guest?.primaryLastName || ""}`.trim() || "Unknown Guest",
-                            siteName: res.site?.name || res.site?.siteNumber || "Unknown Site",
-                            status: res.status,
-                            messages: filteredMsgs,
-                            unreadCount,
-                            lastMessage: filteredMsgs[filteredMsgs.length - 1] || null,
-                        });
-                    }
-                } catch {
-                    // Skip if can't load messages
-                }
-            }
-
-            convs.sort((a, b) => {
-                const aTime = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : 0;
-                const bTime = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : 0;
-                return bTime - aTime;
-            });
-
-            if (convs.length === 0) {
-                const now = new Date().toISOString();
-                const demoConv: Conversation = {
-                    reservationId: "demo-reservation",
-                    guestName: "Demo Guest",
-                    siteName: "Site A-1",
-                    status: "confirmed",
-                    unreadCount: 0,
-                    messages: [
-                        {
-                            id: "demo-msg-1",
-                            content: "Hey! Just testing the inbox. Everything looks good.",
-                            senderType: "guest",
-                            createdAt: now,
-                            readAt: now,
-                            guest: { id: "demo-guest", primaryFirstName: "Demo", primaryLastName: "Guest" }
-                        }
-                    ],
-                    lastMessage: {
+    // Apply client-side filters and transform to expected format
+    const conversations = useMemo(() => {
+        if (!rawConversations.length) {
+            // Show demo conversation if no real ones
+            const now = new Date().toISOString();
+            return [{
+                reservationId: "demo-reservation",
+                guestName: "Demo Guest",
+                siteName: "Site A-1",
+                status: "confirmed",
+                unreadCount: 0,
+                messages: [
+                    {
                         id: "demo-msg-1",
                         content: "Hey! Just testing the inbox. Everything looks good.",
-                        senderType: "guest",
+                        senderType: "guest" as const,
                         createdAt: now,
                         readAt: now,
                         guest: { id: "demo-guest", primaryFirstName: "Demo", primaryLastName: "Guest" }
                     }
-                };
-                setConversations([demoConv]);
-            } else {
-            setConversations(convs);
-            }
-            setLoadingConversations(false);
-        };
+                ],
+                lastMessage: {
+                    id: "demo-msg-1",
+                    content: "Hey! Just testing the inbox. Everything looks good.",
+                    senderType: "guest" as const,
+                    createdAt: now,
+                    readAt: now,
+                    guest: { id: "demo-guest", primaryFirstName: "Demo", primaryLastName: "Guest" }
+                }
+            }];
+        }
 
-        loadMessages();
-    }, [reservations, statusFilter, dateRange]);
+        // Apply status and date filters
+        return rawConversations.map(conv => {
+            const filteredMsgs = conv.messages.filter((m: any) => {
+                const isFailed =
+                    (m.status || "").toLowerCase().includes("fail") ||
+                    (m.status || "").toLowerCase().includes("bounce") ||
+                    (m.status || "").toLowerCase().includes("error");
+                const inStatus = statusFilter === "all" ? true : isFailed;
+                const withinDate = (() => {
+                    if (!dateRange.start && !dateRange.end) return true;
+                    const created = new Date(m.createdAt);
+                    const startOk = dateRange.start ? created >= new Date(dateRange.start) : true;
+                    const endOk = dateRange.end ? created <= new Date(dateRange.end) : true;
+                    return startOk && endOk;
+                })();
+                return inStatus && withinDate;
+            });
+
+            return {
+                ...conv,
+                messages: filteredMsgs,
+                unreadCount: filteredMsgs.filter((m: any) => m.senderType === "guest" && !m.readAt).length,
+                lastMessage: filteredMsgs[filteredMsgs.length - 1] || null
+            };
+        }).filter(conv => conv.messages.length > 0);
+    }, [rawConversations, statusFilter, dateRange]);
+
+    // Function to update conversations after sending a message
+    const updateConversationMessages = (reservationId: string, newMessage: Message) => {
+        queryClient.setQueryData(["conversations", campground?.id], (old: typeof rawConversations) => {
+            if (!old) return old;
+            return old.map(conv =>
+                conv.reservationId === reservationId
+                    ? { ...conv, messages: [...conv.messages, newMessage as any], lastMessage: newMessage as any }
+                    : conv
+            );
+        });
+    };
 
     // Mark internal conversation as seen when opened
     useEffect(() => {
@@ -316,11 +300,19 @@ export default function MessagesPage() {
         if (conv.unreadCount > 0) {
             try {
                 await apiClient.markMessagesAsRead(conv.reservationId, "staff");
-                setConversations(prev =>
-                    prev.map(c =>
-                        c.reservationId === conv.reservationId ? { ...c, unreadCount: 0 } : c
-                    )
-                );
+                // Update the cache to mark messages as read
+                queryClient.setQueryData(["conversations", campground?.id], (old: typeof rawConversations) => {
+                    if (!old) return old;
+                    return old.map(c =>
+                        c.reservationId === conv.reservationId
+                            ? {
+                                ...c,
+                                unreadCount: 0,
+                                messages: c.messages.map(m => ({ ...m, readAt: m.readAt || new Date().toISOString() }))
+                            }
+                            : c
+                    );
+                });
             } catch { }
         }
     };
@@ -340,13 +332,7 @@ export default function MessagesPage() {
                 "staff",
                 guestId
             );
-            setConversations(prev =>
-                prev.map(c =>
-                    c.reservationId === selectedReservationId
-                        ? { ...c, messages: [...c.messages, message as any], lastMessage: message as any }
-                        : c
-                )
-            );
+            updateConversationMessages(selectedReservationId, message as any);
             setNewMessage("");
             setSendSuccess(true);
             setTimeout(() => setSendSuccess(false), 1500);
