@@ -30,6 +30,7 @@ export declare class DeveloperApiClient {
         createReservation: (payload: ReservationPayload) => Promise<{
             id: string;
             siteId: string;
+            siteLocked?: boolean;
             guestId: string;
             arrivalDate: string;
             departureDate: string;

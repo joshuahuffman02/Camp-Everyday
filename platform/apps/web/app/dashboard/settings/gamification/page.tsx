@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -77,11 +77,15 @@ export default function GamificationSettingsPage() {
     queryKey: ["gamification-settings", campgroundId],
     queryFn: () => apiClient.getGamificationSettings(campgroundId!),
     enabled: !!campgroundId,
-    onSuccess: (data) => {
-      setEnabled(data.enabled);
-      setEnabledRoles((data.enabledRoles || []) as RoleOptionValue[]);
-    },
   });
+
+  // Sync state when settings data changes
+  useEffect(() => {
+    if (settings) {
+      setEnabled(settings.enabled);
+      setEnabledRoles((settings.enabledRoles || []) as RoleOptionValue[]);
+    }
+  }, [settings]);
 
   // Fetch leaderboard
   const { data: leaderboard } = useQuery({
@@ -112,7 +116,7 @@ export default function GamificationSettingsPage() {
       enabledRoles: enabledRoles as any[],
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries(["gamification-settings", campgroundId]);
+      queryClient.invalidateQueries({ queryKey: ["gamification-settings", campgroundId] });
       toast({ title: "Settings saved", description: "Gamification settings have been updated." });
       launchConfetti({ particles: 90 });
       setHasChanges(false);
@@ -136,8 +140,8 @@ export default function GamificationSettingsPage() {
       reason: awardReason,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries(["gamification-leaderboard", campgroundId]);
-      queryClient.invalidateQueries(["gamification-stats", campgroundId]);
+      queryClient.invalidateQueries({ queryKey: ["gamification-leaderboard", campgroundId] });
+      queryClient.invalidateQueries({ queryKey: ["gamification-stats", campgroundId] });
       toast({ title: "XP Awarded!", description: `Successfully awarded ${awardXp} XP` });
       launchConfetti({ particles: 140 });
       setAwardXp("25");
@@ -336,9 +340,9 @@ export default function GamificationSettingsPage() {
           <div className="flex items-center gap-3">
             <Button
               onClick={handleSaveSettings}
-              disabled={!hasChanges || updateSettingsMutation.isLoading}
+              disabled={!hasChanges || updateSettingsMutation.isPending}
             >
-              {updateSettingsMutation.isLoading ? (
+              {updateSettingsMutation.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <Save className="w-4 h-4 mr-2" />
@@ -462,9 +466,9 @@ export default function GamificationSettingsPage() {
             <div className="flex justify-end">
               <Button
                 onClick={handleAward}
-                disabled={awardMutation.isLoading || !awardTarget}
+                disabled={awardMutation.isPending || !awardTarget}
               >
-                {awardMutation.isLoading ? (
+                {awardMutation.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Award className="w-4 h-4 mr-2" />

@@ -9,6 +9,7 @@ export interface SdkConfig {
 export interface ReservationPayload {
     id?: string;
     siteId: string;
+    siteLocked?: boolean;
     guestId: string;
     arrivalDate: string;
     departureDate: string;
