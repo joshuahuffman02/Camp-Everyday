@@ -415,7 +415,7 @@ export default function BillingSettingsPage() {
                                                 <p className="text-sm text-amber-700 dark:text-amber-400">
                                                     To add meters, first enable metered billing on a site class. Go to{" "}
                                                     <a
-                                                        href={`/campgrounds/${campgroundId}/settings/site-classes`}
+                                                        href={`/campgrounds/${campgroundId}/classes`}
                                                         className="underline hover:no-underline font-medium"
                                                     >
                                                         Site Classes
