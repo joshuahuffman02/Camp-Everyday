@@ -751,7 +751,7 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {valueStack.guarantees.map((g: any) => {
-                    const IconComponent = {
+                    const iconMap: Record<string, typeof ShieldCheck> = {
                       "shield-check": ShieldCheck,
                       "cloud-rain": CloudRain,
                       "clock": Clock,
@@ -759,7 +759,8 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
                       "sparkles": Sparkles,
                       "umbrella": Umbrella,
                       "badge-check": BadgeCheck,
-                    }[g.iconName] || Shield;
+                    };
+                    const IconComponent = iconMap[g.iconName as string] || Shield;
                     return (
                       <Card key={g.id} className="p-4 border-emerald-100 bg-white/80 backdrop-blur-sm">
                         <div className="flex gap-3">
