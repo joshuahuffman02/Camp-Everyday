@@ -79,6 +79,7 @@ export async function createApp(): Promise<INestApplication> {
             "Accept",
             "X-Requested-With",
             "X-Onboarding-Token",
+            "X-Kiosk-Token",
             "Idempotency-Key",
         ],
         optionsSuccessStatus: 204,

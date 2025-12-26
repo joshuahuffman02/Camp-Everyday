@@ -1373,8 +1373,37 @@ model FormTemplate {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @default(now()) @updatedAt
 
+  // Auto-attach settings
+  autoAttachMode   FormAutoAttachMode @default(manual)
+  siteClassIds     String[]           @default([])  // Which site classes to auto-attach to
+
+  // Display settings
+  showAt           FormShowAt[]       @default([during_booking])
+  isRequired       Boolean            @default(true)
+  allowSkipWithNote Boolean           @default(false)
+
+  // Validity settings
+  validityDays     Int?               // null = never expires, otherwise days until re-signing needed
+
+  // Reminder settings
+  sendReminder     Boolean            @default(false)
+  reminderDaysBefore Int?             @default(1)
+
   campground  Campground       @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
   submissions FormSubmission[]
+}
+
+enum FormAutoAttachMode {
+  manual           // Only attach manually
+  all_bookings     // Auto-attach to all bookings
+  site_classes     // Auto-attach to specific site classes
+}
+
+enum FormShowAt {
+  during_booking   // Show during online booking flow
+  at_checkin       // Show when staff checks in guest
+  after_booking    // Send via email after booking confirmed
+  on_demand        // Only when manually requested
 }
 
 enum FormTemplateType {
