@@ -11,7 +11,7 @@ import { TableEmpty } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, MessageSquare, Users, Send, User, Clock, CheckCheck, Search, Plus, Hash, ClipboardList, ClipboardCheck, HeartPulse, Info, AlertCircle, Sparkles } from "lucide-react";
+import { Loader2, MessageSquare, Users, Send, User, Clock, CheckCheck, Search, Plus, Hash, ClipboardList, ClipboardCheck, HeartPulse, Info, AlertCircle, Sparkles, Bell } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -77,6 +77,8 @@ export default function MessagesPage() {
     const [overdueNotified, setOverdueNotified] = useState(false);
     const [sendSuccess, setSendSuccess] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const prevUnreadCountRef = useRef<number>(0);
+    const isInitialLoadRef = useRef(true);
     const activeFilterCount =
         (statusFilter !== "all" ? 1 : 0) +
         (dateRange.start ? 1 : 0) +
@@ -222,6 +224,65 @@ export default function MessagesPage() {
             };
         }).filter(conv => conv.messages.length > 0);
     }, [rawConversations, statusFilter, dateRange]);
+
+    // Play notification sound helper
+    const playNotificationSound = () => {
+        try {
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.frequency.value = 600;
+            oscillator.type = "sine";
+            gainNode.gain.value = 0.15;
+            oscillator.start();
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        } catch (e) {
+            // Audio not available, ignore
+        }
+    };
+
+    // Detect new messages and show notifications
+    useEffect(() => {
+        const currentUnread = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+
+        // Skip notification on initial load
+        if (isInitialLoadRef.current) {
+            prevUnreadCountRef.current = currentUnread;
+            isInitialLoadRef.current = false;
+            return;
+        }
+
+        // New unread messages arrived
+        if (currentUnread > prevUnreadCountRef.current) {
+            const newMessageCount = currentUnread - prevUnreadCountRef.current;
+            playNotificationSound();
+            toast({
+                title: `${newMessageCount} new message${newMessageCount > 1 ? "s" : ""}`,
+                description: "A guest sent you a message",
+                duration: 5000,
+            });
+
+            // Try browser notification if permitted
+            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+                new Notification("New guest message", {
+                    body: `You have ${newMessageCount} new message${newMessageCount > 1 ? "s" : ""} from guests`,
+                    icon: "/favicon.ico",
+                });
+            }
+        }
+
+        prevUnreadCountRef.current = currentUnread;
+    }, [conversations, toast]);
+
+    // Request notification permission on mount
+    useEffect(() => {
+        if (typeof Notification !== "undefined" && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    }, []);
 
     // Function to update conversations after sending a message
     const updateConversationMessages = (reservationId: string, newMessage: Message) => {

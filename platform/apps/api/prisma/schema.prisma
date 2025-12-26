@@ -1182,6 +1182,7 @@ model Campground {
   seasonalRates             SeasonalRate[]
   defaultDepositPolicy      DepositPolicy?             @relation("CampgroundDefaultDepositPolicy", fields: [defaultDepositPolicyId], references: [id], onDelete: SetNull)
   activities                Activity[]
+  activityBundles           ActivityBundle[]
   membershipTypes           MembershipType[]
   operationalTasks          OperationalTask[]
   internalConversations     InternalConversation[]
@@ -3580,34 +3581,93 @@ model OnboardingSession {
   @@index([campgroundId])
 }
 
-model Activity {
-  id           String   @id @default(cuid())
-  campgroundId String
-  name         String
-  description  String?
-  images       String[] @default([])
-  price        Int // in cents
-  duration     Int // in minutes
-  capacity     Int // max participants per session
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+// Activity scheduling mode
+enum ActivitySchedulingMode {
+  scheduled        // Staff-led, specific session times (yoga class, guided hike)
+  open_availability // Self-service, operating hours (kayak rental, bike rental)
+}
 
-  campground Campground        @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
-  sessions   ActivitySession[]
+// Recurrence pattern type
+enum RecurrencePatternType {
+  none
+  daily
+  weekly
+  biweekly
+  monthly
+}
+
+model Activity {
+  id              String                  @id @default(cuid())
+  campgroundId    String
+  name            String
+  description     String?
+  images          String[]                @default([])
+  price           Int                     // in cents
+  duration        Int                     // in minutes
+  capacity        Int                     // max participants per session
+  isActive        Boolean                 @default(true)
+
+  // Scheduling mode
+  schedulingMode  ActivitySchedulingMode  @default(scheduled)
+
+  // Open availability settings (for rentals)
+  operatingHours  Json?                   // { "mon": { "start": "09:00", "end": "17:00" }, ... }
+  slotDuration    Int?                    // Time slot duration in minutes for open availability
+  maxConcurrent   Int?                    // Max simultaneous rentals/bookings
+
+  // Pricing options
+  weekendPremium  Int?                    // Extra charge in cents for weekend sessions
+  holidayPremium  Int?                    // Extra charge in cents for holiday sessions
+  earlyBirdDiscount Int?                  // Discount in cents for booking X days ahead
+  earlyBirdDays   Int?                    // Number of days ahead for early bird discount
+
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  campground         Campground              @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  sessions           ActivitySession[]
+  recurrencePatterns ActivityRecurrencePattern[]
+  bundleItems        ActivityBundleItem[]
+}
+
+// Recurrence pattern for generating sessions
+model ActivityRecurrencePattern {
+  id           String               @id @default(cuid())
+  activityId   String
+  patternType  RecurrencePatternType
+  daysOfWeek   Int[]                // 0=Sun, 1=Mon, ... 6=Sat (for weekly/biweekly)
+  dayOfMonth   Int?                 // For monthly (e.g., 15 = 15th of each month)
+  weekOfMonth  Int?                 // For monthly (e.g., 2 = second week)
+  startTime    String               // "09:00" format
+  endTime      String               // "10:30" format
+  validFrom    DateTime             // When this pattern starts
+  validUntil   DateTime?            // When this pattern ends (null = indefinite)
+  capacity     Int?                 // Override activity capacity for sessions from this pattern
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId, isActive])
 }
 
 model ActivitySession {
-  id          String   @id @default(cuid())
-  activityId  String
-  startTime   DateTime
-  endTime     DateTime
-  capacity    Int // Override activity capacity if needed
-  bookedCount Int      @default(0)
-  status      String   @default("scheduled") // scheduled, cancelled, completed
+  id                   String   @id @default(cuid())
+  activityId           String
+  recurrencePatternId  String?  // Which pattern generated this session (null = manually created)
+  startTime            DateTime
+  endTime              DateTime
+  capacity             Int      // Override activity capacity if needed
+  bookedCount          Int      @default(0)
+  status               String   @default("scheduled") // scheduled, cancelled, completed
+  priceOverride        Int?     // Override price for this specific session (holidays, etc.)
 
-  activity Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activity Activity                    @relation(fields: [activityId], references: [id], onDelete: Cascade)
   bookings ActivityBooking[]
+
+  @@index([activityId, startTime])
+  @@index([startTime, status])
 }
 
 model ActivityBooking {
@@ -3623,6 +3683,40 @@ model ActivityBooking {
   session     ActivitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   guest       Guest           @relation(fields: [guestId], references: [id], onDelete: Cascade)
   reservation Reservation?    @relation(fields: [reservationId], references: [id])
+}
+
+// Activity bundles/packages for upselling
+model ActivityBundle {
+  id           String   @id @default(cuid())
+  campgroundId String
+  name         String   // e.g., "Adventure Package", "Family Fun Bundle"
+  description  String?
+  price        Int      // Bundle price in cents (should be less than sum of activities)
+  discountType String   @default("fixed") // "fixed" = set price, "percent" = % off total
+  discountValue Int?    // For percent type, the percentage discount
+  isActive     Boolean  @default(true)
+  validFrom    DateTime?
+  validUntil   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campground Campground          @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  items      ActivityBundleItem[]
+
+  @@index([campgroundId, isActive])
+}
+
+// Items in a bundle
+model ActivityBundleItem {
+  id         String @id @default(cuid())
+  bundleId   String
+  activityId String
+  quantity   Int    @default(1) // How many sessions of this activity are included
+
+  bundle   ActivityBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  activity Activity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleId, activityId])
 }
 
 model MembershipType {

@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Activity, ActivitySession, ActivityBooking } from '@prisma/client';
+import { Activity, ActivitySession, ActivityBooking, ActivityRecurrencePattern } from '@prisma/client';
+import { GenerateSessionsDto, GenerateSessionsPreview, RecurrencePatternType } from './dto/activities.dto';
+import { addDays, addWeeks, addMonths, format, getDay, parse, isWeekend, eachDayOfInterval, startOfDay } from 'date-fns';
 
 type ActivityWaitlistEntry = {
     id: string;
@@ -246,5 +248,340 @@ export class ActivitiesService {
             this.trackCancellationImpact(session.activityId, booking.quantity);
         }
         return cancelledBooking;
+    }
+
+    // ==================== BULK SESSION GENERATION ====================
+
+    private readonly dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    /**
+     * Preview sessions that would be generated (without creating them)
+     */
+    async previewGeneratedSessions(
+        activityId: string,
+        dto: GenerateSessionsDto,
+    ): Promise<GenerateSessionsPreview> {
+        const activity = await this.findActivity(activityId);
+        const sessions = this.calculateSessionDates(dto, activity.duration);
+
+        return {
+            sessions: sessions.map((s) => ({
+                startTime: s.startTime.toISOString(),
+                endTime: s.endTime.toISOString(),
+                dayOfWeek: this.dayNames[getDay(s.startTime)],
+                isWeekend: isWeekend(s.startTime),
+            })),
+            totalCount: sessions.length,
+            patternDescription: this.describePattern(dto),
+        };
+    }
+
+    /**
+     * Generate sessions in bulk based on a recurrence pattern
+     */
+    async generateSessions(
+        activityId: string,
+        dto: GenerateSessionsDto,
+    ): Promise<{ created: number; patternId?: string }> {
+        const activity = await this.findActivity(activityId);
+        const sessionDates = this.calculateSessionDates(dto, activity.duration);
+
+        if (sessionDates.length === 0) {
+            throw new BadRequestException('No sessions would be generated with the given parameters');
+        }
+
+        if (sessionDates.length > 365) {
+            throw new BadRequestException('Cannot generate more than 365 sessions at once');
+        }
+
+        // Optionally save the pattern for future use
+        let patternId: string | undefined;
+        if (dto.savePattern) {
+            const pattern = await this.prisma.activityRecurrencePattern.create({
+                data: {
+                    activityId,
+                    patternType: dto.patternType,
+                    daysOfWeek: dto.daysOfWeek || [],
+                    startTime: dto.startTime,
+                    endTime: dto.endTime || this.calculateEndTime(dto.startTime, activity.duration),
+                    validFrom: new Date(dto.startDate),
+                    validUntil: new Date(dto.endDate),
+                    capacity: dto.capacity,
+                },
+            });
+            patternId = pattern.id;
+        }
+
+        // Create all sessions
+        const capacity = dto.capacity || activity.capacity;
+        await this.prisma.activitySession.createMany({
+            data: sessionDates.map((s) => ({
+                activityId,
+                recurrencePatternId: patternId,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                capacity,
+                bookedCount: 0,
+                status: 'scheduled',
+            })),
+        });
+
+        return { created: sessionDates.length, patternId };
+    }
+
+    /**
+     * Calculate session dates based on pattern
+     */
+    private calculateSessionDates(
+        dto: GenerateSessionsDto,
+        activityDuration: number,
+    ): Array<{ startTime: Date; endTime: Date }> {
+        const startDate = startOfDay(new Date(dto.startDate));
+        const endDate = startOfDay(new Date(dto.endDate));
+        const endTimeStr = dto.endTime || this.calculateEndTime(dto.startTime, activityDuration);
+        const sessions: Array<{ startTime: Date; endTime: Date }> = [];
+
+        switch (dto.patternType) {
+            case RecurrencePatternType.DAILY:
+                return this.generateDailySessions(startDate, endDate, dto.startTime, endTimeStr);
+
+            case RecurrencePatternType.WEEKLY:
+                return this.generateWeeklySessions(startDate, endDate, dto.startTime, endTimeStr, dto.daysOfWeek || [], 1);
+
+            case RecurrencePatternType.BIWEEKLY:
+                return this.generateWeeklySessions(startDate, endDate, dto.startTime, endTimeStr, dto.daysOfWeek || [], 2);
+
+            case RecurrencePatternType.MONTHLY:
+                // For monthly, use daysOfWeek[0] as the day of week to repeat
+                return this.generateMonthlySessions(startDate, endDate, dto.startTime, endTimeStr, dto.daysOfWeek?.[0]);
+
+            default:
+                return sessions;
+        }
+    }
+
+    private generateDailySessions(
+        startDate: Date,
+        endDate: Date,
+        startTime: string,
+        endTime: string,
+    ): Array<{ startTime: Date; endTime: Date }> {
+        const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+        return allDays.map((day) => ({
+            startTime: this.combineDateAndTime(day, startTime),
+            endTime: this.combineDateAndTime(day, endTime),
+        }));
+    }
+
+    private generateWeeklySessions(
+        startDate: Date,
+        endDate: Date,
+        startTime: string,
+        endTime: string,
+        daysOfWeek: number[],
+        weekInterval: number,
+    ): Array<{ startTime: Date; endTime: Date }> {
+        if (daysOfWeek.length === 0) {
+            throw new BadRequestException('At least one day of week must be selected for weekly pattern');
+        }
+
+        const sessions: Array<{ startTime: Date; endTime: Date }> = [];
+        const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+
+        // For biweekly, we need to track which week we're in
+        let weekCounter = 0;
+        let lastWeekStart: Date | null = null;
+
+        for (const day of allDays) {
+            const dayOfWeek = getDay(day);
+
+            // Check if this is a new week (Sunday = 0)
+            if (dayOfWeek === 0 && lastWeekStart) {
+                weekCounter++;
+            }
+            if (dayOfWeek === 0) {
+                lastWeekStart = day;
+            }
+
+            // Skip if not in the right week interval
+            if (weekInterval > 1 && weekCounter % weekInterval !== 0) {
+                continue;
+            }
+
+            if (daysOfWeek.includes(dayOfWeek)) {
+                sessions.push({
+                    startTime: this.combineDateAndTime(day, startTime),
+                    endTime: this.combineDateAndTime(day, endTime),
+                });
+            }
+        }
+
+        return sessions;
+    }
+
+    private generateMonthlySessions(
+        startDate: Date,
+        endDate: Date,
+        startTime: string,
+        endTime: string,
+        dayOfWeek?: number,
+    ): Array<{ startTime: Date; endTime: Date }> {
+        const sessions: Array<{ startTime: Date; endTime: Date }> = [];
+        let current = startDate;
+
+        while (current <= endDate) {
+            // If specific day of week, find first occurrence in month
+            if (dayOfWeek !== undefined) {
+                const firstOfMonth = new Date(current.getFullYear(), current.getMonth(), 1);
+                let targetDay = firstOfMonth;
+
+                while (getDay(targetDay) !== dayOfWeek) {
+                    targetDay = addDays(targetDay, 1);
+                }
+
+                if (targetDay >= startDate && targetDay <= endDate) {
+                    sessions.push({
+                        startTime: this.combineDateAndTime(targetDay, startTime),
+                        endTime: this.combineDateAndTime(targetDay, endTime),
+                    });
+                }
+            } else {
+                // Same day of month
+                const targetDay = new Date(current.getFullYear(), current.getMonth(), startDate.getDate());
+                if (targetDay >= startDate && targetDay <= endDate) {
+                    sessions.push({
+                        startTime: this.combineDateAndTime(targetDay, startTime),
+                        endTime: this.combineDateAndTime(targetDay, endTime),
+                    });
+                }
+            }
+
+            current = addMonths(current, 1);
+        }
+
+        return sessions;
+    }
+
+    private combineDateAndTime(date: Date, timeStr: string): Date {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        const result = new Date(date);
+        result.setHours(hours, minutes, 0, 0);
+        return result;
+    }
+
+    private calculateEndTime(startTime: string, durationMinutes: number): string {
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const totalMinutes = hours * 60 + minutes + durationMinutes;
+        const endHours = Math.floor(totalMinutes / 60) % 24;
+        const endMinutes = totalMinutes % 60;
+        return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+    }
+
+    private describePattern(dto: GenerateSessionsDto): string {
+        const days = dto.daysOfWeek?.map((d) => this.dayNames[d]).join(', ') || '';
+
+        switch (dto.patternType) {
+            case RecurrencePatternType.DAILY:
+                return `Daily at ${dto.startTime}`;
+            case RecurrencePatternType.WEEKLY:
+                return `Weekly on ${days} at ${dto.startTime}`;
+            case RecurrencePatternType.BIWEEKLY:
+                return `Every other week on ${days} at ${dto.startTime}`;
+            case RecurrencePatternType.MONTHLY:
+                return `Monthly on the first ${days || 'day'} at ${dto.startTime}`;
+            default:
+                return 'Custom schedule';
+        }
+    }
+
+    // ==================== RECURRENCE PATTERNS ====================
+
+    async getRecurrencePatterns(activityId: string): Promise<ActivityRecurrencePattern[]> {
+        return this.prisma.activityRecurrencePattern.findMany({
+            where: { activityId, isActive: true },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    async deleteRecurrencePattern(patternId: string): Promise<void> {
+        await this.prisma.activityRecurrencePattern.update({
+            where: { id: patternId },
+            data: { isActive: false },
+        });
+    }
+
+    // ==================== BUNDLES ====================
+
+    async createBundle(campgroundId: string, data: {
+        name: string;
+        description?: string;
+        price: number;
+        discountType?: string;
+        discountValue?: number;
+        activityIds: string[];
+    }) {
+        const bundle = await this.prisma.activityBundle.create({
+            data: {
+                campgroundId,
+                name: data.name,
+                description: data.description,
+                price: data.price,
+                discountType: data.discountType || 'fixed',
+                discountValue: data.discountValue,
+                items: {
+                    create: data.activityIds.map((activityId) => ({
+                        activityId,
+                        quantity: 1,
+                    })),
+                },
+            },
+            include: { items: { include: { activity: true } } },
+        });
+        return bundle;
+    }
+
+    async findBundles(campgroundId: string) {
+        return this.prisma.activityBundle.findMany({
+            where: { campgroundId, isActive: true },
+            include: { items: { include: { activity: true } } },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    async updateBundle(id: string, data: {
+        name?: string;
+        description?: string;
+        price?: number;
+        isActive?: boolean;
+        activityIds?: string[];
+    }) {
+        // If updating activities, delete and recreate items
+        if (data.activityIds) {
+            await this.prisma.activityBundleItem.deleteMany({
+                where: { bundleId: id },
+            });
+
+            await this.prisma.activityBundleItem.createMany({
+                data: data.activityIds.map((activityId) => ({
+                    bundleId: id,
+                    activityId,
+                    quantity: 1,
+                })),
+            });
+        }
+
+        const { activityIds, ...updateData } = data;
+        return this.prisma.activityBundle.update({
+            where: { id },
+            data: updateData,
+            include: { items: { include: { activity: true } } },
+        });
+    }
+
+    async deleteBundle(id: string) {
+        return this.prisma.activityBundle.update({
+            where: { id },
+            data: { isActive: false },
+        });
     }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,54 +34,81 @@ export function GuestChatPanel({ reservationId, token }: GuestChatPanelProps) {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const lastMessageIdRef = useRef<string | null>(null);
+    const lastMessageCountRef = useRef<number>(0);
+    const isInitialLoadRef = useRef(true);
 
-    const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
         messagesEndRef.current?.scrollIntoView({ behavior });
-    }, []);
+    };
 
-    const loadMessages = useCallback(async (isPolling = false) => {
+    // Fetch messages function
+    const fetchMessages = async () => {
         try {
             const data = await apiClient.getPortalMessages(reservationId, token);
 
-            // Check if there are new messages (for polling)
-            const newLastId = data.length > 0 ? data[data.length - 1].id : null;
-            const hasNewMessages = newLastId !== lastMessageIdRef.current;
+            // Check if there are new messages from staff (for notification)
+            const hasNewStaffMessages = data.length > lastMessageCountRef.current &&
+                data.slice(lastMessageCountRef.current).some((m: Message) => m.senderType === "staff");
 
             setMessages(data);
-            lastMessageIdRef.current = newLastId;
 
-            // Only auto-scroll on new messages during polling, not on initial load scroll
-            if (isPolling && hasNewMessages) {
+            // Auto-scroll when new messages arrive (not on initial load)
+            if (!isInitialLoadRef.current && data.length > lastMessageCountRef.current) {
                 scrollToBottom();
             }
+
+            lastMessageCountRef.current = data.length;
+
+            // Play notification sound for new staff messages
+            if (hasNewStaffMessages && !isInitialLoadRef.current) {
+                try {
+                    // Simple beep using Web Audio API
+                    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.frequency.value = 800;
+                    oscillator.type = "sine";
+                    gainNode.gain.value = 0.1;
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.1);
+                } catch (e) {
+                    // Audio not available, ignore
+                }
+            }
+
+            isInitialLoadRef.current = false;
         } catch (error) {
             console.error("Failed to load messages:", error);
         } finally {
             setLoading(false);
         }
-    }, [reservationId, token, scrollToBottom]);
+    };
 
-    // Initial load
+    // Initial load and polling
     useEffect(() => {
-        loadMessages(false);
-    }, [loadMessages]);
+        // Reset refs when reservation changes
+        isInitialLoadRef.current = true;
+        lastMessageCountRef.current = 0;
+        setLoading(true);
 
-    // Polling for real-time updates
-    useEffect(() => {
-        const interval = setInterval(() => {
-            loadMessages(true);
-        }, POLL_INTERVAL);
+        // Initial fetch
+        fetchMessages();
+
+        // Set up polling
+        const interval = setInterval(fetchMessages, POLL_INTERVAL);
 
         return () => clearInterval(interval);
-    }, [loadMessages]);
+    }, [reservationId, token]);
 
-    // Scroll to bottom on initial messages load
+    // Scroll to bottom on initial load
     useEffect(() => {
-        if (!loading && messages.length > 0) {
-            scrollToBottom("instant");
+        if (!loading && messages.length > 0 && isInitialLoadRef.current === false) {
+            // Small delay to ensure DOM is updated
+            setTimeout(() => scrollToBottom("instant"), 100);
         }
-    }, [loading, messages.length, scrollToBottom]);
+    }, [loading]);
 
     const handleSend = async () => {
         if (!newMessage.trim() || sending) return;
@@ -90,8 +117,9 @@ export function GuestChatPanel({ reservationId, token }: GuestChatPanelProps) {
         try {
             await apiClient.sendPortalMessage(reservationId, newMessage.trim(), token);
             setNewMessage("");
-            // Reload messages to get the new one
-            await loadMessages();
+            // Immediately fetch to show the new message
+            await fetchMessages();
+            scrollToBottom();
         } catch (error) {
             console.error("Failed to send message:", error);
         } finally {
@@ -122,6 +150,9 @@ export function GuestChatPanel({ reservationId, token }: GuestChatPanelProps) {
                 <CardTitle className="flex items-center gap-2">
                     <MessageCircle className="h-5 w-5" />
                     Messages
+                    <span className="ml-auto text-xs font-normal text-muted-foreground">
+                        Live updates enabled
+                    </span>
                 </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col overflow-hidden">
