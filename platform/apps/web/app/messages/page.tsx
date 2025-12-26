@@ -169,13 +169,14 @@ export default function MessagesPage() {
     });
 
     // Fetch all conversations in a single API call (much faster than N sequential calls)
-    // Poll every 3 seconds for real-time updates
+    // Poll every 5 seconds for real-time updates
     const { data: rawConversations = [], isLoading: loadingConversations } = useQuery({
         queryKey: ["conversations", campground?.id],
         queryFn: () => apiClient.getConversations(campground!.id),
         enabled: !!campground?.id,
-        staleTime: 2000, // Consider stale after 2 seconds
-        refetchInterval: 3000, // Poll every 3 seconds for real-time updates
+        staleTime: 4000, // Consider stale after 4 seconds
+        refetchInterval: 5000, // Poll every 5 seconds for real-time updates
+        refetchIntervalInBackground: false, // Don't poll when tab is not focused
     });
 
     // Apply client-side filters and transform to expected format
@@ -221,23 +222,17 @@ export default function MessagesPage() {
             }];
         }
 
-        // Apply status and date filters
+        // Transform raw conversations to expected format
         return rawConversations.map((conv: any) => {
-            const filteredMsgs = conv.messages.filter((m: any) => {
-                const isFailed =
-                    (m.status || "").toLowerCase().includes("fail") ||
-                    (m.status || "").toLowerCase().includes("bounce") ||
-                    (m.status || "").toLowerCase().includes("error");
-                const inStatus = statusFilter === "all" ? true : isFailed;
-                const withinDate = (() => {
-                    if (!dateRange.start && !dateRange.end) return true;
+            // Apply date filter if set
+            const filteredMsgs = dateRange.start || dateRange.end
+                ? conv.messages.filter((m: any) => {
                     const created = new Date(m.createdAt);
                     const startOk = dateRange.start ? created >= new Date(dateRange.start) : true;
                     const endOk = dateRange.end ? created <= new Date(dateRange.end) : true;
                     return startOk && endOk;
-                })();
-                return inStatus && withinDate;
-            });
+                })
+                : conv.messages;
 
             return {
                 reservationId: conv.reservationId,
@@ -259,8 +254,8 @@ export default function MessagesPage() {
                 unreadCount: filteredMsgs.filter((m: any) => m.senderType === "guest" && !m.readAt).length,
                 lastMessage: filteredMsgs[filteredMsgs.length - 1] || null
             } as Conversation;
-        }).filter(conv => conv.messages.length > 0);
-    }, [rawConversations, statusFilter, dateRange]);
+        });
+    }, [rawConversations, dateRange]);
 
     // Play notification sound helper
     const playNotificationSound = () => {
