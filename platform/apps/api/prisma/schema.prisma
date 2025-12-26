@@ -527,6 +527,19 @@ model User {
   roomMovesApproved        RoomMoveRequest[]    @relation("RoomMoveApprover")
   roomMovesCompleted       RoomMoveRequest[]    @relation("RoomMoveCompleter")
 
+  // Unified Operations / Task Management relations
+  opTeamMemberships        OpTeamMember[]       @relation("UserOpTeamMemberships")
+  opTaskTemplatesDefault   OpTaskTemplate[]     @relation("TemplateDefaultAssignee")
+  opTaskTriggersAssigned   OpTaskTrigger[]      @relation("TriggerAssignToUser")
+  opRecurrenceAssigned     OpRecurrenceRule[]   @relation("RecurrenceAssignToUser")
+  opTasksAssigned          OpTask[]             @relation("OpTaskAssignedToUser")
+  opTasksCompleted         OpTask[]             @relation("OpTaskCompletedBy")
+  opTasksVerified          OpTask[]             @relation("OpTaskVerifiedBy")
+  opTasksEscalated         OpTask[]             @relation("OpTaskEscalatedTo")
+  opTasksCreated           OpTask[]             @relation("OpTaskCreatedBy")
+  opTaskComments           OpTaskComment[]      @relation("OpTaskCommentAuthor")
+  opStaffStats             OpStaffStats[]       @relation("UserOpStaffStats")
+
   // Customizable menu configuration
   menuConfig               UserMenuConfig?
   featureProgress          FeatureProgress[]
@@ -1313,6 +1326,14 @@ model Campground {
   roomMoveRequests       RoomMoveRequest[]
   groupBookings          GroupBooking[]
 
+  // Unified Operations / Task Management
+  opTeams                OpTeam[]
+  opTaskTemplates        OpTaskTemplate[]
+  opTaskTriggers         OpTaskTrigger[]
+  opRecurrenceRules      OpRecurrenceRule[]
+  opTasks                OpTask[]
+  opStaffStats           OpStaffStats[]
+
   // Inventory batch & expiration tracking relations
   inventoryBatches           InventoryBatch[]
   categoryExpirationConfigs  CategoryExpirationConfig[]
@@ -1821,6 +1842,9 @@ model Site {
   roomMovesFrom       RoomMoveRequest[]   @relation("RoomMoveFrom")
   roomMovesTo         RoomMoveRequest[]   @relation("RoomMoveTo")
 
+  // Unified Operations / Task Management
+  opTasks             OpTask[]            @relation("OpTaskSite")
+
   @@unique([campgroundId, name])
   @@index([campgroundId])
   @@index([siteType])
@@ -2177,6 +2201,9 @@ model Reservation {
   // Hotel operations relations
   roomMoves     RoomMoveRequest[]
   groupBooking  GroupBooking?     @relation(fields: [groupBookingId], references: [id], onDelete: SetNull)
+
+  // Unified Operations / Task Management
+  opTasks       OpTask[]          @relation("OpTaskReservation")
 
   @@index([campgroundId])
   @@index([groupBookingId])
@@ -8093,6 +8120,398 @@ model BookingPageConfig {
   
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
-  
+
   campground         Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+}
+
+// =============================================================================
+// UNIFIED OPERATIONS / TASK MANAGEMENT SYSTEM
+// =============================================================================
+// Consolidates: MaintenanceTicket, OperationalTask, Task, CleaningTaskTemplate
+// into a unified system with recurring tasks, event triggers, and SLA tracking.
+
+// Task categories (what type of work)
+enum OpTaskCategory {
+  turnover          // Site turnover/make-ready after checkout
+  housekeeping      // Routine cleaning (daily bathroom cleaning, etc.)
+  maintenance       // Repairs and maintenance work
+  inspection        // Quality inspections
+  grounds           // Landscaping, trash, outdoor maintenance
+  pool              // Pool/hot tub maintenance
+  front_desk        // Front desk tasks (check-in prep, etc.)
+  custom            // Custom/other tasks
+}
+
+// Task states (workflow)
+enum OpTaskState {
+  pending           // Not started
+  assigned          // Assigned to someone but not started
+  in_progress       // Work in progress
+  blocked           // Blocked by issue or dependency
+  completed         // Work finished
+  verified          // Inspected/verified by supervisor
+  cancelled         // Task cancelled
+}
+
+// Task priority levels
+enum OpTaskPriority {
+  low
+  medium
+  high
+  urgent            // Requires immediate attention
+}
+
+// SLA status for tracking deadlines
+enum OpSlaStatus {
+  on_track          // Ahead of schedule
+  at_risk           // Approaching deadline
+  breached          // Past deadline
+}
+
+// What triggers automatic task creation
+enum OpTriggerEvent {
+  reservation_checkout      // Guest checks out
+  reservation_checkin       // Guest checks in
+  reservation_created       // New reservation booked
+  reservation_cancelled     // Reservation cancelled
+  reservation_modified      // Reservation changed
+  maintenance_reported      // Maintenance issue reported
+  inspection_failed         // Failed inspection creates follow-up
+  site_status_changed       // Site status changed (e.g., out of order)
+  manual                    // Manually created
+}
+
+// Recurrence patterns
+enum OpRecurrencePattern {
+  daily             // Every day
+  weekly            // Specific days of week
+  biweekly          // Every two weeks
+  monthly           // Specific days of month
+  seasonal          // Only during season (based on campground season dates)
+}
+
+// Staff team for task assignment
+model OpTeam {
+  id              String    @id @default(cuid())
+  campgroundId    String
+  name            String    // "Housekeeping", "Maintenance", "Grounds Crew"
+  description     String?
+  color           String?   // Hex color for UI
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  campground      Campground     @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  members         OpTeamMember[]
+  tasks           OpTask[]       @relation("TaskAssignedToTeam")
+  templates       OpTaskTemplate[] @relation("TemplateDefaultTeam")
+  triggers        OpTaskTrigger[] @relation("TriggerAssignToTeam")
+  recurrenceRules OpRecurrenceRule[] @relation("RecurrenceAssignToTeam")
+
+  @@unique([campgroundId, name])
+  @@index([campgroundId])
+}
+
+// Team membership
+model OpTeamMember {
+  id              String    @id @default(cuid())
+  teamId          String
+  userId          String
+  role            String    @default("member") // lead, member
+  joinedAt        DateTime  @default(now())
+
+  team            OpTeam    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user            User      @relation("UserOpTeamMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+// Task template - defines what a task looks like (checklists, SLA, etc.)
+model OpTaskTemplate {
+  id                 String          @id @default(cuid())
+  campgroundId       String
+  name               String          // "Cabin Deep Clean", "RV Site Turnover", "Bathroom Daily"
+  description        String?
+  category           OpTaskCategory
+  priority           OpTaskPriority  @default(medium)
+
+  // Checklist template
+  // JSON array: [{ id, text, required, category?, estimatedMinutes? }]
+  checklistTemplate  Json?
+
+  // Supplies needed
+  // JSON array: [{ item, quantity?, notes? }]
+  suppliesNeeded     Json?
+
+  // Time estimates
+  estimatedMinutes   Int?            // Expected duration
+  slaMinutes         Int?            // SLA deadline from task creation
+
+  // Assignment defaults
+  defaultTeamId      String?
+  defaultAssigneeId  String?
+
+  // Scope - which sites this applies to
+  siteClassIds       String[]        @default([]) // Empty = all site classes
+  siteIds            String[]        @default([]) // Empty = all sites (within site classes)
+
+  // Gamification
+  xpValue            Int             @default(10)  // XP earned on completion
+
+  // Status
+  isActive           Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  campground         Campground      @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  defaultTeam        OpTeam?         @relation("TemplateDefaultTeam", fields: [defaultTeamId], references: [id], onDelete: SetNull)
+  defaultAssignee    User?           @relation("TemplateDefaultAssignee", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+  tasks              OpTask[]        @relation("TaskFromTemplate")
+  triggers           OpTaskTrigger[]
+  recurrenceRules    OpRecurrenceRule[]
+
+  @@index([campgroundId, category])
+  @@index([campgroundId, isActive])
+}
+
+// Event trigger - automatically creates tasks based on events
+model OpTaskTrigger {
+  id                 String          @id @default(cuid())
+  campgroundId       String
+  name               String          // "Checkout Cleaning", "Check-in Prep"
+  triggerEvent       OpTriggerEvent
+  templateId         String
+
+  // Conditions (JSON)
+  // e.g., { "siteClassIds": ["cabin"], "minNights": 3 }
+  conditions         Json?
+
+  // SLA offset - when is task due relative to event
+  // Negative = before event, Positive = after event
+  // e.g., -120 means due 2 hours before check-in
+  slaOffsetMinutes   Int             @default(0)
+
+  // Assignment override
+  assignToTeamId     String?
+  assignToUserId     String?
+
+  // Status
+  isActive           Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  campground         Campground      @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  template           OpTaskTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  assignToTeam       OpTeam?         @relation("TriggerAssignToTeam", fields: [assignToTeamId], references: [id], onDelete: SetNull)
+  assignToUser       User?           @relation("TriggerAssignToUser", fields: [assignToUserId], references: [id], onDelete: SetNull)
+  tasks              OpTask[]        @relation("TaskFromTrigger")
+
+  @@index([campgroundId, triggerEvent])
+  @@index([campgroundId, isActive])
+}
+
+// Recurrence rule - generates recurring tasks on schedule
+model OpRecurrenceRule {
+  id                 String              @id @default(cuid())
+  campgroundId       String
+  name               String              // "Daily Bathroom Cleaning", "Weekly Deep Clean"
+  templateId         String
+  pattern            OpRecurrencePattern
+
+  // Schedule details (depends on pattern)
+  // daily: null (runs every day)
+  // weekly: daysOfWeek [0-6] where 0=Sunday
+  // biweekly: daysOfWeek + startDate for week alignment
+  // monthly: daysOfMonth [1-31]
+  // seasonal: same as above but respects campground.seasonStart/End
+  daysOfWeek         Int[]               @default([])  // 0=Sun, 1=Mon, ..., 6=Sat
+  daysOfMonth        Int[]               @default([])  // 1-31
+
+  // Time of day to create tasks (in campground timezone)
+  generateAtHour     Int                 @default(6)   // 6 AM
+  generateAtMinute   Int                 @default(0)
+
+  // Which sites to create tasks for
+  siteClassIds       String[]            @default([])  // Empty = all
+  siteIds            String[]            @default([])  // Empty = all (within classes)
+  locationFilter     String?             // "bathhouse", "pool", etc. for non-site tasks
+
+  // Assignment
+  assignToTeamId     String?
+  assignToUserId     String?
+
+  // Last generation tracking
+  lastGeneratedAt    DateTime?
+  nextGenerationAt   DateTime?
+
+  // Status
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  campground         Campground          @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  template           OpTaskTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  assignToTeam       OpTeam?             @relation("RecurrenceAssignToTeam", fields: [assignToTeamId], references: [id], onDelete: SetNull)
+  assignToUser       User?               @relation("RecurrenceAssignToUser", fields: [assignToUserId], references: [id], onDelete: SetNull)
+  tasks              OpTask[]            @relation("TaskFromRecurrence")
+
+  @@index([campgroundId, pattern])
+  @@index([campgroundId, isActive])
+  @@index([nextGenerationAt])
+}
+
+// Unified task model - the actual work items
+model OpTask {
+  id                 String          @id @default(cuid())
+  campgroundId       String
+
+  // Classification
+  category           OpTaskCategory
+  state              OpTaskState     @default(pending)
+  priority           OpTaskPriority  @default(medium)
+
+  // Content
+  title              String
+  description        String?
+
+  // Checklist progress
+  // JSON array: [{ id, text, completed, completedAt?, completedBy?, required }]
+  checklist          Json?
+  checklistProgress  Int             @default(0)  // Percentage complete (0-100)
+
+  // Photos/attachments
+  // JSON array: [{ url, caption?, uploadedAt, uploadedBy }]
+  photos             Json?
+
+  // Location
+  siteId             String?
+  reservationId      String?
+  locationDescription String?        // For non-site tasks: "Bathhouse A", "Pool Area"
+
+  // Assignment
+  assignedToUserId   String?
+  assignedToTeamId   String?
+
+  // SLA tracking
+  slaDueAt           DateTime?
+  slaStatus          OpSlaStatus     @default(on_track)
+  slaEscalatedAt     DateTime?       // When it was escalated
+  slaEscalatedToId   String?         // User who was notified of escalation
+
+  // Source tracking - where did this task come from?
+  templateId         String?         // Template used
+  triggerId          String?         // Trigger that created it
+  recurrenceRuleId   String?         // Recurrence rule that created it
+  sourceEvent        OpTriggerEvent? // Event that triggered creation
+
+  // Work tracking
+  startedAt          DateTime?
+  completedAt        DateTime?
+  completedById      String?
+  verifiedAt         DateTime?
+  verifiedById       String?
+
+  // For maintenance-style tasks
+  isBlocking         Boolean         @default(false)  // Blocks site availability
+  outOfOrder         Boolean         @default(false)  // Site out of order
+  outOfOrderReason   String?
+  outOfOrderUntil    DateTime?
+
+  // Notes and communication
+  notes              String?         @db.Text
+
+  // Gamification
+  xpAwarded          Int             @default(0)
+
+  // Audit
+  createdById        String
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  // Relations
+  campground         Campground      @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  site               Site?           @relation("OpTaskSite", fields: [siteId], references: [id], onDelete: SetNull)
+  reservation        Reservation?    @relation("OpTaskReservation", fields: [reservationId], references: [id], onDelete: SetNull)
+  assignedToUser     User?           @relation("OpTaskAssignedToUser", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  assignedToTeam     OpTeam?         @relation("TaskAssignedToTeam", fields: [assignedToTeamId], references: [id], onDelete: SetNull)
+  completedBy        User?           @relation("OpTaskCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  verifiedBy         User?           @relation("OpTaskVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  slaEscalatedTo     User?           @relation("OpTaskEscalatedTo", fields: [slaEscalatedToId], references: [id], onDelete: SetNull)
+  createdBy          User            @relation("OpTaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  template           OpTaskTemplate? @relation("TaskFromTemplate", fields: [templateId], references: [id], onDelete: SetNull)
+  trigger            OpTaskTrigger?  @relation("TaskFromTrigger", fields: [triggerId], references: [id], onDelete: SetNull)
+  recurrenceRule     OpRecurrenceRule? @relation("TaskFromRecurrence", fields: [recurrenceRuleId], references: [id], onDelete: SetNull)
+  comments           OpTaskComment[]
+
+  @@index([campgroundId, state])
+  @@index([campgroundId, category])
+  @@index([campgroundId, slaDueAt])
+  @@index([campgroundId, slaStatus])
+  @@index([assignedToUserId])
+  @@index([assignedToTeamId])
+  @@index([siteId])
+  @@index([reservationId])
+}
+
+// Task comments/discussion
+model OpTaskComment {
+  id              String    @id @default(cuid())
+  taskId          String
+  userId          String
+  content         String    @db.Text
+
+  // For status changes
+  isSystemMessage Boolean   @default(false)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  task            OpTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user            User      @relation("OpTaskCommentAuthor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+}
+
+// Staff gamification stats for operations
+model OpStaffStats {
+  id                    String    @id @default(cuid())
+  campgroundId          String
+  userId                String
+
+  // Task completion stats
+  tasksCompletedTotal   Int       @default(0)
+  tasksCompletedToday   Int       @default(0)
+  tasksCompletedWeek    Int       @default(0)
+  tasksCompletedMonth   Int       @default(0)
+
+  // SLA performance
+  onTimeCompletions     Int       @default(0)
+  lateCompletions       Int       @default(0)
+  slaComplianceRate     Float     @default(100.0)  // Percentage
+
+  // Streaks
+  currentStreak         Int       @default(0)  // Days with at least one task completed
+  longestStreak         Int       @default(0)
+  lastActiveDate        DateTime?
+
+  // XP and level
+  totalXp               Int       @default(0)
+  level                 Int       @default(1)
+
+  // Badges earned (JSON array of badge IDs)
+  badges                Json      @default("[]")
+
+  // Stats period tracking
+  periodStartDate       DateTime  @default(now())
+
+  updatedAt             DateTime  @updatedAt
+
+  campground            Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  user                  User       @relation("UserOpStaffStats", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campgroundId, userId])
+  @@index([campgroundId])
+  @@index([userId])
 }

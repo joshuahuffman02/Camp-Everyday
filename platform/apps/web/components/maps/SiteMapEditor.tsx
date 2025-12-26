@@ -697,7 +697,7 @@ export function SiteMapEditor({
     return pointsToPath(draftPoints, true);
   }, [draftPoints, isDrawing]);
 
-  const getSvgPoint = (event: React.PointerEvent<SVGSVGElement>, anchor?: Point | null) => {
+  const getSvgPoint = (event: React.PointerEvent<SVGElement>, anchor?: Point | null) => {
     const svg = svgRef.current;
     if (!svg) return null;
     let rawPoint: Point | null = null;
