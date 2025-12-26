@@ -99,10 +99,10 @@ export default function PortalManagePage() {
     <div className="container mx-auto px-4 py-6 space-y-6 max-w-2xl">
       {/* Page Header */}
       <PortalPageHeader
-        icon={Settings}
-        iconGradient="from-blue-500 to-indigo-600"
+        icon={<Settings className="h-6 w-6 text-white" />}
+        gradient="from-blue-500 to-indigo-600"
         title="Manage Reservation"
-        description="Modify dates, guests, or cancel"
+        subtitle="Modify dates, guests, or cancel"
       />
 
       {/* Reservation Selection */}

@@ -92,6 +92,11 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
   const [formShifts, setFormShifts] = useState<TemplateShift[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Recurring scheduling state
+  const [recurringTemplate, setRecurringTemplate] = useState<string | null>(null);
+  const [recurringDay, setRecurringDay] = useState(0);
+  const [recurringWeeksAhead, setRecurringWeeksAhead] = useState(1);
+
   const loadTemplates = async () => {
     setLoading(true);
     setError(null);
@@ -235,6 +240,61 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
       setError("Could not apply template.");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleToggleRecurring = async (templateId: string, enable: boolean) => {
+    if (!enable) {
+      // Disable recurring
+      setProcessing(true);
+      try {
+        const res = await fetch(`/api/staff/templates/${templateId}/recurring`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isRecurring: false }),
+        });
+        if (!res.ok) throw new Error("Failed to update");
+        setSuccessMessage("Recurring scheduling disabled");
+        await loadTemplates();
+      } catch {
+        setError("Could not update template.");
+      } finally {
+        setProcessing(false);
+        setRecurringTemplate(null);
+      }
+    } else {
+      // Show configuration
+      const template = templates.find((t) => t.id === templateId);
+      if (template) {
+        setRecurringDay(template.recurringDay ?? 0);
+        setRecurringWeeksAhead(template.recurringWeeksAhead ?? 1);
+        setRecurringTemplate(templateId);
+      }
+    }
+  };
+
+  const handleSaveRecurring = async () => {
+    if (!recurringTemplate) return;
+
+    setProcessing(true);
+    try {
+      const res = await fetch(`/api/staff/templates/${recurringTemplate}/recurring`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isRecurring: true,
+          recurringDay,
+          recurringWeeksAhead,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      setSuccessMessage("Recurring scheduling enabled!");
+      await loadTemplates();
+    } catch {
+      setError("Could not save recurring settings.");
+    } finally {
+      setProcessing(false);
+      setRecurringTemplate(null);
     }
   };
 
@@ -500,6 +560,107 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
           )}
         </AnimatePresence>
 
+        {/* Recurring Configuration Modal */}
+        <AnimatePresence>
+          {recurringTemplate && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+              onClick={() => setRecurringTemplate(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-2xl shadow-xl max-w-md w-full"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center">
+                      <RefreshCw className="w-5 h-5 text-violet-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900">Auto-Schedule</h2>
+                      <p className="text-sm text-slate-500">
+                        Automatically apply this template every week
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Run on
+                      </label>
+                      <select
+                        value={recurringDay}
+                        onChange={(e) => setRecurringDay(parseInt(e.target.value))}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                      >
+                        {DAYS_OF_WEEK.map((day, i) => (
+                          <option key={i} value={i}>
+                            Every {day}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-slate-500 mt-1">
+                        The template will be applied automatically on this day
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Schedule for
+                      </label>
+                      <select
+                        value={recurringWeeksAhead}
+                        onChange={(e) => setRecurringWeeksAhead(parseInt(e.target.value))}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                      >
+                        <option value={1}>Next week</option>
+                        <option value={2}>2 weeks ahead</option>
+                        <option value={3}>3 weeks ahead</option>
+                        <option value={4}>4 weeks ahead</option>
+                      </select>
+                      <p className="text-xs text-slate-500 mt-1">
+                        How far ahead to generate the schedule
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-6 pt-4 border-t">
+                    <button
+                      onClick={() => setRecurringTemplate(null)}
+                      className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveRecurring}
+                      disabled={processing}
+                      className={cn(
+                        "flex-1 px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2",
+                        "bg-violet-600 text-white hover:bg-violet-700",
+                        processing && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {processing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      Enable Auto-Schedule
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Content */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -571,6 +732,15 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                         </div>
 
                         <div className="flex items-center gap-2">
+                          {/* Recurring indicator */}
+                          {template.isRecurring && (
+                            <div className="flex items-center gap-1.5 px-2 py-1 bg-violet-100 text-violet-700 rounded-lg text-xs font-medium">
+                              <RefreshCw className="w-3 h-3" />
+                              <span className="hidden sm:inline">
+                                {DAYS_OF_WEEK[template.recurringDay ?? 0]?.slice(0, 3)}
+                              </span>
+                            </div>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -581,6 +751,22 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                           >
                             <Play className="w-4 h-4" />
                             Apply
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleRecurring(template.id, !template.isRecurring);
+                            }}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1",
+                              template.isRecurring
+                                ? "bg-violet-600 text-white hover:bg-violet-700"
+                                : "bg-violet-100 text-violet-700 hover:bg-violet-200"
+                            )}
+                            title={template.isRecurring ? "Disable auto-schedule" : "Enable auto-schedule"}
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            <span className="hidden sm:inline">Auto</span>
                           </button>
                           <button
                             onClick={(e) => {
