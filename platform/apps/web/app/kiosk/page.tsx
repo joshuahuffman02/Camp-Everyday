@@ -10,7 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookingMap } from "@/components/maps/BookingMap";
-import { Loader2, Search, CheckCircle, MapPin, Calendar, User, CreditCard, Home, RefreshCw, Flame, Snowflake, Plus, Minus, ShoppingBag, Tent, ArrowRight, Grid3X3, Zap, Droplet, Waves, Tablet, AlertCircle, Mail, Car, Truck, Bike, Users, Baby, Clock } from "lucide-react";
+import { Loader2, Search, CheckCircle, MapPin, Calendar, User, CreditCard, Home, RefreshCw, Flame, Snowflake, Plus, Minus, ShoppingBag, Tent, ArrowRight, Grid3X3, Zap, Droplet, Waves, Tablet, AlertCircle, Mail, Car, Truck, Bike, Users, Baby, Clock, FileText, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { format, parseISO, addDays } from "date-fns";
 import { randomId } from "@/lib/random-id";
@@ -70,7 +74,7 @@ type SiteFilters = {
     hookups: ("power" | "water" | "sewer")[];
 };
 
-type KioskState = "setup" | "home" | "lookup" | "details" | "upsell" | "payment" | "success" | "walkin-nights" | "walkin-sites" | "walkin-guest";
+type KioskState = "setup" | "home" | "lookup" | "details" | "upsell" | "forms" | "payment" | "success" | "walkin-nights" | "walkin-sites" | "walkin-guest";
 
 type CampgroundInfo = {
     id: string;
@@ -289,6 +293,82 @@ export default function KioskPage() {
     const [firewoodQty, setFirewoodQty] = useState(0);
     const [iceQty, setIceQty] = useState(0);
 
+    // Forms state
+    const [formResponses, setFormResponses] = useState<Record<string, Record<string, any>>>({});
+    const [completedForms, setCompletedForms] = useState<Set<string>>(new Set());
+    const [expandedForm, setExpandedForm] = useState<string | null>(null);
+    const [skipNotes, setSkipNotes] = useState<Record<string, string>>({});
+
+    // Fetch check-in forms for this campground
+    const { data: checkinForms = [] } = useQuery({
+        queryKey: ["kiosk-checkin-forms", campground?.id],
+        queryFn: async () => {
+            if (!campground?.id) return [];
+            const res = await fetch(`/api/public/campgrounds/${campground.id}/forms?showAt=at_checkin`);
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: !!campground?.id,
+        staleTime: 5 * 60 * 1000 // 5 minutes
+    });
+
+    // Filter forms based on reservation context
+    const applicableForms = useMemo(() => {
+        if (!reservation) return [];
+        const context = {
+            pets: 0, // Kiosk doesn't have pet info in basic reservation
+            adults: reservation.adults || 1,
+            children: reservation.children || 0,
+            rigType: guestInfo.vehicleType || "",
+            siteClassId: reservation.site?.id || "",
+            stayLength: (() => {
+                const arrival = new Date(reservation.arrivalDate);
+                const departure = new Date(reservation.departureDate);
+                return Math.ceil((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
+            })()
+        };
+
+        return (checkinForms as any[]).filter((form: any) => {
+            const conditions = form.displayConditions || [];
+            if (conditions.length === 0) return true;
+
+            const logic = form.conditionLogic || "all";
+            const results = conditions.map((cond: any) => {
+                let fieldValue: any;
+                switch (cond.field) {
+                    case "pets": fieldValue = context.pets; break;
+                    case "adults": fieldValue = context.adults; break;
+                    case "children": fieldValue = context.children; break;
+                    case "rigType": fieldValue = context.rigType; break;
+                    case "siteClassId": fieldValue = context.siteClassId; break;
+                    case "stayLength": fieldValue = context.stayLength; break;
+                    default: return true;
+                }
+                switch (cond.operator) {
+                    case "equals": return fieldValue === cond.value;
+                    case "not_equals": return fieldValue !== cond.value;
+                    case "greater_than": return typeof fieldValue === "number" && fieldValue > cond.value;
+                    case "less_than": return typeof fieldValue === "number" && fieldValue < cond.value;
+                    case "in": return Array.isArray(cond.value) && cond.value.includes(fieldValue);
+                    case "not_in": return Array.isArray(cond.value) && !cond.value.includes(fieldValue);
+                    case "contains": return typeof fieldValue === "string" && fieldValue.includes(cond.value);
+                    default: return true;
+                }
+            });
+            return logic === "all" ? results.every(Boolean) : results.some(Boolean);
+        });
+    }, [checkinForms, reservation, guestInfo.vehicleType]);
+
+    // Check if all required forms are complete
+    const requiredForms = useMemo(() =>
+        applicableForms.filter((f: any) => f.isRequired !== false),
+        [applicableForms]
+    );
+    const allFormsComplete = useMemo(() =>
+        requiredForms.every((f: any) => completedForms.has(f.id) || (f.allowSkipWithNote && skipNotes[f.id])),
+        [requiredForms, completedForms, skipNotes]
+    );
+
     // Inactivity timer with countdown
     const [lastActivity, setLastActivity] = useState(Date.now());
     const [timeRemaining, setTimeRemaining] = useState(INACTIVITY_TIMEOUT);
@@ -311,6 +391,10 @@ export default function KioskPage() {
         setSelectedSite(null);
         setGuestInfo({ firstName: "", lastName: "", email: "", phone: "", plate: "", zipCode: "", adults: 2, children: 0, vehicleType: "car" });
         setCardDetails({ number: "", expiry: "", cvc: "", zip: "" });
+        setFormResponses({});
+        setCompletedForms(new Set());
+        setExpandedForm(null);
+        setSkipNotes({});
         setError(null);
         setFieldErrors({});
         setLoading(false);
@@ -639,6 +723,27 @@ export default function KioskPage() {
                 recordTelemetry({ source: "kiosk", type: "queue", status: "pending", message: "Check-in queued offline", meta: { reservationId: reservation.id, upsellTotal } });
                 return;
             }
+
+            // Submit completed form responses
+            if (Object.keys(formResponses).length > 0) {
+                for (const [formTemplateId, responses] of Object.entries(formResponses)) {
+                    try {
+                        await fetch("/api/public/forms/submit", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                formTemplateId,
+                                reservationId: reservation.id,
+                                responses
+                            })
+                        });
+                    } catch (err) {
+                        console.error("Failed to submit form:", formTemplateId, err);
+                        // Don't block check-in for form submission errors
+                    }
+                }
+            }
+
             await apiClient.kioskCheckIn(reservation.id, upsellTotal);
             recordTelemetry({ source: "kiosk", type: "sync", status: "success", message: "Check-in completed", meta: { reservationId: reservation.id } });
             setState("success");
@@ -1756,7 +1861,7 @@ export default function KioskPage() {
                                         onClick={() => {
                                             setFirewoodQty(0);
                                             setIceQty(0);
-                                            setState("payment");
+                                            setState(applicableForms.length > 0 ? "forms" : "payment");
                                         }}
                                         className="flex-1 h-12 md:h-14 text-base md:text-lg active:scale-[0.98] transition-transform"
                                     >
@@ -1764,13 +1869,301 @@ export default function KioskPage() {
                                     </Button>
 
                                     <Button
-                                        onClick={() => setState("payment")}
+                                        onClick={() => setState(applicableForms.length > 0 ? "forms" : "payment")}
                                         className="flex-1 h-12 md:h-14 text-base md:text-lg bg-green-600 hover:bg-green-700 active:scale-[0.98] transition-transform"
                                     >
                                         {firewoodQty > 0 || iceQty > 0 ? "Add to Order →" : "Continue →"}
                                     </Button>
                                 </div>
                             </CardContent>
+                        </Card>
+                    </motion.div>
+                )}
+
+                {/* Forms Screen - Check-in forms before payment */}
+                {state === "forms" && applicableForms.length > 0 && (
+                    <motion.div
+                        key="forms"
+                        variants={pageVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        transition={springConfig}
+                    >
+                        <Card className="w-full max-w-3xl shadow-2xl">
+                            <CardHeader className="text-center pb-4 md:pb-6 pt-8 md:pt-10">
+                                <div className="mx-auto w-16 h-16 md:w-20 md:h-20 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                                    <FileText className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
+                                </div>
+                                <CardTitle className="text-2xl md:text-3xl font-bold text-gray-900">
+                                    Required Forms
+                                </CardTitle>
+                                <CardDescription className="text-lg md:text-xl text-gray-600 mt-2">
+                                    Please complete the following forms before check-in
+                                </CardDescription>
+                                <Badge variant={allFormsComplete ? "default" : "destructive"} className="mt-2">
+                                    {completedForms.size}/{applicableForms.length} Complete
+                                </Badge>
+                            </CardHeader>
+                            <CardContent className="space-y-4 md:space-y-6 px-6 md:px-10 pb-8 md:pb-10 max-h-[50vh] overflow-y-auto">
+                                {applicableForms.map((form: any) => {
+                                    const isComplete = completedForms.has(form.id);
+                                    const isExpanded = expandedForm === form.id;
+                                    const questions = form.fields?.questions || [];
+
+                                    return (
+                                        <motion.div
+                                            key={form.id}
+                                            className={`rounded-xl border-2 transition-all ${isComplete ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                        >
+                                            <div
+                                                className="p-4 md:p-5 cursor-pointer flex items-center justify-between"
+                                                onClick={() => setExpandedForm(isExpanded ? null : form.id)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {isComplete ? (
+                                                        <CheckCircle className="h-6 w-6 text-green-600" />
+                                                    ) : form.isRequired !== false ? (
+                                                        <AlertCircle className="h-6 w-6 text-amber-500" />
+                                                    ) : (
+                                                        <FileText className="h-6 w-6 text-gray-400" />
+                                                    )}
+                                                    <div>
+                                                        <h3 className="font-semibold text-lg text-gray-900">{form.title}</h3>
+                                                        {form.description && !isExpanded && (
+                                                            <p className="text-sm text-gray-500 mt-0.5">{form.description}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {form.isRequired === false && (
+                                                        <Badge variant="outline">Optional</Badge>
+                                                    )}
+                                                    {isExpanded ? (
+                                                        <ChevronUp className="h-5 w-5 text-gray-400" />
+                                                    ) : (
+                                                        <ChevronDown className="h-5 w-5 text-gray-400" />
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <AnimatePresence>
+                                                {isExpanded && (
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: "auto", opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        className="overflow-hidden"
+                                                    >
+                                                        <div className="px-4 md:px-5 pb-4 md:pb-5 pt-0 space-y-4 border-t border-gray-100">
+                                                            {form.description && (
+                                                                <p className="text-sm text-gray-600 pt-4">{form.description}</p>
+                                                            )}
+
+                                                            {questions.length === 0 ? (
+                                                                <p className="text-sm text-gray-500 pt-4">
+                                                                    This form has no questions. Tap complete to acknowledge.
+                                                                </p>
+                                                            ) : (
+                                                                <div className="space-y-4 pt-4">
+                                                                    {questions.map((q: any) => (
+                                                                        <div key={q.id} className="space-y-2">
+                                                                            <label className="text-sm font-medium text-gray-700">
+                                                                                {q.label}
+                                                                                {q.required && <span className="text-red-500 ml-1">*</span>}
+                                                                            </label>
+
+                                                                            {q.type === "text" && (
+                                                                                <Input
+                                                                                    value={formResponses[form.id]?.[q.id] || ""}
+                                                                                    onChange={(e) => {
+                                                                                        setFormResponses(prev => ({
+                                                                                            ...prev,
+                                                                                            [form.id]: { ...(prev[form.id] || {}), [q.id]: e.target.value }
+                                                                                        }));
+                                                                                        handleActivity();
+                                                                                    }}
+                                                                                    placeholder="Enter your answer"
+                                                                                    className="h-12 text-base"
+                                                                                />
+                                                                            )}
+
+                                                                            {q.type === "textarea" && (
+                                                                                <Textarea
+                                                                                    value={formResponses[form.id]?.[q.id] || ""}
+                                                                                    onChange={(e) => {
+                                                                                        setFormResponses(prev => ({
+                                                                                            ...prev,
+                                                                                            [form.id]: { ...(prev[form.id] || {}), [q.id]: e.target.value }
+                                                                                        }));
+                                                                                        handleActivity();
+                                                                                    }}
+                                                                                    placeholder="Enter your answer"
+                                                                                    rows={3}
+                                                                                />
+                                                                            )}
+
+                                                                            {q.type === "number" && (
+                                                                                <Input
+                                                                                    type="number"
+                                                                                    value={formResponses[form.id]?.[q.id] || ""}
+                                                                                    onChange={(e) => {
+                                                                                        setFormResponses(prev => ({
+                                                                                            ...prev,
+                                                                                            [form.id]: { ...(prev[form.id] || {}), [q.id]: e.target.value }
+                                                                                        }));
+                                                                                        handleActivity();
+                                                                                    }}
+                                                                                    placeholder="Enter a number"
+                                                                                    className="h-12 text-base"
+                                                                                    inputMode="numeric"
+                                                                                />
+                                                                            )}
+
+                                                                            {q.type === "checkbox" && (
+                                                                                <div className="flex items-center gap-3 py-2">
+                                                                                    <Checkbox
+                                                                                        checked={formResponses[form.id]?.[q.id] || false}
+                                                                                        onCheckedChange={(checked) => {
+                                                                                            setFormResponses(prev => ({
+                                                                                                ...prev,
+                                                                                                [form.id]: { ...(prev[form.id] || {}), [q.id]: checked }
+                                                                                            }));
+                                                                                            handleActivity();
+                                                                                        }}
+                                                                                        className="h-6 w-6"
+                                                                                    />
+                                                                                    <span className="text-base text-gray-600">I agree</span>
+                                                                                </div>
+                                                                            )}
+
+                                                                            {q.type === "select" && q.options && (
+                                                                                <Select
+                                                                                    value={formResponses[form.id]?.[q.id] || ""}
+                                                                                    onValueChange={(v) => {
+                                                                                        setFormResponses(prev => ({
+                                                                                            ...prev,
+                                                                                            [form.id]: { ...(prev[form.id] || {}), [q.id]: v }
+                                                                                        }));
+                                                                                        handleActivity();
+                                                                                    }}
+                                                                                >
+                                                                                    <SelectTrigger className="h-12 text-base">
+                                                                                        <SelectValue placeholder="Select an option" />
+                                                                                    </SelectTrigger>
+                                                                                    <SelectContent>
+                                                                                        {q.options.map((opt: string) => (
+                                                                                            <SelectItem key={opt} value={opt} className="text-base py-3">
+                                                                                                {opt}
+                                                                                            </SelectItem>
+                                                                                        ))}
+                                                                                    </SelectContent>
+                                                                                </Select>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+
+                                                            <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                                                                <Button
+                                                                    size="lg"
+                                                                    onClick={() => {
+                                                                        const responses = formResponses[form.id] || {};
+                                                                        const missingRequired = questions.filter((q: any) => q.required && !responses[q.id]);
+                                                                        if (missingRequired.length > 0) {
+                                                                            setError(`Please complete required fields: ${missingRequired.map((q: any) => q.label).join(", ")}`);
+                                                                            return;
+                                                                        }
+                                                                        setCompletedForms(prev => new Set([...prev, form.id]));
+                                                                        setExpandedForm(null);
+                                                                        setError(null);
+                                                                        handleActivity();
+                                                                    }}
+                                                                    className="flex-1 h-12 bg-green-600 hover:bg-green-700"
+                                                                >
+                                                                    <Check className="h-5 w-5 mr-2" />
+                                                                    Complete
+                                                                </Button>
+
+                                                                {form.allowSkipWithNote && form.isRequired !== false && (
+                                                                    <div className="flex-1 flex items-center gap-2">
+                                                                        <Input
+                                                                            placeholder="Reason for skipping..."
+                                                                            value={skipNotes[form.id] || ""}
+                                                                            onChange={(e) => {
+                                                                                setSkipNotes(prev => ({ ...prev, [form.id]: e.target.value }));
+                                                                                handleActivity();
+                                                                            }}
+                                                                            className="flex-1 h-12"
+                                                                        />
+                                                                        <Button
+                                                                            size="lg"
+                                                                            variant="outline"
+                                                                            onClick={() => {
+                                                                                if (!skipNotes[form.id]?.trim()) {
+                                                                                    setError("Please provide a reason for skipping this form.");
+                                                                                    return;
+                                                                                }
+                                                                                setCompletedForms(prev => new Set([...prev, form.id]));
+                                                                                setExpandedForm(null);
+                                                                                setError(null);
+                                                                                handleActivity();
+                                                                            }}
+                                                                            disabled={!skipNotes[form.id]?.trim()}
+                                                                            className="h-12"
+                                                                        >
+                                                                            Skip
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </motion.div>
+                                    );
+                                })}
+                            </CardContent>
+
+                            <div className="px-6 md:px-10 pb-8 md:pb-10 pt-0">
+                                {error && (
+                                    <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
+                                        <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                        {error}
+                                    </div>
+                                )}
+
+                                {!allFormsComplete && (
+                                    <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg flex items-center gap-3">
+                                        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                        <span>Please complete all required forms before proceeding.</span>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-4">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setState("upsell")}
+                                        className="flex-1 h-12 md:h-14 text-base md:text-lg"
+                                    >
+                                        ← Back
+                                    </Button>
+                                    <Button
+                                        onClick={() => {
+                                            setError(null);
+                                            setState("payment");
+                                        }}
+                                        disabled={!allFormsComplete}
+                                        className="flex-1 h-12 md:h-14 text-base md:text-lg bg-green-600 hover:bg-green-700"
+                                    >
+                                        Continue to Payment →
+                                    </Button>
+                                </div>
+                            </div>
                         </Card>
                     </motion.div>
                 )}
