@@ -11,8 +11,11 @@ import { Textarea } from "../ui/textarea";
 import { Switch } from "../ui/switch";
 import { Badge } from "../ui/badge";
 import { Label } from "../ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import Image from "next/image";
 import { ImageUpload } from "../ui/image-upload";
+import { cn } from "@/lib/utils";
+import { ChevronDown, Building2, MapPin, Image as ImageIcon, Clock, Settings2, Check } from "lucide-react";
 
 interface CampgroundProfileFormProps {
   campground: Campground;
@@ -20,6 +23,9 @@ interface CampgroundProfileFormProps {
 
 export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps) {
   const qc = useQueryClient();
+  const [showAdvancedLocation, setShowAdvancedLocation] = useState(false);
+  const [showAdvancedOps, setShowAdvancedOps] = useState(false);
+
   const [form, setForm] = useState({
     name: campground.name || "",
     slug: campground.slug || "",
@@ -44,6 +50,7 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
     seasonEnd: campground.seasonEnd || "",
     checkInTime: campground.checkInTime || "",
     checkOutTime: campground.checkOutTime || "",
+    officeClosesAt: (campground as any).officeClosesAt || "17:00",
     timezone: campground.timezone || "",
     slaMinutes: campground.slaMinutes?.toString() || "30",
     senderDomain: campground.senderDomain || "",
@@ -100,7 +107,8 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
       await apiClient.updateCampgroundOps(campground.id, {
         quietHoursStart: form.quietHoursStart || null,
         quietHoursEnd: form.quietHoursEnd || null,
-        routingAssigneeId: form.routingAssigneeId || null
+        routingAssigneeId: form.routingAssigneeId || null,
+        officeClosesAt: form.officeClosesAt || "17:00"
       });
       await apiClient.updateCampgroundFinancials(campground.id, {
         currency: form.currency,
@@ -117,423 +125,537 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
   const heroPreview = form.heroImageUrl?.trim();
 
   return (
-    <div className="grid gap-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Identity & contact</CardTitle>
-              <p className="text-xs text-slate-500">Name, slug, and how guests reach you.</p>
-            </div>
-            <div className="text-[11px] rounded-full bg-slate-100 px-3 py-1 font-mono text-slate-600">ID: {campground.id}</div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Name</label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-                placeholder="Campground name"
-                aria-label="Name"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Slug (URL)</label>
-              <Input
-                value={form.slug}
-                onChange={(e) => setForm((s) => ({ ...s, slug: e.target.value }))}
-                placeholder="slug-for-urls"
-                aria-label="Slug"
-              />
-              <p className="text-xs text-slate-500">Used in links and public pages.</p>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Phone</label>
-              <Input
-                value={form.phone}
-                onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))}
-                placeholder="e.g., (555) 123-4567"
-                aria-label="Phone"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Email</label>
-              <Input
-                value={form.email}
-                onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
-                placeholder="reservations@yourpark.com"
-                aria-label="Email"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Website</label>
-              <Input
-                value={form.website}
-                onChange={(e) => setForm((s) => ({ ...s, website: e.target.value }))}
-                placeholder="https://yourpark.com"
-                aria-label="Website"
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <Switch
-                checked={form.isPublished}
-                onCheckedChange={(checked) => setForm((s) => ({ ...s, isPublished: checked }))}
-                aria-label="Published"
-              />
-              <span className="text-sm text-slate-700">Published (visible online)</span>
-            </div>
-          </div>
+    <div className="space-y-4">
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="grid w-full grid-cols-5 h-auto p-1">
+          <TabsTrigger value="profile" className="flex items-center gap-1.5 text-xs py-2">
+            <Building2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Profile</span>
+          </TabsTrigger>
+          <TabsTrigger value="location" className="flex items-center gap-1.5 text-xs py-2">
+            <MapPin className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Location</span>
+          </TabsTrigger>
+          <TabsTrigger value="listing" className="flex items-center gap-1.5 text-xs py-2">
+            <ImageIcon className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Listing</span>
+          </TabsTrigger>
+          <TabsTrigger value="operations" className="flex items-center gap-1.5 text-xs py-2">
+            <Clock className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Hours</span>
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="flex items-center gap-1.5 text-xs py-2">
+            <Settings2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Advanced</span>
+          </TabsTrigger>
+        </TabsList>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Address line 1</label>
-              <Input
-                value={form.address1}
-                onChange={(e) => setForm((s) => ({ ...s, address1: e.target.value }))}
-                placeholder="123 River Rd"
-                aria-label="Address line 1"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Address line 2</label>
-              <Input
-                value={form.address2}
-                onChange={(e) => setForm((s) => ({ ...s, address2: e.target.value }))}
-                placeholder="Suite / Lot"
-                aria-label="Address line 2"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">City</label>
-              <Input
-                value={form.city}
-                onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))}
-                placeholder="City"
-                aria-label="City"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">State/Province</label>
-              <Input
-                value={form.state}
-                onChange={(e) => setForm((s) => ({ ...s, state: e.target.value }))}
-                placeholder="State/Province"
-                aria-label="State"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Postal code</label>
-              <Input
-                value={form.postalCode}
-                onChange={(e) => setForm((s) => ({ ...s, postalCode: e.target.value }))}
-                placeholder="ZIP / Postal"
-                aria-label="Postal code"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Country</label>
-              <Input
-                value={form.country}
-                onChange={(e) => setForm((s) => ({ ...s, country: e.target.value }))}
-                placeholder="Country"
-                aria-label="Country"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Latitude</label>
-              <Input
-                value={form.latitude}
-                onChange={(e) => setForm((s) => ({ ...s, latitude: e.target.value }))}
-                placeholder="e.g., 44.069"
-                aria-label="Latitude"
-              />
-              <p className="text-xs text-slate-500">Used to center your map.</p>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Longitude</label>
-              <Input
-                value={form.longitude}
-                onChange={(e) => setForm((s) => ({ ...s, longitude: e.target.value }))}
-                placeholder="e.g., -91.315"
-                aria-label="Longitude"
-              />
-              <p className="text-xs text-slate-500">Used to center your map.</p>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Timezone</label>
-              <Input
-                value={form.timezone}
-                onChange={(e) => setForm((s) => ({ ...s, timezone: e.target.value }))}
-                placeholder="e.g., America/Chicago"
-                aria-label="Timezone"
-              />
-              <p className="text-xs text-slate-500">IANA format for emails and arrivals.</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Hero & gallery</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">Hero image URL</label>
-            <div className="space-y-2">
-              <ImageUpload
-                value={form.heroImageUrl}
-                onChange={(url) => setForm((s) => ({ ...s, heroImageUrl: url }))}
-                placeholder="Upload hero image"
-              />
-              <div className="flex items-center gap-2">
-                <div className="h-px bg-slate-100 flex-1"></div>
-                <span className="text-[10px] text-slate-400 uppercase">OR enter URL</span>
-                <div className="h-px bg-slate-100 flex-1"></div>
+        {/* PROFILE TAB */}
+        <TabsContent value="profile" className="mt-4">
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Profile & Contact</CardTitle>
+                  <p className="text-sm text-muted-foreground">Basic information and how guests reach you</p>
+                </div>
+                <div className="text-[11px] rounded-full bg-muted px-3 py-1 font-mono text-muted-foreground">
+                  ID: {campground.id.slice(0, 8)}...
+                </div>
               </div>
-              <Input
-                value={form.heroImageUrl}
-                onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))}
-                placeholder="https://..."
-                aria-label="Hero image URL"
-                className="text-xs font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-700">Gallery photos</label>
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-3">
-              <div className="text-xs text-slate-500">Add new photo:</div>
-              <ImageUpload
-                onChange={(url) => {
-                  if (!url) return;
-                  const current = form.photos ? form.photos.split(",").map(p => p.trim()).filter(Boolean) : [];
-                  setForm(s => ({ ...s, photos: [...current, url].join(", ") }));
-                }}
-                placeholder="Upload gallery photo"
-              />
-            </div>
-            <label className="text-xs font-semibold text-slate-700 block pt-2">Manage URLs (comma-separated)</label>
-            <Textarea
-              value={form.photos}
-              onChange={(e) => setForm((s) => ({ ...s, photos: e.target.value }))}
-              placeholder="https://img1.jpg, https://img2.jpg"
-              aria-label="Gallery photos"
-            />
-            {photoList && photoList.length > 0 && (
-              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {photoList.map((url) => (
-                  <div key={url} className="relative h-24 w-full overflow-hidden rounded border border-slate-200 bg-slate-50">
-                    <Image src={url} alt="Photo" fill className="object-cover" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Campground Name</Label>
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
+                    placeholder="e.g., Sunny Pines RV Park"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Web Address (slug)</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">campreserv.com/park/</span>
+                    <Input
+                      value={form.slug}
+                      onChange={(e) => setForm((s) => ({ ...s, slug: e.target.value }))}
+                      placeholder="sunny-pines"
+                      className="font-mono text-sm"
+                    />
                   </div>
-                ))}
+                </div>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Public profile</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Input
-                value={form.tagline}
-                onChange={(e) => setForm((s) => ({ ...s, tagline: e.target.value }))}
-                placeholder="Tagline"
-                aria-label="Tagline"
-              />
-              <p className="text-xs text-slate-500">A short, catchy phrase displayed under your campground name.</p>
-            </div>
-            <Input
-              value={form.heroImageUrl}
-              onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))}
-              placeholder="Hero image URL"
-              aria-label="Hero image URL"
-            />
-            <Input
-              value={form.facebookUrl}
-              onChange={(e) => setForm((s) => ({ ...s, facebookUrl: e.target.value }))}
-              placeholder="Facebook URL"
-              aria-label="Facebook URL"
-            />
-            <Input
-              value={form.instagramUrl}
-              onChange={(e) => setForm((s) => ({ ...s, instagramUrl: e.target.value }))}
-              placeholder="Instagram URL"
-              aria-label="Instagram URL"
-            />
-          </div>
-          <Textarea
-            value={form.description || ""}
-            onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))}
-            placeholder="Public description for the listing"
-            aria-label="Description"
-            rows={4}
-          />
-          {heroPreview && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs text-slate-500 mb-2">Hero preview</div>
-              <img src={heroPreview} alt="Hero preview" className="w-full max-h-64 object-cover rounded-md" />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Phone</Label>
+                  <Input
+                    value={form.phone}
+                    onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))}
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    value={form.email}
+                    onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
+                    placeholder="reservations@yourpark.com"
+                  />
+                </div>
+              </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Operations</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            value={form.checkInTime}
-            onChange={(e) => setForm((s) => ({ ...s, checkInTime: e.target.value }))}
-            placeholder="Check-in time (e.g., 3:00 PM)"
-            aria-label="Check-in time"
-          />
-          <Input
-            value={form.checkOutTime}
-            onChange={(e) => setForm((s) => ({ ...s, checkOutTime: e.target.value }))}
-            placeholder="Check-out time (e.g., 11:00 AM)"
-            aria-label="Check-out time"
-          />
-          <Input
-            value={form.seasonStart}
-            onChange={(e) => setForm((s) => ({ ...s, seasonStart: e.target.value }))}
-            placeholder="Season start (YYYY-MM-DD)"
-            aria-label="Season start"
-          />
-          <Input
-            value={form.seasonEnd}
-            onChange={(e) => setForm((s) => ({ ...s, seasonEnd: e.target.value }))}
-            placeholder="Season end (YYYY-MM-DD)"
-            aria-label="Season end"
-          />
-          <div className="space-y-1">
-            <Input
-              type="number"
-              min={1}
-              max={720}
-              value={form.slaMinutes}
-              onChange={(e) => setForm((s) => ({ ...s, slaMinutes: e.target.value }))}
-              placeholder="SLA minutes (e.g., 30)"
-              aria-label="SLA minutes"
-            />
-            <p className="text-xs text-slate-500">Minutes before inbound guest messages are marked “Needs reply”.</p>
-          </div>
-          <div className="space-y-1">
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                value={form.quietHoursStart}
-                onChange={(e) => setForm((s) => ({ ...s, quietHoursStart: e.target.value }))}
-                placeholder="Start (HH:mm)"
-                aria-label="Quiet hours start"
-              />
-              <Input
-                value={form.quietHoursEnd}
-                onChange={(e) => setForm((s) => ({ ...s, quietHoursEnd: e.target.value }))}
-                placeholder="End (HH:mm)"
-                aria-label="Quiet hours end"
-              />
-            </div>
-            <p className="text-xs text-slate-500">Automated messages will be queued until the morning during these hours.</p>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Website</Label>
+                <Input
+                  value={form.website}
+                  onChange={(e) => setForm((s) => ({ ...s, website: e.target.value }))}
+                  placeholder="https://yourpark.com"
+                />
+              </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Deliverability</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              value={form.senderDomain}
-              onChange={(e) => setForm((s) => ({ ...s, senderDomain: e.target.value }))}
-              placeholder="Sender domain (e.g., campreserv.com)"
-              aria-label="Sender domain"
-            />
-            <div className="flex items-center gap-2">
-              <Badge variant={campground.senderDomainStatus === "verified" ? "default" : "secondary"}>
-                {campground.senderDomainStatus || "unknown"}
-              </Badge>
-              {campground.senderDomainCheckedAt && (
-                <span className="text-xs text-slate-500">
-                  Checked {campground.senderDomainCheckedAt}
-                </span>
+              <div className="flex items-center gap-3 pt-2">
+                <Switch
+                  checked={form.isPublished}
+                  onCheckedChange={(checked) => setForm((s) => ({ ...s, isPublished: checked }))}
+                />
+                <div>
+                  <span className="text-sm font-medium">Published</span>
+                  <p className="text-xs text-muted-foreground">Visible on public booking pages</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* LOCATION TAB */}
+        <TabsContent value="location" className="mt-4">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Location</CardTitle>
+              <p className="text-sm text-muted-foreground">Where guests can find you</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Address</Label>
+                  <Input
+                    value={form.address1}
+                    onChange={(e) => setForm((s) => ({ ...s, address1: e.target.value }))}
+                    placeholder="123 River Road"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Address Line 2 <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    value={form.address2}
+                    onChange={(e) => setForm((s) => ({ ...s, address2: e.target.value }))}
+                    placeholder="Suite, Lot, etc."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">City</Label>
+                  <Input
+                    value={form.city}
+                    onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))}
+                    placeholder="City"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">State</Label>
+                  <Input
+                    value={form.state}
+                    onChange={(e) => setForm((s) => ({ ...s, state: e.target.value }))}
+                    placeholder="State"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">ZIP/Postal</Label>
+                  <Input
+                    value={form.postalCode}
+                    onChange={(e) => setForm((s) => ({ ...s, postalCode: e.target.value }))}
+                    placeholder="12345"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Country</Label>
+                  <Input
+                    value={form.country}
+                    onChange={(e) => setForm((s) => ({ ...s, country: e.target.value }))}
+                    placeholder="USA"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Timezone</Label>
+                <select
+                  value={form.timezone}
+                  onChange={(e) => setForm((s) => ({ ...s, timezone: e.target.value }))}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="">Select timezone...</option>
+                  <option value="America/New_York">Eastern (New York)</option>
+                  <option value="America/Chicago">Central (Chicago)</option>
+                  <option value="America/Denver">Mountain (Denver)</option>
+                  <option value="America/Los_Angeles">Pacific (Los Angeles)</option>
+                  <option value="America/Anchorage">Alaska</option>
+                  <option value="Pacific/Honolulu">Hawaii</option>
+                </select>
+                <p className="text-xs text-muted-foreground">Used for booking times and guest communications</p>
+              </div>
+
+              {/* Collapsible advanced location */}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedLocation(!showAdvancedLocation)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvancedLocation && "rotate-180")} />
+                Map coordinates (optional)
+              </button>
+
+              {showAdvancedLocation && (
+                <div className="grid grid-cols-2 gap-4 pl-6 border-l-2 border-muted">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Latitude</Label>
+                    <Input
+                      value={form.latitude}
+                      onChange={(e) => setForm((s) => ({ ...s, latitude: e.target.value }))}
+                      placeholder="e.g., 44.069"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Longitude</Label>
+                    <Input
+                      value={form.longitude}
+                      onChange={(e) => setForm((s) => ({ ...s, longitude: e.target.value }))}
+                      placeholder="e.g., -91.315"
+                    />
+                  </div>
+                  <p className="col-span-2 text-xs text-muted-foreground">
+                    Fine-tune where your park appears on maps. Leave blank to auto-detect from address.
+                  </p>
+                </div>
               )}
-            </div>
-          </div>
-          <p className="text-xs text-slate-500">
-            Verify DMARC/SPF on your sending domain. We’ll check _dmarc.{`<domain>`} and SPF TXT records.
-          </p>
-          <div className="space-y-1">
-            <Label>Default routing assignee (user id)</Label>
-            <Input
-              value={form.routingAssigneeId}
-              onChange={(e) => setForm((s) => ({ ...s, routingAssigneeId: e.target.value }))}
-              placeholder="User ID for routing"
-              aria-label="Routing assignee"
-            />
-            <p className="text-xs text-slate-500">Optional: The staff member ID who will be auto-assigned to new unassigned conversations.</p>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Financial Settings</CardTitle>
-          <p className="text-xs text-slate-500">Currency and tax identification.</p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Currency</label>
-              <Input
-                value={form.currency}
-                onChange={(e) => setForm((s) => ({ ...s, currency: e.target.value }))}
-                placeholder="USD"
-                aria-label="Currency"
-              />
-              <p className="text-xs text-slate-500">ISO 4217 code (e.g. USD, EUR, CAD).</p>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Tax ID Name</label>
-              <Input
-                value={form.taxIdName}
-                onChange={(e) => setForm((s) => ({ ...s, taxIdName: e.target.value }))}
-                placeholder="Tax ID"
-                aria-label="Tax ID Name"
-              />
-              <p className="text-xs text-slate-500">Label shown on invoices (e.g. "VAT Reg No").</p>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Tax ID</label>
-              <Input
-                value={form.taxId}
-                onChange={(e) => setForm((s) => ({ ...s, taxId: e.target.value }))}
-                placeholder="Tax ID value"
-                aria-label="Tax ID"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* LISTING TAB */}
+        <TabsContent value="listing" className="mt-4">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Public Listing</CardTitle>
+              <p className="text-sm text-muted-foreground">How your park appears to guests</p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tagline</Label>
+                <Input
+                  value={form.tagline}
+                  onChange={(e) => setForm((s) => ({ ...s, tagline: e.target.value }))}
+                  placeholder="e.g., Your riverside retreat in the heart of nature"
+                />
+                <p className="text-xs text-muted-foreground">A short, catchy phrase shown under your park name</p>
+              </div>
 
-      <div className="flex justify-end">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Description</Label>
+                <Textarea
+                  value={form.description || ""}
+                  onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))}
+                  placeholder="Tell guests what makes your park special..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-xs">Hero Image</Label>
+                <ImageUpload
+                  value={form.heroImageUrl}
+                  onChange={(url) => setForm((s) => ({ ...s, heroImageUrl: url }))}
+                  placeholder="Upload your main photo"
+                />
+                {heroPreview && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <img src={heroPreview} alt="Hero preview" className="w-full h-48 object-cover" />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-xs">Gallery Photos</Label>
+                <div className="bg-muted/50 p-4 rounded-lg border border-dashed space-y-3">
+                  <ImageUpload
+                    onChange={(url) => {
+                      if (!url) return;
+                      const current = form.photos ? form.photos.split(",").map(p => p.trim()).filter(Boolean) : [];
+                      setForm(s => ({ ...s, photos: [...current, url].join(", ") }));
+                    }}
+                    placeholder="Add photo to gallery"
+                  />
+                </div>
+                {photoList && photoList.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {photoList.map((url) => (
+                      <div key={url} className="relative h-20 w-full overflow-hidden rounded-lg border">
+                        <Image src={url} alt="Gallery photo" fill className="object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Facebook Page</Label>
+                  <Input
+                    value={form.facebookUrl}
+                    onChange={(e) => setForm((s) => ({ ...s, facebookUrl: e.target.value }))}
+                    placeholder="https://facebook.com/yourpark"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Instagram</Label>
+                  <Input
+                    value={form.instagramUrl}
+                    onChange={(e) => setForm((s) => ({ ...s, instagramUrl: e.target.value }))}
+                    placeholder="https://instagram.com/yourpark"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* OPERATIONS TAB */}
+        <TabsContent value="operations" className="mt-4">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Hours & Season</CardTitle>
+              <p className="text-sm text-muted-foreground">When you're open and operating</p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Check-in Time</Label>
+                  <Input
+                    value={form.checkInTime}
+                    onChange={(e) => setForm((s) => ({ ...s, checkInTime: e.target.value }))}
+                    placeholder="3:00 PM"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Check-out Time</Label>
+                  <Input
+                    value={form.checkOutTime}
+                    onChange={(e) => setForm((s) => ({ ...s, checkOutTime: e.target.value }))}
+                    placeholder="11:00 AM"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Office Closing Time</Label>
+                <select
+                  value={form.officeClosesAt}
+                  onChange={(e) => setForm((s) => ({ ...s, officeClosesAt: e.target.value }))}
+                  className="w-full md:w-48 h-10 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="15:00">3:00 PM</option>
+                  <option value="16:00">4:00 PM</option>
+                  <option value="17:00">5:00 PM</option>
+                  <option value="18:00">6:00 PM</option>
+                  <option value="19:00">7:00 PM</option>
+                  <option value="20:00">8:00 PM</option>
+                  <option value="21:00">9:00 PM</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Same-day cabin bookings must be made before this time to allow for preparation
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Season Start <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    type="date"
+                    value={form.seasonStart}
+                    onChange={(e) => setForm((s) => ({ ...s, seasonStart: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Season End <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    type="date"
+                    value={form.seasonEnd}
+                    onChange={(e) => setForm((s) => ({ ...s, seasonEnd: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Collapsible advanced ops */}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedOps(!showAdvancedOps)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvancedOps && "rotate-180")} />
+                Message automation settings
+              </button>
+
+              {showAdvancedOps && (
+                <div className="space-y-4 pl-6 border-l-2 border-muted">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Reply Time Goal (minutes)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={720}
+                      value={form.slaMinutes}
+                      onChange={(e) => setForm((s) => ({ ...s, slaMinutes: e.target.value }))}
+                      placeholder="30"
+                      className="w-32"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Messages waiting longer than this are flagged as "Needs reply"
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Do Not Disturb Hours</Label>
+                    <div className="grid grid-cols-2 gap-4 max-w-xs">
+                      <Input
+                        value={form.quietHoursStart}
+                        onChange={(e) => setForm((s) => ({ ...s, quietHoursStart: e.target.value }))}
+                        placeholder="22:00"
+                      />
+                      <Input
+                        value={form.quietHoursEnd}
+                        onChange={(e) => setForm((s) => ({ ...s, quietHoursEnd: e.target.value }))}
+                        placeholder="08:00"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Automated emails/SMS pause during these hours and send next morning
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ADVANCED TAB */}
+        <TabsContent value="advanced" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Financial Settings</CardTitle>
+              <p className="text-sm text-muted-foreground">Currency and tax information for invoices</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Currency</Label>
+                  <select
+                    value={form.currency}
+                    onChange={(e) => setForm((s) => ({ ...s, currency: e.target.value }))}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="CAD">CAD - Canadian Dollar</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="GBP">GBP - British Pound</option>
+                    <option value="AUD">AUD - Australian Dollar</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tax ID Label</Label>
+                  <Input
+                    value={form.taxIdName}
+                    onChange={(e) => setForm((s) => ({ ...s, taxIdName: e.target.value }))}
+                    placeholder="Tax ID"
+                  />
+                  <p className="text-xs text-muted-foreground">e.g., "EIN", "VAT Reg No"</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tax ID Number</Label>
+                  <Input
+                    value={form.taxId}
+                    onChange={(e) => setForm((s) => ({ ...s, taxId: e.target.value }))}
+                    placeholder="XX-XXXXXXX"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Email Deliverability</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Optional: Verify your domain for better email delivery
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
+                Most parks don't need to configure this. Only set up if you have a custom email domain
+                and want emails to appear from your domain instead of campreserv.com
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Sender Domain</Label>
+                  <Input
+                    value={form.senderDomain}
+                    onChange={(e) => setForm((s) => ({ ...s, senderDomain: e.target.value }))}
+                    placeholder="yourdomain.com"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-6">
+                  <Badge variant={campground.senderDomainStatus === "verified" ? "default" : "secondary"}>
+                    {campground.senderDomainStatus || "Not configured"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Default Staff for New Conversations</Label>
+                <Input
+                  value={form.routingAssigneeId}
+                  onChange={(e) => setForm((s) => ({ ...s, routingAssigneeId: e.target.value }))}
+                  placeholder="Leave blank to not auto-assign"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Staff member who will be auto-assigned to new guest conversations
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Sticky save bar */}
+      <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t -mx-6 px-6 py-3 -mb-6 flex items-center justify-end gap-3">
+        {mutation.isSuccess && (
+          <span className="flex items-center gap-1.5 text-sm text-emerald-600">
+            <Check className="h-4 w-4" />
+            Saved
+          </span>
+        )}
+        {mutation.isError && (
+          <span className="text-sm text-destructive">Save failed - please try again</span>
+        )}
         <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-          {mutation.isPending ? "Saving…" : "Save configuration"}
+          {mutation.isPending ? "Saving..." : "Save Changes"}
         </Button>
-        {mutation.isSuccess && <span className="ml-3 text-sm text-emerald-600">Updated</span>}
-        {mutation.isError && <span className="ml-3 text-sm text-rose-600">Save failed</span>}
       </div>
     </div>
   );
 }
-

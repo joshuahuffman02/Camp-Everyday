@@ -563,7 +563,7 @@ export class CampgroundsService {
 
   async updateOpsSettings(
     id: string,
-    data: { quietHoursStart?: string | null; quietHoursEnd?: string | null; routingAssigneeId?: string | null },
+    data: { quietHoursStart?: string | null; quietHoursEnd?: string | null; routingAssigneeId?: string | null; officeClosesAt?: string | null },
     orgId?: string
   ) {
     await this.assertCampgroundScoped(id, orgId);
@@ -572,7 +572,8 @@ export class CampgroundsService {
       data: {
         quietHoursStart: data.quietHoursStart ?? null,
         quietHoursEnd: data.quietHoursEnd ?? null,
-        routingAssigneeId: data.routingAssigneeId ?? null
+        routingAssigneeId: data.routingAssigneeId ?? null,
+        officeClosesAt: data.officeClosesAt ?? undefined
       }
     });
   }

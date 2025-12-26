@@ -2475,6 +2475,7 @@ export const apiClient = {
       quietHoursStart?: string | null;
       quietHoursEnd?: string | null;
       routingAssigneeId?: string | null;
+      officeClosesAt?: string | null;
     }
   ) {
     const res = await fetch(`${API_BASE}/campgrounds/${id}/ops`, {

@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import { DepositSettings } from "@/components/campgrounds/DepositSettings";
 import { CampgroundProfileForm } from "@/components/campgrounds/CampgroundProfileForm";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -17,6 +16,7 @@ import {
     Megaphone,
     Database,
     Tablet,
+    DollarSign,
     ChevronRight,
     Loader2
 } from "lucide-react";
@@ -28,6 +28,14 @@ const SPRING_CONFIG = {
 };
 
 const settingsLinks = [
+    {
+        href: (_id: string) => `/dashboard/settings/deposit-policies`,
+        icon: DollarSign,
+        label: "Deposit Policies",
+        description: "Configure deposit rules, payment schedules, and refund policies",
+        color: "text-green-600 dark:text-green-400",
+        bg: "bg-green-100 dark:bg-green-900/30"
+    },
     {
         href: (id: string) => `/campgrounds/${id}/settings/billing`,
         icon: Receipt,
@@ -113,7 +121,7 @@ export default function CampgroundSettingsPage() {
                         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
                     </div>
                     <p className="text-muted-foreground mt-1">
-                        Manage your campground profile, deposits, and configuration
+                        Manage your campground profile and configuration
                     </p>
                 </motion.div>
 
@@ -166,15 +174,6 @@ export default function CampgroundSettingsPage() {
                     transition={{ ...SPRING_CONFIG, delay: 0.1 }}
                 >
                     <CampgroundProfileForm campground={cg} />
-                </motion.div>
-
-                {/* Deposit Settings */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ ...SPRING_CONFIG, delay: 0.15 }}
-                >
-                    <DepositSettings campground={cg} />
                 </motion.div>
             </div>
         </DashboardShell>
