@@ -885,6 +885,36 @@ export default function OtaSettingsPage() {
 
           {/* Channel details */}
           <div className="lg:col-span-2">
+            {/* Query error states */}
+            {(mappingsQuery.isError || importsQuery.isError || logsQuery.isError) && (
+              <Card className="border-red-200 bg-red-50 mb-4">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 text-red-700">
+                    <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium">Error loading channel data</p>
+                      <p className="text-sm text-red-600">
+                        {mappingsQuery.error?.message || importsQuery.error?.message || logsQuery.error?.message || "An unexpected error occurred"}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 text-red-700 border-red-300"
+                        onClick={() => {
+                          mappingsQuery.refetch();
+                          importsQuery.refetch();
+                          logsQuery.refetch();
+                        }}
+                      >
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                        Retry
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {selectedChannel ? (
               <div className="space-y-6 motion-safe:animate-in motion-safe:fade-in duration-200">
                 {/* Channel header */}

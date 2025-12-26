@@ -557,46 +557,46 @@ const OtaChannelSchema = z.object({
   name: z.string(),
   provider: z.string(),
   status: z.string(),
-  rateMultiplier: z.number(),
-  defaultStatus: z.string(),
-  sendEmailNotifications: z.boolean(),
-  ignoreSiteRestrictions: z.boolean(),
-  ignoreCategoryRestrictions: z.boolean(),
-  feeMode: z.string(),
+  rateMultiplier: z.number().optional().default(1),
+  defaultStatus: z.string().optional().default("confirmed"),
+  sendEmailNotifications: z.boolean().optional().default(false),
+  ignoreSiteRestrictions: z.boolean().optional().default(false),
+  ignoreCategoryRestrictions: z.boolean().optional().default(false),
+  feeMode: z.string().optional().default("absorb"),
   webhookSecret: z.string().nullable().optional(),
-  lastSyncAt: z.string().nullable().optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
+  lastSyncAt: z.union([z.string(), z.date()]).nullable().optional().transform(v => v instanceof Date ? v.toISOString() : v),
+  createdAt: z.union([z.string(), z.date()]).optional().transform(v => v instanceof Date ? v.toISOString() : v),
+  updatedAt: z.union([z.string(), z.date()]).optional().transform(v => v instanceof Date ? v.toISOString() : v),
   mappings: z.array(z.any()).optional()
-});
+}).passthrough();
 
 const OtaMappingSchema = z.object({
   id: z.string(),
   channelId: z.string(),
-  siteId: z.string().nullable(),
-  siteClassId: z.string().nullable(),
+  siteId: z.string().nullable().optional(),
+  siteClassId: z.string().nullable().optional(),
   externalId: z.string(),
-  status: z.string(),
-  lastSyncAt: z.string().nullable(),
-  lastError: z.string().nullable(),
+  status: z.string().optional().default("mapped"),
+  lastSyncAt: z.union([z.string(), z.date()]).nullable().optional().transform(v => v instanceof Date ? v.toISOString() : v),
+  lastError: z.string().nullable().optional(),
   icalToken: z.string().nullable().optional(),
   icalUrl: z.string().nullable().optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
+  createdAt: z.union([z.string(), z.date()]).optional().transform(v => v instanceof Date ? v.toISOString() : v),
+  updatedAt: z.union([z.string(), z.date()]).optional().transform(v => v instanceof Date ? v.toISOString() : v),
   site: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
   siteClass: z.object({ id: z.string(), name: z.string() }).nullable().optional()
-});
+}).passthrough();
 
 const OtaImportSchema = z.object({
   id: z.string(),
   channelId: z.string(),
   externalReservationId: z.string(),
   reservationId: z.string().nullable().optional(),
-  status: z.string(),
+  status: z.string().optional().default("pending"),
   message: z.string().nullable().optional(),
-  createdAt: z.string().nullable().optional(),
-  updatedAt: z.string().nullable().optional()
-});
+  createdAt: z.union([z.string(), z.date()]).nullable().optional().transform(v => v instanceof Date ? v.toISOString() : v),
+  updatedAt: z.union([z.string(), z.date()]).nullable().optional().transform(v => v instanceof Date ? v.toISOString() : v)
+}).passthrough();
 
 const OtaConfigSchema = z.object({
   campgroundId: z.string(),
@@ -624,13 +624,13 @@ const OtaSyncStatusSchema = z.object({
 const OtaLogSchema = z.object({
   id: z.string(),
   channelId: z.string(),
-  direction: z.string(),
-  eventType: z.string(),
-  status: z.string(),
+  direction: z.string().optional().default("pull"),
+  eventType: z.string().optional().default("unknown"),
+  status: z.string().optional().default("pending"),
   message: z.string().nullable().optional(),
   payload: z.any().nullable().optional(),
-  createdAt: z.string().nullable().optional()
-});
+  createdAt: z.union([z.string(), z.date()]).nullable().optional().transform(v => v instanceof Date ? v.toISOString() : v)
+}).passthrough();
 
 function resolveApiBase() {
   if (process.env.NEXT_PUBLIC_API_BASE) return process.env.NEXT_PUBLIC_API_BASE;
