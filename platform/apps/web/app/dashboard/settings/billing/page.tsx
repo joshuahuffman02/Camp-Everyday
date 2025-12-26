@@ -177,7 +177,7 @@ const statusStyles: Record<string, { icon: React.ReactNode; color: string; bg: s
 };
 
 export default function BillingPage() {
-  const { selectedCampground } = useCampground();
+  const { selectedCampground, isHydrated } = useCampground();
 
   // Fetch full campground data to get organizationId
   const { data: campgroundData } = useQuery<{ organizationId: string }>({
@@ -279,6 +279,19 @@ export default function BillingPage() {
     },
   });
 
+  const isLoading = summaryLoading || historyLoading;
+
+  // Wait for hydration before showing "no campground" message to avoid hydration mismatch
+  if (!isHydrated || (!organizationId && !selectedCampground?.id)) {
+    return (
+      <div>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+        </div>
+      </div>
+    );
+  }
+
   if (!organizationId) {
     return (
       <div>
@@ -288,8 +301,6 @@ export default function BillingPage() {
       </div>
     );
   }
-
-  const isLoading = summaryLoading || historyLoading;
 
   return (
     <div>

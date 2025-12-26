@@ -445,7 +445,7 @@ function XpEventRow({ event }: { event: XpEvent }) {
 }
 
 export default function GamificationDashboardPage() {
-  const { selectedCampground } = useCampground();
+  const { selectedCampground, isHydrated } = useCampground();
   const { data: whoami, isLoading: whoamiLoading } = useWhoami();
   const campgroundId = selectedCampground?.id;
 
@@ -526,8 +526,8 @@ export default function GamificationDashboardPage() {
     ? `${whoami.user.firstName || ""} ${whoami.user.lastName || ""}`.trim() || whoami.user.email
     : "Staff Member";
 
-  // Loading state
-  if (dashboardLoading || whoamiLoading) {
+  // Wait for hydration before showing content to avoid hydration mismatch
+  if (!isHydrated || dashboardLoading || whoamiLoading) {
     return (
       <DashboardShell>
         <div className="flex flex-col items-center justify-center py-24">
@@ -538,7 +538,7 @@ export default function GamificationDashboardPage() {
     );
   }
 
-  // No campground selected
+  // No campground selected (only check after hydration)
   if (!campgroundId) {
     return (
       <DashboardShell>

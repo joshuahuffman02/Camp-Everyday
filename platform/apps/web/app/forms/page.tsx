@@ -652,11 +652,15 @@ function QuestionBuilder({
 function FormSettings({
   form,
   onChange,
-  siteClasses
+  siteClasses,
+  siteClassesLoading = false,
+  siteClassesError = null
 }: {
   form: FormTemplateInput;
   onChange: (updates: Partial<FormTemplateInput>) => void;
   siteClasses: { id: string; name: string }[];
+  siteClassesLoading?: boolean;
+  siteClassesError?: Error | null;
 }) {
   return (
     <div className="space-y-6">
@@ -712,7 +716,11 @@ function FormSettings({
         {form.autoAttachMode === "site_classes" && (
           <div className="ml-6 p-3 rounded-lg border border-slate-200 bg-slate-50 space-y-2">
             <div className="text-xs font-medium text-slate-700">Select site types:</div>
-            {siteClasses.length === 0 ? (
+            {siteClassesLoading ? (
+              <div className="text-xs text-slate-500">Loading site classes...</div>
+            ) : siteClassesError ? (
+              <div className="text-xs text-red-500">Error loading site classes: {String(siteClassesError)}</div>
+            ) : siteClasses.length === 0 ? (
               <div className="text-xs text-slate-500">No site types found. Create site classes first.</div>
             ) : (
               <div className="grid gap-1.5">
@@ -2125,6 +2133,8 @@ export default function FormsPage() {
                   form={form}
                   onChange={(updates) => setForm(f => ({ ...f, ...updates }))}
                   siteClasses={siteClasses.map((sc: any) => ({ id: sc.id, name: sc.name }))}
+                  siteClassesLoading={siteClassesQuery.isLoading}
+                  siteClassesError={siteClassesQuery.error as Error | null}
                 />
               </TabsContent>
             </div>

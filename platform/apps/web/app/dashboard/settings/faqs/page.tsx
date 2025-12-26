@@ -28,7 +28,7 @@ type FAQ = {
 };
 
 export default function FAQsPage() {
-    const { selectedCampground } = useCampground();
+    const { selectedCampground, isHydrated } = useCampground();
     const campgroundId = selectedCampground?.id;
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -98,6 +98,30 @@ export default function FAQsPage() {
 
     const isValid = faqs.every(faq => faq.question.trim() && faq.answer.trim());
 
+    // Wait for hydration before showing content to avoid hydration mismatch
+    if (!isHydrated || campgroundQuery.isLoading) {
+        return (
+            <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+            </div>
+        );
+    }
+
+    // Show campground selection prompt after hydration confirms no campground
+    if (!campgroundId) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center mb-6">
+                    <HelpCircle className="w-12 h-12 text-slate-400" />
+                </div>
+                <h1 className="text-2xl font-bold text-slate-900 mb-2">Select a Campground</h1>
+                <p className="text-slate-500 max-w-md">
+                    Please select a campground to manage FAQs.
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div>
             <div className="space-y-6">
@@ -132,11 +156,7 @@ export default function FAQsPage() {
                     </div>
                 )}
 
-                {campgroundQuery.isLoading ? (
-                    <div className="flex justify-center py-12">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
-                    </div>
-                ) : faqs.length === 0 ? (
+                {faqs.length === 0 ? (
                     <Card>
                         <CardContent className="py-12 text-center">
                             <HelpCircle className="w-12 h-12 text-slate-300 mx-auto mb-4" />

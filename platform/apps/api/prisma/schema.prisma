@@ -1366,6 +1366,12 @@ model Campground {
   publicLeads       PublicLead[]
   bookingPageConfig BookingPageConfig?
 
+  // Seasonals Management
+  seasonalRateCards         SeasonalRateCard[]        @relation("CampgroundSeasonalRateCards")
+  seasonalGuests            SeasonalGuest[]           @relation("CampgroundSeasonalGuests")
+  seasonalPayments          SeasonalPayment[]         @relation("CampgroundSeasonalPayments")
+  seasonalCommunications    SeasonalCommunication[]   @relation("CampgroundSeasonalCommunications")
+
   // Soft delete
   deletedAt DateTime?
   deletedBy String?
@@ -1854,6 +1860,9 @@ model Site {
   // Unified Operations / Task Management
   opTasks OpTask[] @relation("OpTaskSite")
 
+  // Seasonals Management
+  seasonalGuests SeasonalGuest[] @relation("SeasonalGuestCurrentSite")
+
   @@unique([campgroundId, name])
   @@index([campgroundId])
   @@index([siteType])
@@ -2012,6 +2021,9 @@ model Guest {
 
   // Hotel operations relations
   groupBookings GroupBooking[] @relation("GroupPrimaryGuest")
+
+  // Seasonals
+  seasonalRecords SeasonalGuest[] @relation("GuestSeasonalRecords")
 
   // Soft delete
   deletedAt DateTime?
@@ -8696,4 +8708,353 @@ model OpTaskComment {
   user User   @relation("OpTaskCommentAuthor", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([taskId, createdAt])
+}
+
+// ==================== SEASONALS MANAGEMENT ====================
+
+enum SeasonalBillingFrequency {
+  monthly
+  quarterly
+  semi_annual
+  seasonal // One payment for whole season
+}
+
+enum SeasonalStatus {
+  active
+  pending_renewal
+  not_renewing
+  departed
+  waitlist
+}
+
+enum RenewalIntent {
+  committed // Definitely returning
+  likely // Probably returning
+  undecided // Haven't decided
+  not_renewing // Confirmed leaving
+}
+
+enum SeasonalDiscountCondition {
+  metered_utilities // Guest is on metered electric/water
+  pay_in_full // Paying entire season upfront
+  payment_method // Specific payment method (check, cash, ACH)
+  early_bird // Commits/pays before deadline
+  returning_guest // Has previous seasons
+  tenure_years // X+ years as seasonal
+  site_class // Specific site types
+  referral // Referred by existing seasonal
+  military // Military/veteran
+  senior // Age-based
+  custom // Custom condition (uses conditionValue JSON)
+}
+
+enum SeasonalDiscountType {
+  fixed_amount // $100 off
+  percentage // 10% off
+  per_month // $25/month off
+}
+
+enum SeasonalIncentiveType {
+  guest_passes // X guest day passes
+  store_credit // $X store credit
+  free_nights // X free nights for next season
+  early_site_selection // Priority site selection
+  rate_lock // Lock in this year's rate for next year
+  amenity_access // Free pool/golf cart/etc
+  custom // Custom reward
+}
+
+enum SeasonalPaymentStatus {
+  scheduled
+  due
+  past_due
+  paid
+  partial
+  waived
+}
+
+enum SeasonalPaymentMethod {
+  check
+  cash
+  card
+  ach
+  autopay
+}
+
+// Rate card configuration per campground/season
+model SeasonalRateCard {
+  id           String     @id @default(cuid())
+  campgroundId String
+  campground   Campground @relation("CampgroundSeasonalRateCards", fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  name       String // "2025 Season", "Premium Waterfront 2025"
+  seasonYear Int
+
+  // Base pricing
+  baseRate         Decimal                  @db.Decimal(10, 2) // $2,400
+  billingFrequency SeasonalBillingFrequency @default(monthly)
+
+  // What's included
+  description       String? // "Includes water, sewer, WiFi"
+  includedUtilities String[] @default([]) // ["water", "sewer", "wifi"]
+
+  // Date boundaries
+  seasonStartDate DateTime
+  seasonEndDate   DateTime
+
+  // Validity
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+  isActive   Boolean   @default(true)
+  isDefault  Boolean   @default(false) // Default rate card for new seasonals
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  discounts      SeasonalDiscount[]
+  incentives     SeasonalIncentive[]
+  seasonalGuests SeasonalGuestPricing[]
+
+  @@unique([campgroundId, name, seasonYear])
+  @@index([campgroundId, isActive])
+  @@index([campgroundId, seasonYear])
+}
+
+// Conditional discounts
+model SeasonalDiscount {
+  id         String           @id @default(cuid())
+  rateCardId String
+  rateCard   SeasonalRateCard @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
+
+  name        String // "Metered Electric Discount"
+  description String? // "Discount for guests on metered utilities"
+
+  // Condition - when does this apply?
+  conditionType  SeasonalDiscountCondition
+  conditionValue String? // JSON for complex conditions
+
+  // Discount amount
+  discountType   SeasonalDiscountType
+  discountAmount Decimal              @db.Decimal(10, 2) // $200 or 10 (for percentage)
+
+  // Stacking
+  stackable Boolean @default(true) // Can combine with other discounts?
+  priority  Int     @default(0) // Apply order (higher = first)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rateCardId, isActive])
+}
+
+// Bonuses/incentives for behaviors
+model SeasonalIncentive {
+  id         String           @id @default(cuid())
+  rateCardId String
+  rateCard   SeasonalRateCard @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
+
+  name        String // "Pay in Full Guest Pass Bonus"
+  description String?
+
+  // Condition - when does this trigger?
+  conditionType  SeasonalDiscountCondition // Reuse same conditions
+  conditionValue String?
+
+  // Reward
+  incentiveType    SeasonalIncentiveType
+  incentiveValue   Decimal               @db.Decimal(10, 2) // Amount or quantity
+  incentiveDetails String? // JSON for complex rewards
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rateCardId, isActive])
+}
+
+// Core seasonal guest record
+model SeasonalGuest {
+  id           String     @id @default(cuid())
+  campgroundId String
+  campground   Campground @relation("CampgroundSeasonalGuests", fields: [campgroundId], references: [id], onDelete: Cascade)
+  guestId      String
+  guest        Guest      @relation("GuestSeasonalRecords", fields: [guestId], references: [id], onDelete: Cascade)
+
+  // Tenure
+  firstSeasonYear Int
+  totalSeasons    Int @default(1)
+  seniorityRank   Int? // 1 = most senior
+
+  // Current Assignment
+  currentSiteId  String?
+  currentSite    Site?    @relation("SeasonalGuestCurrentSite", fields: [currentSiteId], references: [id], onDelete: SetNull)
+  preferredSites String[] @default([]) // Site IDs in preference order
+
+  // Status
+  status          SeasonalStatus @default(active)
+  renewalIntent   RenewalIntent?
+  renewalIntentAt DateTime?
+  renewalNotes    String?
+
+  // Billing preferences
+  preferredPaymentMethod SeasonalPaymentMethod?
+  paysInFull             Boolean                @default(false)
+  autoPayEnabled         Boolean                @default(false)
+  paymentDay             Int                    @default(1) // Day of month payment is due
+
+  // Utilities
+  isMetered       Boolean @default(false) // On metered electric/water
+  meteredElectric Boolean @default(false)
+  meteredWater    Boolean @default(false)
+
+  // Compliance
+  coiExpiresAt     DateTime? // Certificate of Insurance expiry
+  coiDocumentUrl   String?
+  vehiclePlates    String[] @default([]) // Multiple vehicles
+  petCount         Int      @default(0)
+  petNotes         String?
+  emergencyContact String?
+  emergencyPhone   String?
+
+  // Balances (cached for quick access)
+  guestPassBalance   Decimal @default(0) @db.Decimal(10, 2)
+  storeCreditBalance Decimal @default(0) @db.Decimal(10, 2)
+
+  notes String?
+  tags  String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+
+  // Relations
+  pricing        SeasonalGuestPricing[]
+  payments       SeasonalPayment[]
+  communications SeasonalCommunication[]
+
+  @@unique([guestId, campgroundId])
+  @@index([campgroundId, status])
+  @@index([campgroundId, renewalIntent])
+  @@index([campgroundId, currentSiteId])
+}
+
+// Track what a specific seasonal guest is getting for a season
+model SeasonalGuestPricing {
+  id              String        @id @default(cuid())
+  seasonalGuestId String
+  seasonalGuest   SeasonalGuest @relation(fields: [seasonalGuestId], references: [id], onDelete: Cascade)
+  rateCardId      String
+  rateCard        SeasonalRateCard @relation(fields: [rateCardId], references: [id], onDelete: Restrict)
+
+  seasonYear Int
+
+  // Calculated pricing
+  baseRate      Decimal @db.Decimal(10, 2)
+  totalDiscount Decimal @default(0) @db.Decimal(10, 2)
+  finalRate     Decimal @db.Decimal(10, 2)
+
+  // Applied discounts - JSON array: [{discountId, name, amount, condition}]
+  appliedDiscounts Json @default("[]")
+
+  // Earned incentives - JSON array: [{incentiveId, name, type, value, status, awardedAt}]
+  earnedIncentives Json @default("[]")
+
+  // Payment schedule - JSON array: [{dueDate, amount, description}]
+  paymentSchedule Json @default("[]")
+
+  // Billing
+  billingFrequency SeasonalBillingFrequency
+
+  // Overrides (for special cases)
+  manualAdjustment Decimal? @db.Decimal(10, 2) // +/- manual adjustment
+  adjustmentReason String?
+  adjustmentBy     String? // User ID who made adjustment
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([seasonalGuestId, seasonYear])
+  @@index([seasonalGuestId])
+  @@index([rateCardId])
+}
+
+// Individual payments for seasonal guests
+model SeasonalPayment {
+  id              String        @id @default(cuid())
+  seasonalGuestId String
+  seasonalGuest   SeasonalGuest @relation(fields: [seasonalGuestId], references: [id], onDelete: Cascade)
+  campgroundId    String
+  campground      Campground    @relation("CampgroundSeasonalPayments", fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  // Period
+  seasonYear  Int
+  periodStart DateTime
+  periodEnd   DateTime
+  description String? // "May 2025", "Season 2025 - Full Payment"
+
+  // Amount
+  amount     Decimal               @db.Decimal(10, 2)
+  dueDate    DateTime
+  status     SeasonalPaymentStatus @default(scheduled)
+
+  // Payment details
+  paidAmount    Decimal?              @db.Decimal(10, 2)
+  paidAt        DateTime?
+  paymentMethod SeasonalPaymentMethod?
+  transactionId String? // Stripe/processor reference
+  checkNumber   String?
+  receiptUrl    String?
+
+  // Late fees
+  lateFee       Decimal? @db.Decimal(10, 2)
+  lateFeeWaived Boolean  @default(false)
+  lateFeeWaivedBy String?
+  lateFeeWaivedAt DateTime?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  recordedBy String? // Staff user who recorded manual payment
+
+  @@index([seasonalGuestId, seasonYear])
+  @@index([campgroundId, dueDate])
+  @@index([campgroundId, status])
+}
+
+// Communication log for seasonal guests
+model SeasonalCommunication {
+  id              String        @id @default(cuid())
+  seasonalGuestId String
+  seasonalGuest   SeasonalGuest @relation(fields: [seasonalGuestId], references: [id], onDelete: Cascade)
+  campgroundId    String
+  campground      Campground    @relation("CampgroundSeasonalCommunications", fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  // Message details
+  channel   String // email, sms
+  direction String // outbound, inbound
+  subject   String?
+  body      String  @db.Text
+  status    String // sent, delivered, failed, bounced
+
+  // Tracking
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  clickedAt   DateTime?
+  bouncedAt   DateTime?
+  failReason  String?
+
+  // Campaign reference (if from bulk send)
+  campaignId   String?
+  campaignName String?
+
+  // Sender
+  sentBy String? // User ID
+
+  createdAt DateTime @default(now())
+
+  @@index([seasonalGuestId, createdAt])
+  @@index([campgroundId, createdAt])
+  @@index([campaignId])
 }

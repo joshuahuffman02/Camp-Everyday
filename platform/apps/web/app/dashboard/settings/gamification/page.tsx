@@ -56,7 +56,7 @@ type CategoryValue = (typeof categories)[number]["value"];
 export default function GamificationSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { selectedCampground } = useCampground();
+  const { selectedCampground, isHydrated } = useCampground();
   const campgroundId = selectedCampground?.id;
 
   // Local state for form
@@ -203,7 +203,19 @@ export default function GamificationSettingsPage() {
   const totalXp = stats?.categories?.reduce((sum: number, c: any) => sum + (c.xp || 0), 0) || 0;
   const topPerformer = leaderboard?.leaderboard?.[0];
 
-  // Loading state
+  // Wait for hydration before showing "no campground" state to avoid hydration mismatch
+  if (!isHydrated || settingsLoading) {
+    return (
+      <div className="max-w-5xl space-y-6">
+        <div className="flex flex-col items-center justify-center py-24">
+          <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
+          <p className="text-slate-500">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Only show "select campground" after hydration confirms no campground is selected
   if (!campgroundId) {
     return (
       <div className="max-w-5xl space-y-6">
@@ -215,17 +227,6 @@ export default function GamificationSettingsPage() {
           <p className="text-slate-500 max-w-md">
             Please select a campground to manage gamification settings.
           </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (settingsLoading) {
-    return (
-      <div className="max-w-5xl space-y-6">
-        <div className="flex flex-col items-center justify-center py-24">
-          <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
-          <p className="text-slate-500">Loading settings...</p>
         </div>
       </div>
     );
