@@ -446,7 +446,7 @@ function XpEventRow({ event }: { event: XpEvent }) {
 
 export default function GamificationDashboardPage() {
   const { selectedCampground, isHydrated } = useCampground();
-  const { data: whoami, isLoading: whoamiLoading } = useWhoami();
+  const { data: whoami, isLoading: whoamiLoading, error: whoamiError } = useWhoami();
   const campgroundId = selectedCampground?.id;
 
   const [windowKey, setWindowKey] = useState<"weekly" | "monthly" | "all">("weekly");
@@ -469,10 +469,11 @@ export default function GamificationDashboardPage() {
   }, []);
 
   // Fetch dashboard data
-  const { data: dashboard, isLoading: dashboardLoading } = useQuery({
+  const { data: dashboard, isLoading: dashboardLoading, error: dashboardError } = useQuery({
     queryKey: ["gamification-dashboard", campgroundId],
     queryFn: () => apiClient.getGamificationDashboard(campgroundId!),
     enabled: !!campgroundId,
+    retry: 1,
   });
 
   // Fetch leaderboard
@@ -533,6 +534,26 @@ export default function GamificationDashboardPage() {
         <div className="flex flex-col items-center justify-center py-24">
           <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
           <p className="text-slate-500">Loading your stats...</p>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  // Show error state if API calls failed
+  if (dashboardError || whoamiError) {
+    return (
+      <DashboardShell>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center mb-6">
+            <Trophy className="w-12 h-12 text-red-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Unable to Load Stats</h1>
+          <p className="text-slate-500 max-w-md mb-4">
+            There was an error loading your gamification data. Please try refreshing the page.
+          </p>
+          <p className="text-xs text-slate-400">
+            {(dashboardError as Error)?.message || (whoamiError as Error)?.message || "Unknown error"}
+          </p>
         </div>
       </DashboardShell>
     );

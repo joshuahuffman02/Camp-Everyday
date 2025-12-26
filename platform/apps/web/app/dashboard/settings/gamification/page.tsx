@@ -73,10 +73,11 @@ export default function GamificationSettingsPage() {
   const [awardReason, setAwardReason] = useState<string>("Merit XP for outstanding work");
 
   // Fetch settings
-  const { data: settings, isLoading: settingsLoading } = useQuery({
+  const { data: settings, isLoading: settingsLoading, error: settingsError } = useQuery({
     queryKey: ["gamification-settings", campgroundId],
     queryFn: () => apiClient.getGamificationSettings(campgroundId!),
     enabled: !!campgroundId,
+    retry: 1,
   });
 
   // Sync state when settings data changes
@@ -226,6 +227,26 @@ export default function GamificationSettingsPage() {
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Select a Campground</h1>
           <p className="text-slate-500 max-w-md">
             Please select a campground to manage gamification settings.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if API call failed
+  if (settingsError) {
+    return (
+      <div className="max-w-5xl space-y-6">
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center mb-6">
+            <Trophy className="w-12 h-12 text-red-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Unable to Load Settings</h1>
+          <p className="text-slate-500 max-w-md mb-4">
+            There was an error loading gamification settings. Please try refreshing the page.
+          </p>
+          <p className="text-xs text-slate-400">
+            {(settingsError as Error)?.message || "Unknown error"}
           </p>
         </div>
       </div>

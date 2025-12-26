@@ -112,6 +112,7 @@ import { IdempotencyModule } from "./idempotency/idempotency.module";
 import { SecurityModule } from "./security/security.module";
 import { ValueStackModule } from "./value-stack/value-stack.module";
 import { OpTasksModule } from "./op-tasks/op-tasks.module";
+import { SeasonalsModule } from "./seasonals/seasonals.module";
 
 @Module({
   imports: [
@@ -229,6 +230,8 @@ import { OpTasksModule } from "./op-tasks/op-tasks.module";
     ValueStackModule,
     // Unified Operations / Task Management
     OpTasksModule,
+    // Seasonals Management
+    SeasonalsModule,
   ],
   providers: []
 })
