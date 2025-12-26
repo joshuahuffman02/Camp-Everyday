@@ -5701,6 +5701,137 @@ export const apiClient = {
     return parseResponse<unknown>(res);
   },
 
+  // Bulk session generation
+  async previewGeneratedSessions(activityId: string, payload: {
+    patternType: 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly';
+    daysOfWeek?: number[];
+    startTime: string;
+    endTime?: string;
+    startDate: string;
+    endDate: string;
+    capacity?: number;
+  }) {
+    const res = await fetch(`${API_BASE}/activities/${activityId}/sessions/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return parseResponse<{
+      sessions: Array<{
+        startTime: string;
+        endTime: string;
+        dayOfWeek: string;
+        isWeekend: boolean;
+      }>;
+      totalCount: number;
+      patternDescription: string;
+    }>(res);
+  },
+
+  async generateSessions(activityId: string, payload: {
+    patternType: 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly';
+    daysOfWeek?: number[];
+    startTime: string;
+    endTime?: string;
+    startDate: string;
+    endDate: string;
+    capacity?: number;
+    savePattern?: boolean;
+  }) {
+    const res = await fetch(`${API_BASE}/activities/${activityId}/sessions/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return parseResponse<{ created: number; patternId?: string }>(res);
+  },
+
+  async getRecurrencePatterns(activityId: string) {
+    const data = await fetchJSON<unknown>(`/activities/${activityId}/patterns`);
+    return z.array(z.object({
+      id: z.string(),
+      patternType: z.string(),
+      daysOfWeek: z.array(z.number()),
+      startTime: z.string(),
+      endTime: z.string(),
+      validFrom: z.string(),
+      validUntil: z.string().nullable(),
+      capacity: z.number().nullable(),
+      isActive: z.boolean()
+    })).parse(data);
+  },
+
+  async deleteRecurrencePattern(patternId: string) {
+    const res = await fetch(`${API_BASE}/activities/patterns/${patternId}`, {
+      method: "DELETE",
+      headers: scopedHeaders()
+    });
+    return parseResponse<void>(res);
+  },
+
+  // Activity bundles
+  async getActivityBundles(campgroundId: string) {
+    const data = await fetchJSON<unknown>(`/activities/bundles?campgroundId=${campgroundId}`);
+    return z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string().nullable(),
+      price: z.number(),
+      discountType: z.string(),
+      discountValue: z.number().nullable(),
+      isActive: z.boolean(),
+      items: z.array(z.object({
+        id: z.string(),
+        activityId: z.string(),
+        quantity: z.number(),
+        activity: z.object({
+          id: z.string(),
+          name: z.string(),
+          price: z.number()
+        })
+      }))
+    })).parse(data);
+  },
+
+  async createActivityBundle(campgroundId: string, payload: {
+    name: string;
+    description?: string;
+    price: number;
+    discountType?: 'fixed' | 'percent';
+    discountValue?: number;
+    activityIds: string[];
+  }) {
+    const res = await fetch(`${API_BASE}/activities/bundles?campgroundId=${campgroundId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return parseResponse<unknown>(res);
+  },
+
+  async updateActivityBundle(id: string, payload: {
+    name?: string;
+    description?: string;
+    price?: number;
+    isActive?: boolean;
+    activityIds?: string[];
+  }) {
+    const res = await fetch(`${API_BASE}/activities/bundles/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return parseResponse<unknown>(res);
+  },
+
+  async deleteActivityBundle(id: string) {
+    const res = await fetch(`${API_BASE}/activities/bundles/${id}`, {
+      method: "DELETE",
+      headers: scopedHeaders()
+    });
+    return parseResponse<void>(res);
+  },
+
   // Memberships
   async getMembershipTypes(campgroundId: string) {
     const data = await fetchJSON<unknown>(`/memberships/types?campgroundId=${campgroundId}`);

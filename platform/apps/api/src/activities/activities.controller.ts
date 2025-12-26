@@ -8,6 +8,9 @@ import {
     BookActivityDto,
     UpdateCapacityDto,
     AddWaitlistEntryDto,
+    GenerateSessionsDto,
+    CreateBundleDto,
+    UpdateBundleDto,
 } from './dto/activities.dto';
 
 @UseGuards(JwtAuthGuard)
@@ -56,7 +59,8 @@ export class ActivitiesController {
         return this.activitiesService.deleteActivity(id);
     }
 
-    // Sessions
+    // ==================== SESSIONS ====================
+
     @Post(':id/sessions')
     createSession(@Param('id') id: string, @Body() createSessionDto: CreateSessionDto) {
         return this.activitiesService.createSession(id, createSessionDto);
@@ -67,7 +71,38 @@ export class ActivitiesController {
         return this.activitiesService.findSessions(id);
     }
 
-    // Bookings
+    // ==================== BULK SESSION GENERATION ====================
+
+    /**
+     * Preview sessions that would be generated (without creating them)
+     */
+    @Post(':id/sessions/preview')
+    previewSessions(@Param('id') id: string, @Body() dto: GenerateSessionsDto) {
+        return this.activitiesService.previewGeneratedSessions(id, dto);
+    }
+
+    /**
+     * Generate sessions in bulk based on a recurrence pattern
+     */
+    @Post(':id/sessions/generate')
+    generateSessions(@Param('id') id: string, @Body() dto: GenerateSessionsDto) {
+        return this.activitiesService.generateSessions(id, dto);
+    }
+
+    // ==================== RECURRENCE PATTERNS ====================
+
+    @Get(':id/patterns')
+    getRecurrencePatterns(@Param('id') id: string) {
+        return this.activitiesService.getRecurrencePatterns(id);
+    }
+
+    @Delete('patterns/:patternId')
+    deleteRecurrencePattern(@Param('patternId') patternId: string) {
+        return this.activitiesService.deleteRecurrencePattern(patternId);
+    }
+
+    // ==================== BOOKINGS ====================
+
     @Post('sessions/:id/book')
     createBooking(
         @Param('id') sessionId: string,
@@ -84,5 +119,30 @@ export class ActivitiesController {
     @Post('bookings/:id/cancel')
     cancelBooking(@Param('id') id: string) {
         return this.activitiesService.cancelBooking(id);
+    }
+
+    // ==================== BUNDLES ====================
+
+    @Post('bundles')
+    createBundle(
+        @Query('campgroundId') campgroundId: string,
+        @Body() dto: CreateBundleDto,
+    ) {
+        return this.activitiesService.createBundle(campgroundId, dto);
+    }
+
+    @Get('bundles')
+    findBundles(@Query('campgroundId') campgroundId: string) {
+        return this.activitiesService.findBundles(campgroundId);
+    }
+
+    @Patch('bundles/:id')
+    updateBundle(@Param('id') id: string, @Body() dto: UpdateBundleDto) {
+        return this.activitiesService.updateBundle(id, dto);
+    }
+
+    @Delete('bundles/:id')
+    deleteBundle(@Param('id') id: string) {
+        return this.activitiesService.deleteBundle(id);
     }
 }

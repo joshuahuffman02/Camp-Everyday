@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../..
 import {
     Plus, Calendar, Clock, Users, DollarSign, Trash2, LayoutGrid, Loader2,
     Image as ImageIcon, Sparkles, PartyPopper, MapPin, CheckCircle2, Upload,
-    ChevronRight, Star, Tent, Music, Utensils, TreePine, Waves, Sun
+    ChevronRight, Star, Tent, Music, Utensils, TreePine, Waves, Sun, CalendarPlus
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
@@ -27,6 +27,7 @@ import { CreateEventDialog } from "../../components/events/CreateEventDialog";
 import { Event } from "@campreserv/shared";
 import { cn } from "../../lib/utils";
 import { Skeleton } from "../../components/ui/skeleton";
+import { SessionScheduleWizard } from "../../components/activities/SessionScheduleWizard";
 
 const locales = {
     "en-US": enUS,
@@ -99,10 +100,12 @@ function ActivityCardSkeleton() {
 function ActivityCard({
     activity,
     onManageSessions,
+    onScheduleSessions,
     onDelete
 }: {
     activity: ActivityRecord;
     onManageSessions: (id: string) => void;
+    onScheduleSessions: (activity: ActivityRecord) => void;
     onDelete: (id: string) => void;
 }) {
     const { toast } = useToast();
@@ -185,7 +188,7 @@ function ActivityCard({
                 <div className={cn(
                     "absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent",
                     "opacity-0 group-hover:opacity-100 transition-opacity duration-300",
-                    "flex items-end justify-center pb-4"
+                    "flex items-end justify-center gap-2 pb-4"
                 )}>
                     <Button
                         size="sm"
@@ -193,7 +196,15 @@ function ActivityCard({
                         onClick={() => onManageSessions(activity.id)}
                     >
                         <Calendar className="h-4 w-4 mr-1.5" />
-                        Manage Sessions
+                        View Sessions
+                    </Button>
+                    <Button
+                        size="sm"
+                        className="bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg"
+                        onClick={() => onScheduleSessions(activity)}
+                    >
+                        <CalendarPlus className="h-4 w-4 mr-1.5" />
+                        Schedule
                     </Button>
                 </div>
             </div>
@@ -257,36 +268,58 @@ function ActivityCard({
 function SuccessCelebration({
     open,
     onClose,
-    activityName
+    activityName,
+    onScheduleSessions
 }: {
     open: boolean;
     onClose: () => void;
     activityName: string;
+    onScheduleSessions?: () => void;
 }) {
-    useEffect(() => {
-        if (open) {
-            const timer = setTimeout(onClose, 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [open, onClose]);
-
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-            <div className="bg-white rounded-2xl shadow-2xl p-8 text-center motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:fade-in duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 text-center motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:fade-in duration-300 max-w-md mx-4">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white mb-4 motion-safe:animate-bounce">
                     <PartyPopper className="h-8 w-8" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 mb-2">
                     Activity Created!
                 </h3>
-                <p className="text-slate-600">
+                <p className="text-slate-600 mb-4">
                     <span className="font-medium text-emerald-600">{activityName}</span> is ready for guests to enjoy
                 </p>
-                <div className="flex items-center justify-center gap-1 mt-3 text-sm text-slate-500">
-                    <Sparkles className="h-4 w-4 text-amber-500" />
-                    <span>Time to schedule some sessions!</span>
+
+                <div className="bg-emerald-50 rounded-lg p-4 mb-6">
+                    <div className="flex items-center justify-center gap-2 text-emerald-700 font-medium mb-1">
+                        <CalendarPlus className="h-5 w-5" />
+                        Next Step: Schedule Sessions
+                    </div>
+                    <p className="text-sm text-emerald-600">
+                        Set up recurring times so guests can start booking!
+                    </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button
+                        variant="outline"
+                        onClick={onClose}
+                    >
+                        I'll do it later
+                    </Button>
+                    {onScheduleSessions && (
+                        <Button
+                            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                            onClick={() => {
+                                onClose();
+                                onScheduleSessions();
+                            }}
+                        >
+                            <Calendar className="h-4 w-4 mr-2" />
+                            Schedule Sessions Now
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>
@@ -370,6 +403,14 @@ export default function ActivitiesPage() {
         capacity: ""
     });
 
+    // Schedule wizard state
+    const [scheduleWizardOpen, setScheduleWizardOpen] = useState(false);
+    const [scheduleWizardActivity, setScheduleWizardActivity] = useState<{
+        id: string;
+        name: string;
+        duration: number;
+    } | null>(null);
+
     // Get campground ID from localStorage
     const [campgroundId, setCampgroundId] = useState<string>("");
 
@@ -418,22 +459,29 @@ export default function ActivitiesPage() {
 
     const createMutation = useMutation({
         mutationFn: async () => {
-            return apiClient.createActivity(campgroundId, {
+            const activityData = {
                 name: newActivity.name,
                 description: newActivity.description || undefined,
                 price: Math.round(parseFloat(newActivity.price || "0") * 100),
                 duration: parseInt(newActivity.duration) || 60,
                 capacity: parseInt(newActivity.capacity) || 20,
                 images: newActivity.imageUrl ? [newActivity.imageUrl] : []
-            });
+            };
+            const result = await apiClient.createActivity(campgroundId, activityData);
+            return { ...result, inputDuration: activityData.duration };
         },
-        onSuccess: () => {
+        onSuccess: (result: any) => {
             queryClient.invalidateQueries({ queryKey: ["activities", campgroundId] });
             setCelebrationName(newActivity.name);
+            // Store created activity for schedule wizard
+            setScheduleWizardActivity({
+                id: result.id,
+                name: result.name,
+                duration: result.inputDuration || result.duration || 60
+            });
             setShowCelebration(true);
             setIsCreateOpen(false);
             setNewActivity({ name: "", description: "", price: "", duration: "60", capacity: "20", imageUrl: "" });
-            toast({ title: "Activity created!", description: "Now schedule some sessions to get started." });
         },
         onError: (err: any) => {
             console.error("Create activity error:", err);
@@ -491,23 +539,64 @@ export default function ActivitiesPage() {
                 open={showCelebration}
                 onClose={() => setShowCelebration(false)}
                 activityName={celebrationName}
+                onScheduleSessions={() => {
+                    if (scheduleWizardActivity) {
+                        setScheduleWizardOpen(true);
+                    }
+                }}
             />
+
+            {/* Session Schedule Wizard */}
+            {scheduleWizardActivity && (
+                <SessionScheduleWizard
+                    open={scheduleWizardOpen}
+                    onOpenChange={setScheduleWizardOpen}
+                    activityId={scheduleWizardActivity.id}
+                    activityName={scheduleWizardActivity.name}
+                    activityDuration={scheduleWizardActivity.duration}
+                    onComplete={() => {
+                        refetchSessions();
+                        queryClient.invalidateQueries({ queryKey: ["activities", campgroundId] });
+                    }}
+                />
+            )}
 
             {/* Session Management Dialog */}
             <Dialog open={!!selectedActivityForSessions} onOpenChange={(open) => !open && setSelectedActivityForSessions(null)}>
                 <DialogContent className="max-w-3xl">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Calendar className="h-5 w-5 text-emerald-600" />
-                            Manage Sessions {selectedActivity ? `– ${selectedActivity.name}` : ""}
-                        </DialogTitle>
-                        <DialogDescription>Schedule upcoming sessions for guests to book.</DialogDescription>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <Calendar className="h-5 w-5 text-emerald-600" />
+                                    Manage Sessions {selectedActivity ? `– ${selectedActivity.name}` : ""}
+                                </DialogTitle>
+                                <DialogDescription>Schedule upcoming sessions for guests to book.</DialogDescription>
+                            </div>
+                            {selectedActivity && (
+                                <Button
+                                    onClick={() => {
+                                        setScheduleWizardActivity({
+                                            id: selectedActivity.id,
+                                            name: selectedActivity.name,
+                                            duration: selectedActivity.duration
+                                        });
+                                        setSelectedActivityForSessions(null);
+                                        setScheduleWizardOpen(true);
+                                    }}
+                                    className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                                >
+                                    <CalendarPlus className="h-4 w-4 mr-2" />
+                                    Bulk Schedule
+                                </Button>
+                            )}
+                        </div>
                     </DialogHeader>
                     <div className="grid gap-6 py-4">
                         <div className="border rounded-lg p-4 bg-gradient-to-br from-emerald-50 to-teal-50 space-y-4">
                             <h4 className="font-medium text-sm flex items-center gap-2">
                                 <Plus className="h-4 w-4" />
-                                Schedule New Session
+                                Add Single Session
                             </h4>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="grid gap-2">
@@ -836,6 +925,14 @@ export default function ActivitiesPage() {
                                     <ActivityCard
                                         activity={activity}
                                         onManageSessions={setSelectedActivityForSessions}
+                                        onScheduleSessions={(a) => {
+                                            setScheduleWizardActivity({
+                                                id: a.id,
+                                                name: a.name,
+                                                duration: a.duration
+                                            });
+                                            setScheduleWizardOpen(true);
+                                        }}
                                         onDelete={handleDelete}
                                     />
                                 </div>

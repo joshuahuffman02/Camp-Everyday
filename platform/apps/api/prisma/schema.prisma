@@ -7913,3 +7913,141 @@ model KioskPairingCode {
   @@index([campgroundId])
   @@index([code])
 }
+
+// =============================================================================
+// VALUE STACK: GUARANTEES, BONUSES & LEAD CAPTURE
+// =============================================================================
+
+enum GuaranteeType {
+  unconditional     // Money back, no questions
+  conditional       // Money back if you do X
+  performance       // We keep working until you get result
+  satisfaction      // First night/day satisfaction guarantee
+  weather           // Rain/weather guarantee
+  best_price        // Best rate guarantee
+}
+
+// Campground guarantees displayed on public booking page
+model CampgroundGuarantee {
+  id             String        @id @default(cuid())
+  campgroundId   String
+  type           GuaranteeType
+  title          String        // "Rain Guarantee"
+  description    String        @db.Text // "If it rains 3+ days..."
+  iconName       String?       // Lucide icon name: "cloud-rain", "shield-check"
+  sortOrder      Int           @default(0)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  campground     Campground    @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@index([campgroundId])
+  @@index([isActive])
+}
+
+// Bonus items included with booking (value stack)
+model CampgroundBonus {
+  id             String   @id @default(cuid())
+  campgroundId   String
+  name           String   // "Free Firewood Bundle"
+  description    String?  // "Includes 6 logs..."
+  valueCents     Int      // Perceived value: 1500 = $15
+  iconName       String?  // Lucide icon name
+  siteClassIds   String[] @default([]) // Empty = applies to all, otherwise specific site classes
+  isAutoIncluded Boolean  @default(true) // Always included vs optional add-on
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  campground     Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@index([campgroundId])
+  @@index([isActive])
+}
+
+// Lead capture settings for public pages
+model LeadCaptureConfig {
+  id                   String   @id @default(cuid())
+  campgroundId         String   @unique
+  
+  // Events empty state lead capture
+  eventsEnabled        Boolean  @default(true)
+  eventsHeadline       String   @default("Something exciting is coming...")
+  eventsSubtext        String   @default("Sign up to be the first to know about special events and deals")
+  eventsButtonText     String   @default("Notify Me")
+  
+  // General newsletter capture
+  newsletterEnabled    Boolean  @default(true)
+  newsletterHeadline   String   @default("Get the inside scoop")
+  newsletterSubtext    String   @default("Exclusive deals, event announcements, and camping tips")
+  newsletterButtonText String   @default("Subscribe")
+  
+  // First booking incentive
+  firstBookingEnabled  Boolean  @default(true)
+  firstBookingDiscount Int      @default(10) // Percentage off
+  firstBookingHeadline String   @default("First time? Get 10% off")
+  
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  campground           Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+}
+
+// Captured leads from public pages
+model PublicLead {
+  id             String   @id @default(cuid())
+  campgroundId   String
+  email          String
+  source         String   // "events_notify", "newsletter", "first_booking"
+  ipAddress      String?
+  userAgent      String?
+  
+  // Marketing preferences
+  marketingOptIn Boolean  @default(true)
+  
+  // Conversion tracking
+  convertedAt    DateTime?
+  guestId        String?   // If they became a guest
+  
+  createdAt      DateTime @default(now())
+  
+  campground     Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  
+  @@unique([campgroundId, email, source])
+  @@index([campgroundId])
+  @@index([email])
+  @@index([source])
+}
+
+// Booking page copy/messaging configuration
+model BookingPageConfig {
+  id             String   @id @default(cuid())
+  campgroundId   String   @unique
+  
+  // Hero section
+  heroHeadline   String?  // Override default headline
+  heroSubline    String?  // Override tagline
+  
+  // Value proposition (dream outcome)
+  dreamOutcome   String?  @db.Text // "Wake up to the sound of the river..."
+  
+  // Social proof
+  showReviewCount    Boolean @default(true)
+  showTrustBadges    Boolean @default(true)
+  showScarcity       Boolean @default(true)
+  showLiveViewers    Boolean @default(false) // "3 people viewing"
+  
+  // Urgency elements
+  showLimitedAvail   Boolean @default(true)
+  
+  // Custom messaging
+  bookButtonText     String  @default("Book Now")
+  checkAvailText     String  @default("Check availability")
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  campground         Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+}
