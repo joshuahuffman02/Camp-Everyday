@@ -981,14 +981,14 @@ export default function OtaSettingsPage() {
                         <div className="space-y-2">
                           <Label htmlFor="map-site">Map to Site</Label>
                           <Select
-                            value={mappingForm.siteId}
-                            onValueChange={(v) => setMappingForm((f) => ({ ...f, siteId: v }))}
+                            value={mappingForm.siteId || "__unmapped__"}
+                            onValueChange={(v) => setMappingForm((f) => ({ ...f, siteId: v === "__unmapped__" ? "" : v }))}
                           >
                             <SelectTrigger id="map-site">
                               <SelectValue placeholder="Select site" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">Unmapped</SelectItem>
+                              <SelectItem value="__unmapped__">Unmapped</SelectItem>
                               {sitesQuery.data?.map((s) => (
                                 <SelectItem key={s.id} value={s.id}>
                                   {s.name}

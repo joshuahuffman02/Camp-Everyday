@@ -160,6 +160,18 @@ export const FormTemplateSchema = z.object({
   fields: z.record(z.any()).optional().nullable(),
   isActive: z.boolean().default(true).optional(),
   version: z.number().int(),
+  // Auto-attach settings
+  autoAttachMode: z.enum(["manual", "all_bookings", "site_classes"]).default("manual").optional(),
+  siteClassIds: z.array(z.string()).default([]).optional(),
+  // Display settings
+  showAt: z.array(z.enum(["during_booking", "at_checkin", "after_booking", "on_demand"])).default(["during_booking"]).optional(),
+  isRequired: z.boolean().default(true).optional(),
+  allowSkipWithNote: z.boolean().default(false).optional(),
+  // Validity settings
+  validityDays: z.number().int().nullish(),
+  // Reminder settings
+  sendReminder: z.boolean().default(false).optional(),
+  reminderDaysBefore: z.number().int().default(1).optional(),
   createdAt: z.string(),
   updatedAt: z.string()
 });
@@ -170,12 +182,20 @@ export const FormSubmissionSchema = z.object({
   formTemplateId: z.string().cuid(),
   reservationId: z.string().nullish(),
   guestId: z.string().nullish(),
-  status: z.enum(["pending", "completed", "void"]),
+  status: z.enum(["pending", "completed", "skipped", "void"]),
   responses: z.record(z.any()).optional().nullable(),
+  skipNote: z.string().nullish(),
   signedAt: z.string().nullish(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  formTemplate: FormTemplateSchema.pick({ id: true, title: true, type: true }).optional()
+  formTemplate: FormTemplateSchema.pick({
+    id: true,
+    title: true,
+    type: true,
+    isRequired: true,
+    allowSkipWithNote: true,
+    showAt: true
+  }).optional()
 });
 export type FormSubmission = z.infer<typeof FormSubmissionSchema>;
 
