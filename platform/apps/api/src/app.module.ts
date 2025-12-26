@@ -110,6 +110,7 @@ import { FeatureProgressModule } from "./feature-progress/feature-progress.modul
 import { KioskModule } from "./kiosk/kiosk.module";
 import { IdempotencyModule } from "./idempotency/idempotency.module";
 import { SecurityModule } from "./security/security.module";
+import { ValueStackModule } from "./value-stack/value-stack.module";
 
 @Module({
   imports: [
@@ -224,6 +225,7 @@ import { SecurityModule } from "./security/security.module";
     FeatureProgressModule,
     KioskModule,
     IdempotencyModule,
+    ValueStackModule,
   ],
   providers: []
 })

@@ -113,11 +113,20 @@ export class MessagesService {
                     select: {
                         id: true,
                         status: true,
+                        arrivalDate: true,
+                        departureDate: true,
+                        adults: true,
+                        children: true,
+                        pets: true,
+                        totalAmountCents: true,
+                        notes: true,
                         guest: {
                             select: {
                                 id: true,
                                 primaryFirstName: true,
                                 primaryLastName: true,
+                                email: true,
+                                phone: true,
                             },
                         },
                         site: {
@@ -125,6 +134,7 @@ export class MessagesService {
                                 id: true,
                                 name: true,
                                 siteNumber: true,
+                                siteType: true,
                             },
                         },
                     },
@@ -136,8 +146,19 @@ export class MessagesService {
         const conversationsMap = new Map<string, {
             reservationId: string;
             guestName: string;
+            guestEmail: string | null;
+            guestPhone: string | null;
+            guestId: string | null;
             siteName: string;
+            siteType: string | null;
             status: string;
+            arrivalDate: Date | null;
+            departureDate: Date | null;
+            adults: number | null;
+            children: number | null;
+            pets: number | null;
+            totalAmountCents: number | null;
+            notes: string | null;
             messages: typeof messages;
             unreadCount: number;
             lastMessage: typeof messages[0] | null;
@@ -155,8 +176,19 @@ export class MessagesService {
                 conversationsMap.set(resId, {
                     reservationId: resId,
                     guestName,
+                    guestEmail: res?.guest?.email || null,
+                    guestPhone: res?.guest?.phone || null,
+                    guestId: res?.guest?.id || null,
                     siteName,
+                    siteType: res?.site?.siteType || null,
                     status: res?.status || 'unknown',
+                    arrivalDate: res?.arrivalDate || null,
+                    departureDate: res?.departureDate || null,
+                    adults: res?.adults || null,
+                    children: res?.children || null,
+                    pets: res?.pets || null,
+                    totalAmountCents: res?.totalAmountCents || null,
+                    notes: res?.notes || null,
                     messages: [],
                     unreadCount: 0,
                     lastMessage: null,

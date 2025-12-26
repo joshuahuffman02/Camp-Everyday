@@ -1,0 +1,217 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+  Headers,
+} from '@nestjs/common';
+import { ValueStackService } from './value-stack.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { GuaranteeType } from '@prisma/client';
+
+@Controller('campgrounds/:campgroundId/value-stack')
+export class ValueStackController {
+  constructor(private readonly valueStackService: ValueStackService) {}
+
+  // ==================== GUARANTEES ====================
+
+  @Get('guarantees')
+  @UseGuards(JwtAuthGuard)
+  async getGuarantees(@Param('campgroundId') campgroundId: string) {
+    return this.valueStackService.getGuarantees(campgroundId);
+  }
+
+  @Post('guarantees')
+  @UseGuards(JwtAuthGuard)
+  async createGuarantee(
+    @Param('campgroundId') campgroundId: string,
+    @Body()
+    body: {
+      type: GuaranteeType;
+      title: string;
+      description: string;
+      iconName?: string;
+      sortOrder?: number;
+    },
+  ) {
+    return this.valueStackService.createGuarantee({ campgroundId, ...body });
+  }
+
+  @Put('guarantees/:id')
+  @UseGuards(JwtAuthGuard)
+  async updateGuarantee(
+    @Param('id') id: string,
+    @Body()
+    body: Partial<{
+      type: GuaranteeType;
+      title: string;
+      description: string;
+      iconName: string;
+      sortOrder: number;
+      isActive: boolean;
+    }>,
+  ) {
+    return this.valueStackService.updateGuarantee(id, body);
+  }
+
+  @Delete('guarantees/:id')
+  @UseGuards(JwtAuthGuard)
+  async deleteGuarantee(@Param('id') id: string) {
+    return this.valueStackService.deleteGuarantee(id);
+  }
+
+  // ==================== BONUSES ====================
+
+  @Get('bonuses')
+  @UseGuards(JwtAuthGuard)
+  async getBonuses(@Param('campgroundId') campgroundId: string) {
+    return this.valueStackService.getBonuses(campgroundId);
+  }
+
+  @Post('bonuses')
+  @UseGuards(JwtAuthGuard)
+  async createBonus(
+    @Param('campgroundId') campgroundId: string,
+    @Body()
+    body: {
+      name: string;
+      description?: string;
+      valueCents: number;
+      iconName?: string;
+      siteClassIds?: string[];
+      isAutoIncluded?: boolean;
+      sortOrder?: number;
+    },
+  ) {
+    return this.valueStackService.createBonus({ campgroundId, ...body });
+  }
+
+  @Put('bonuses/:id')
+  @UseGuards(JwtAuthGuard)
+  async updateBonus(
+    @Param('id') id: string,
+    @Body()
+    body: Partial<{
+      name: string;
+      description: string;
+      valueCents: number;
+      iconName: string;
+      siteClassIds: string[];
+      isAutoIncluded: boolean;
+      sortOrder: number;
+      isActive: boolean;
+    }>,
+  ) {
+    return this.valueStackService.updateBonus(id, body);
+  }
+
+  @Delete('bonuses/:id')
+  @UseGuards(JwtAuthGuard)
+  async deleteBonus(@Param('id') id: string) {
+    return this.valueStackService.deleteBonus(id);
+  }
+
+  // ==================== LEAD CAPTURE CONFIG ====================
+
+  @Get('lead-capture')
+  @UseGuards(JwtAuthGuard)
+  async getLeadCaptureConfig(@Param('campgroundId') campgroundId: string) {
+    return this.valueStackService.getLeadCaptureConfig(campgroundId);
+  }
+
+  @Put('lead-capture')
+  @UseGuards(JwtAuthGuard)
+  async updateLeadCaptureConfig(
+    @Param('campgroundId') campgroundId: string,
+    @Body()
+    body: Partial<{
+      eventsEnabled: boolean;
+      eventsHeadline: string;
+      eventsSubtext: string;
+      eventsButtonText: string;
+      newsletterEnabled: boolean;
+      newsletterHeadline: string;
+      newsletterSubtext: string;
+      newsletterButtonText: string;
+      firstBookingEnabled: boolean;
+      firstBookingDiscount: number;
+      firstBookingHeadline: string;
+    }>,
+  ) {
+    return this.valueStackService.upsertLeadCaptureConfig(campgroundId, body);
+  }
+
+  // ==================== BOOKING PAGE CONFIG ====================
+
+  @Get('booking-page')
+  @UseGuards(JwtAuthGuard)
+  async getBookingPageConfig(@Param('campgroundId') campgroundId: string) {
+    return this.valueStackService.getBookingPageConfig(campgroundId);
+  }
+
+  @Put('booking-page')
+  @UseGuards(JwtAuthGuard)
+  async updateBookingPageConfig(
+    @Param('campgroundId') campgroundId: string,
+    @Body()
+    body: Partial<{
+      heroHeadline: string;
+      heroSubline: string;
+      dreamOutcome: string;
+      showReviewCount: boolean;
+      showTrustBadges: boolean;
+      showScarcity: boolean;
+      showLiveViewers: boolean;
+      showLimitedAvail: boolean;
+      bookButtonText: string;
+      checkAvailText: string;
+    }>,
+  ) {
+    return this.valueStackService.upsertBookingPageConfig(campgroundId, body);
+  }
+
+  // ==================== LEADS ====================
+
+  @Get('leads')
+  @UseGuards(JwtAuthGuard)
+  async getLeads(
+    @Param('campgroundId') campgroundId: string,
+    @Query('source') source?: string,
+  ) {
+    return this.valueStackService.getLeads(campgroundId, source);
+  }
+}
+
+// Public controller for lead capture (no auth required)
+@Controller('public/campgrounds/:campgroundId')
+export class PublicValueStackController {
+  constructor(private readonly valueStackService: ValueStackService) {}
+
+  @Get('value-stack')
+  async getPublicValueStack(@Param('campgroundId') campgroundId: string) {
+    return this.valueStackService.getPublicValueStack(campgroundId);
+  }
+
+  @Post('leads')
+  async captureLead(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: { email: string; source: string; marketingOptIn?: boolean },
+    @Headers('x-forwarded-for') ip?: string,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.valueStackService.captureLead({
+      campgroundId,
+      email: body.email,
+      source: body.source,
+      marketingOptIn: body.marketingOptIn,
+      ipAddress: ip,
+      userAgent,
+    });
+  }
+}

@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../..
 import {
     Plus, Calendar, Clock, Users, DollarSign, Trash2, LayoutGrid, Loader2,
     Image as ImageIcon, Sparkles, PartyPopper, MapPin, CheckCircle2, Upload,
-    ChevronRight, Star, Tent, Music, Utensils, TreePine, Waves, Sun, CalendarPlus
+    ChevronRight, Star, Tent, Music, Utensils, TreePine, Waves, Sun, CalendarPlus,
+    Timer, Package, Bike, Settings2
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
@@ -19,6 +20,8 @@ import { Textarea } from "../../components/ui/textarea";
 import { useToast } from "../../components/ui/use-toast";
 import { Badge } from "../../components/ui/badge";
 import { Switch } from "../../components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { Calendar as BigCalendar, dateFnsLocalizer, Views } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
@@ -41,6 +44,10 @@ const localizer = dateFnsLocalizer({
     locales,
 });
 
+type SchedulingMode = 'scheduled' | 'open_availability';
+
+type OperatingHours = Record<string, { start: string; end: string }>;
+
 type ActivityRecord = {
     id: string;
     name: string;
@@ -51,6 +58,10 @@ type ActivityRecord = {
     isActive: boolean;
     imageUrl?: string | null;
     category?: string | null;
+    schedulingMode?: SchedulingMode;
+    operatingHours?: OperatingHours | null;
+    slotDuration?: number | null;
+    maxConcurrent?: number | null;
 };
 
 type CapacitySnapshot = {
@@ -387,13 +398,27 @@ export default function ActivitiesPage() {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const defaultOperatingHours: OperatingHours = {
+        mon: { start: "09:00", end: "17:00" },
+        tue: { start: "09:00", end: "17:00" },
+        wed: { start: "09:00", end: "17:00" },
+        thu: { start: "09:00", end: "17:00" },
+        fri: { start: "09:00", end: "17:00" },
+        sat: { start: "09:00", end: "17:00" },
+        sun: { start: "09:00", end: "17:00" },
+    };
+
     const [newActivity, setNewActivity] = useState({
         name: "",
         description: "",
         price: "",
         duration: "60",
         capacity: "20",
-        imageUrl: ""
+        imageUrl: "",
+        schedulingMode: "scheduled" as SchedulingMode,
+        operatingHours: defaultOperatingHours,
+        slotDuration: "60",
+        maxConcurrent: "3"
     });
 
     const [selectedActivityForSessions, setSelectedActivityForSessions] = useState<string | null>(null);

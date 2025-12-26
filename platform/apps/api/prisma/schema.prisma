@@ -1327,6 +1327,13 @@ model Campground {
   kioskDevices               KioskDevice[]
   kioskPairingCodes          KioskPairingCode[]
 
+  // Value stack & lead capture
+  guarantees                 CampgroundGuarantee[]
+  bonuses                    CampgroundBonus[]
+  leadCaptureConfig          LeadCaptureConfig?
+  publicLeads                PublicLead[]
+  bookingPageConfig          BookingPageConfig?
+
   // Soft delete
   deletedAt DateTime?
   deletedBy String?

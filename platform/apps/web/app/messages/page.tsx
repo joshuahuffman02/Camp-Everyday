@@ -11,7 +11,7 @@ import { TableEmpty } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, MessageSquare, Users, Send, User, Clock, CheckCheck, Search, Plus, Hash, ClipboardList, ClipboardCheck, HeartPulse, Info, AlertCircle, Sparkles, Bell } from "lucide-react";
+import { Loader2, MessageSquare, Users, Send, User, Clock, CheckCheck, Search, Plus, Hash, ClipboardList, ClipboardCheck, HeartPulse, Info, AlertCircle, Sparkles, Bell, Mail, Phone, Calendar, MapPin, DollarSign, PawPrint, ChevronRight, ExternalLink, X } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -55,8 +55,19 @@ type InternalConversation = {
 type Conversation = {
     reservationId: string;
     guestName: string;
+    guestEmail: string | null;
+    guestPhone: string | null;
+    guestId: string | null;
     siteName: string;
+    siteType: string | null;
     status: string;
+    arrivalDate: string | null;
+    departureDate: string | null;
+    adults: number | null;
+    children: number | null;
+    pets: number | null;
+    totalAmountCents: number | null;
+    notes: string | null;
     messages: Message[];
     unreadCount: number;
     lastMessage: Message | null;
@@ -76,6 +87,7 @@ export default function MessagesPage() {
     const [guestFilter, setGuestFilter] = useState<"all" | "overdue">("all");
     const [overdueNotified, setOverdueNotified] = useState(false);
     const [sendSuccess, setSendSuccess] = useState(false);
+    const [showGuestInfo, setShowGuestInfo] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const prevUnreadCountRef = useRef<number>(0);
     const isInitialLoadRef = useRef(true);
@@ -167,15 +179,26 @@ export default function MessagesPage() {
     });
 
     // Apply client-side filters and transform to expected format
-    const conversations = useMemo(() => {
+    const conversations = useMemo((): Conversation[] => {
         if (!rawConversations.length) {
             // Show demo conversation if no real ones
             const now = new Date().toISOString();
             return [{
                 reservationId: "demo-reservation",
                 guestName: "Demo Guest",
+                guestEmail: "demo@example.com",
+                guestPhone: "(555) 123-4567",
+                guestId: "demo-guest",
                 siteName: "Site A-1",
+                siteType: "RV",
                 status: "confirmed",
+                arrivalDate: now,
+                departureDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                adults: 2,
+                children: 1,
+                pets: 0,
+                totalAmountCents: 15000,
+                notes: null,
                 unreadCount: 0,
                 messages: [
                     {
@@ -199,7 +222,7 @@ export default function MessagesPage() {
         }
 
         // Apply status and date filters
-        return rawConversations.map(conv => {
+        return rawConversations.map((conv: any) => {
             const filteredMsgs = conv.messages.filter((m: any) => {
                 const isFailed =
                     (m.status || "").toLowerCase().includes("fail") ||
@@ -217,11 +240,25 @@ export default function MessagesPage() {
             });
 
             return {
-                ...conv,
+                reservationId: conv.reservationId,
+                guestName: conv.guestName,
+                guestEmail: conv.guestEmail || null,
+                guestPhone: conv.guestPhone || null,
+                guestId: conv.guestId || null,
+                siteName: conv.siteName,
+                siteType: conv.siteType || null,
+                status: conv.status,
+                arrivalDate: conv.arrivalDate || null,
+                departureDate: conv.departureDate || null,
+                adults: conv.adults || null,
+                children: conv.children || null,
+                pets: conv.pets || null,
+                totalAmountCents: conv.totalAmountCents || null,
+                notes: conv.notes || null,
                 messages: filteredMsgs,
                 unreadCount: filteredMsgs.filter((m: any) => m.senderType === "guest" && !m.readAt).length,
                 lastMessage: filteredMsgs[filteredMsgs.length - 1] || null
-            };
+            } as Conversation;
         }).filter(conv => conv.messages.length > 0);
     }, [rawConversations, statusFilter, dateRange]);
 
@@ -1214,112 +1251,279 @@ export default function MessagesPage() {
                                         <CardTitle>{selectedConversation.guestName}</CardTitle>
                                         <CardDescription>{selectedConversation.siteName}</CardDescription>
                                     </div>
-                                    <Badge variant={selectedConversation.status === "checked_in" ? "default" : "secondary"}>
-                                        {selectedConversation.status.replace("_", " ")}
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant={selectedConversation.status === "checked_in" ? "default" : "secondary"}>
+                                            {selectedConversation.status.replace("_", " ")}
+                                        </Badge>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setShowGuestInfo(!showGuestInfo)}
+                                            className="hidden lg:flex items-center gap-1"
+                                        >
+                                            <User className="h-4 w-4" />
+                                            {showGuestInfo ? "Hide" : "Show"} Info
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardHeader>
 
-                            <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-                                <div className="space-y-4">
-                                    <AnimatePresence mode="popLayout">
-                                        {selectedConversation.messages.map((msg, index) => {
-                                            const isStaff = msg.senderType === "staff";
-                                            const badgeClasses = isStaff
-                                                ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                                                : "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
-                                            return (
-                                            <motion.div
-                                                key={msg.id}
-                                                initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                transition={{ delay: index * 0.02, duration: 0.2 }}
-                                                className={`flex ${isStaff ? "justify-end" : "justify-start"}`}
-                                            >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.01 }}
-                                                    className={`max-w-[85%] sm:max-w-[65%] rounded-lg p-3 ${isStaff
-                                                        ? "bg-primary text-primary-foreground"
-                                                        : "bg-muted"
-                                                        }`}
-                                                >
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${badgeClasses}`}>
-                                                            {isStaff ? "Staff" : "Guest"}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-sm">{msg.content}</div>
-                                                    <div
-                                                        className={`flex items-center gap-1 mt-1 text-xs ${isStaff ? "text-primary-foreground/70" : "text-muted-foreground"
-                                                            }`}
+                            <div className="flex-1 flex overflow-hidden">
+                                {/* Messages Area */}
+                                <div className="flex-1 flex flex-col overflow-hidden">
+                                    <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+                                        <div className="space-y-4">
+                                            <AnimatePresence mode="popLayout">
+                                                {selectedConversation.messages.map((msg, index) => {
+                                                    const isStaff = msg.senderType === "staff";
+                                                    const badgeClasses = isStaff
+                                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                                                        : "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
+                                                    return (
+                                                    <motion.div
+                                                        key={msg.id}
+                                                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                        transition={{ delay: index * 0.02, duration: 0.2 }}
+                                                        className={`flex ${isStaff ? "justify-end" : "justify-start"}`}
                                                     >
-                                                        <Clock className="h-3 w-3" />
-                                                        {format(new Date(msg.createdAt), "h:mm a")}
-                                                        {isStaff && msg.readAt && (
-                                                            <motion.div
-                                                                initial={{ scale: 0 }}
-                                                                animate={{ scale: 1 }}
-                                                                transition={{ delay: 0.3, type: "spring" }}
+                                                        <motion.div
+                                                            whileHover={{ scale: 1.01 }}
+                                                            className={`max-w-[85%] sm:max-w-[65%] rounded-lg p-3 ${isStaff
+                                                                ? "bg-primary text-primary-foreground"
+                                                                : "bg-muted"
+                                                                }`}
+                                                        >
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${badgeClasses}`}>
+                                                                    {isStaff ? "Staff" : "Guest"}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-sm">{msg.content}</div>
+                                                            <div
+                                                                className={`flex items-center gap-1 mt-1 text-xs ${isStaff ? "text-primary-foreground/70" : "text-muted-foreground"
+                                                                    }`}
                                                             >
-                                                                <CheckCheck className="h-3 w-3 ml-1 text-emerald-400" />
-                                                            </motion.div>
+                                                                <Clock className="h-3 w-3" />
+                                                                {format(new Date(msg.createdAt), "h:mm a")}
+                                                                {isStaff && msg.readAt && (
+                                                                    <motion.div
+                                                                        initial={{ scale: 0 }}
+                                                                        animate={{ scale: 1 }}
+                                                                        transition={{ delay: 0.3, type: "spring" }}
+                                                                    >
+                                                                        <CheckCheck className="h-3 w-3 ml-1 text-emerald-400" />
+                                                                    </motion.div>
+                                                                )}
+                                                            </div>
+                                                        </motion.div>
+                                                    </motion.div>
+                                                );})}
+                                            </AnimatePresence>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 border-t">
+                                        <div className="flex gap-2">
+                                            <Input
+                                                placeholder="Type a message..."
+                                                value={newMessage}
+                                                onChange={(e) => setNewMessage(e.target.value)}
+                                                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
+                                                className="transition-all focus:ring-2 focus:ring-primary/20"
+                                            />
+                                            <Button
+                                                onClick={handleSendMessage}
+                                                disabled={sending || !newMessage.trim()}
+                                                className="relative overflow-hidden"
+                                            >
+                                                <AnimatePresence mode="wait">
+                                                    {sendSuccess ? (
+                                                        <motion.div
+                                                            key="success"
+                                                            initial={{ scale: 0, rotate: -180 }}
+                                                            animate={{ scale: 1, rotate: 0 }}
+                                                            exit={{ scale: 0 }}
+                                                            transition={{ duration: 0.3, type: "spring" }}
+                                                        >
+                                                            <CheckCheck className="h-4 w-4" />
+                                                        </motion.div>
+                                                    ) : sending ? (
+                                                        <motion.div
+                                                            key="loading"
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                        >
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        </motion.div>
+                                                    ) : (
+                                                        <motion.div
+                                                            key="send"
+                                                            initial={{ x: 0 }}
+                                                            whileHover={{ x: 2 }}
+                                                            transition={{ duration: 0.15 }}
+                                                        >
+                                                            <Send className="h-4 w-4" />
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </Button>
+                                        </div>
+                                        <div ref={messagesEndRef} />
+                                    </div>
+                                </div>
+
+                                {/* Guest Info Sidebar */}
+                                <AnimatePresence>
+                                    {showGuestInfo && (
+                                        <motion.div
+                                            initial={{ width: 0, opacity: 0 }}
+                                            animate={{ width: 280, opacity: 1 }}
+                                            exit={{ width: 0, opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="hidden lg:block border-l bg-muted/30 overflow-hidden"
+                                        >
+                                            <div className="w-[280px] p-4 space-y-4 overflow-y-auto h-full">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="font-semibold text-sm">Guest Details</h3>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6"
+                                                        onClick={() => setShowGuestInfo(false)}
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+
+                                                {/* Guest Contact */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background border">
+                                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                                            <User className="h-5 w-5 text-primary" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-medium truncate">{selectedConversation.guestName}</p>
+                                                            <p className="text-xs text-muted-foreground">Guest</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {selectedConversation.guestEmail && (
+                                                        <a
+                                                            href={`mailto:${selectedConversation.guestEmail}`}
+                                                            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+                                                        >
+                                                            <Mail className="h-4 w-4" />
+                                                            <span className="truncate flex-1">{selectedConversation.guestEmail}</span>
+                                                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100" />
+                                                        </a>
+                                                    )}
+
+                                                    {selectedConversation.guestPhone && (
+                                                        <a
+                                                            href={`tel:${selectedConversation.guestPhone}`}
+                                                            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+                                                        >
+                                                            <Phone className="h-4 w-4" />
+                                                            <span>{selectedConversation.guestPhone}</span>
+                                                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100" />
+                                                        </a>
+                                                    )}
+                                                </div>
+
+                                                {/* Reservation Details */}
+                                                <div className="space-y-2">
+                                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Reservation</h4>
+
+                                                    <div className="space-y-2 text-sm">
+                                                        <div className="flex items-center gap-2">
+                                                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                            <span>{selectedConversation.siteName}</span>
+                                                            {selectedConversation.siteType && (
+                                                                <Badge variant="outline" className="text-[10px] px-1.5">
+                                                                    {selectedConversation.siteType}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+
+                                                        {selectedConversation.arrivalDate && selectedConversation.departureDate && (
+                                                            <div className="flex items-center gap-2">
+                                                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                                <span>
+                                                                    {format(new Date(selectedConversation.arrivalDate), "MMM d")} - {format(new Date(selectedConversation.departureDate), "MMM d, yyyy")}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
+                                                        {(selectedConversation.adults || selectedConversation.children) && (
+                                                            <div className="flex items-center gap-2">
+                                                                <Users className="h-4 w-4 text-muted-foreground" />
+                                                                <span>
+                                                                    {selectedConversation.adults || 0} Adult{(selectedConversation.adults || 0) !== 1 ? "s" : ""}
+                                                                    {selectedConversation.children ? `, ${selectedConversation.children} Child${selectedConversation.children !== 1 ? "ren" : ""}` : ""}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
+                                                        {selectedConversation.pets !== null && selectedConversation.pets > 0 && (
+                                                            <div className="flex items-center gap-2">
+                                                                <PawPrint className="h-4 w-4 text-muted-foreground" />
+                                                                <span>{selectedConversation.pets} Pet{selectedConversation.pets !== 1 ? "s" : ""}</span>
+                                                            </div>
+                                                        )}
+
+                                                        {selectedConversation.totalAmountCents !== null && (
+                                                            <div className="flex items-center gap-2">
+                                                                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                                                                <span className="font-medium">
+                                                                    ${(selectedConversation.totalAmountCents / 100).toFixed(2)}
+                                                                </span>
+                                                            </div>
                                                         )}
                                                     </div>
-                                                </motion.div>
-                                            </motion.div>
-                                        );})}
-                                    </AnimatePresence>
-                                </div>
-                            </div>
+                                                </div>
 
-                            <div className="p-4 border-t">
-                                <div className="flex gap-2">
-                                    <Input
-                                        placeholder="Type a message..."
-                                        value={newMessage}
-                                        onChange={(e) => setNewMessage(e.target.value)}
-                                        onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
-                                        className="transition-all focus:ring-2 focus:ring-primary/20"
-                                    />
-                                    <Button
-                                        onClick={handleSendMessage}
-                                        disabled={sending || !newMessage.trim()}
-                                        className="relative overflow-hidden"
-                                    >
-                                        <AnimatePresence mode="wait">
-                                            {sendSuccess ? (
-                                                <motion.div
-                                                    key="success"
-                                                    initial={{ scale: 0, rotate: -180 }}
-                                                    animate={{ scale: 1, rotate: 0 }}
-                                                    exit={{ scale: 0 }}
-                                                    transition={{ duration: 0.3, type: "spring" }}
-                                                >
-                                                    <CheckCheck className="h-4 w-4" />
-                                                </motion.div>
-                                            ) : sending ? (
-                                                <motion.div
-                                                    key="loading"
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                >
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                </motion.div>
-                                            ) : (
-                                                <motion.div
-                                                    key="send"
-                                                    initial={{ x: 0 }}
-                                                    whileHover={{ x: 2 }}
-                                                    transition={{ duration: 0.15 }}
-                                                >
-                                                    <Send className="h-4 w-4" />
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </Button>
-                                </div>
-                                <div ref={messagesEndRef} />
+                                                {/* Notes */}
+                                                {selectedConversation.notes && (
+                                                    <div className="space-y-2">
+                                                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</h4>
+                                                        <p className="text-sm text-muted-foreground bg-background rounded-lg p-3 border">
+                                                            {selectedConversation.notes}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {/* Quick Actions */}
+                                                <div className="space-y-2 pt-2">
+                                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quick Actions</h4>
+                                                    <div className="space-y-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="w-full justify-start"
+                                                            onClick={() => window.open(`/reservations/${selectedConversation.reservationId}`, '_blank')}
+                                                        >
+                                                            <ExternalLink className="h-4 w-4 mr-2" />
+                                                            View Reservation
+                                                        </Button>
+                                                        {selectedConversation.guestId && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="w-full justify-start"
+                                                                onClick={() => window.open(`/guests/${selectedConversation.guestId}`, '_blank')}
+                                                            >
+                                                                <User className="h-4 w-4 mr-2" />
+                                                                View Guest Profile
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </>
                     ) : (
