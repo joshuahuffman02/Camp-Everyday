@@ -7,18 +7,42 @@ import { SmsService } from "../sms/sms.service";
 import { CreateSignatureRequestDto } from "@/signatures/dto/create-signature-request.dto";
 import { SignatureWebhookDto } from "@/signatures/dto/signature-webhook.dto";
 import { CoiUploadDto } from "@/signatures/dto/coi-upload.dto";
+import { MarkPaperSignedDto } from "@/signatures/dto/mark-paper-signed.dto";
+import { WaiveSignatureDto } from "@/signatures/dto/waive-signature.dto";
+import { ContractStats } from "@/signatures/dto/contract-stats.dto";
+import { SendRenewalCampaignDto } from "@/signatures/dto/send-renewal-campaign.dto";
 import { createHash, randomBytes } from "crypto";
 
 const SignatureRequestStatus = {
+  preview: "preview",
   draft: "draft",
   sent: "sent",
   viewed: "viewed",
   signed: "signed",
+  signed_paper: "signed_paper",
+  waived: "waived",
   declined: "declined",
   voided: "voided",
   expired: "expired"
 } as const;
 type SignatureRequestStatus = (typeof SignatureRequestStatus)[keyof typeof SignatureRequestStatus];
+
+const SignatureMethod = {
+  digital: "digital",
+  paper: "paper",
+  waived: "waived"
+} as const;
+type SignatureMethod = (typeof SignatureMethod)[keyof typeof SignatureMethod];
+
+const WaiverReason = {
+  returning_same_terms: "returning_same_terms",
+  corporate_agreement: "corporate_agreement",
+  grandfathered: "grandfathered",
+  family_member: "family_member",
+  owner_discretion: "owner_discretion",
+  other: "other"
+} as const;
+type WaiverReason = (typeof WaiverReason)[keyof typeof WaiverReason];
 
 const SignatureDeliveryChannel = {
   email: "email",
@@ -47,9 +71,24 @@ type CoiStatus = (typeof CoiStatus)[keyof typeof CoiStatus];
 
 const FINAL_SIGNATURE_STATES: SignatureRequestStatus[] = [
   SignatureRequestStatus.signed,
+  SignatureRequestStatus.signed_paper,
+  SignatureRequestStatus.waived,
   SignatureRequestStatus.declined,
   SignatureRequestStatus.voided,
   SignatureRequestStatus.expired
+];
+
+// Completed statuses (for calculating completion rate)
+const COMPLETED_STATUSES: SignatureRequestStatus[] = [
+  SignatureRequestStatus.signed,
+  SignatureRequestStatus.signed_paper,
+  SignatureRequestStatus.waived
+];
+
+// Pending statuses (needs guest action)
+const PENDING_STATUSES: SignatureRequestStatus[] = [
+  SignatureRequestStatus.sent,
+  SignatureRequestStatus.viewed
 ];
 
 @Injectable()
@@ -159,6 +198,25 @@ export class SignaturesService {
     const reminderAt = dto.reminderAt ? new Date(dto.reminderAt) : this.computeReminder(expiresAt, 2, cadenceDays);
     const deliveryChannel = dto.deliveryChannel || SignatureDeliveryChannel.email;
     const documentType = dto.documentType || SignatureDocumentType.other;
+    const signatureMethod = dto.signatureMethod || SignatureMethod.digital;
+
+    // Determine initial status based on preview/signing availability
+    const now = new Date();
+    const previewAvailableAt = dto.previewAvailableAt ? new Date(dto.previewAvailableAt) : null;
+    const availableForSigningAt = dto.availableForSigningAt ? new Date(dto.availableForSigningAt) : null;
+
+    let initialStatus: SignatureRequestStatus = SignatureRequestStatus.sent;
+    let shouldDeliver = true;
+
+    // If there's a future signing date, start in preview or draft
+    if (availableForSigningAt && availableForSigningAt > now) {
+      if (previewAvailableAt && previewAvailableAt <= now) {
+        initialStatus = SignatureRequestStatus.preview;
+      } else {
+        initialStatus = SignatureRequestStatus.draft;
+        shouldDeliver = false; // Don't send yet
+      }
+    }
 
     const created = await this.prisma.signatureRequest.create({
       data: {
@@ -167,30 +225,43 @@ export class SignaturesService {
         guestId: guest?.id ?? dto.guestId ?? null,
         templateId: dto.templateId ?? null,
         documentType,
-        status: SignatureRequestStatus.sent,
+        status: initialStatus,
         deliveryChannel,
+        signatureMethod,
         token,
         subject: dto.subject ?? null,
         message: dto.message ?? null,
         recipientName: dto.recipientName ?? guest?.primaryFirstName ?? null,
         recipientEmail: dto.recipientEmail ?? guest?.email ?? null,
         recipientPhone: dto.recipientPhone ?? guest?.phone ?? null,
-        sentAt: new Date(),
+        sentAt: shouldDeliver ? new Date() : null,
         expiresAt,
-        reminderAt,
+        reminderAt: shouldDeliver ? reminderAt : null,
+        previewAvailableAt,
+        availableForSigningAt,
+        renewsContractId: dto.renewsContractId ?? null,
+        seasonYear: dto.seasonYear ?? null,
         metadata: dto.metadata ?? null
       }
     });
 
-    await this.deliverRequest(created, { reservation, guest, message: dto.message });
+    if (shouldDeliver) {
+      await this.deliverRequest(created, { reservation, guest, message: dto.message });
+    }
 
     await this.audit.record({
       campgroundId,
       actorId,
-      action: "signature.request_sent",
+      action: shouldDeliver ? "signature.request_sent" : "signature.request_created",
       entity: "SignatureRequest",
       entityId: created.id,
-      after: { status: created.status, documentType, reservationId: created.reservationId, guestId: created.guestId }
+      after: {
+        status: created.status,
+        documentType,
+        reservationId: created.reservationId,
+        guestId: created.guestId,
+        seasonYear: created.seasonYear
+      }
     });
 
     return { request: created, signingUrl: this.signingUrl(token) };
@@ -593,6 +664,408 @@ export class SignaturesService {
         });
       } catch (err) {
         this.logger.warn(`Failed COI reminder for ${coi.id}: ${err}`);
+      }
+    }
+  }
+
+  // ==================== PAPER SIGNING ====================
+
+  async markPaperSigned(dto: MarkPaperSignedDto, actorId: string) {
+    const existing = await this.prisma.signatureRequest.findUnique({ where: { id: dto.id } });
+    if (!existing) throw new NotFoundException("Signature request not found");
+
+    if (FINAL_SIGNATURE_STATES.includes(existing.status)) {
+      throw new BadRequestException("Cannot mark a completed request as paper signed");
+    }
+
+    const paperSignedAt = dto.paperSignedAt ? new Date(dto.paperSignedAt) : new Date();
+
+    const updated = await this.prisma.signatureRequest.update({
+      where: { id: dto.id },
+      data: {
+        status: SignatureRequestStatus.signed_paper,
+        signatureMethod: SignatureMethod.paper,
+        paperSignedAt,
+        paperReceivedBy: actorId,
+        paperArtifactUrl: dto.paperArtifactUrl ?? null,
+        signedAt: paperSignedAt,
+        reminderAt: null, // Stop reminders
+        metadata: {
+          ...(existing.metadata as object || {}),
+          paperSigningNotes: dto.notes
+        }
+      }
+    });
+
+    // Create artifact for paper signing
+    await this.prisma.signatureArtifact.upsert({
+      where: { requestId: existing.id },
+      update: {
+        pdfUrl: dto.paperArtifactUrl || "paper-signed-no-scan",
+        completedAt: paperSignedAt,
+        metadata: { paperSigned: true, receivedBy: actorId }
+      },
+      create: {
+        requestId: existing.id,
+        campgroundId: existing.campgroundId,
+        reservationId: existing.reservationId,
+        guestId: existing.guestId,
+        pdfUrl: dto.paperArtifactUrl || "paper-signed-no-scan",
+        completedAt: paperSignedAt,
+        metadata: { paperSigned: true, receivedBy: actorId }
+      }
+    });
+
+    await this.audit.record({
+      campgroundId: existing.campgroundId,
+      actorId,
+      action: "signature.marked_paper_signed",
+      entity: "SignatureRequest",
+      entityId: existing.id,
+      before: { status: existing.status },
+      after: { status: updated.status, paperSignedAt, paperReceivedBy: actorId }
+    });
+
+    return updated;
+  }
+
+  // ==================== SIGNATURE WAIVER ====================
+
+  async waiveSignature(dto: WaiveSignatureDto, actorId: string) {
+    const existing = await this.prisma.signatureRequest.findUnique({ where: { id: dto.id } });
+    if (!existing) throw new NotFoundException("Signature request not found");
+
+    if (FINAL_SIGNATURE_STATES.includes(existing.status)) {
+      throw new BadRequestException("Cannot waive a completed request");
+    }
+
+    if (dto.reason === "other" && !dto.notes) {
+      throw new BadRequestException("Notes are required when waiver reason is 'other'");
+    }
+
+    const waivedAt = new Date();
+
+    const updated = await this.prisma.signatureRequest.update({
+      where: { id: dto.id },
+      data: {
+        status: SignatureRequestStatus.waived,
+        signatureMethod: SignatureMethod.waived,
+        signatureWaived: true,
+        waiverReason: dto.reason as WaiverReason,
+        waiverNotes: dto.notes ?? null,
+        waivedBy: actorId,
+        waivedAt,
+        reminderAt: null // Stop reminders
+      }
+    });
+
+    await this.audit.record({
+      campgroundId: existing.campgroundId,
+      actorId,
+      action: "signature.waived",
+      entity: "SignatureRequest",
+      entityId: existing.id,
+      before: { status: existing.status },
+      after: { status: updated.status, waiverReason: dto.reason, waivedBy: actorId }
+    });
+
+    return updated;
+  }
+
+  // ==================== CONTRACT STATS ====================
+
+  async getContractStats(campgroundId: string, seasonYear?: number, documentType?: string): Promise<ContractStats> {
+    const where: any = { campgroundId };
+    if (seasonYear) where.seasonYear = seasonYear;
+    if (documentType) where.documentType = documentType;
+
+    const counts = await this.prisma.signatureRequest.groupBy({
+      by: ["status"],
+      where,
+      _count: { status: true }
+    });
+
+    const statusMap: Record<string, number> = {};
+    let total = 0;
+    for (const c of counts) {
+      statusMap[c.status] = c._count.status;
+      total += c._count.status;
+    }
+
+    const signed = statusMap[SignatureRequestStatus.signed] || 0;
+    const signedPaper = statusMap[SignatureRequestStatus.signed_paper] || 0;
+    const waived = statusMap[SignatureRequestStatus.waived] || 0;
+    const completed = signed + signedPaper + waived;
+    const sent = statusMap[SignatureRequestStatus.sent] || 0;
+    const viewed = statusMap[SignatureRequestStatus.viewed] || 0;
+    const pendingCount = sent + viewed;
+
+    // Find nearest expiry deadline for pending contracts
+    const nearestExpiry = await this.prisma.signatureRequest.findFirst({
+      where: {
+        ...where,
+        status: { in: PENDING_STATUSES },
+        expiresAt: { not: null }
+      },
+      orderBy: { expiresAt: "asc" },
+      select: { expiresAt: true }
+    });
+
+    let daysUntilDeadline: number | undefined;
+    if (nearestExpiry?.expiresAt) {
+      const diff = nearestExpiry.expiresAt.getTime() - Date.now();
+      daysUntilDeadline = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    }
+
+    return {
+      total,
+      preview: statusMap[SignatureRequestStatus.preview] || 0,
+      draft: statusMap[SignatureRequestStatus.draft] || 0,
+      sent,
+      viewed,
+      signed,
+      signedPaper,
+      waived,
+      declined: statusMap[SignatureRequestStatus.declined] || 0,
+      expired: statusMap[SignatureRequestStatus.expired] || 0,
+      voided: statusMap[SignatureRequestStatus.voided] || 0,
+      completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+      pendingCount,
+      daysUntilDeadline
+    };
+  }
+
+  // ==================== CONTRACT LISTING ====================
+
+  async listContracts(campgroundId: string, options?: {
+    seasonYear?: number;
+    documentType?: string;
+    status?: string | string[];
+    guestId?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const where: any = { campgroundId };
+    if (options?.seasonYear) where.seasonYear = options.seasonYear;
+    if (options?.documentType) where.documentType = options.documentType;
+    if (options?.guestId) where.guestId = options.guestId;
+    if (options?.status) {
+      where.status = Array.isArray(options.status) ? { in: options.status } : options.status;
+    }
+
+    const [contracts, total] = await Promise.all([
+      this.prisma.signatureRequest.findMany({
+        where,
+        include: {
+          guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true, phone: true } },
+          template: { select: { id: true, name: true, type: true } },
+          artifact: { select: { id: true, pdfUrl: true, completedAt: true } },
+          reservation: { select: { id: true, arrivalDate: true, departureDate: true, siteId: true } }
+        },
+        orderBy: [{ seasonYear: "desc" }, { createdAt: "desc" }],
+        take: options?.limit ?? 50,
+        skip: options?.offset ?? 0
+      }),
+      this.prisma.signatureRequest.count({ where })
+    ]);
+
+    return { contracts, total };
+  }
+
+  // ==================== RENEWAL CAMPAIGNS ====================
+
+  async sendRenewalCampaign(dto: SendRenewalCampaignDto, actorId: string) {
+    const template = await this.prisma.documentTemplate.findUnique({ where: { id: dto.templateId } });
+    if (!template) throw new NotFoundException("Document template not found");
+    if (template.campgroundId !== dto.campgroundId) {
+      throw new BadRequestException("Template does not belong to this campground");
+    }
+
+    const results: { guestId: string; requestId?: string; error?: string }[] = [];
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const previewAvailableAt = dto.previewAvailableAt ? new Date(dto.previewAvailableAt) : null;
+    const availableForSigningAt = dto.availableForSigningAt ? new Date(dto.availableForSigningAt) : null;
+
+    for (const recipient of dto.recipients) {
+      try {
+        const guest = await this.prisma.guest.findUnique({ where: { id: recipient.guestId } });
+        if (!guest) {
+          results.push({ guestId: recipient.guestId, error: "Guest not found" });
+          continue;
+        }
+
+        // Check for existing contract for this guest/season
+        const existingContract = await this.prisma.signatureRequest.findFirst({
+          where: {
+            campgroundId: dto.campgroundId,
+            guestId: recipient.guestId,
+            seasonYear: dto.seasonYear,
+            documentType: template.type,
+            status: { notIn: [SignatureRequestStatus.voided, SignatureRequestStatus.expired] }
+          }
+        });
+
+        if (existingContract) {
+          results.push({ guestId: recipient.guestId, requestId: existingContract.id, error: "Contract already exists" });
+          continue;
+        }
+
+        const { request } = await this.createAndSend({
+          campgroundId: dto.campgroundId,
+          guestId: recipient.guestId,
+          reservationId: recipient.reservationId,
+          templateId: dto.templateId,
+          documentType: template.type as any,
+          deliveryChannel: dto.deliveryChannel,
+          subject: dto.subject || `${dto.seasonYear} Seasonal Contract`,
+          message: dto.message,
+          recipientName: `${guest.primaryFirstName} ${guest.primaryLastName}`.trim(),
+          recipientEmail: guest.email ?? undefined,
+          recipientPhone: guest.phone ?? undefined,
+          expiresAt: expiresAt.toISOString(),
+          previewAvailableAt: previewAvailableAt?.toISOString(),
+          availableForSigningAt: availableForSigningAt?.toISOString(),
+          renewsContractId: recipient.previousContractId,
+          seasonYear: dto.seasonYear,
+          metadata: {
+            renewalCampaign: true,
+            previousSiteId: recipient.siteId
+          }
+        }, actorId);
+
+        results.push({ guestId: recipient.guestId, requestId: request.id });
+      } catch (err) {
+        this.logger.error(`Failed to create renewal for guest ${recipient.guestId}: ${err}`);
+        results.push({ guestId: recipient.guestId, error: String(err) });
+      }
+    }
+
+    await this.audit.record({
+      campgroundId: dto.campgroundId,
+      actorId,
+      action: "signature.renewal_campaign_sent",
+      entity: "SignatureRequest",
+      entityId: dto.templateId,
+      after: {
+        seasonYear: dto.seasonYear,
+        recipientCount: dto.recipients.length,
+        successCount: results.filter(r => r.requestId && !r.error).length
+      }
+    });
+
+    return {
+      seasonYear: dto.seasonYear,
+      total: dto.recipients.length,
+      success: results.filter(r => r.requestId && !r.error).length,
+      failed: results.filter(r => r.error).length,
+      results
+    };
+  }
+
+  // ==================== PDF DOWNLOAD ====================
+
+  async getContractPdfUrl(requestId: string) {
+    const request = await this.prisma.signatureRequest.findUnique({
+      where: { id: requestId },
+      include: { artifact: true, template: true }
+    });
+
+    if (!request) throw new NotFoundException("Signature request not found");
+
+    // If there's an artifact with a PDF, return it
+    if (request.artifact?.pdfUrl) {
+      return {
+        url: request.artifact.pdfUrl,
+        status: request.status,
+        signedAt: request.signedAt || request.paperSignedAt,
+        isPreview: false
+      };
+    }
+
+    // Otherwise, generate a preview URL (for unsigned contracts)
+    // In production, this would generate an actual PDF
+    return {
+      url: null,
+      previewContent: request.template?.content ?? null,
+      status: request.status,
+      isPreview: true
+    };
+  }
+
+  // ==================== CRON: Preview/Signing Availability ====================
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async checkPreviewAvailability() {
+    const now = new Date();
+
+    // Find contracts that should transition from draft to preview
+    const toPreview = await this.prisma.signatureRequest.findMany({
+      where: {
+        status: SignatureRequestStatus.draft,
+        previewAvailableAt: { lte: now },
+        OR: [
+          { availableForSigningAt: null },
+          { availableForSigningAt: { gt: now } }
+        ]
+      },
+      take: 50
+    });
+
+    for (const req of toPreview) {
+      try {
+        await this.prisma.signatureRequest.update({
+          where: { id: req.id },
+          data: { status: SignatureRequestStatus.preview }
+        });
+
+        // Notify guest that preview is available
+        if (req.recipientEmail) {
+          await this.email.sendEmail({
+            to: req.recipientEmail,
+            subject: req.subject || "Your contract is ready for preview",
+            html: `<p>Hello ${req.recipientName || "there"},</p>
+                   <p>Your ${req.seasonYear ? `${req.seasonYear} ` : ""}contract is now available for preview.</p>
+                   <p>You can view it at: <a href="${this.signingUrl(req.token)}">${this.signingUrl(req.token)}</a></p>
+                   <p>Signing will open soon.</p>`,
+            campgroundId: req.campgroundId
+          });
+        }
+
+        this.logger.log(`Contract ${req.id} transitioned to preview`);
+      } catch (err) {
+        this.logger.warn(`Failed to transition ${req.id} to preview: ${err}`);
+      }
+    }
+
+    // Find contracts that should transition from preview to sent
+    const toSent = await this.prisma.signatureRequest.findMany({
+      where: {
+        status: { in: [SignatureRequestStatus.draft, SignatureRequestStatus.preview] },
+        availableForSigningAt: { lte: now }
+      },
+      take: 50
+    });
+
+    for (const req of toSent) {
+      try {
+        const cadenceDays = this.getReminderCadenceDays(req);
+        const reminderAt = this.computeReminder(req.expiresAt, 2, cadenceDays);
+
+        await this.prisma.signatureRequest.update({
+          where: { id: req.id },
+          data: {
+            status: SignatureRequestStatus.sent,
+            sentAt: now,
+            reminderAt
+          }
+        });
+
+        // Send the signing notification
+        await this.deliverRequest(req);
+
+        this.logger.log(`Contract ${req.id} transitioned to sent (signing now open)`);
+      } catch (err) {
+        this.logger.warn(`Failed to transition ${req.id} to sent: ${err}`);
       }
     }
   }

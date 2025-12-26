@@ -9173,27 +9173,35 @@ export const apiClient = {
   // Tasks
   async getOpTasks(campgroundId: string, filters?: {
     categories?: string[];
+    category?: string;
     states?: string[];
+    state?: string;
     priorities?: string[];
+    priority?: string;
     assignedToUserId?: string;
     assignedToTeamId?: string;
     siteId?: string;
     slaStatus?: string;
     dueBefore?: string;
     dueAfter?: string;
+    excludeCompleted?: boolean;
     limit?: number;
     offset?: number;
   }) {
     const params = new URLSearchParams();
     if (filters?.categories?.length) params.set("categories", filters.categories.join(","));
+    if (filters?.category) params.set("category", filters.category);
     if (filters?.states?.length) params.set("states", filters.states.join(","));
+    if (filters?.state) params.set("state", filters.state);
     if (filters?.priorities?.length) params.set("priorities", filters.priorities.join(","));
+    if (filters?.priority) params.set("priority", filters.priority);
     if (filters?.assignedToUserId) params.set("assignedToUserId", filters.assignedToUserId);
     if (filters?.assignedToTeamId) params.set("assignedToTeamId", filters.assignedToTeamId);
     if (filters?.siteId) params.set("siteId", filters.siteId);
     if (filters?.slaStatus) params.set("slaStatus", filters.slaStatus);
     if (filters?.dueBefore) params.set("dueBefore", filters.dueBefore);
     if (filters?.dueAfter) params.set("dueAfter", filters.dueAfter);
+    if (filters?.excludeCompleted) params.set("excludeCompleted", "true");
     if (filters?.limit) params.set("limit", String(filters.limit));
     if (filters?.offset) params.set("offset", String(filters.offset));
     const res = await fetch(`${API_BASE}/op-tasks/${campgroundId}/tasks?${params}`, {
@@ -9677,6 +9685,140 @@ export const apiClient = {
       body: JSON.stringify({ escalateToUserId }),
     });
     return parseResponse<any>(res);
+  },
+
+  // ============================================================================
+  // GAMIFICATION
+  // ============================================================================
+
+  async getLeaderboard(campgroundId: string, options?: { period?: 'week' | 'month' | 'all_time'; limit?: number }) {
+    const params = new URLSearchParams();
+    if (options?.period) params.append('period', options.period);
+    if (options?.limit) params.append('limit', String(options.limit));
+    const queryString = params.toString();
+    const res = await fetch(`${API_BASE}/op-tasks/${campgroundId}/gamification/leaderboard${queryString ? `?${queryString}` : ''}`, {
+      headers: scopedHeaders(),
+    });
+    return parseResponse<Array<{
+      userId: string;
+      userName: string;
+      totalPoints: number;
+      periodPoints: number;
+      rank: number;
+      level: number;
+      tasksCompleted: number;
+      streak: number;
+      badges: number;
+    }>>(res);
+  },
+
+  async getBadges(campgroundId: string) {
+    const res = await fetch(`${API_BASE}/op-tasks/${campgroundId}/gamification/badges`, {
+      headers: scopedHeaders(),
+    });
+    return parseResponse<Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      icon: string;
+      category: string;
+      tier: string;
+      points: number;
+      earnedCount: number;
+    }>>(res);
+  },
+
+  async seedDefaultBadges(campgroundId: string) {
+    const res = await fetch(`${API_BASE}/op-tasks/${campgroundId}/gamification/badges/seed`, {
+      method: "POST",
+      headers: scopedHeaders(),
+    });
+    return parseResponse<{ seeded: number }>(res);
+  },
+
+  async getStaffGamificationProfile(campgroundId: string, userId: string) {
+    const res = await fetch(`${API_BASE}/op-tasks/${campgroundId}/gamification/staff/${userId}`, {
+      headers: scopedHeaders(),
+    });
+    return parseResponse<{
+      userId: string;
+      userName: string;
+      level: number;
+      totalPoints: number;
+      weekPoints: number;
+      monthPoints: number;
+      xpToNextLevel: number;
+      currentStreak: number;
+      longestStreak: number;
+      totalTasksCompleted: number;
+      slaComplianceRate: number;
+      weeklyRank: number | null;
+      monthlyRank: number | null;
+      badges: Array<{
+        id: string;
+        name: string;
+        icon: string;
+        tier: string;
+        earnedAt: string;
+      }>;
+      recentActivity: Array<{
+        date: string;
+        tasksCompleted: number;
+        pointsEarned: number;
+      }>;
+    }>(res);
+  },
+
+  async getMyGamificationStats(campgroundId: string) {
+    const res = await fetch(`${API_BASE}/op-tasks/${campgroundId}/gamification/my-stats`, {
+      headers: scopedHeaders(),
+    });
+    return parseResponse<{
+      userId: string;
+      userName: string;
+      level: number;
+      totalPoints: number;
+      weekPoints: number;
+      monthPoints: number;
+      xpToNextLevel: number;
+      currentStreak: number;
+      longestStreak: number;
+      totalTasksCompleted: number;
+      slaComplianceRate: number;
+      weeklyRank: number | null;
+      monthlyRank: number | null;
+      badges: Array<{
+        id: string;
+        name: string;
+        icon: string;
+        tier: string;
+        earnedAt: string;
+      }>;
+      recentActivity: Array<{
+        date: string;
+        tasksCompleted: number;
+        pointsEarned: number;
+      }>;
+    }>(res);
+  },
+
+  async getAllStaffGamificationStats(campgroundId: string) {
+    const res = await fetch(`${API_BASE}/op-tasks/${campgroundId}/gamification/all-staff`, {
+      headers: scopedHeaders(),
+    });
+    return parseResponse<Array<{
+      userId: string;
+      userName: string;
+      level: number;
+      totalPoints: number;
+      weekPoints: number;
+      monthPoints: number;
+      currentStreak: number;
+      tasksCompleted: number;
+      slaComplianceRate: number;
+      badgeCount: number;
+    }>>(res);
   },
 };
 

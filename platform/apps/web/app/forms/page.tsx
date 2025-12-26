@@ -22,10 +22,11 @@ import {
   AlertTriangle, PawPrint, Loader2, ChevronUp, Settings2,
   ChevronDown, Type, Hash, CheckSquare, List, AlignLeft, Phone, Mail, X,
   Calendar, Clock, Send, Users, Zap, Link2, Bell, RefreshCw, Search,
-  ScrollText, Scale, FileSignature
+  ScrollText, Scale, FileSignature, PenLine
 } from "lucide-react";
 import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../lib/utils";
+import { ContractsTab } from "./ContractsTab";
 
 // Question types with friendly labels
 const questionTypes = [
@@ -1489,6 +1490,7 @@ export default function FormsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormTemplateInput>(emptyForm);
   const [modalTab, setModalTab] = useState<"questions" | "settings">("questions");
+  const [mainTab, setMainTab] = useState<"forms" | "contracts">("forms");
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -1779,13 +1781,27 @@ export default function FormsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="space-y-6">
-        <div role="status" aria-live="polite" className="sr-only">
-          {isLoading ? "Loading forms..." : `${allTemplates.length} forms`}
-        </div>
+      {/* Main Page Tabs */}
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "forms" | "contracts")} className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="forms" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Forms & Waivers
+          </TabsTrigger>
+          <TabsTrigger value="contracts" className="flex items-center gap-2">
+            <PenLine className="h-4 w-4" />
+            Contracts
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Forms List Card */}
-        <Card>
+        {/* Forms Tab Content */}
+        <TabsContent value="forms" className="space-y-6">
+          <div role="status" aria-live="polite" className="sr-only">
+            {isLoading ? "Loading forms..." : `${allTemplates.length} forms`}
+          </div>
+
+          {/* Forms List Card */}
+          <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -1882,21 +1898,27 @@ export default function FormsPage() {
           </CardContent>
         </Card>
 
-        {/* Manual Attach Card */}
-        {allTemplates.length > 0 && campgroundId && (
-          <Card>
-            <CardContent className="pt-6">
-              <ManualAttach
-                templates={allTemplates}
-                campgroundId={campgroundId}
-                onAttach={(templateId, reservationId, guestId) => {
-                  attachMutation.mutate({ templateId, reservationId, guestId });
-                }}
-              />
-            </CardContent>
-          </Card>
-        )}
-      </div>
+          {/* Manual Attach Card */}
+          {allTemplates.length > 0 && campgroundId && (
+            <Card>
+              <CardContent className="pt-6">
+                <ManualAttach
+                  templates={allTemplates}
+                  campgroundId={campgroundId}
+                  onAttach={(templateId, reservationId, guestId) => {
+                    attachMutation.mutate({ templateId, reservationId, guestId });
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Contracts Tab Content */}
+        <TabsContent value="contracts">
+          <ContractsTab campgroundId={campgroundId} />
+        </TabsContent>
+      </Tabs>
 
       {/* Create/Edit Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

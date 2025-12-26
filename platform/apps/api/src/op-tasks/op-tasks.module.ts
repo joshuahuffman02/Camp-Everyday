@@ -12,6 +12,7 @@ import {
   OpTeamService,
   OpSlaService,
 } from './services';
+import { OpGamificationService } from './services/op-gamification.service';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import {
     OpRecurrenceService,
     OpTeamService,
     OpSlaService,
+    OpGamificationService,
     OpReservationListener,
   ],
   exports: [
@@ -36,6 +38,7 @@ import {
     OpRecurrenceService,
     OpTeamService,
     OpSlaService,
+    OpGamificationService,
   ],
 })
 export class OpTasksModule {}

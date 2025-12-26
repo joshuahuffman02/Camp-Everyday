@@ -177,3 +177,19 @@ export const DropdownMenuItem = React.forwardRef<HTMLButtonElement, DropdownMenu
   }
 );
 DropdownMenuItem.displayName = "DropdownMenuItem";
+
+type DropdownMenuSeparatorProps = React.HTMLAttributes<HTMLDivElement>;
+
+export const DropdownMenuSeparator = React.forwardRef<HTMLDivElement, DropdownMenuSeparatorProps>(
+  ({ className, ...props }, ref) => {
+    return (
+      <div
+        ref={ref}
+        role="separator"
+        className={cn("-mx-1 my-1 h-px bg-slate-200", className)}
+        {...props}
+      />
+    );
+  }
+);
+DropdownMenuSeparator.displayName = "DropdownMenuSeparator";

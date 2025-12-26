@@ -538,7 +538,11 @@ model User {
   opTasksEscalated         OpTask[]             @relation("OpTaskEscalatedTo")
   opTasksCreated           OpTask[]             @relation("OpTaskCreatedBy")
   opTaskComments           OpTaskComment[]      @relation("OpTaskCommentAuthor")
-  opStaffStats             OpStaffStats[]       @relation("UserOpStaffStats")
+
+  // Gamification relations
+  opStaffStats             OpStaffStats[]       @relation("UserOpStats")
+  opDailyStats             OpStaffDailyStats[]  @relation("UserOpDailyStats")
+  opBadges                 OpStaffBadge[]       @relation("UserOpBadges")
 
   // Customizable menu configuration
   menuConfig               UserMenuConfig?
@@ -1332,7 +1336,12 @@ model Campground {
   opTaskTriggers         OpTaskTrigger[]
   opRecurrenceRules      OpRecurrenceRule[]
   opTasks                OpTask[]
-  opStaffStats           OpStaffStats[]
+
+  // Gamification
+  opBadges               OpBadge[]            @relation("CampgroundOpBadges")
+  opStaffBadges          OpStaffBadge[]       @relation("CampgroundOpStaffBadges")
+  opStaffStats           OpStaffStats[]       @relation("CampgroundOpStaffStats")
+  opStaffDailyStats      OpStaffDailyStats[]  @relation("CampgroundOpStaffDailyStats")
 
   // Inventory batch & expiration tracking relations
   inventoryBatches           InventoryBatch[]
@@ -8288,6 +8297,161 @@ model OpTeamMember {
   @@index([userId])
 }
 
+// ============================================================
+// GAMIFICATION - Staff performance tracking and badges
+// ============================================================
+
+// Badge definitions
+model OpBadge {
+  id              String           @id @default(cuid())
+  campgroundId    String?          // null = system-wide badge
+  code            String           // unique identifier like "speed_demon", "perfect_week"
+  name            String           // "Speed Demon", "Perfect Week"
+  description     String           // "Complete 10 tasks under SLA in a single day"
+  icon            String           // emoji or icon name
+  category        OpBadgeCategory
+  tier            OpBadgeTier      @default(bronze)
+
+  // Earning criteria (JSON)
+  // { type: "task_count" | "streak" | "sla_compliance" | "special", threshold: number, timeframe?: "day" | "week" | "month" }
+  criteria        Json
+
+  // Points awarded when earned
+  points          Int              @default(10)
+
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+
+  campground      Campground?      @relation("CampgroundOpBadges", fields: [campgroundId], references: [id], onDelete: Cascade)
+  earnedBy        OpStaffBadge[]
+
+  @@unique([campgroundId, code])
+  @@index([campgroundId])
+  @@index([category])
+}
+
+enum OpBadgeCategory {
+  speed           // Fast task completion
+  volume          // High task count
+  quality         // SLA compliance, no re-opens
+  streak          // Consecutive days/weeks
+  teamwork        // Helping others, team goals
+  milestone       // 100 tasks, 1 year, etc.
+  special         // Seasonal, event-based
+}
+
+enum OpBadgeTier {
+  bronze
+  silver
+  gold
+  platinum
+}
+
+// Badges earned by staff members
+model OpStaffBadge {
+  id              String      @id @default(cuid())
+  userId          String
+  badgeId         String
+  campgroundId    String
+
+  earnedAt        DateTime    @default(now())
+
+  // Context when badge was earned
+  context         Json?       // { taskCount: 15, streak: 7, etc. }
+
+  user            User        @relation("UserOpBadges", fields: [userId], references: [id], onDelete: Cascade)
+  badge           OpBadge     @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  campground      Campground  @relation("CampgroundOpStaffBadges", fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId, campgroundId])
+  @@index([userId])
+  @@index([badgeId])
+  @@index([campgroundId])
+  @@index([earnedAt])
+}
+
+// Daily stats snapshot for staff (for streaks and historical tracking)
+model OpStaffDailyStats {
+  id                  String      @id @default(cuid())
+  userId              String
+  campgroundId        String
+  date                DateTime    @db.Date
+
+  // Task counts
+  tasksCompleted      Int         @default(0)
+  tasksOnTime         Int         @default(0)
+  tasksLate           Int         @default(0)
+
+  // Time metrics (in minutes)
+  totalWorkMinutes    Int         @default(0)
+  avgCompletionTime   Int?        // Average minutes per task
+  fastestTask         Int?        // Fastest completion in minutes
+
+  // Points earned today
+  pointsEarned        Int         @default(0)
+
+  // Streak tracking
+  isWorkDay           Boolean     @default(true)  // Did they complete at least 1 task?
+
+  user                User        @relation("UserOpDailyStats", fields: [userId], references: [id], onDelete: Cascade)
+  campground          Campground  @relation("CampgroundOpStaffDailyStats", fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campgroundId, date])
+  @@index([userId])
+  @@index([campgroundId])
+  @@index([date])
+}
+
+// Aggregate staff stats (updated periodically)
+model OpStaffStats {
+  id                  String      @id @default(cuid())
+  userId              String
+  campgroundId        String
+
+  // Lifetime stats
+  totalTasksCompleted Int         @default(0)
+  totalTasksOnTime    Int         @default(0)
+  totalTasksLate      Int         @default(0)
+  totalPoints         Int         @default(0)
+
+  // Current streaks
+  currentStreak       Int         @default(0)  // Consecutive work days
+  longestStreak       Int         @default(0)
+  currentPerfectStreak Int        @default(0)  // Consecutive days with 100% SLA
+  longestPerfectStreak Int        @default(0)
+
+  // This week
+  weekTasksCompleted  Int         @default(0)
+  weekTasksOnTime     Int         @default(0)
+  weekPoints          Int         @default(0)
+
+  // This month
+  monthTasksCompleted Int         @default(0)
+  monthTasksOnTime    Int         @default(0)
+  monthPoints         Int         @default(0)
+
+  // Performance metrics
+  avgCompletionTime   Int?        // Minutes
+  slaComplianceRate   Float       @default(100)  // Percentage
+
+  // Ranking (updated periodically)
+  weeklyRank          Int?
+  monthlyRank         Int?
+  allTimeRank         Int?
+
+  lastTaskAt          DateTime?
+  updatedAt           DateTime    @updatedAt
+
+  user                User        @relation("UserOpStats", fields: [userId], references: [id], onDelete: Cascade)
+  campground          Campground  @relation("CampgroundOpStaffStats", fields: [campgroundId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campgroundId])
+  @@index([campgroundId])
+  @@index([totalPoints])
+  @@index([weekPoints])
+  @@index([monthPoints])
+}
+
 // Task template - defines what a task looks like (checklists, SLA, etc.)
 model OpTaskTemplate {
   id                 String          @id @default(cuid())
@@ -8534,44 +8698,3 @@ model OpTaskComment {
   @@index([taskId, createdAt])
 }
 
-// Staff gamification stats for operations
-model OpStaffStats {
-  id                    String    @id @default(cuid())
-  campgroundId          String
-  userId                String
-
-  // Task completion stats
-  tasksCompletedTotal   Int       @default(0)
-  tasksCompletedToday   Int       @default(0)
-  tasksCompletedWeek    Int       @default(0)
-  tasksCompletedMonth   Int       @default(0)
-
-  // SLA performance
-  onTimeCompletions     Int       @default(0)
-  lateCompletions       Int       @default(0)
-  slaComplianceRate     Float     @default(100.0)  // Percentage
-
-  // Streaks
-  currentStreak         Int       @default(0)  // Days with at least one task completed
-  longestStreak         Int       @default(0)
-  lastActiveDate        DateTime?
-
-  // XP and level
-  totalXp               Int       @default(0)
-  level                 Int       @default(1)
-
-  // Badges earned (JSON array of badge IDs)
-  badges                Json      @default("[]")
-
-  // Stats period tracking
-  periodStartDate       DateTime  @default(now())
-
-  updatedAt             DateTime  @updatedAt
-
-  campground            Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
-  user                  User       @relation("UserOpStaffStats", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([campgroundId, userId])
-  @@index([campgroundId])
-  @@index([userId])
-}

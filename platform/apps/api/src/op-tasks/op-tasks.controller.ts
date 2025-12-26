@@ -20,6 +20,7 @@ import {
   OpTeamService,
   OpSlaService,
 } from './services';
+import { OpGamificationService } from './services/op-gamification.service';
 import {
   CreateOpTaskDto,
   UpdateOpTaskDto,
@@ -47,6 +48,7 @@ export class OpTasksController {
     private recurrenceService: OpRecurrenceService,
     private teamService: OpTeamService,
     private slaService: OpSlaService,
+    private gamificationService: OpGamificationService,
   ) {}
 
   // ============================================================================
@@ -427,5 +429,52 @@ export class OpTasksController {
     @Body() body: { escalateToUserId: string },
   ) {
     return this.slaService.escalateTask(taskId, body.escalateToUserId);
+  }
+
+  // ============================================================================
+  // GAMIFICATION
+  // ============================================================================
+
+  @Get(':campgroundId/gamification/leaderboard')
+  async getLeaderboard(
+    @Param('campgroundId') campgroundId: string,
+    @Query('period') period?: 'week' | 'month' | 'all_time',
+    @Query('limit') limit?: string,
+  ) {
+    return this.gamificationService.getLeaderboard(campgroundId, {
+      period,
+      limit: limit ? parseInt(limit) : undefined,
+    });
+  }
+
+  @Get(':campgroundId/gamification/badges')
+  async getBadges(@Param('campgroundId') campgroundId: string) {
+    return this.gamificationService.getBadges(campgroundId);
+  }
+
+  @Post(':campgroundId/gamification/badges/seed')
+  async seedDefaultBadges(@Param('campgroundId') campgroundId: string) {
+    return this.gamificationService.seedDefaultBadges(campgroundId);
+  }
+
+  @Get(':campgroundId/gamification/staff/:userId')
+  async getStaffProfile(
+    @Param('campgroundId') campgroundId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.gamificationService.getStaffProfile(userId, campgroundId);
+  }
+
+  @Get(':campgroundId/gamification/my-stats')
+  async getMyStats(
+    @Param('campgroundId') campgroundId: string,
+    @Request() req: any,
+  ) {
+    return this.gamificationService.getStaffProfile(req.user.id, campgroundId);
+  }
+
+  @Get(':campgroundId/gamification/all-staff')
+  async getAllStaffStats(@Param('campgroundId') campgroundId: string) {
+    return this.gamificationService.getAllStaffStats(campgroundId);
   }
 }
