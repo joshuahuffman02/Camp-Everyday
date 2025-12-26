@@ -463,25 +463,12 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
 
               <div className="space-y-1.5">
                 <Label className="text-xs">Office Closing Time</Label>
-                <select
+                <Input
+                  type="time"
                   value={form.officeClosesAt}
                   onChange={(e) => setForm((s) => ({ ...s, officeClosesAt: e.target.value }))}
-                  className="w-full md:w-48 h-10 px-3 rounded-md border border-input bg-background text-sm"
-                >
-                  <option value="12:00">12:00 PM (Noon)</option>
-                  <option value="13:00">1:00 PM</option>
-                  <option value="14:00">2:00 PM</option>
-                  <option value="15:00">3:00 PM</option>
-                  <option value="16:00">4:00 PM</option>
-                  <option value="17:00">5:00 PM</option>
-                  <option value="18:00">6:00 PM</option>
-                  <option value="19:00">7:00 PM</option>
-                  <option value="20:00">8:00 PM</option>
-                  <option value="21:00">9:00 PM</option>
-                  <option value="22:00">10:00 PM</option>
-                  <option value="23:00">11:00 PM</option>
-                  <option value="23:59">Midnight</option>
-                </select>
+                  className="w-full md:w-40"
+                />
                 <div className="bg-muted/50 rounded-lg p-3 mt-2 text-xs text-muted-foreground space-y-1">
                   <p className="font-medium text-foreground">How same-day booking cutoffs work:</p>
                   <p>• RV/tent sites can be booked anytime (no cutoff by default)</p>

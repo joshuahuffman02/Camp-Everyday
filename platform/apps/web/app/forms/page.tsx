@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
@@ -149,30 +149,23 @@ const conditionOperators = {
 // Generate unique ID for questions
 const generateId = () => `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-// Starter templates
-const starterTemplates: {
+// Starter templates - organized by category
+type StarterTemplate = {
   name: string;
   icon: React.ReactNode;
-  type: FormTemplateInput["type"];
+  type: FormType;
   description: string;
   questions: Question[];
   autoAttachMode: FormTemplateInput["autoAttachMode"];
   showAt: string[];
-}[] = [
-  {
-    name: "Liability Waiver",
-    icon: <Shield className="h-5 w-5" />,
-    type: "waiver",
-    description: "Standard liability and assumption of risk waiver",
-    autoAttachMode: "all_bookings",
-    showAt: ["during_booking"],
-    questions: [
-      { id: generateId(), label: "I acknowledge the inherent risks of camping activities", type: "checkbox", required: true },
-      { id: generateId(), label: "Emergency contact name", type: "text", required: true },
-      { id: generateId(), label: "Emergency contact phone", type: "phone", required: true },
-      { id: generateId(), label: "Any medical conditions we should know about?", type: "textarea", required: false },
-    ]
-  },
+  category: "collection" | "legal";
+  // Legal document specific
+  documentContent?: string;
+  enforcement?: FormTemplateInput["enforcement"];
+};
+
+const starterTemplates: StarterTemplate[] = [
+  // === Data Collection Templates ===
   {
     name: "Vehicle Registration",
     icon: <Car className="h-5 w-5" />,
@@ -180,6 +173,7 @@ const starterTemplates: {
     description: "Collect RV/vehicle details for registration",
     autoAttachMode: "site_classes",
     showAt: ["during_booking", "at_checkin"],
+    category: "collection",
     questions: [
       { id: generateId(), label: "Vehicle type", type: "select", options: ["RV/Motorhome", "Travel Trailer", "Fifth Wheel", "Tent", "Car/Truck"], required: true },
       { id: generateId(), label: "Vehicle length (feet)", type: "number", required: true },
@@ -188,18 +182,33 @@ const starterTemplates: {
     ]
   },
   {
-    name: "Pet Policy",
+    name: "Pet Information",
     icon: <PawPrint className="h-5 w-5" />,
     type: "intake",
-    description: "Pet information and agreement",
+    description: "Collect pet details and vaccination status",
     autoAttachMode: "manual",
     showAt: ["at_checkin"],
+    category: "collection",
     questions: [
       { id: generateId(), label: "Pet type", type: "select", options: ["Dog", "Cat", "Other"], required: true },
       { id: generateId(), label: "Pet breed", type: "text", required: true },
       { id: generateId(), label: "Pet name", type: "text", required: true },
       { id: generateId(), label: "Is your pet up to date on vaccinations?", type: "checkbox", required: true },
-      { id: generateId(), label: "I agree to keep my pet on a leash at all times", type: "checkbox", required: true },
+    ]
+  },
+  {
+    name: "Guest Intake",
+    icon: <ClipboardList className="h-5 w-5" />,
+    type: "intake",
+    description: "Emergency contacts and special requests",
+    autoAttachMode: "all_bookings",
+    showAt: ["during_booking"],
+    category: "collection",
+    questions: [
+      { id: generateId(), label: "Emergency contact name", type: "text", required: true },
+      { id: generateId(), label: "Emergency contact phone", type: "phone", required: true },
+      { id: generateId(), label: "Any medical conditions we should know about?", type: "textarea", required: false },
+      { id: generateId(), label: "Special requests or needs", type: "textarea", required: false },
     ]
   },
   {
@@ -209,17 +218,210 @@ const starterTemplates: {
     description: "Start from scratch with your own questions",
     autoAttachMode: "manual",
     showAt: ["on_demand"],
+    category: "collection",
+    questions: []
+  },
+  // === Legal Document Templates ===
+  {
+    name: "Park Rules Agreement",
+    icon: <ScrollText className="h-5 w-5" />,
+    type: "park_rules",
+    description: "Campground rules and regulations acknowledgement",
+    autoAttachMode: "all_bookings",
+    showAt: ["during_booking"],
+    category: "legal",
+    enforcement: "post_booking",
+    documentContent: `# Park Rules & Regulations
+
+Welcome to our campground! Please read and acknowledge the following rules:
+
+## Quiet Hours
+- Quiet hours are from 10:00 PM to 8:00 AM
+- Please be respectful of your neighbors at all times
+
+## Pets
+- All pets must be on a leash no longer than 6 feet
+- Clean up after your pet immediately
+- Pets may not be left unattended at your site
+
+## Campfires
+- Fires are only permitted in designated fire rings
+- Never leave fires unattended
+- Campfires must be fully extinguished before leaving or sleeping
+
+## Speed Limit
+- The speed limit throughout the campground is 5 MPH
+- Watch for children and pets
+
+## Check-out
+- Check-out time is 11:00 AM
+- Please leave your site clean and free of trash`,
+    questions: [
+      { id: generateId(), label: "I have read and agree to follow the park rules and regulations", type: "checkbox", required: true },
+    ]
+  },
+  {
+    name: "Liability Waiver",
+    icon: <Scale className="h-5 w-5" />,
+    type: "liability_waiver",
+    description: "Release of liability and assumption of risk",
+    autoAttachMode: "all_bookings",
+    showAt: ["during_booking"],
+    category: "legal",
+    enforcement: "pre_booking",
+    documentContent: `# Release of Liability and Assumption of Risk
+
+By signing this waiver, I acknowledge and agree to the following:
+
+## Assumption of Risk
+I understand that camping and outdoor activities involve inherent risks including, but not limited to: uneven terrain, wildlife encounters, weather conditions, fire hazards, and water-related activities.
+
+## Release of Liability
+I hereby release, waive, and discharge the campground, its owners, operators, employees, and agents from any and all liability, claims, demands, or causes of action that I may have arising out of or related to any loss, damage, or injury that may be sustained during my stay.
+
+## Medical Authorization
+In the event of an emergency, I authorize the campground staff to seek emergency medical treatment on my behalf.
+
+## Insurance
+I understand that the campground does not provide insurance coverage for guests and I am responsible for my own insurance.`,
+    questions: [
+      { id: generateId(), label: "I have read and understand this waiver", type: "checkbox", required: true },
+      { id: generateId(), label: "I voluntarily agree to assume all risks and release the campground from liability", type: "checkbox", required: true },
+      { id: generateId(), label: "Emergency contact name", type: "text", required: true },
+      { id: generateId(), label: "Emergency contact phone", type: "phone", required: true },
+    ]
+  },
+  {
+    name: "Long-Term Stay Agreement",
+    icon: <FileSignature className="h-5 w-5" />,
+    type: "long_term_stay",
+    description: "Extended stay terms and conditions",
+    autoAttachMode: "manual",
+    showAt: ["after_booking"],
+    category: "legal",
+    enforcement: "pre_checkin",
+    documentContent: `# Long-Term Stay Agreement
+
+This agreement outlines the terms and conditions for extended stays (30+ days).
+
+## Payment Terms
+- Rent is due on the 1st of each month
+- A late fee of $25 will be applied after the 5th of the month
+- Security deposit equal to one month's rent is required
+
+## Site Maintenance
+- Guest is responsible for maintaining the cleanliness of their site
+- Grass must be kept trimmed if applicable
+- No permanent structures may be erected without written permission
+
+## Utilities
+- Electric usage is metered and billed monthly
+- Water and sewer are included in the site fee
+
+## Termination
+- Either party may terminate this agreement with 30 days written notice
+- Immediate termination may occur for violation of park rules`,
+    questions: [
+      { id: generateId(), label: "I agree to the payment terms outlined above", type: "checkbox", required: true },
+      { id: generateId(), label: "I agree to maintain my site according to park standards", type: "checkbox", required: true },
+      { id: generateId(), label: "I understand the termination policy", type: "checkbox", required: true },
+    ]
+  },
+  {
+    name: "Custom Legal Document",
+    icon: <FileText className="h-5 w-5" />,
+    type: "legal_agreement",
+    description: "Create your own legal agreement",
+    autoAttachMode: "manual",
+    showAt: ["on_demand"],
+    category: "legal",
+    enforcement: "post_booking",
+    documentContent: "",
     questions: []
   },
 ];
 
-// Form type icons
-const typeIcons: Record<string, React.ReactNode> = {
-  waiver: <Shield className="h-4 w-4" />,
-  vehicle: <Car className="h-4 w-4" />,
-  intake: <ClipboardList className="h-4 w-4" />,
-  custom: <FileQuestion className="h-4 w-4" />,
+// Form type icons and config
+const typeConfig: Record<string, { icon: React.ReactNode; label: string; category: "collection" | "legal" }> = {
+  // Data collection
+  waiver: { icon: <Shield className="h-4 w-4" />, label: "Waiver", category: "collection" },
+  vehicle: { icon: <Car className="h-4 w-4" />, label: "Vehicle", category: "collection" },
+  intake: { icon: <ClipboardList className="h-4 w-4" />, label: "Intake", category: "collection" },
+  custom: { icon: <FileQuestion className="h-4 w-4" />, label: "Custom", category: "collection" },
+  // Legal documents
+  park_rules: { icon: <ScrollText className="h-4 w-4" />, label: "Park Rules", category: "legal" },
+  liability_waiver: { icon: <Scale className="h-4 w-4" />, label: "Liability", category: "legal" },
+  long_term_stay: { icon: <FileSignature className="h-4 w-4" />, label: "Long-Term", category: "legal" },
+  legal_agreement: { icon: <FileText className="h-4 w-4" />, label: "Legal", category: "legal" },
 };
+
+// Legacy typeIcons for backwards compatibility
+const typeIcons: Record<string, React.ReactNode> = Object.fromEntries(
+  Object.entries(typeConfig).map(([k, v]) => [k, v.icon])
+);
+
+// ==== DUAL-BACKEND MAPPING FUNCTIONS ====
+
+// Map FormTemplateInput to Policy API payload
+function mapFormToPolicy(form: FormTemplateInput, campgroundId: string) {
+  return {
+    name: form.title,
+    description: form.description || null,
+    content: form.documentContent || "",
+    type: form.type,
+    isActive: form.isActive,
+    autoSend: form.autoAttachMode === "all_bookings",
+    siteClassId: form.siteClassIds?.[0] || null,
+    policyConfig: {
+      enforcement: form.enforcement || "post_booking",
+      requireSignature: form.requireSignature ?? true,
+      showAt: form.showAt,
+      isRequired: form.isRequired,
+      allowSkipWithNote: form.allowSkipWithNote,
+      validityDays: form.validityDays,
+      sendReminder: form.sendReminder,
+      reminderDaysBefore: form.reminderDaysBefore,
+      displayConditions: form.displayConditions,
+      conditionLogic: form.conditionLogic,
+      questions: form.questions, // Store questions in policyConfig for legal docs
+    }
+  };
+}
+
+// Map Policy API response to FormTemplateInput
+function mapPolicyToForm(policy: any): FormTemplateInput & { id: string; updatedAt: string; createdAt: string } {
+  const config = policy.policyConfig || {};
+  return {
+    id: policy.id,
+    title: policy.name,
+    type: policy.type as FormType,
+    description: policy.description || "",
+    documentContent: policy.content || "",
+    questions: config.questions || [],
+    isActive: policy.isActive ?? true,
+    autoAttachMode: policy.autoSend ? "all_bookings" : (policy.siteClassId ? "site_classes" : "manual"),
+    siteClassIds: policy.siteClassId ? [policy.siteClassId] : [],
+    showAt: config.showAt || ["during_booking"],
+    isRequired: config.isRequired ?? true,
+    allowSkipWithNote: config.allowSkipWithNote ?? false,
+    validityDays: config.validityDays ?? null,
+    sendReminder: config.sendReminder ?? false,
+    reminderDaysBefore: config.reminderDaysBefore ?? 1,
+    displayConditions: (config.displayConditions || []).map((c: any) => ({
+      id: generateId(),
+      field: c.field,
+      operator: c.operator,
+      value: c.value
+    })),
+    conditionLogic: config.conditionLogic || "all",
+    enforcement: config.enforcement || "post_booking",
+    requireSignature: config.requireSignature ?? true,
+    _backend: "policy" as const,
+    _originalId: policy.id,
+    updatedAt: policy.updatedAt,
+    createdAt: policy.createdAt,
+  };
+}
 
 // Show At options
 const showAtOptions = [
@@ -1299,9 +1501,17 @@ export default function FormsPage() {
     setCampgroundId(cg);
   }, []);
 
-  const templatesQuery = useQuery({
+  // Query for form templates (data collection backend)
+  const formTemplatesQuery = useQuery({
     queryKey: ["form-templates", campgroundId],
     queryFn: () => apiClient.getFormTemplates(campgroundId!),
+    enabled: !!campgroundId,
+  });
+
+  // Query for policy templates (legal documents backend)
+  const policyTemplatesQuery = useQuery({
+    queryKey: ["policy-templates", campgroundId],
+    queryFn: () => apiClient.getPolicyTemplates(campgroundId!),
     enabled: !!campgroundId,
   });
 
@@ -1311,44 +1521,110 @@ export default function FormsPage() {
     enabled: !!campgroundId,
   });
 
+  // Merge both form templates and policy templates into a unified list
+  const allTemplates = useMemo(() => {
+    const forms = (formTemplatesQuery.data || []).map((f: any) => ({
+      ...f,
+      _backend: "form" as const,
+    }));
+
+    // Only include legal document types from policy templates
+    const policies = (policyTemplatesQuery.data || [])
+      .filter((p: any) => isLegalDocumentType(p.type))
+      .map((p: any) => {
+        const mapped = mapPolicyToForm(p);
+        return {
+          id: p.id,
+          title: mapped.title,
+          type: mapped.type,
+          description: mapped.description,
+          fields: { questions: mapped.questions },
+          isActive: mapped.isActive,
+          autoAttachMode: mapped.autoAttachMode,
+          siteClassIds: mapped.siteClassIds,
+          showAt: mapped.showAt,
+          documentContent: mapped.documentContent,
+          enforcement: mapped.enforcement,
+          requireSignature: mapped.requireSignature,
+          updatedAt: p.updatedAt,
+          createdAt: p.createdAt,
+          _backend: "policy" as const,
+        };
+      });
+
+    return [...forms, ...policies].sort((a, b) =>
+      new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+    );
+  }, [formTemplatesQuery.data, policyTemplatesQuery.data]);
+
+  // Combined loading state
+  const isLoading = formTemplatesQuery.isLoading || policyTemplatesQuery.isLoading;
+
   useEffect(() => {
-    if (templatesQuery.data) {
-      setIsFirstForm(templatesQuery.data.length === 0);
+    if (!isLoading) {
+      setIsFirstForm(allTemplates.length === 0);
     }
-  }, [templatesQuery.data]);
+  }, [isLoading, allTemplates.length]);
 
   const upsertMutation = useMutation({
     mutationFn: async () => {
-      const fields = questionsToFields(form.questions);
-      const payload = {
-        title: form.title,
-        type: form.type,
-        description: form.description || undefined,
-        fields,
-        isActive: form.isActive,
-        autoAttachMode: form.autoAttachMode,
-        siteClassIds: form.siteClassIds,
-        showAt: form.showAt,
-        isRequired: form.isRequired,
-        allowSkipWithNote: form.allowSkipWithNote,
-        validityDays: form.validityDays ?? undefined,
-        sendReminder: form.sendReminder,
-        reminderDaysBefore: form.reminderDaysBefore ?? undefined,
-        displayConditions: form.displayConditions.map(c => ({
-          field: c.field,
-          operator: c.operator,
-          value: c.value
-        })),
-        conditionLogic: form.conditionLogic,
-      };
+      // Route to appropriate backend based on form type
+      if (isLegalDocumentType(form.type)) {
+        // Use Policy API for legal documents
+        const policyPayload = mapFormToPolicy(form, campgroundId!);
 
-      if (editingId) {
-        return apiClient.updateFormTemplate(editingId, payload);
+        if (editingId) {
+          // Check if we're editing a policy or converting a form to a policy
+          const existingTemplate = allTemplates.find(t => t.id === editingId);
+          if (existingTemplate?._backend === "policy") {
+            return apiClient.updatePolicyTemplate(editingId, policyPayload);
+          }
+          // If converting from form to policy, create new policy and optionally delete old form
+          // For now, just create a new policy (user can manually delete old form if needed)
+          return apiClient.createPolicyTemplate(campgroundId!, policyPayload);
+        }
+        return apiClient.createPolicyTemplate(campgroundId!, policyPayload);
+      } else {
+        // Use Form API for data collection types
+        const fields = questionsToFields(form.questions);
+        const payload = {
+          title: form.title,
+          type: form.type,
+          description: form.description || undefined,
+          fields,
+          isActive: form.isActive,
+          autoAttachMode: form.autoAttachMode,
+          siteClassIds: form.siteClassIds,
+          showAt: form.showAt,
+          isRequired: form.isRequired,
+          allowSkipWithNote: form.allowSkipWithNote,
+          validityDays: form.validityDays ?? undefined,
+          sendReminder: form.sendReminder,
+          reminderDaysBefore: form.reminderDaysBefore ?? undefined,
+          displayConditions: form.displayConditions.map(c => ({
+            field: c.field,
+            operator: c.operator,
+            value: c.value
+          })),
+          conditionLogic: form.conditionLogic,
+        };
+
+        if (editingId) {
+          // Check if we're editing a form or converting a policy to a form
+          const existingTemplate = allTemplates.find(t => t.id === editingId);
+          if (existingTemplate?._backend === "form") {
+            return apiClient.updateFormTemplate(editingId, payload as any);
+          }
+          // If converting from policy to form, create new form
+          return apiClient.createFormTemplate({ campgroundId: campgroundId!, ...payload } as any);
+        }
+        return apiClient.createFormTemplate({ campgroundId: campgroundId!, ...payload } as any);
       }
-      return apiClient.createFormTemplate({ campgroundId: campgroundId!, ...payload });
     },
     onSuccess: () => {
+      // Invalidate both queries to refresh the merged list
       queryClient.invalidateQueries({ queryKey: ["form-templates", campgroundId] });
+      queryClient.invalidateQueries({ queryKey: ["policy-templates", campgroundId] });
       setIsModalOpen(false);
       if (!editingId && isFirstForm) {
         setCelebrationName(form.title);
@@ -1366,9 +1642,18 @@ export default function FormsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiClient.deleteFormTemplate(id),
+    mutationFn: (id: string) => {
+      // Find the template to determine which backend to use
+      const template = allTemplates.find(t => t.id === id);
+      if (template?._backend === "policy") {
+        return apiClient.deletePolicyTemplate(id);
+      }
+      return apiClient.deleteFormTemplate(id);
+    },
     onSuccess: () => {
+      // Invalidate both queries to refresh the merged list
       queryClient.invalidateQueries({ queryKey: ["form-templates", campgroundId] });
+      queryClient.invalidateQueries({ queryKey: ["policy-templates", campgroundId] });
       toast({ title: "Form deleted" });
       setDeleteConfirmId(null);
     },
@@ -1416,7 +1701,8 @@ export default function FormsPage() {
   };
 
   const openEdit = (id: string) => {
-    const t = templatesQuery.data?.find((x: any) => x.id === id);
+    // Use merged allTemplates list to find the template
+    const t = allTemplates.find((x: any) => x.id === id);
     if (!t) return;
     setEditingId(id);
     setForm({
@@ -1440,12 +1726,18 @@ export default function FormsPage() {
         value: c.value
       })),
       conditionLogic: t.conditionLogic || "all",
+      // Legal document fields
+      documentContent: t.documentContent || "",
+      enforcement: t.enforcement || "post_booking",
+      requireSignature: t.requireSignature ?? true,
+      _backend: t._backend,
+      _originalId: t.id,
     });
     setModalTab("questions");
     setIsModalOpen(true);
   };
 
-  const formToDelete = templatesQuery.data?.find((t: any) => t.id === deleteConfirmId);
+  const formToDelete = allTemplates.find((t: any) => t.id === deleteConfirmId);
   const siteClasses = siteClassesQuery.data || [];
 
   // Helper to get auto-attach badge
@@ -1489,7 +1781,7 @@ export default function FormsPage() {
 
       <div className="space-y-6">
         <div role="status" aria-live="polite" className="sr-only">
-          {templatesQuery.isLoading ? "Loading forms..." : `${templatesQuery.data?.length || 0} forms`}
+          {isLoading ? "Loading forms..." : `${allTemplates.length} forms`}
         </div>
 
         {/* Forms List Card */}
@@ -1500,11 +1792,11 @@ export default function FormsPage() {
                 <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 text-white">
                   <FileText className="h-4 w-4" />
                 </span>
-                Forms & Waivers
+                Forms & Documents
               </CardTitle>
-              <CardDescription>Create forms, configure auto-attach rules, and manage submissions.</CardDescription>
+              <CardDescription>Create forms, legal documents, and configure auto-attach rules.</CardDescription>
             </div>
-            {campgroundId && !templatesQuery.isLoading && templatesQuery.data && templatesQuery.data.length > 0 && (
+            {campgroundId && !isLoading && allTemplates.length > 0 && (
               <Button onClick={openCreate} className="bg-gradient-to-r from-emerald-500 to-teal-500">
                 <Plus className="h-4 w-4 mr-2" />
                 New form
@@ -1519,20 +1811,20 @@ export default function FormsPage() {
               </div>
             )}
 
-            {templatesQuery.isLoading && (
+            {isLoading && (
               <div className="space-y-3">
                 <FormCardSkeleton />
                 <FormCardSkeleton />
               </div>
             )}
 
-            {campgroundId && !templatesQuery.isLoading && templatesQuery.data?.length === 0 && (
+            {campgroundId && !isLoading && allTemplates.length === 0 && (
               <EmptyFormsState onCreateClick={openCreate} onTemplateClick={openFromTemplate} />
             )}
 
-            {templatesQuery.data && templatesQuery.data.length > 0 && (
+            {allTemplates.length > 0 && (
               <div className="grid gap-3">
-                {templatesQuery.data.map((t: any, index: number) => (
+                {allTemplates.map((t: any) => (
                   <div
                     key={t.id}
                     className={cn(
@@ -1545,9 +1837,13 @@ export default function FormsPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-semibold text-slate-900">{t.title}</span>
                           <Badge variant="secondary" className="uppercase flex items-center gap-1">
-                            {typeIcons[t.type]}
-                            {t.type}
+                            {typeIcons[t.type] || <FileText className="h-4 w-4" />}
+                            {typeConfig[t.type]?.label || t.type}
                           </Badge>
+                          {/* Show category badge for legal documents */}
+                          {isLegalDocumentType(t.type) && (
+                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Legal</Badge>
+                          )}
                           {getAutoAttachBadge(t)}
                           <Badge variant={t.isActive ? "default" : "secondary"} className={t.isActive ? "bg-emerald-100 text-emerald-700" : ""}>
                             {t.isActive ? "Active" : "Inactive"}
@@ -1556,6 +1852,12 @@ export default function FormsPage() {
                         {t.description && <div className="text-sm text-slate-600">{t.description}</div>}
                         <div className="flex items-center gap-3 text-xs text-slate-500">
                           <span>{t.fields?.questions?.length || 0} questions</span>
+                          {isLegalDocumentType(t.type) && t.documentContent && (
+                            <>
+                              <span>•</span>
+                              <span>{t.documentContent.length > 100 ? 'Has document content' : ''}</span>
+                            </>
+                          )}
                           <span>•</span>
                           <span>Updated {new Date(t.updatedAt).toLocaleDateString()}</span>
                         </div>
@@ -1581,11 +1883,11 @@ export default function FormsPage() {
         </Card>
 
         {/* Manual Attach Card */}
-        {templatesQuery.data && templatesQuery.data.length > 0 && campgroundId && (
+        {allTemplates.length > 0 && campgroundId && (
           <Card>
             <CardContent className="pt-6">
               <ManualAttach
-                templates={templatesQuery.data}
+                templates={allTemplates}
                 campgroundId={campgroundId}
                 onAttach={(templateId, reservationId, guestId) => {
                   attachMutation.mutate({ templateId, reservationId, guestId });
@@ -1624,53 +1926,97 @@ export default function FormsPage() {
             <div className="flex-1 overflow-y-auto py-4">
               <TabsContent value="questions" className="mt-0 space-y-5">
                 {!editingId && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <label className="text-sm font-medium text-slate-900">Start with a template</label>
-                    <div className="flex flex-wrap gap-2">
-                      {starterTemplates.map((t) => (
-                        <button
-                          key={t.name}
-                          type="button"
-                          onClick={() => setForm(f => ({
-                            ...f,
-                            title: t.name,
-                            type: t.type,
-                            description: t.description,
-                            questions: t.questions.map(q => ({ ...q, id: generateId() })),
-                            autoAttachMode: t.autoAttachMode,
-                            showAt: t.showAt,
-                          }))}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border",
-                            form.title === t.name ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:border-emerald-300"
-                          )}
-                        >
-                          {t.icon}
-                          {t.name}
-                        </button>
-                      ))}
+                    {/* Data Collection Templates */}
+                    <div>
+                      <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Data Collection</div>
+                      <div className="flex flex-wrap gap-2">
+                        {starterTemplates.filter(t => t.category === "collection").map((t) => (
+                          <button
+                            key={t.name}
+                            type="button"
+                            onClick={() => setForm(f => ({
+                              ...f,
+                              title: t.name,
+                              type: t.type,
+                              description: t.description,
+                              questions: t.questions.map(q => ({ ...q, id: generateId() })),
+                              autoAttachMode: t.autoAttachMode,
+                              showAt: t.showAt,
+                              documentContent: "",
+                              enforcement: "post_booking",
+                            }))}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border",
+                              form.title === t.name ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:border-emerald-300"
+                            )}
+                          >
+                            {t.icon}
+                            {t.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Legal Document Templates */}
+                    <div>
+                      <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Legal Documents</div>
+                      <div className="flex flex-wrap gap-2">
+                        {starterTemplates.filter(t => t.category === "legal").map((t) => (
+                          <button
+                            key={t.name}
+                            type="button"
+                            onClick={() => setForm(f => ({
+                              ...f,
+                              title: t.name,
+                              type: t.type,
+                              description: t.description,
+                              questions: t.questions.map(q => ({ ...q, id: generateId() })),
+                              autoAttachMode: t.autoAttachMode,
+                              showAt: t.showAt,
+                              documentContent: t.documentContent || "",
+                              enforcement: t.enforcement || "post_booking",
+                              requireSignature: true,
+                            }))}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border",
+                              form.title === t.name ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300"
+                            )}
+                          >
+                            {t.icon}
+                            {t.name}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
 
                 <div className="grid md:grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-900">Form name</label>
+                    <label className="text-sm font-medium text-slate-900">
+                      {isLegalDocumentType(form.type) ? "Document name" : "Form name"}
+                    </label>
                     <Input
                       value={form.title}
                       onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
-                      placeholder="e.g. Liability Waiver"
+                      placeholder={isLegalDocumentType(form.type) ? "e.g. Park Rules Agreement" : "e.g. Vehicle Registration"}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-900">Category</label>
-                    <Select value={form.type} onValueChange={(v) => setForm(f => ({ ...f, type: v as any }))}>
+                    <label className="text-sm font-medium text-slate-900">Type</label>
+                    <Select value={form.type} onValueChange={(v) => setForm(f => ({ ...f, type: v as FormType }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="waiver"><span className="flex items-center gap-2"><Shield className="h-4 w-4" /> Waiver</span></SelectItem>
-                        <SelectItem value="vehicle"><span className="flex items-center gap-2"><Car className="h-4 w-4" /> Vehicle</span></SelectItem>
-                        <SelectItem value="intake"><span className="flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Intake</span></SelectItem>
-                        <SelectItem value="custom"><span className="flex items-center gap-2"><FileQuestion className="h-4 w-4" /> Custom</span></SelectItem>
+                        <div className="px-2 py-1.5 text-xs font-medium text-slate-500">Data Collection</div>
+                        <SelectItem value="vehicle"><span className="flex items-center gap-2"><Car className="h-4 w-4" /> Vehicle Info</span></SelectItem>
+                        <SelectItem value="intake"><span className="flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Guest Intake</span></SelectItem>
+                        <SelectItem value="custom"><span className="flex items-center gap-2"><FileQuestion className="h-4 w-4" /> Custom Form</span></SelectItem>
+                        <div className="px-2 py-1.5 text-xs font-medium text-slate-500 border-t mt-1 pt-2">Legal Documents</div>
+                        <SelectItem value="park_rules"><span className="flex items-center gap-2"><ScrollText className="h-4 w-4" /> Park Rules</span></SelectItem>
+                        <SelectItem value="liability_waiver"><span className="flex items-center gap-2"><Scale className="h-4 w-4" /> Liability Waiver</span></SelectItem>
+                        <SelectItem value="long_term_stay"><span className="flex items-center gap-2"><FileSignature className="h-4 w-4" /> Long-Term Stay</span></SelectItem>
+                        <SelectItem value="legal_agreement"><span className="flex items-center gap-2"><FileText className="h-4 w-4" /> Custom Legal</span></SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1684,6 +2030,67 @@ export default function FormsPage() {
                     placeholder="Brief description shown to guests"
                   />
                 </div>
+
+                {/* Document Content - shown for legal document types */}
+                {isLegalDocumentType(form.type) && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-slate-900">
+                        Document Content
+                      </label>
+                      <span className="text-xs text-slate-500">Supports Markdown formatting</span>
+                    </div>
+                    <Textarea
+                      value={form.documentContent || ""}
+                      onChange={(e) => setForm(f => ({ ...f, documentContent: e.target.value }))}
+                      placeholder="Enter the full text of your legal document here. Use Markdown for formatting (# for headings, - for lists, etc.)"
+                      rows={12}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-slate-500">
+                      This text will be displayed to guests before they sign. You can add acknowledgement questions below.
+                    </p>
+                  </div>
+                )}
+
+                {/* Enforcement setting for legal documents */}
+                {isLegalDocumentType(form.type) && (
+                  <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-blue-900">
+                      <Scale className="h-4 w-4" />
+                      Signature Requirements
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-blue-800">When is signature required?</label>
+                        <Select
+                          value={form.enforcement || "post_booking"}
+                          onValueChange={(v) => setForm(f => ({ ...f, enforcement: v as any }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pre_booking">Before booking (blocks checkout)</SelectItem>
+                            <SelectItem value="post_booking">After booking (sent via email)</SelectItem>
+                            <SelectItem value="pre_checkin">Before check-in</SelectItem>
+                            <SelectItem value="none">Informational only (no signature)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2 pt-6">
+                        <Switch
+                          checked={form.requireSignature ?? true}
+                          onCheckedChange={(checked) => setForm(f => ({ ...f, requireSignature: checked }))}
+                          id="require-signature"
+                        />
+                        <label htmlFor="require-signature" className="text-xs text-blue-800">
+                          Require signature (vs. acknowledgement only)
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <QuestionBuilder
                   questions={form.questions}

@@ -195,7 +195,7 @@ export default function BillingSettingsPage() {
     // Sites available for new meters (metered enabled but no meter yet for this type)
     const availableSitesForMeter = useMemo(() => {
         const existingMetersBySiteAndType = new Map<string, Set<string>>();
-        meters.forEach((m: UtilityMeter) => {
+        meters.forEach((m: any) => {
             const key = m.siteId;
             if (!existingMetersBySiteAndType.has(key)) {
                 existingMetersBySiteAndType.set(key, new Set());
@@ -571,7 +571,7 @@ export default function BillingSettingsPage() {
                                         </div>
                                     ) : (
                                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                            {meters.map((meter: UtilityMeter, i: number) => {
+                                            {meters.map((meter: any, i: number) => {
                                                 const config = meterTypeConfig[meter.type as keyof typeof meterTypeConfig] || meterTypeConfig.power;
                                                 const Icon = config.icon;
                                                 const site = sites.find((s: Site) => s.id === meter.siteId);
@@ -647,7 +647,7 @@ export default function BillingSettingsPage() {
                                                             <SelectValue placeholder="Select meter..." />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            {meters.map((m: UtilityMeter) => {
+                                                            {meters.map((m: any) => {
                                                                 const config = meterTypeConfig[m.type as keyof typeof meterTypeConfig] || meterTypeConfig.power;
                                                                 const Icon = config.icon;
                                                                 const site = sites.find((s: Site) => s.id === m.siteId);
@@ -743,7 +743,7 @@ export default function BillingSettingsPage() {
                                                                                 <SelectValue placeholder="Select..." />
                                                                             </SelectTrigger>
                                                                             <SelectContent>
-                                                                                {meters.map((m: UtilityMeter) => {
+                                                                                {meters.map((m: any) => {
                                                                                     const config = meterTypeConfig[m.type as keyof typeof meterTypeConfig] || meterTypeConfig.power;
                                                                                     const Icon = config.icon;
                                                                                     const site = sites.find((s: Site) => s.id === m.siteId);

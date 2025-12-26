@@ -27,7 +27,7 @@ const routeLabels: Record<string, string> = {
   "privacy": "Privacy",
   "developers": "Developers",
   "webhooks": "Webhooks",
-  "policies": "Campground Config",
+  "policies": "Booking Rules",
   "branding": "Branding",
   "photos": "Photos",
   "localization": "Localization",

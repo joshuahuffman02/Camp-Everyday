@@ -155,9 +155,9 @@ const settingsCategories: SettingCategory[] = [
     color: "violet",
     links: [
       {
-        name: "Campground Config",
+        name: "Booking Rules",
         href: "/dashboard/settings/policies",
-        description: "Basic campground information and policies",
+        description: "Deposit requirements and cancellation policies",
       },
       {
         name: "Branding",
