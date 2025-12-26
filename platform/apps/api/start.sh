@@ -8,11 +8,6 @@ echo "Working dir: $(pwd)"
 echo "=== Schema check (Site model) ==="
 grep -A 10 "model Site {" prisma/schema.prisma | head -15
 
-echo "=== Clearing generated Prisma client ==="
-rm -rf ../../../node_modules/.prisma
-rm -rf node_modules/.prisma
-rm -rf /app/node_modules/.prisma
-
 # Wait for database to be ready (Railway internal networking can take a moment)
 echo "=== Waiting for database connection ==="
 MAX_RETRIES=10
@@ -41,9 +36,6 @@ else
     echo "WARNING: Database not reachable after $MAX_RETRIES attempts, skipping schema push"
     echo "The app will attempt to connect when handling requests"
 fi
-
-echo "=== Regenerating Prisma client ==="
-npx prisma generate
 
 echo "=== Starting app ==="
 exec node -r tsconfig-paths/register dist/main.js
