@@ -1250,6 +1250,7 @@ model Campground {
   accessGrants              AccessGrant[]
   accessCredentials         AccessCredential[]
   payrollExports            PayrollExport[]
+  payrollConfig             PayrollConfig?
   posProviderIntegrations   PosProviderIntegration[]
   overrideRequests          OverrideRequest[]
   staffRoles                StaffRole[]
@@ -5200,6 +5201,8 @@ enum OverrideStatus {
 enum PayrollProvider {
   generic
   onpay
+  gusto
+  adp
 }
 
 enum PayrollExportStatus {
@@ -5407,6 +5410,18 @@ model PayrollExportLine {
   @@index([exportId])
   @@index([userId])
 }
+
+model PayrollConfig {
+  id           String          @id @default(cuid())
+  campgroundId String          @unique
+  provider     PayrollProvider @default(generic)
+  companyId    String?         // Provider-specific company/employer ID
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  campground Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+}
+
 enum PushNotificationType {
   arrival
   departure
