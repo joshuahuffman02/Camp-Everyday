@@ -2049,6 +2049,28 @@ function ReviewStep({
                 siteId: reservation.siteId || undefined,
                 page: `/park/${slug}/book`
             });
+
+            // Submit completed form responses
+            if (Object.keys(formResponses).length > 0) {
+                try {
+                    for (const [formTemplateId, responses] of Object.entries(formResponses)) {
+                        await fetch("/api/public/forms/submit", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                formTemplateId,
+                                reservationId: reservation.id,
+                                guestEmail: guestInfo.email,
+                                responses
+                            })
+                        });
+                    }
+                } catch (err) {
+                    console.error("Failed to submit form responses", err);
+                    // Don't block payment for form submission errors
+                }
+            }
+
             // Create payment intent with discounted amount (using public endpoint for guest checkout)
             try {
                 const intent = await apiClient.createPublicPaymentIntent({
