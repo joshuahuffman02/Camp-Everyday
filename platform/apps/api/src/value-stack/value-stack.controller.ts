@@ -12,7 +12,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { ValueStackService } from './value-stack.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GuaranteeType } from '@prisma/client';
 
 @Controller('campgrounds/:campgroundId/value-stack')

@@ -35,6 +35,7 @@ export async function trackEvent(eventName: string, payload: Partial<{
   referrerUrl: string;
   deviceType: string;
   region: string;
+  source: string;
   metadata: Record<string, any>;
   occurredAt: string;
 }>) {
