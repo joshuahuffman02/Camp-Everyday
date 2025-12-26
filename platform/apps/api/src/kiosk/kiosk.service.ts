@@ -1,10 +1,33 @@
 import { Injectable, BadRequestException, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { PublicReservationsService } from "../public-reservations/public-reservations.service";
 import crypto from "crypto";
+
+export interface KioskReservationDto {
+  siteId: string;
+  arrivalDate: string;
+  departureDate: string;
+  adults: number;
+  children?: number;
+  guest: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    zipCode: string;
+  };
+  equipment?: {
+    type: string;
+    plateNumber?: string;
+  };
+}
 
 @Injectable()
 export class KioskService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly publicReservations: PublicReservationsService
+  ) {}
 
   /**
    * Generate a 6-digit pairing code valid for 10 minutes
@@ -260,5 +283,60 @@ export class KioskService {
     });
 
     return { deleted: true };
+  }
+
+  /**
+   * Create a walk-in reservation from the kiosk
+   * Validates device token and creates reservation for the associated campground
+   */
+  async createReservation(deviceToken: string, dto: KioskReservationDto, userAgent?: string) {
+    // Validate device and get campground
+    const device = await this.prisma.kioskDevice.findUnique({
+      where: { deviceToken },
+      include: {
+        campground: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!device) {
+      throw new UnauthorizedException("Invalid device token");
+    }
+
+    if (device.status !== "active") {
+      throw new UnauthorizedException("Device has been disabled or revoked");
+    }
+
+    if (!device.allowWalkIns) {
+      throw new BadRequestException("This kiosk is not authorized for walk-in reservations");
+    }
+
+    // Update last seen
+    await this.prisma.kioskDevice.update({
+      where: { id: device.id },
+      data: {
+        lastSeenAt: new Date(),
+        userAgent: userAgent || device.userAgent,
+      },
+    });
+
+    // Create reservation using public reservations service
+    const reservation = await this.publicReservations.createReservation({
+      campgroundSlug: device.campground.slug,
+      siteId: dto.siteId,
+      arrivalDate: dto.arrivalDate,
+      departureDate: dto.departureDate,
+      adults: dto.adults,
+      children: dto.children ?? 0,
+      guest: dto.guest,
+      equipment: dto.equipment,
+    });
+
+    return reservation;
   }
 }

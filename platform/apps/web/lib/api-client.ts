@@ -8904,6 +8904,52 @@ export const apiClient = {
   },
 
   /**
+   * Create a walk-in reservation from the kiosk (uses X-Kiosk-Token header)
+   */
+  async kioskCreateReservation(
+    deviceToken: string,
+    data: {
+      siteId: string;
+      arrivalDate: string;
+      departureDate: string;
+      adults: number;
+      children?: number;
+      guest: {
+        firstName: string;
+        lastName: string;
+        email: string;
+        phone: string;
+        zipCode: string;
+      };
+      equipment?: {
+        type: string;
+        plateNumber?: string;
+      };
+    }
+  ) {
+    const res = await fetch(`${API_BASE}/kiosk/reservations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Kiosk-Token": deviceToken,
+      },
+      body: JSON.stringify(data),
+    });
+    return parseResponse<{
+      id: string;
+      arrivalDate: string;
+      departureDate: string;
+      status: string;
+      adults: number;
+      children: number;
+      totalAmount: number;
+      paidAmount: number;
+      site?: { id: string; name: string; siteNumber: string } | null;
+      guest?: { primaryFirstName: string; primaryLastName: string; email: string } | null;
+    }>(res);
+  },
+
+  /**
    * Generate a pairing code for a campground (staff auth required)
    */
   async kioskGeneratePairingCode(campgroundId: string) {

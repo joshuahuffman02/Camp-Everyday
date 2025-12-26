@@ -53,6 +53,40 @@ export class KioskController {
     }
   }
 
+  /**
+   * Create a walk-in reservation from the kiosk
+   * Uses X-Kiosk-Token header for authentication
+   */
+  @Post("kiosk/reservations")
+  async createReservation(
+    @Headers("x-kiosk-token") deviceToken: string,
+    @Headers("user-agent") userAgent: string | undefined,
+    @Body()
+    body: {
+      siteId: string;
+      arrivalDate: string;
+      departureDate: string;
+      adults: number;
+      children?: number;
+      guest: {
+        firstName: string;
+        lastName: string;
+        email: string;
+        phone: string;
+        zipCode: string;
+      };
+      equipment?: {
+        type: string;
+        plateNumber?: string;
+      };
+    }
+  ) {
+    if (!deviceToken) {
+      throw new Error("No device token provided");
+    }
+    return this.kioskService.createReservation(deviceToken, body, userAgent);
+  }
+
   // ==========================================
   // Staff Endpoints (Require Auth)
   // ==========================================

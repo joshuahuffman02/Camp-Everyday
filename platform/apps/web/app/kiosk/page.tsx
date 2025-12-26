@@ -583,14 +583,14 @@ export default function KioskPage() {
         const departure = addDays(arrival, nights);
 
         try {
-            if (!campground?.slug) {
+            const deviceToken = localStorage.getItem(KIOSK_TOKEN_KEY);
+            if (!deviceToken) {
                 setError("Kiosk not configured. Please restart or contact staff.");
                 setLoading(false);
                 return;
             }
 
-            const newRes = await apiClient.createPublicReservation({
-                campgroundSlug: campground.slug,
+            const newRes = await apiClient.kioskCreateReservation(deviceToken, {
                 siteId: selectedSite.id,
                 arrivalDate: format(arrival, "yyyy-MM-dd"),
                 departureDate: format(departure, "yyyy-MM-dd"),
@@ -611,9 +611,10 @@ export default function KioskPage() {
 
             setReservation(newRes as unknown as Reservation);
             setState("upsell");
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            setError("Couldn't create reservation. Please try again or visit the front desk.");
+            const message = err?.message || "Couldn't create reservation. Please try again or visit the front desk.";
+            setError(message);
         } finally {
             setLoading(false);
         }
