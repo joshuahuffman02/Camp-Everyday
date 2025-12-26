@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,24 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useWhoami } from "@/hooks/use-whoami";
+import { cn } from "@/lib/utils";
+import {
+  Check,
+  X,
+  Clock,
+  AlertCircle,
+  RefreshCcw,
+  Banknote,
+  Settings,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  AlertTriangle,
+  PartyPopper,
+} from "lucide-react";
 
 const APPROVER_ROLES = new Set(["owner", "manager", "admin", "finance"]);
 const PREFERENCES_STORAGE_KEY = "campreserv:approvalsPreferences";
@@ -37,6 +55,8 @@ const DEFAULT_PREFERENCES: QueuePreferences = {
   sortMode: "urgent"
 };
 
+const SPRING_CONFIG = { type: "spring" as const, stiffness: 300, damping: 25 };
+
 function statusVariant(status: string) {
   switch (status) {
     case "approved":
@@ -49,6 +69,34 @@ function statusVariant(status: string) {
       return "info";
     default:
       return "outline";
+  }
+}
+
+function StatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "approved":
+      return <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />;
+    case "rejected":
+      return <XCircle className="h-3.5 w-3.5" aria-hidden="true" />;
+    case "pending_second":
+      return <Clock className="h-3.5 w-3.5" aria-hidden="true" />;
+    case "pending":
+      return <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />;
+    default:
+      return null;
+  }
+}
+
+function TypeIcon({ type }: { type: string }) {
+  switch (type) {
+    case "refund":
+      return <RefreshCcw className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />;
+    case "payout":
+      return <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />;
+    case "config_change":
+      return <Settings className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />;
+    default:
+      return null;
   }
 }
 
@@ -73,6 +121,39 @@ function formatDateTime(value?: string | null) {
   });
 }
 
+function formatRelativeTime(dateStr: string) {
+  const diff = Date.now() - Date.parse(dateStr);
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  if (hours < 1) return `${Math.max(1, Math.floor(diff / 60000))} min ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+// Skeleton for loading state
+function ApprovalRowSkeleton() {
+  return (
+    <TableRow>
+      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+      <TableCell>
+        <div className="space-y-1">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      </TableCell>
+      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+      <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+      <TableCell>
+        <div className="flex gap-2">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-20" />
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export default function ApprovalsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -85,6 +166,17 @@ export default function ApprovalsPage() {
   const [urgentOnly, setUrgentOnly] = useState(false);
   const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
   const [preferences, setPreferences] = useState<QueuePreferences>(DEFAULT_PREFERENCES);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const [showCelebration, setShowCelebration] = useState(false);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const prevOpenCountRef = useRef<number>(0);
+
+  // Announce messages to screen readers
+  const announce = useCallback((message: string) => {
+    setAnnouncement("");
+    setTimeout(() => setAnnouncement(message), 100);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -133,22 +225,43 @@ export default function ApprovalsPage() {
   const approvalsQuery = useQuery({
     queryKey: ["approvals", campgroundId, orgId],
     queryFn: apiClient.listApprovals,
-    enabled: approvalsEnabled
+    enabled: approvalsEnabled,
+    refetchInterval: 30000, // Poll every 30 seconds
   });
 
   const approveMutation = useMutation({
-    mutationFn: ({ id, approver }: { id: string; approver: string }) => apiClient.approveRequest(id, approver),
+    mutationFn: ({ id, approver }: { id: string; approver: string }) => {
+      setProcessingId(id);
+      return apiClient.approveRequest(id, approver);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["approvals"] });
-      toast({ title: "Approved" });
+      toast({
+        title: "Request approved",
+        description: "The request has been processed successfully.",
+      });
+      announce("Request approved successfully");
+      setProcessingId(null);
+      // Focus next available action
+      requestAnimationFrame(() => {
+        const nextButton = tableRef.current?.querySelector(
+          'tbody tr button:not(:disabled)'
+        ) as HTMLButtonElement;
+        nextButton?.focus();
+      });
     },
-    onError: (err: any) =>
-      toast({ title: "Approval failed", description: err?.message ?? "Try again", variant: "destructive" }),
+    onError: (err: any) => {
+      toast({ title: "Approval failed", description: err?.message ?? "Try again", variant: "destructive" });
+      announce(`Approval failed: ${err?.message ?? "Please try again"}`);
+      setProcessingId(null);
+    },
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, approver, reason }: { id: string; approver: string; reason: string }) =>
-      apiClient.rejectRequest(id, approver, reason),
+    mutationFn: ({ id, approver, reason }: { id: string; approver: string; reason: string }) => {
+      setProcessingId(id);
+      return apiClient.rejectRequest(id, approver, reason);
+    },
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["approvals"] });
       setRejectionReasons((prev) => {
@@ -156,10 +269,18 @@ export default function ApprovalsPage() {
         delete next[variables.id];
         return next;
       });
-      toast({ title: "Rejected" });
+      toast({
+        title: "Request rejected",
+        description: "The requester will be notified.",
+      });
+      announce("Request rejected successfully");
+      setProcessingId(null);
     },
-    onError: (err: any) =>
-      toast({ title: "Rejection failed", description: err?.message ?? "Try again", variant: "destructive" }),
+    onError: (err: any) => {
+      toast({ title: "Rejection failed", description: err?.message ?? "Try again", variant: "destructive" });
+      announce(`Rejection failed: ${err?.message ?? "Please try again"}`);
+      setProcessingId(null);
+    },
   });
 
   const policies = approvalsQuery.data?.policies ?? [];
@@ -210,6 +331,17 @@ export default function ApprovalsPage() {
     const urgent = enrichedRequests.filter((item) => item.urgent).length;
     return { pending, pendingSecond, urgent, total: requests.length };
   }, [requests, enrichedRequests]);
+
+  const openCount = summary.pending + summary.pendingSecond;
+
+  // Celebrate when queue is cleared
+  useEffect(() => {
+    if (prevOpenCountRef.current > 0 && openCount === 0 && !approvalsQuery.isLoading) {
+      setShowCelebration(true);
+      setTimeout(() => setShowCelebration(false), 3000);
+    }
+    prevOpenCountRef.current = openCount;
+  }, [openCount, approvalsQuery.isLoading]);
 
   const filteredRequests = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -263,23 +395,19 @@ export default function ApprovalsPage() {
   const roleLabel =
     platformRole || scopedRole || (ownershipRoles.length ? ownershipRoles.join(", ") : "unassigned");
 
-  const openCount = summary.pending + summary.pendingSecond;
+  const isLoading = approvalsQuery.isLoading;
 
   const tableMessage = !scopeReady
     ? "Select a campground or organization to view approvals."
     : whoamiLoading
-      ? "Checking access..."
+      ? null // We'll show skeleton instead
       : !whoami
         ? "Sign in to view approvals."
         : !scopeAllowed
           ? "You do not have access to this campground."
           : approvalsQuery.isError
             ? (approvalsQuery.error as any)?.message ?? "Failed to load approvals."
-            : approvalsQuery.isLoading
-              ? "Loading approvals..."
-              : filteredRequests.length === 0
-                ? "No approvals match the current filters."
-                : null;
+            : null;
 
   const policiesMessage = !scopeReady
     ? "Select a campground or organization to view policies."
@@ -297,6 +425,14 @@ export default function ApprovalsPage() {
 
   return (
     <DashboardShell>
+      {/* Skip link for accessibility */}
+      <a
+        href="#approvals-table"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-ring"
+      >
+        Skip to approvals table
+      </a>
+
       <Breadcrumbs
         items={[
           { label: "Finance", href: "/finance" },
@@ -304,28 +440,78 @@ export default function ApprovalsPage() {
         ]}
       />
 
-      <div className="mb-2">
-        <h1 className="text-2xl font-semibold text-slate-900">Approvals</h1>
-        <p className="text-sm text-slate-600">Dual control for refunds, payouts, and high-value changes.</p>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <Badge variant="secondary">Scope: {scopeLabel}</Badge>
-          <span>Signed in as {approverName}</span>
+      <div className="mb-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Approvals</h1>
+            <p className="text-sm text-muted-foreground">Dual control for refunds, payouts, and high-value changes.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-2 sm:mt-0">
+            <Badge variant="secondary" className="font-normal">Scope: {scopeLabel}</Badge>
+            <span className="hidden sm:inline">|</span>
+            <span>{approverName}</span>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="md:col-span-2">
+      {/* Queue Cleared Celebration */}
+      <AnimatePresence>
+        {showCelebration && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+            onClick={() => setShowCelebration(false)}
+          >
+            <motion.div
+              initial={{ y: 20 }}
+              animate={{ y: 0 }}
+              className="text-center p-8"
+            >
+              <motion.div
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4"
+              >
+                <PartyPopper className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+              </motion.div>
+              <h2 className="text-2xl font-bold text-foreground mb-2">Queue cleared!</h2>
+              <p className="text-muted-foreground">All approval requests have been processed.</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-3">
           <CardHeader>
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle>Approvals queue</CardTitle>
                 <CardDescription>Review requests scoped to the selected campground or organization.</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <Badge variant="secondary">Open {openCount}</Badge>
-                <Badge variant="warning">Needs second {summary.pendingSecond}</Badge>
-                <Badge variant="destructive">Urgent {summary.urgent}</Badge>
-                <Badge variant="outline">Total {summary.total}</Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
+                  <span className="text-sm font-medium text-foreground">{openCount}</span>
+                  <span className="text-xs text-muted-foreground">Open</span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 px-3 py-1.5">
+                  <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">{summary.pendingSecond}</span>
+                  <span className="text-xs text-amber-700 dark:text-amber-400">Needs 2nd</span>
+                </div>
+                {summary.urgent > 0 && (
+                  <motion.div
+                    animate={{ scale: [1, 1.02, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-1.5"
+                  >
+                    <span className="text-sm font-bold text-red-700 dark:text-red-400">{summary.urgent}</span>
+                    <span className="text-xs text-red-700 dark:text-red-400">Urgent</span>
+                  </motion.div>
+                )}
+                <span className="text-xs text-muted-foreground">{summary.total} total</span>
               </div>
             </div>
           </CardHeader>
@@ -342,9 +528,9 @@ export default function ApprovalsPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Status</Label>
+                  <Label htmlFor="status-filter">Status</Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger id="status-filter" aria-label="Filter by status">
                       <SelectValue placeholder="All statuses" />
                     </SelectTrigger>
                     <SelectContent>
@@ -358,9 +544,9 @@ export default function ApprovalsPage() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Type</Label>
+                  <Label htmlFor="type-filter">Type</Label>
                   <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger id="type-filter" aria-label="Filter by request type">
                       <SelectValue placeholder="All types" />
                     </SelectTrigger>
                     <SelectContent>
@@ -387,168 +573,448 @@ export default function ApprovalsPage() {
                   variant="outline"
                   onClick={() => approvalsQuery.refetch()}
                   disabled={!approvalsEnabled || approvalsQuery.isFetching}
+                  className="transition-all hover:scale-105 active:scale-95"
                 >
+                  {approvalsQuery.isFetching ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <RefreshCcw className="h-4 w-4 mr-1.5" />
+                  )}
                   Refresh
                 </Button>
               </div>
             </div>
 
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-muted-foreground">
               Showing {filteredRequests.length} of {requests.length} requests
             </div>
 
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Requested</TableHead>
-                    <TableHead>Reason</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Approvals</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tableMessage && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-slate-500">
-                        {tableMessage}
-                      </TableCell>
-                    </TableRow>
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-3">
+              {isLoading && (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <Card key={i} className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <Skeleton className="h-5 w-20" />
+                          <Skeleton className="h-5 w-16" />
+                        </div>
+                        <Skeleton className="h-4 w-full" />
+                        <div className="flex gap-2">
+                          <Skeleton className="h-9 flex-1" />
+                          <Skeleton className="h-9 flex-1" />
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </>
+              )}
+              {tableMessage && (
+                <div className="text-center py-8 text-muted-foreground" role="status">
+                  {tableMessage}
+                </div>
+              )}
+              {!isLoading && !tableMessage && filteredRequests.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <p className="font-medium text-foreground">All caught up!</p>
+                  <p className="text-sm text-muted-foreground mt-1">No approvals match the current filters.</p>
+                  {(statusFilter !== "open" || typeFilter !== "all" || urgentOnly || search) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => {
+                        setStatusFilter("open");
+                        setTypeFilter("all");
+                        setUrgentOnly(false);
+                        setSearch("");
+                      }}
+                    >
+                      Clear filters
+                    </Button>
                   )}
-                  {!tableMessage &&
-                    filteredRequests.map(({ req, policy, urgent, isOpen }) => {
-                      const reason = rejectionReasons[req.id] ?? "";
-                      const trimmedReason = reason.trim();
-                      const alreadyApproved =
-                        approverKeys.length > 0 && req.approvals.some((a) => approverKeys.includes(a.approver));
-                      const isMutating = approveMutation.isPending || rejectMutation.isPending;
-                      const approveDisabled = !canAct || !isOpen || alreadyApproved || isMutating;
-                      const rejectDisabled = approveDisabled || !trimmedReason;
-                      let actionHint: string | null = null;
+                </div>
+              )}
+              {!isLoading && !tableMessage && filteredRequests.map(({ req, policy, urgent, isOpen }) => {
+                const reason = rejectionReasons[req.id] ?? "";
+                const trimmedReason = reason.trim();
+                const alreadyApproved = approverKeys.length > 0 && req.approvals.some((a) => approverKeys.includes(a.approver));
+                const isMutating = processingId === req.id;
+                const approveDisabled = !canAct || !isOpen || alreadyApproved || isMutating;
 
-                      if (!canAct) {
-                        actionHint = "Manager or admin role required.";
-                      } else if (alreadyApproved) {
-                        actionHint = "You already approved this request.";
-                      } else if (!trimmedReason) {
-                        actionHint = "Reason required to reject.";
-                      }
+                return (
+                  <motion.div
+                    key={req.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn(
+                      "rounded-lg border p-4 space-y-3 transition-colors",
+                      urgent && "border-amber-400 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-900/20"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <TypeIcon type={req.type} />
+                        <span className="font-medium capitalize">{formatLabel(req.type)}</span>
+                        {urgent && <Badge variant="warning" className="text-[10px]">Urgent</Badge>}
+                      </div>
+                      <Badge variant={statusVariant(req.status)} className="text-[10px] flex items-center gap-1">
+                        <StatusIcon status={req.status} />
+                        {formatLabel(req.status)}
+                      </Badge>
+                    </div>
 
-                      return (
-                        <TableRow key={req.id} className={urgent ? "bg-amber-50/40" : ""}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold uppercase">{formatLabel(req.type)}</span>
-                              {urgent && <Badge variant="warning">Urgent</Badge>}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm text-slate-900">{req.requester || "Unknown"}</div>
-                            <div className="text-xs text-slate-500">{formatDateTime(req.createdAt)}</div>
-                          </TableCell>
-                          <TableCell className="max-w-xs text-sm text-slate-700">{req.reason}</TableCell>
-                          <TableCell>{formatAmount(req.amount, req.currency)}</TableCell>
-                          <TableCell>
-                            <Badge variant={statusVariant(req.status)}>{formatLabel(req.status)}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-xs text-slate-600">
-                              {req.approvals.length}/{req.requiredApprovals} approvals
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {req.approvals.length
-                                ? req.approvals
-                                    .map((a) => `${a.approver} (${formatDateTime(a.at)})`)
-                                    .join(", ")
-                                : "None yet"}
-                            </div>
-                            {policy && (
-                              <div className="text-xs text-slate-500">
-                                Policy: {policy.name}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => approveMutation.mutate({ id: req.id, approver: approverId })}
-                                disabled={approveDisabled}
-                              >
-                                Approve
-                              </Button>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground text-xs block">Requester</span>
+                        <span className="font-medium text-foreground">{req.requester || "Unknown"}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-muted-foreground text-xs block">Amount</span>
+                        <span className="font-semibold tabular-nums text-foreground">{formatAmount(req.amount, req.currency)}</span>
+                      </div>
+                    </div>
+
+                    {req.reason && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">{req.reason}</p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <span className="text-xs text-muted-foreground">
+                        {req.approvals.length}/{req.requiredApprovals} approvals · {formatRelativeTime(req.createdAt)}
+                      </span>
+                    </div>
+
+                    {isOpen && (
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          className={cn(
+                            "flex-1 transition-all",
+                            !approveDisabled && "bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-[1.02] active:scale-[0.98]"
+                          )}
+                          disabled={approveDisabled}
+                          onClick={() => approveMutation.mutate({ id: req.id, approver: approverId })}
+                        >
+                          {isMutating && approveMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-1.5" />
+                          )}
+                          Approve
+                        </Button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="flex-1 text-destructive hover:text-destructive">
+                              <X className="h-4 w-4 mr-1.5" />
+                              Reject
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72 p-3" align="end">
+                            <div className="space-y-2">
+                              <Label htmlFor={`reject-reason-mobile-${req.id}`} className="text-xs font-medium">
+                                Rejection reason (required)
+                              </Label>
+                              <Input
+                                id={`reject-reason-mobile-${req.id}`}
+                                value={reason}
+                                onChange={(e) => setRejectionReasons((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                                placeholder="Enter reason..."
+                                className="h-8 text-sm"
+                              />
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() =>
-                                  rejectMutation.mutate({ id: req.id, approver: approverId, reason: trimmedReason })
-                                }
-                                disabled={rejectDisabled}
+                                className="w-full h-8"
+                                onClick={() => rejectMutation.mutate({ id: req.id, approver: approverId, reason: trimmedReason })}
+                                disabled={!trimmedReason || isMutating}
                               >
-                                Reject
+                                {isMutating && rejectMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                ) : null}
+                                Confirm Rejection
                               </Button>
                             </div>
-                            {isOpen && (
-                              <div className="space-y-1">
-                                <Input
-                                  value={reason}
-                                  onChange={(e) =>
-                                    setRejectionReasons((prev) => ({ ...prev, [req.id]: e.target.value }))
-                                  }
-                                  placeholder="Reason required to reject"
-                                  disabled={!canAct || isMutating}
-                                />
-                                {actionHint && <div className="text-xs text-slate-500">{actionHint}</div>}
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto" id="approvals-table" tabIndex={-1}>
+              <Table ref={tableRef}>
+                <caption className="sr-only">
+                  Financial approvals queue showing {filteredRequests.length} requests.
+                </caption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead scope="col">Type</TableHead>
+                    <TableHead scope="col">Requested</TableHead>
+                    <TableHead scope="col">Reason</TableHead>
+                    <TableHead scope="col" className="text-right">Amount</TableHead>
+                    <TableHead scope="col">Status</TableHead>
+                    <TableHead scope="col">Approvals</TableHead>
+                    <TableHead scope="col">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading && (
+                    <>
+                      <ApprovalRowSkeleton />
+                      <ApprovalRowSkeleton />
+                      <ApprovalRowSkeleton />
+                    </>
+                  )}
+                  {tableMessage && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div role="status" aria-live="polite" className="text-muted-foreground">
+                          {tableMessage}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!isLoading && !tableMessage && filteredRequests.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32">
+                        <div className="flex flex-col items-center justify-center text-center">
+                          <div className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 p-3 mb-3">
+                            <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <p className="text-sm font-medium text-foreground">All caught up!</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            No approvals match the current filters.
+                          </p>
+                          {(statusFilter !== "open" || typeFilter !== "all" || urgentOnly || search) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="mt-2 text-xs"
+                              onClick={() => {
+                                setStatusFilter("open");
+                                setTypeFilter("all");
+                                setUrgentOnly(false);
+                                setSearch("");
+                              }}
+                            >
+                              Clear filters
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  <AnimatePresence mode="popLayout">
+                    {!isLoading && !tableMessage &&
+                      filteredRequests.map(({ req, policy, urgent, isOpen }, index) => {
+                        const reason = rejectionReasons[req.id] ?? "";
+                        const trimmedReason = reason.trim();
+                        const alreadyApproved =
+                          approverKeys.length > 0 && req.approvals.some((a) => approverKeys.includes(a.approver));
+                        const isMutating = processingId === req.id;
+                        const approveDisabled = !canAct || !isOpen || alreadyApproved || isMutating;
+                        const rejectDisabled = approveDisabled || !trimmedReason;
+                        let actionHint: string | null = null;
+
+                        if (!canAct) {
+                          actionHint = "Manager or admin role required.";
+                        } else if (alreadyApproved) {
+                          actionHint = "You already approved this request.";
+                        }
+
+                        return (
+                          <motion.tr
+                            key={req.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, x: -50 }}
+                            transition={{ ...SPRING_CONFIG, delay: index * 0.02 }}
+                            className={cn(
+                              "border-b transition-colors",
+                              urgent
+                                ? "bg-amber-50/50 dark:bg-amber-900/20 border-l-4 border-l-amber-400 dark:border-l-amber-600"
+                                : "hover:bg-muted/50"
+                            )}
+                          >
+                            <TableCell className="py-3">
+                              <div className="flex items-center gap-2">
+                                <TypeIcon type={req.type} />
+                                <span className="font-medium capitalize text-foreground">{formatLabel(req.type)}</span>
+                                {urgent && (
+                                  <Badge variant="warning" className="text-[10px] flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Urgent
+                                  </Badge>
+                                )}
                               </div>
-                            )}
-                            {!isOpen && (
-                              <div className="text-xs text-slate-500">No actions available.</div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                            </TableCell>
+                            <TableCell className="py-3">
+                              <div className="text-sm font-medium text-foreground">{req.requester || "Unknown"}</div>
+                              <div className="text-xs text-muted-foreground">{formatRelativeTime(req.createdAt)}</div>
+                            </TableCell>
+                            <TableCell className="max-w-xs text-sm text-muted-foreground py-3">{req.reason}</TableCell>
+                            <TableCell className="text-right tabular-nums font-medium text-foreground py-3">
+                              {formatAmount(req.amount, req.currency)}
+                            </TableCell>
+                            <TableCell className="py-3">
+                              <Badge variant={statusVariant(req.status)} className="flex items-center gap-1 w-fit">
+                                <StatusIcon status={req.status} />
+                                {formatLabel(req.status)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-3">
+                              <div className="text-xs text-muted-foreground">
+                                {req.approvals.length}/{req.requiredApprovals} approvals
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {req.approvals.length
+                                  ? req.approvals
+                                      .map((a) => `${a.approver} (${formatDateTime(a.at)})`)
+                                      .join(", ")
+                                  : "None yet"}
+                              </div>
+                              {policy && (
+                                <div className="text-xs text-muted-foreground">
+                                  Policy: {policy.name}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-3">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  className={cn(
+                                    "transition-all duration-150",
+                                    !approveDisabled && [
+                                      "bg-emerald-600 hover:bg-emerald-700 text-white",
+                                      "hover:scale-105 active:scale-95",
+                                    ]
+                                  )}
+                                  onClick={() => approveMutation.mutate({ id: req.id, approver: approverId })}
+                                  disabled={approveDisabled}
+                                  aria-label={`Approve ${formatLabel(req.type)} request from ${req.requester || 'Unknown'} for ${formatAmount(req.amount, req.currency)}`}
+                                >
+                                  {isMutating && approveMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  ) : (
+                                    <Check className="h-4 w-4 mr-1" />
+                                  )}
+                                  Approve
+                                </Button>
+                                {isOpen && (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className={cn(
+                                          "transition-all duration-150",
+                                          !approveDisabled && "hover:bg-red-50 hover:text-red-700 hover:border-red-300 dark:hover:bg-red-900/20 dark:hover:text-red-400 hover:scale-105 active:scale-95"
+                                        )}
+                                        disabled={approveDisabled}
+                                        aria-label={`Reject ${formatLabel(req.type)} request from ${req.requester || 'Unknown'}`}
+                                      >
+                                        <X className="h-4 w-4 mr-1" />
+                                        Reject
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-72 p-3" align="end">
+                                      <div className="space-y-3">
+                                        <div className="space-y-1">
+                                          <Label htmlFor={`reject-reason-${req.id}`} className="text-xs font-medium">
+                                            Rejection reason (required)
+                                          </Label>
+                                          <Input
+                                            id={`reject-reason-${req.id}`}
+                                            value={reason}
+                                            onChange={(e) => setRejectionReasons((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                                            placeholder="Enter reason..."
+                                            className="h-9"
+                                            aria-required="true"
+                                          />
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          className="w-full"
+                                          onClick={() => rejectMutation.mutate({ id: req.id, approver: approverId, reason: trimmedReason })}
+                                          disabled={rejectDisabled || isMutating}
+                                        >
+                                          {isMutating && rejectMutation.isPending ? (
+                                            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                          ) : (
+                                            <XCircle className="h-4 w-4 mr-1.5" />
+                                          )}
+                                          Confirm Rejection
+                                        </Button>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                              </div>
+                              {actionHint && (
+                                <div className="text-xs text-muted-foreground mt-1.5">{actionHint}</div>
+                              )}
+                              {!isOpen && (
+                                <div className="text-xs text-muted-foreground mt-1">No actions available.</div>
+                              )}
+                            </TableCell>
+                          </motion.tr>
+                        );
+                      })}
+                  </AnimatePresence>
                 </TableBody>
               </Table>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Policies</CardTitle>
+        <Card className="transition-all duration-200 hover:shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Policies</CardTitle>
             <CardDescription>Rules that trigger dual control</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {policiesMessage && (
-              <div className="text-xs text-slate-500">{policiesMessage}</div>
+              <div className="text-xs text-muted-foreground">{policiesMessage}</div>
             )}
             {!policiesMessage &&
               policies.map((policy) => (
-                <div key={policy.id} className="rounded-lg border border-slate-200 px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">{policy.name}</div>
-                    <Badge variant="secondary">{policy.approversNeeded} approver(s)</Badge>
+                <div key={policy.id} className="rounded-lg border bg-muted/50 px-3 py-2.5 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground">{policy.name}</span>
+                    <Badge variant="secondary" className="text-[10px]">{policy.approversNeeded} approvers</Badge>
                   </div>
-                  <div className="text-xs text-slate-500 uppercase">{policy.appliesTo.join(", ")}</div>
-                  <div className="text-xs text-slate-600">{policy.description}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {policy.appliesTo.map((type) => (
+                      <span key={type} className="text-[10px] uppercase tracking-wide text-muted-foreground bg-background px-1.5 py-0.5 rounded">
+                        {type}
+                      </span>
+                    ))}
+                  </div>
+                  {policy.description && (
+                    <p className="text-xs text-muted-foreground leading-relaxed">{policy.description}</p>
+                  )}
                 </div>
               ))}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Queue preferences</CardTitle>
+        <Card className="transition-all duration-200 hover:shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Queue preferences</CardTitle>
             <CardDescription>Customize urgency rules and sorting for this browser.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div className="space-y-3">
-              <div className="text-xs font-semibold uppercase text-slate-500">Urgency rules</div>
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Urgency rules</div>
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="urgent-pending-second">Pending second approvals</Label>
                 <Switch
@@ -595,7 +1061,7 @@ export default function ApprovalsPage() {
                   />
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-slate-500">Custom amount ({sampleCurrency})</span>
+                  <span className="text-xs text-muted-foreground">Custom amount ({sampleCurrency})</span>
                   <Input
                     id="urgent-custom-amount"
                     type="number"
@@ -612,7 +1078,7 @@ export default function ApprovalsPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Sort order</Label>
+              <Label htmlFor="sort-order">Sort order</Label>
               <Select
                 value={preferences.sortMode}
                 onValueChange={(value) =>
@@ -622,7 +1088,7 @@ export default function ApprovalsPage() {
                   }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="sort-order" aria-label="Sort order for approvals queue">
                   <SelectValue placeholder="Choose sort" />
                 </SelectTrigger>
                 <SelectContent>
@@ -632,33 +1098,43 @@ export default function ApprovalsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="text-xs text-slate-500">Preferences are saved locally for this browser.</div>
+            <div className="text-xs text-muted-foreground">Preferences are saved locally for this browser.</div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Access</CardTitle>
+        <Card className="transition-all duration-200 hover:shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Access</CardTitle>
             <CardDescription>Approvals require admin or manager roles in scope.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Signed in as</span>
-              <span className="text-slate-900">{approverName}</span>
+              <span className="text-muted-foreground">Signed in as</span>
+              <span className="text-foreground font-medium">{approverName}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Role</span>
-              <span className="text-slate-900">{roleLabel}</span>
+              <span className="text-muted-foreground">Role</span>
+              <span className="text-foreground font-medium">{roleLabel}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Scope</span>
-              <span className="text-slate-900">{scopeLabel}</span>
+              <span className="text-muted-foreground">Scope</span>
+              <span className="text-foreground font-medium">{scopeLabel}</span>
             </div>
-            <Badge variant={whoamiLoading ? "secondary" : canAct ? "success" : "warning"}>
+            <Badge variant={whoamiLoading ? "secondary" : canAct ? "success" : "warning"} className="mt-2">
               {whoamiLoading ? "Checking access" : canAct ? "Can approve requests" : "Approval restricted"}
             </Badge>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Live region for screen reader announcements */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcement}
       </div>
     </DashboardShell>
   );
