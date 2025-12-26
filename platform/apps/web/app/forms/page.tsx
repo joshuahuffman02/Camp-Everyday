@@ -21,8 +21,10 @@ import {
   FileQuestion, Eye, Trash2, Edit3, PartyPopper, CheckCircle2,
   AlertTriangle, PawPrint, Loader2, ChevronUp, Settings2,
   ChevronDown, Type, Hash, CheckSquare, List, AlignLeft, Phone, Mail, X,
-  Calendar, Clock, Send, Users, Zap, Link2, Bell, RefreshCw, Search
+  Calendar, Clock, Send, Users, Zap, Link2, Bell, RefreshCw, Search,
+  ScrollText, Scale, FileSignature
 } from "lucide-react";
+import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../lib/utils";
 
 // Question types with friendly labels
@@ -51,9 +53,20 @@ type DisplayCondition = {
   value: string | number | string[];
 };
 
+// Form types - data collection uses FormTemplate API, legal docs use Policies API
+type FormType =
+  // Data collection (FormTemplate backend)
+  | "waiver" | "vehicle" | "intake" | "custom"
+  // Legal documents (DocumentTemplate/Policies backend)
+  | "park_rules" | "liability_waiver" | "long_term_stay" | "legal_agreement";
+
+// Helper to determine which backend to use
+const isLegalDocumentType = (type: string): boolean =>
+  ["park_rules", "liability_waiver", "long_term_stay", "legal_agreement"].includes(type);
+
 type FormTemplateInput = {
   title: string;
-  type: "waiver" | "vehicle" | "intake" | "custom";
+  type: FormType;
   description: string;
   questions: Question[];
   isActive: boolean;
@@ -69,6 +82,13 @@ type FormTemplateInput = {
   // Conditional display
   displayConditions: DisplayCondition[];
   conditionLogic: "all" | "any";
+  // Legal document fields (for Policies backend)
+  documentContent?: string;
+  requireSignature?: boolean;
+  enforcement?: "none" | "pre_booking" | "pre_checkin" | "post_booking";
+  // Track which backend this came from (for editing)
+  _backend?: "form" | "policy";
+  _originalId?: string;
 };
 
 const emptyForm: FormTemplateInput = {
@@ -87,6 +107,10 @@ const emptyForm: FormTemplateInput = {
   reminderDaysBefore: 1,
   displayConditions: [],
   conditionLogic: "all",
+  // Legal document defaults
+  documentContent: "",
+  requireSignature: true,
+  enforcement: "post_booking",
 };
 
 // Condition field options with friendly labels

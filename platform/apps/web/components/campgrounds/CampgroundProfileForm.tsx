@@ -468,6 +468,9 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
                   onChange={(e) => setForm((s) => ({ ...s, officeClosesAt: e.target.value }))}
                   className="w-full md:w-48 h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
+                  <option value="12:00">12:00 PM (Noon)</option>
+                  <option value="13:00">1:00 PM</option>
+                  <option value="14:00">2:00 PM</option>
                   <option value="15:00">3:00 PM</option>
                   <option value="16:00">4:00 PM</option>
                   <option value="17:00">5:00 PM</option>
@@ -475,10 +478,16 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
                   <option value="19:00">7:00 PM</option>
                   <option value="20:00">8:00 PM</option>
                   <option value="21:00">9:00 PM</option>
+                  <option value="22:00">10:00 PM</option>
+                  <option value="23:00">11:00 PM</option>
+                  <option value="23:59">Midnight</option>
                 </select>
-                <p className="text-xs text-muted-foreground">
-                  Same-day cabin bookings must be made before this time to allow for preparation
-                </p>
+                <div className="bg-muted/50 rounded-lg p-3 mt-2 text-xs text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">How same-day booking cutoffs work:</p>
+                  <p>• RV/tent sites can be booked anytime (no cutoff by default)</p>
+                  <p>• Cabins/lodging require booking 60 minutes before office close (for prep time)</p>
+                  <p>• Customize cutoffs per site class in <span className="font-medium">Site Classes</span> settings</p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

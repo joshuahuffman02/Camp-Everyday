@@ -60,8 +60,11 @@ const advanceBookingOptions = [
 
 const minNightOptions = [1, 2, 3];
 
-// Generate office close time options (3:00 PM - 9:00 PM)
+// Office close time options
 const officeCloseTimeOptions = [
+  { value: "12:00", label: "12:00 PM (Noon)" },
+  { value: "13:00", label: "1:00 PM" },
+  { value: "14:00", label: "2:00 PM" },
   { value: "15:00", label: "3:00 PM" },
   { value: "16:00", label: "4:00 PM" },
   { value: "17:00", label: "5:00 PM" },
@@ -69,6 +72,9 @@ const officeCloseTimeOptions = [
   { value: "19:00", label: "7:00 PM" },
   { value: "20:00", label: "8:00 PM" },
   { value: "21:00", label: "9:00 PM" },
+  { value: "22:00", label: "10:00 PM" },
+  { value: "23:00", label: "11:00 PM" },
+  { value: "23:59", label: "Midnight" },
 ];
 
 export function BookingRules({
@@ -476,28 +482,17 @@ export function BookingRules({
             <label className="text-sm text-slate-400">
               Office closes at
             </label>
-            <div className="flex gap-3">
-              {officeCloseTimeOptions.map((option) => {
-                const isSelected = officeClosesAt === option.value;
-
-                return (
-                  <motion.button
-                    key={option.value}
-                    onClick={() => setOfficeClosesAt(option.value)}
-                    whileHover={prefersReducedMotion ? {} : { scale: 1.05 }}
-                    whileTap={prefersReducedMotion ? {} : { scale: 0.95 }}
-                    className={cn(
-                      "flex-1 p-3 rounded-lg border-2 transition-all text-sm",
-                      isSelected
-                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
-                        : "border-slate-700 bg-slate-800/30 hover:border-slate-600 text-slate-300"
-                    )}
-                  >
-                    {option.label}
-                  </motion.button>
-                );
-              })}
-            </div>
+            <select
+              value={officeClosesAt}
+              onChange={(e) => setOfficeClosesAt(e.target.value)}
+              className="w-full md:w-64 h-12 px-4 rounded-xl border-2 border-slate-700 bg-slate-800/50 text-white text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+            >
+              {officeCloseTimeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {sameDayCutoffEnabled && (
