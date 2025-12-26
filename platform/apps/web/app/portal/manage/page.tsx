@@ -11,31 +11,8 @@ import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import { StatusBadge, getReservationStatusVariant, getStatusLabel } from "@/components/portal/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 
-interface Reservation {
-  id: string;
-  arrivalDate: string;
-  departureDate: string;
-  status: string;
-  adults: number;
-  children: number;
-  totalCents: number;
-  paidCents: number;
-  campground: {
-    name: string;
-    slug: string;
-  };
-  site: {
-    siteNumber: string;
-  };
-}
-
-interface GuestData {
-  id: string;
-  primaryFirstName: string;
-  primaryLastName: string;
-  email: string;
-  reservations: Reservation[];
-}
+type GuestData = Awaited<ReturnType<typeof apiClient.getGuestMe>>;
+type Reservation = GuestData["reservations"][number];
 
 type ActionType = "modify-dates" | "change-site" | "add-guest" | "cancel" | "pay-balance" | null;
 
@@ -93,7 +70,7 @@ export default function PortalManagePage() {
     );
   }
 
-  const balanceDue = selectedReservation.totalCents - selectedReservation.paidCents;
+  const balanceDue = selectedReservation.totalAmount - (selectedReservation.paidAmount ?? 0);
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6 max-w-2xl">

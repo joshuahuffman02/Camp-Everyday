@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -21,10 +20,12 @@ import { useSyncStatus } from "@/contexts/SyncStatusContext";
 import { GUEST_TOKEN_KEY, STATUS_VARIANTS } from "@/lib/portal-constants";
 import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import { PortalLoadingState, EmptyState } from "@/components/portal/PortalLoadingState";
+import { ReservationSelector } from "@/components/portal/ReservationSelector";
 import { cn } from "@/lib/utils";
 
 type GuestData = Awaited<ReturnType<typeof apiClient.getGuestMe>>;
 type Product = Awaited<ReturnType<typeof apiClient.getProducts>>[0];
+type Reservation = GuestData["reservations"][0];
 
 type CartItem = {
     id: string;
@@ -39,17 +40,30 @@ export default function PortalStorePage() {
     const [guest, setGuest] = useState<GuestData | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const [productsLoading, setProductsLoading] = useState(false);
+    const [selectedReservationId, setSelectedReservationId] = useState<string | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
-    const productsCacheKey = "campreserv:portalStoreProducts";
     const cartCacheKey = "campreserv:portalStoreCart";
     const orderQueueKey = "campreserv:portal:orderQueue";
     const [queuedOrders, setQueuedOrders] = useState(0);
     const [conflicts, setConflicts] = useState<any[]>([]);
     const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
     const { status: syncStatus } = useSyncStatus();
+
+    // Get current selected reservation
+    const selectedReservation = useMemo(() => {
+        if (!guest) return null;
+        if (selectedReservationId) {
+            return guest.reservations.find(r => r.id === selectedReservationId) || null;
+        }
+        // Default to first checked-in/confirmed reservation
+        return guest.reservations.find(
+            r => r.status === "checked_in" || r.status === "confirmed"
+        ) || guest.reservations[0] || null;
+    }, [guest, selectedReservationId]);
 
     useEffect(() => {
         if (typeof window !== "undefined") {
@@ -152,6 +166,37 @@ export default function PortalStorePage() {
         saveOrderQueue(remaining);
     };
 
+    // Load products when selected reservation changes
+    const loadProducts = useCallback(async (campgroundId: string) => {
+        const cacheKey = `campreserv:portalStoreProducts:${campgroundId}`;
+        setProductsLoading(true);
+        try {
+            const productsData = await apiClient.getProducts(campgroundId);
+            const activeProducts = productsData.filter(p => p.isActive !== false);
+            setProducts(activeProducts);
+            try {
+                localStorage.setItem(cacheKey, JSON.stringify(activeProducts));
+                recordTelemetry({ source: "portal-store", type: "cache", status: "success", message: "Products cached", meta: { count: activeProducts.length, campgroundId } });
+            } catch {
+                // ignore
+            }
+        } catch (err) {
+            console.error(err);
+            // Try loading from cache for offline browsing
+            try {
+                const raw = localStorage.getItem(cacheKey);
+                if (raw) {
+                    setProducts(JSON.parse(raw));
+                    recordTelemetry({ source: "portal-store", type: "cache", status: "pending", message: "Loaded cached products (offline)" });
+                }
+            } catch {
+                // ignore
+            }
+        } finally {
+            setProductsLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         const token = localStorage.getItem(GUEST_TOKEN_KEY);
         if (!token) {
@@ -164,36 +209,17 @@ export default function PortalStorePage() {
                 const guestData = await apiClient.getGuestMe(token);
                 setGuest(guestData);
 
-                // Find active reservation to get campground ID
+                // Set initial selected reservation
                 const activeRes = guestData.reservations.find(
                     (r) => r.status === "checked_in" || r.status === "confirmed"
                 ) || guestData.reservations[0];
 
                 if (activeRes) {
-                    const productsData = await apiClient.getProducts(activeRes.campgroundId);
-                    const activeProducts = productsData.filter(p => p.isActive !== false);
-                    setProducts(activeProducts);
-                    try {
-                        localStorage.setItem(productsCacheKey, JSON.stringify(activeProducts));
-                        recordTelemetry({ source: "portal-store", type: "cache", status: "success", message: "Products cached", meta: { count: activeProducts.length } });
-                    } catch {
-                        // ignore
-                    }
+                    setSelectedReservationId(activeRes.id);
                 }
             } catch (err) {
                 console.error(err);
-                // If we have cached products, use them for offline browsing
-                try {
-                    const raw = localStorage.getItem(productsCacheKey);
-                    if (raw) {
-                        setProducts(JSON.parse(raw));
-                        recordTelemetry({ source: "portal-store", type: "cache", status: "pending", message: "Loaded cached products (offline)" });
-                    } else {
-                        router.push("/portal/login");
-                    }
-                } catch {
-                    router.push("/portal/login");
-                }
+                router.push("/portal/login");
             } finally {
                 setLoading(false);
             }
@@ -201,6 +227,13 @@ export default function PortalStorePage() {
 
         init();
     }, [router]);
+
+    // Load products when selected reservation changes
+    useEffect(() => {
+        if (selectedReservation?.campgroundId) {
+            loadProducts(selectedReservation.campgroundId);
+        }
+    }, [selectedReservation?.campgroundId, loadProducts]);
 
     useEffect(() => {
         if (isOnline) {
@@ -289,10 +322,6 @@ export default function PortalStorePage() {
 
     if (!guest) return null;
 
-    const activeRes = guest.reservations.find(
-        (r) => r.status === "checked_in" || r.status === "confirmed"
-    ) || guest.reservations[0];
-
     return (
         <div className="container mx-auto px-4 py-6 space-y-6">
             {/* Page Header */}
@@ -300,7 +329,7 @@ export default function PortalStorePage() {
                 <PortalPageHeader
                     icon={<Store className="h-6 w-6 text-white" />}
                     title="Camp Store"
-                    subtitle="Order to your site or pick up"
+                    subtitle={selectedReservation ? `Shopping at ${selectedReservation.campground.name}` : "Order to your site or pick up"}
                     gradient="from-purple-500 to-pink-600"
                 />
                 <div className="flex items-center gap-2">
@@ -326,6 +355,25 @@ export default function PortalStorePage() {
                 </div>
             </div>
 
+            {/* Reservation Selector for multi-campground guests */}
+            {guest.reservations.length > 1 && selectedReservationId && (
+                <ReservationSelector
+                    reservations={guest.reservations}
+                    selectedId={selectedReservationId}
+                    onSelect={(id) => {
+                        setSelectedReservationId(id);
+                        // Clear cart when switching campgrounds (products are different)
+                        if (cart.length > 0) {
+                            toast({
+                                title: "Cart cleared",
+                                description: "Your cart was cleared because you switched campgrounds.",
+                            });
+                            setCart([]);
+                        }
+                    }}
+                />
+            )}
+
             {conflicts.length > 0 && (
                 <div className={cn(
                     "rounded-lg border p-3 text-sm space-y-2",
@@ -350,34 +398,46 @@ export default function PortalStorePage() {
                 </div>
             )}
 
-            {!activeRes ? (
-                    <div className="text-center py-10 text-muted-foreground">
-                        <p>No active reservation found. You cannot place orders.</p>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {!isOnline && (
-                            <Alert>
-                                <AlertTitle>Offline mode</AlertTitle>
-                                <AlertDescription>
-                                    Browsing cached items. Add to cart is available; checkout will resume when you&apos;re online.
-                                </AlertDescription>
-                            </Alert>
-                        )}
-                        {!isOpen && (
-                            <Alert>
-                                <AlertTitle>Store is closed</AlertTitle>
-                                <AlertDescription>
-                                    You can order selected after-hours items for pickup. Regular items are unavailable until the store opens.
-                                </AlertDescription>
-                            </Alert>
-                        )}
+            {!selectedReservation ? (
+                <div className="text-center py-10 text-muted-foreground">
+                    <p>No active reservation found. You cannot place orders.</p>
+                </div>
+            ) : productsLoading ? (
+                <div className="py-10">
+                    <PortalLoadingState variant="spinner" message={`Loading products from ${selectedReservation.campground.name}...`} />
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {!isOnline && (
+                        <Alert>
+                            <AlertTitle>Offline mode</AlertTitle>
+                            <AlertDescription>
+                                Browsing cached items. Add to cart is available; checkout will resume when you&apos;re online.
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    {!isOpen && (
+                        <Alert>
+                            <AlertTitle>Store is closed</AlertTitle>
+                            <AlertDescription>
+                                You can order selected after-hours items for pickup. Regular items are unavailable until the store opens.
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    {filteredProducts.length === 0 ? (
+                        <EmptyState
+                            icon={<Store className="h-12 w-12" />}
+                            title="No products available"
+                            description={`${selectedReservation.campground.name} doesn't have any products listed yet.`}
+                        />
+                    ) : (
                         <ProductGrid products={filteredProducts} onAdd={(product) => {
                             if (!isOpen && !product.afterHoursAllowed) return;
                             addToCart(product);
                         }} />
-                    </div>
-                )}
+                    )}
+                </div>
+            )}
 
             {/* Cart Dialog (Mobile Friendly) */}
             <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
@@ -449,20 +509,20 @@ export default function PortalStorePage() {
             </Dialog>
 
             {/* Checkout Modal */}
-            {activeRes && (
+            {selectedReservation && (
                 <GuestCheckoutModal
                     isOpen={isCheckoutOpen}
                     onClose={() => setIsCheckoutOpen(false)}
                     cart={cart}
-                    campgroundId={activeRes.campgroundId}
+                    campgroundId={selectedReservation.campgroundId}
                     guest={guest}
                     onSuccess={handleCheckoutSuccess}
                     isOnline={isOnline}
-                    queueOrder={(payload) => queueOrder(payload, activeRes.campgroundId)}
+                    queueOrder={(payload) => queueOrder(payload, selectedReservation.campgroundId)}
                     onQueued={() => {
                         setIsCheckoutOpen(false);
                         setCart([]);
-                        toast({ title: "Order saved offline", description: "We’ll submit it when you’re back online." });
+                        toast({ title: "Order saved offline", description: "We'll submit it when you're back online." });
                     }}
                 />
             )}
