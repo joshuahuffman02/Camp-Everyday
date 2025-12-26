@@ -95,13 +95,21 @@ export class MessagesService {
     /**
      * Get all conversations for a campground in a single efficient query.
      * Returns reservations that have messages, with all messages included.
+     * Optimized: fetches messages and reservations separately to avoid N+1 joins.
      */
     async getConversations(campgroundId: string) {
-        // Get all messages for this campground, grouped by reservation
+        // Step 1: Get all messages with minimal data (no reservation join per message)
         const messages = await this.prisma.message.findMany({
             where: { campgroundId },
             orderBy: { createdAt: 'asc' },
-            include: {
+            select: {
+                id: true,
+                content: true,
+                senderType: true,
+                createdAt: true,
+                readAt: true,
+                reservationId: true,
+                guestId: true,
                 guest: {
                     select: {
                         id: true,
@@ -109,38 +117,47 @@ export class MessagesService {
                         primaryLastName: true,
                     },
                 },
-                reservation: {
+            },
+        });
+
+        // Step 2: Get unique reservation IDs
+        const reservationIds = [...new Set(messages.map(m => m.reservationId))];
+
+        // Step 3: Fetch all reservation details in one query
+        const reservations = await this.prisma.reservation.findMany({
+            where: { id: { in: reservationIds } },
+            select: {
+                id: true,
+                status: true,
+                arrivalDate: true,
+                departureDate: true,
+                adults: true,
+                children: true,
+                pets: true,
+                totalAmountCents: true,
+                notes: true,
+                guest: {
                     select: {
                         id: true,
-                        status: true,
-                        arrivalDate: true,
-                        departureDate: true,
-                        adults: true,
-                        children: true,
-                        pets: true,
-                        totalAmountCents: true,
-                        notes: true,
-                        guest: {
-                            select: {
-                                id: true,
-                                primaryFirstName: true,
-                                primaryLastName: true,
-                                email: true,
-                                phone: true,
-                            },
-                        },
-                        site: {
-                            select: {
-                                id: true,
-                                name: true,
-                                siteNumber: true,
-                                siteType: true,
-                            },
-                        },
+                        primaryFirstName: true,
+                        primaryLastName: true,
+                        email: true,
+                        phone: true,
+                    },
+                },
+                site: {
+                    select: {
+                        id: true,
+                        name: true,
+                        siteNumber: true,
+                        siteType: true,
                     },
                 },
             },
         });
+
+        // Create a map for quick reservation lookup
+        const reservationMap = new Map(reservations.map(r => [r.id, r]));
 
         // Group messages by reservation
         const conversationsMap = new Map<string, {
@@ -167,7 +184,7 @@ export class MessagesService {
         for (const msg of messages) {
             const resId = msg.reservationId;
             if (!conversationsMap.has(resId)) {
-                const res = msg.reservation;
+                const res = reservationMap.get(resId);
                 const guestName = res?.guest
                     ? `${res.guest.primaryFirstName || ''} ${res.guest.primaryLastName || ''}`.trim() || 'Unknown Guest'
                     : 'Unknown Guest';
