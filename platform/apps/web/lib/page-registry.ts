@@ -717,6 +717,15 @@ export const PAGE_REGISTRY: PageDefinition[] = [
     permissions: ["pricingWrite"],
   },
   {
+    href: "/dashboard/settings/value-stack",
+    label: "Value Stack & Offers",
+    icon: "gift",
+    category: "settings",
+    description: "Configure guarantees, bonuses, and booking page messaging",
+    keywords: ["guarantees", "bonuses", "offers", "value", "lead capture", "conversion"],
+    permissions: ["settingsWrite"],
+  },
+  {
     href: "/dashboard/settings/memberships",
     label: "Memberships",
     icon: "users",

@@ -6,7 +6,11 @@ import { useSearchParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { ArrowRight, Calendar, MapPin, Search, Sparkles, Users, AlertCircle } from "lucide-react";
+import {
+  ArrowRight, Calendar, MapPin, Search, Sparkles, Users, AlertCircle,
+  Shield, Gift, ChevronLeft, ChevronRight, Mail, Check, Flame, Coffee,
+  Tent, ShieldCheck, CloudRain, DollarSign, Umbrella, BadgeCheck, Clock
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -78,6 +82,41 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
     enabled: !!campground?.id && !!arrivalDate && !!departureDate,
   });
 
+  // Fetch value stack (guarantees, bonuses, lead config)
+  const { data: valueStack } = useQuery({
+    queryKey: ["value-stack", campground?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/public/campgrounds/${campground!.id}/value-stack`);
+      return res.ok ? res.json() : null;
+    },
+    enabled: !!campground?.id,
+  });
+
+  // Lead capture state
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadSubmitted, setLeadSubmitted] = useState(false);
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+
+  const submitLead = async (source: string) => {
+    if (!leadEmail || !campground?.id) return;
+    setLeadSubmitting(true);
+    try {
+      await fetch(`/api/public/campgrounds/${campground.id}/leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: leadEmail, source }),
+      });
+      setLeadSubmitted(true);
+      trackEvent("lead_captured", { campgroundId: campground.id, source });
+    } catch (e) {
+      console.error("Lead capture failed", e);
+    }
+    setLeadSubmitting(false);
+  };
+
+  // Gallery state for keyboard navigation
+  const [galleryIndex, setGalleryIndex] = useState(0);
+
   const events = campground?.events ?? [];
   const promotions = campground?.promotions ?? [];
   const reviews = (campground as { reviews?: unknown[] })?.reviews ?? [];
@@ -99,15 +138,29 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
 
   return (
     <div className="bg-white text-slate-900">
+      {/* Skip to main content link for accessibility */}
+      <a
+        href="#availability"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-white focus:text-slate-900 focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:ring-2 focus:ring-emerald-500"
+      >
+        Skip to available stays
+      </a>
+
       {/* Hero */}
-      <section className="relative">
+      <section className="relative" aria-label="Campground hero">
         <div className="h-[60vh] w-full overflow-hidden rounded-b-3xl bg-slate-900">
           {hero ? (
-            <Image src={hero} alt={campground?.name || "Campground"} fill className="object-cover" priority />
+            <Image
+              src={hero}
+              alt={`${campground?.name || "Campground"} - ${campground?.tagline || "scenic outdoor camping destination"} in ${campground?.city}, ${campground?.state}`}
+              fill
+              className="object-cover"
+              priority
+            />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-teal-600" />
+            <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-teal-600" aria-hidden="true" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" aria-hidden="true" />
         </div>
         <div className="absolute inset-0 flex items-end">
           <div className="mx-auto max-w-6xl w-full px-6 pb-8 flex flex-col gap-4">
@@ -302,7 +355,13 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-600">Reviews will appear here once available.</p>
+              <div className="text-center py-4">
+                <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Sparkles className="h-5 w-5 text-amber-500" />
+                </div>
+                <p className="text-sm text-slate-600">Be the first to share your experience!</p>
+                <p className="text-xs text-slate-400 mt-1">Reviews appear after your stay</p>
+              </div>
             )}
           </Card>
           <Card className="p-4 border-slate-200 space-y-2">
@@ -477,8 +536,50 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
         ) : (
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-slate-900">Events & offers</h2>
-            <Card className="p-4 text-sm text-slate-600 border-dashed border-slate-200">
-              No upcoming events or deals right now. Check back soon or browse availability below.
+            <Card className="p-6 border-dashed border-slate-200 bg-gradient-to-br from-emerald-50 to-teal-50">
+              <div className="text-center space-y-4">
+                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                  <Sparkles className="h-6 w-6 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900">
+                    {valueStack?.leadCaptureConfig?.eventsHeadline || "Something exciting is coming..."}
+                  </h3>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {valueStack?.leadCaptureConfig?.eventsSubtext || "Sign up to be the first to know about special events and deals"}
+                  </p>
+                </div>
+                {!leadSubmitted ? (
+                  <div className="flex gap-2 max-w-sm mx-auto">
+                    <Input
+                      type="email"
+                      placeholder="your@email.com"
+                      value={leadEmail}
+                      onChange={(e) => setLeadEmail(e.target.value)}
+                      className="flex-1"
+                      aria-label="Email address for event notifications"
+                    />
+                    <Button
+                      onClick={() => submitLead("events_notify")}
+                      disabled={leadSubmitting || !leadEmail}
+                      className="bg-emerald-600 hover:bg-emerald-700 transition-all duration-150 hover:scale-105 active:scale-95"
+                    >
+                      {leadSubmitting ? (
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>{valueStack?.leadCaptureConfig?.eventsButtonText || "Notify Me"}</>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 text-emerald-600 animate-in fade-in zoom-in duration-300">
+                    <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center">
+                      <Check className="h-4 w-4" />
+                    </div>
+                    <span className="font-medium">You're on the list!</span>
+                  </div>
+                )}
+              </div>
             </Card>
           </section>
         )}
@@ -493,10 +594,22 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
             {filteredSiteClasses.map((sc: any, idx: number) => {
               // Stub scarcity data - in production this would come from availability API
               const stubbedAvailability = [3, 5, 2, 8, 4, 1, 6, 7][idx % 8];
+              const pricePerNight = ((sc.defaultRate || 0) / 100).toFixed(0);
               return (
-                <Card key={sc.id} className="overflow-hidden border-slate-200 hover:shadow-lg transition">
-                  <div className="relative h-48 w-full bg-slate-100">
-                    <Image src={sc.photoUrl || hero || "/placeholder.png"} alt={`${sc.name} site`} fill className="object-cover" />
+                <Card
+                  key={sc.id}
+                  className="group overflow-hidden border-slate-200 transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-1 motion-reduce:hover:translate-y-0 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-2"
+                  style={{ animationDelay: `${idx * 100}ms` }}
+                  role="article"
+                  aria-label={`${sc.name} - $${pricePerNight} per night`}
+                >
+                  <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
+                    <Image
+                      src={sc.photoUrl || hero || "/placeholder.png"}
+                      alt={`${sc.name} accommodation at ${campground?.name} - ${sc.description || sc.siteType}`}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:group-hover:scale-100"
+                    />
                     <div className="absolute top-3 left-3 flex gap-2">
                       <Badge variant="secondary" className="bg-black/60 text-white border-white/10">
                         {sc.siteType?.toUpperCase() || "STAY"}
@@ -517,24 +630,28 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
                         <p className="text-sm text-slate-600 line-clamp-2">{sc.description}</p>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-emerald-600">${((sc.defaultRate || 0) / 100).toFixed(0)}</div>
+                        <div className="text-2xl font-bold text-emerald-600" aria-label={`${pricePerNight} dollars per night`}>
+                          ${pricePerNight}
+                        </div>
                         <div className="text-xs text-slate-500">per night</div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                      {sc.maxOccupancy && <Badge variant="outline">Up to {sc.maxOccupancy} guests</Badge>}
-                      {sc.hookupsPower && <Badge variant="outline">Power</Badge>}
-                      {sc.hookupsWater && <Badge variant="outline">Water</Badge>}
-                      {sc.hookupsSewer && <Badge variant="outline">Sewer</Badge>}
+                    <div className="flex flex-wrap gap-2 text-xs text-slate-600" role="list" aria-label="Amenities">
+                      {sc.maxOccupancy && <Badge variant="outline" role="listitem">Up to {sc.maxOccupancy} guests</Badge>}
+                      {sc.hookupsPower && <Badge variant="outline" role="listitem" title="Electric hookup available">Power</Badge>}
+                      {sc.hookupsWater && <Badge variant="outline" role="listitem" title="Water hookup available">Water</Badge>}
+                      {sc.hookupsSewer && <Badge variant="outline" role="listitem" title="Sewer hookup available">Sewer</Badge>}
                     </div>
                     <div className="flex items-center justify-between pt-2">
                       <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <MapPin className="h-4 w-4" />
+                        <MapPin className="h-4 w-4" aria-hidden="true" />
                         <span>{campground?.city}, {campground?.state}</span>
                       </div>
                       <Button
-                        className="bg-slate-900 hover:bg-slate-800"
+                        className="bg-slate-900 hover:bg-slate-800 transition-all duration-150 hover:scale-105 active:scale-95 motion-reduce:hover:scale-100"
+                        aria-label={`Book ${sc.name} for $${pricePerNight} per night`}
                         onClick={() => {
+                          trackEvent("accommodation_book_click", { siteClassId: sc.id, campgroundId: campground?.id });
                           const q = new URLSearchParams({
                             arrivalDate,
                             departureDate,
@@ -563,20 +680,148 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
           </div>
         </section>
 
-        {/* Gallery */}
+        {/* Gallery with keyboard navigation */}
         {photos.length > 0 && (
-          <section className="space-y-3">
+          <section className="space-y-3" aria-label="Photo gallery">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-slate-900">Gallery</h2>
-              <div className="text-sm text-slate-500">{photos.length} photos</div>
-            </div>
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
-              {photos.slice(0, 6).map((p, i) => (
-                <div key={p + i} className="relative h-40 rounded-xl overflow-hidden">
-                  <Image src={p} alt={`Photo ${i + 1}`} fill className="object-cover" />
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500">{galleryIndex + 1} of {Math.min(photos.length, 6)}</span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setGalleryIndex(Math.max(0, galleryIndex - 1))}
+                    disabled={galleryIndex === 0}
+                    aria-label="Previous photo"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setGalleryIndex(Math.min(Math.min(photos.length, 6) - 1, galleryIndex + 1))}
+                    disabled={galleryIndex >= Math.min(photos.length, 6) - 1}
+                    aria-label="Next photo"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
+              </div>
+            </div>
+            <div
+              className="grid gap-3 grid-cols-2 md:grid-cols-3"
+              role="region"
+              aria-roledescription="carousel"
+              aria-label="Campground photos"
+            >
+              {photos.slice(0, 6).map((p, i) => (
+                <button
+                  key={p + i}
+                  className={`relative h-40 rounded-xl overflow-hidden transition-all duration-200 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                    i === galleryIndex ? "ring-2 ring-emerald-500" : ""
+                  }`}
+                  onClick={() => setGalleryIndex(i)}
+                  aria-label={`View photo ${i + 1} of ${Math.min(photos.length, 6)}`}
+                  aria-current={i === galleryIndex ? "true" : undefined}
+                >
+                  <Image
+                    src={p}
+                    alt={`${campground?.name} photo ${i + 1} - campground view`}
+                    fill
+                    className="object-cover"
+                  />
+                </button>
               ))}
             </div>
+          </section>
+        )}
+
+        {/* Guarantees & Bonuses Section */}
+        {valueStack && (valueStack.guarantees?.length > 0 || valueStack.bonuses?.length > 0) && (
+          <section className="space-y-6 bg-gradient-to-br from-slate-50 to-emerald-50 -mx-6 px-6 py-8 rounded-2xl">
+            {/* Guarantees */}
+            {valueStack.guarantees?.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-emerald-600" />
+                  <h2 className="text-lg font-semibold text-slate-900">Our Guarantees</h2>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {valueStack.guarantees.map((g: any) => {
+                    const IconComponent = {
+                      "shield-check": ShieldCheck,
+                      "cloud-rain": CloudRain,
+                      "clock": Clock,
+                      "dollar-sign": DollarSign,
+                      "sparkles": Sparkles,
+                      "umbrella": Umbrella,
+                      "badge-check": BadgeCheck,
+                    }[g.iconName] || Shield;
+                    return (
+                      <Card key={g.id} className="p-4 border-emerald-100 bg-white/80 backdrop-blur-sm">
+                        <div className="flex gap-3">
+                          <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <IconComponent className="h-5 w-5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-slate-900">{g.title}</h3>
+                            <p className="text-sm text-slate-600 mt-1">{g.description}</p>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Bonuses */}
+            {valueStack.bonuses?.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Gift className="h-5 w-5 text-emerald-600" />
+                    <h2 className="text-lg font-semibold text-slate-900">Included With Your Stay</h2>
+                  </div>
+                  {valueStack.totalBonusValue > 0 && (
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                      ${(valueStack.totalBonusValue / 100).toFixed(0)} value included
+                    </Badge>
+                  )}
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {valueStack.bonuses.map((b: any) => {
+                    const IconComponent = {
+                      "flame": Flame,
+                      "coffee": Coffee,
+                      "tent": Tent,
+                      "map-pin": MapPin,
+                      "gift": Gift,
+                      "sparkles": Sparkles,
+                    }[b.iconName] || Gift;
+                    return (
+                      <div key={b.id} className="flex items-center gap-3 p-3 bg-white/60 rounded-lg">
+                        <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <IconComponent className="h-4 w-4 text-amber-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-slate-900">{b.name}</span>
+                            <span className="text-sm text-emerald-600 font-semibold">${(b.valueCents / 100).toFixed(0)} value</span>
+                          </div>
+                          {b.description && (
+                            <p className="text-xs text-slate-500 truncate">{b.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </section>
         )}
       </main>
