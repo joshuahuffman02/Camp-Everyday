@@ -13,7 +13,8 @@ import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
 import { format } from "date-fns";
-import { DollarSign, ArrowLeft, MessageSquare, Calculator, ActivitySquare, MapPin, CheckCircle, DoorOpen, Users, AlertTriangle, Clock, ShieldCheck } from "lucide-react";
+import { DollarSign, ArrowLeft, MessageSquare, Calculator, ActivitySquare, MapPin, CheckCircle, DoorOpen, Users, AlertTriangle, Clock, ShieldCheck, ClipboardList } from "lucide-react";
+import { AuditLogTimeline } from "../../../../../components/audit/AuditLogTimeline";
 
 function formatDate(d?: string | Date | null) {
   if (!d) return "—";
@@ -1341,6 +1342,21 @@ export default function ReservationDetailPage() {
                 <span>Checked out</span>
                 <span className="font-medium">{formatDateTime((reservation as any).checkOutAt)}</span>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-slate-600" />
+              <CardTitle>Change History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AuditLogTimeline
+                campgroundId={campgroundId}
+                entityType="reservation"
+                entityId={reservationId}
+                limit={20}
+              />
             </CardContent>
           </Card>
         </div>

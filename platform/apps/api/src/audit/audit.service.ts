@@ -102,6 +102,33 @@ export class AuditService {
     return this.list(params);
   }
 
+  /**
+   * Get audit logs for a specific entity (e.g., guest or reservation)
+   */
+  async listByEntity(params: {
+    campgroundId: string;
+    entity: string;
+    entityId: string;
+    limit?: number;
+  }) {
+    const privacy = await this.getPrivacy(params.campgroundId);
+    const rows = await (this.prisma as any).auditLog.findMany({
+      where: {
+        campgroundId: params.campgroundId,
+        entity: params.entity,
+        entityId: params.entityId
+      },
+      include: {
+        actor: { select: { id: true, email: true, firstName: true, lastName: true } }
+      },
+      orderBy: { createdAt: "desc" },
+      take: params.limit || 100
+    });
+
+    if (!privacy.redactPII) return rows;
+    return rows.map((row: any) => this.redactRow(row));
+  }
+
   async record(event: {
     campgroundId: string;
     actorId: string | null;

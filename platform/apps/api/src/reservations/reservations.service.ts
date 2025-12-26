@@ -1147,6 +1147,28 @@ export class ReservationsService {
           }
         });
 
+        // Audit reservation creation
+        await this.audit.record({
+          campgroundId: data.campgroundId,
+          actorId: data.createdBy ?? data.updatedBy ?? null,
+          action: "reservation.create",
+          entity: "reservation",
+          entityId: reservation.id,
+          before: null,
+          after: {
+            id: reservation.id,
+            guestId: reservation.guestId,
+            guestName: `${reservation.guest?.primaryFirstName} ${reservation.guest?.primaryLastName}`,
+            siteId: reservation.siteId,
+            siteName: reservation.site?.siteNumber,
+            arrivalDate: reservation.arrivalDate,
+            departureDate: reservation.departureDate,
+            status: reservation.status,
+            totalAmount: reservation.totalAmount,
+            source: reservation.source
+          }
+        });
+
         await this.enqueuePlaybooksForReservation("arrival", reservation.id);
 
         if (reservation.seasonalRateId) {
@@ -1449,6 +1471,45 @@ export class ReservationsService {
           }
         });
 
+        // Determine the action type based on status change
+        const statusChanged = data.status && data.status !== existing.status;
+        let auditAction = "reservation.update";
+        if (statusChanged) {
+          if (data.status === "cancelled") auditAction = "reservation.cancel";
+          else if (data.status === "checked_in") auditAction = "reservation.checkin";
+          else if (data.status === "checked_out") auditAction = "reservation.checkout";
+          else if (data.status === "confirmed") auditAction = "reservation.confirm";
+        }
+
+        // Audit reservation update
+        await this.audit.record({
+          campgroundId: existing.campgroundId,
+          actorId: data.updatedBy ?? existing.updatedBy ?? null,
+          action: auditAction,
+          entity: "reservation",
+          entityId: id,
+          before: {
+            status: existing.status,
+            siteId: existing.siteId,
+            arrivalDate: existing.arrivalDate,
+            departureDate: existing.departureDate,
+            totalAmount: existing.totalAmount,
+            adults: existing.adults,
+            children: existing.children,
+            notes: existing.notes
+          },
+          after: {
+            status: updatedReservation.status,
+            siteId: updatedReservation.siteId,
+            arrivalDate: updatedReservation.arrivalDate,
+            departureDate: updatedReservation.departureDate,
+            totalAmount: updatedReservation.totalAmount,
+            adults: updatedReservation.adults,
+            children: updatedReservation.children,
+            notes: updatedReservation.notes
+          }
+        });
+
         if (needsOverrideApproval) {
           await this.audit.record({
             campgroundId: existing.campgroundId,
@@ -1636,8 +1697,39 @@ export class ReservationsService {
     return this.findOne(id);
   }
 
-  remove(id: string) {
-    return this.prisma.reservation.delete({ where: { id } });
+  async remove(id: string, options?: { actorId?: string }) {
+    // Get reservation before deletion for audit
+    const before = await this.prisma.reservation.findUnique({
+      where: { id },
+      include: { guest: true, site: true }
+    });
+
+    const deleted = await this.prisma.reservation.delete({ where: { id } });
+
+    // Audit reservation deletion
+    if (before) {
+      await this.audit.record({
+        campgroundId: before.campgroundId,
+        actorId: options?.actorId ?? before.updatedBy ?? null,
+        action: "reservation.delete",
+        entity: "reservation",
+        entityId: id,
+        before: {
+          id: before.id,
+          guestId: before.guestId,
+          guestName: `${before.guest?.primaryFirstName} ${before.guest?.primaryLastName}`,
+          siteId: before.siteId,
+          siteName: before.site?.siteNumber,
+          arrivalDate: before.arrivalDate,
+          departureDate: before.departureDate,
+          status: before.status,
+          totalAmount: before.totalAmount
+        },
+        after: null
+      });
+    }
+
+    return deleted;
   }
 
   async recordPayment(
@@ -2254,6 +2346,26 @@ export class ReservationsService {
         }
       });
       console.log(`[Kiosk] Check-in successful for ${id}`);
+
+      // Audit successful kiosk check-in
+      await this.audit.record({
+        campgroundId: reservation.campgroundId,
+        actorId: options?.actorId ?? null,
+        action: "reservation.checkin",
+        entity: "reservation",
+        entityId: id,
+        before: {
+          status: reservation.status,
+          checkInStatus: reservation.checkInStatus
+        },
+        after: {
+          status: ReservationStatus.checked_in,
+          checkInStatus: CheckInStatus.completed,
+          checkInAt: updated.checkInAt,
+          upsellAmount: upsellTotalCents,
+          source: "kiosk"
+        }
+      });
 
       try {
         await this.accessControl.autoGrantForReservation(id, options?.actorId ?? null);

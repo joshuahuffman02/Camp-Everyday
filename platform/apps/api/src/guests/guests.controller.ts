@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, Fo
 import { GuestsService } from "./guests.service";
 import { CreateGuestDto } from "./dto/create-guest.dto";
 import { JwtAuthGuard } from "../auth/guards";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
 
 @UseGuards(JwtAuthGuard)
 @Controller("guests")
@@ -24,17 +25,30 @@ export class GuestsController {
   }
 
   @Post()
-  create(@Body() body: CreateGuestDto) {
-    return this.guests.create(body);
+  create(
+    @Body() body: CreateGuestDto,
+    @Query("campgroundId") campgroundId?: string,
+    @CurrentUser() user?: any
+  ) {
+    return this.guests.create(body, { actorId: user?.id, campgroundId });
   }
 
   @Patch(":id")
-  update(@Param("id") id: string, @Body() body: Partial<CreateGuestDto>) {
-    return this.guests.update(id, body);
+  update(
+    @Param("id") id: string,
+    @Body() body: Partial<CreateGuestDto>,
+    @Query("campgroundId") campgroundId?: string,
+    @CurrentUser() user?: any
+  ) {
+    return this.guests.update(id, body, { actorId: user?.id, campgroundId });
   }
 
   @Delete(":id")
-  remove(@Param("id") id: string) {
-    return this.guests.remove(id);
+  remove(
+    @Param("id") id: string,
+    @Query("campgroundId") campgroundId?: string,
+    @CurrentUser() user?: any
+  ) {
+    return this.guests.remove(id, { actorId: user?.id, campgroundId });
   }
 }

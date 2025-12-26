@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { Badge } from "../../../components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
-import { Trophy, Star, History, ArrowLeft, Trash2, Plus, Car, Truck, Mail, MessageSquare, GitBranch, RotateCcw, PlusCircle, Send, Wallet, DollarSign } from "lucide-react";
+import { Trophy, Star, History, ArrowLeft, Trash2, Plus, Car, Truck, Mail, MessageSquare, GitBranch, RotateCcw, PlusCircle, Send, Wallet, DollarSign, ClipboardList } from "lucide-react";
+import { AuditLogTimeline } from "../../../components/audit/AuditLogTimeline";
 import { cn } from "../../../lib/utils";
 import { useToast } from "../../../components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -341,6 +342,10 @@ export default function GuestDetailPage() {
                         <TabsTrigger value="wallet">Wallet</TabsTrigger>
                         <TabsTrigger value="loyalty">Loyalty & Rewards</TabsTrigger>
                         <TabsTrigger value="communications">Communications</TabsTrigger>
+                        <TabsTrigger value="activity" className="gap-1">
+                            <ClipboardList className="h-3.5 w-3.5" />
+                            Activity
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="overview" className="space-y-4">
@@ -1030,6 +1035,35 @@ export default function GuestDetailPage() {
                                         </div>
                                     )}
                                 </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="activity" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <ClipboardList className="h-5 w-5" />
+                                    Activity Log
+                                </CardTitle>
+                                <CardDescription>
+                                    Track all changes made to this guest's profile
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {campgroundIdForGuest ? (
+                                    <AuditLogTimeline
+                                        campgroundId={campgroundIdForGuest}
+                                        entityType="guest"
+                                        entityId={guestId}
+                                        limit={50}
+                                    />
+                                ) : (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <p>Unable to load activity log</p>
+                                        <p className="text-sm">Guest is not associated with a campground</p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </TabsContent>

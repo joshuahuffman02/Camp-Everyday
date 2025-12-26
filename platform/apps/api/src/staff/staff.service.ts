@@ -572,5 +572,799 @@ export class StaffService {
       hoursWorked: Math.round(hoursWorked * 10) / 10,
     });
   }
+
+  // ---- Time Off ----
+
+  async createTimeOffRequest(dto: {
+    campgroundId: string;
+    userId: string;
+    type: "vacation" | "sick" | "personal" | "bereavement" | "jury_duty" | "unpaid" | "other";
+    startDate: string;
+    endDate: string;
+    hoursRequested?: number;
+    reason?: string;
+  }) {
+    return this.prisma.timeOffRequest.create({
+      data: {
+        campgroundId: dto.campgroundId,
+        userId: dto.userId,
+        type: dto.type,
+        startDate: new Date(dto.startDate),
+        endDate: new Date(dto.endDate),
+        hoursRequested: dto.hoursRequested,
+        reason: dto.reason,
+      },
+      include: {
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+      },
+    });
+  }
+
+  async listTimeOffRequests(
+    campgroundId: string,
+    options?: {
+      userId?: string;
+      status?: string;
+      startDate?: Date;
+      endDate?: Date;
+    }
+  ) {
+    return this.prisma.timeOffRequest.findMany({
+      where: {
+        campgroundId,
+        ...(options?.userId ? { userId: options.userId } : {}),
+        ...(options?.status ? { status: options.status as any } : {}),
+        ...(options?.startDate ? { startDate: { gte: options.startDate } } : {}),
+        ...(options?.endDate ? { endDate: { lte: options.endDate } } : {}),
+      },
+      include: {
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+        reviewer: { select: { id: true, email: true, firstName: true, lastName: true } },
+      },
+      orderBy: { startDate: 'desc' },
+    });
+  }
+
+  async reviewTimeOffRequest(
+    requestId: string,
+    reviewerId: string,
+    status: "approved" | "rejected",
+    note?: string
+  ) {
+    const request = await this.prisma.timeOffRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Time-off request not found');
+
+    return this.prisma.timeOffRequest.update({
+      where: { id: requestId },
+      data: {
+        status,
+        reviewerId,
+        reviewerNote: note,
+        reviewedAt: new Date(),
+      },
+      include: {
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+        reviewer: { select: { id: true, email: true, firstName: true, lastName: true } },
+      },
+    });
+  }
+
+  async cancelTimeOffRequest(requestId: string, userId: string) {
+    const request = await this.prisma.timeOffRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Time-off request not found');
+    if (request.userId !== userId) throw new BadRequestException('Cannot cancel another user\'s request');
+    if (request.status !== 'pending') throw new BadRequestException('Can only cancel pending requests');
+
+    return this.prisma.timeOffRequest.update({
+      where: { id: requestId },
+      data: { status: 'cancelled' },
+    });
+  }
+
+  // ---- Availability Overrides ----
+
+  async setAvailabilityOverride(dto: {
+    campgroundId: string;
+    userId: string;
+    date: string;
+    isAvailable: boolean;
+    startTime?: string;
+    endTime?: string;
+    reason?: string;
+  }) {
+    return this.prisma.availabilityOverride.upsert({
+      where: {
+        campgroundId_userId_date: {
+          campgroundId: dto.campgroundId,
+          userId: dto.userId,
+          date: new Date(dto.date),
+        },
+      },
+      update: {
+        isAvailable: dto.isAvailable,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        reason: dto.reason,
+      },
+      create: {
+        campgroundId: dto.campgroundId,
+        userId: dto.userId,
+        date: new Date(dto.date),
+        isAvailable: dto.isAvailable,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        reason: dto.reason,
+      },
+    });
+  }
+
+  async deleteAvailabilityOverride(campgroundId: string, userId: string, date: string) {
+    return this.prisma.availabilityOverride.delete({
+      where: {
+        campgroundId_userId_date: {
+          campgroundId,
+          userId,
+          date: new Date(date),
+        },
+      },
+    });
+  }
+
+  async getAvailabilityOverrides(
+    campgroundId: string,
+    options?: {
+      userId?: string;
+      startDate?: Date;
+      endDate?: Date;
+    }
+  ) {
+    return this.prisma.availabilityOverride.findMany({
+      where: {
+        campgroundId,
+        ...(options?.userId ? { userId: options.userId } : {}),
+        ...(options?.startDate && options?.endDate
+          ? { date: { gte: options.startDate, lte: options.endDate } }
+          : {}),
+      },
+      include: {
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+      },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  // ---- Breaks ----
+
+  async startBreak(timeEntryId: string, type: "paid" | "unpaid" | "meal" | "rest", note?: string) {
+    const timeEntry = await this.prisma.staffTimeEntry.findUnique({
+      where: { id: timeEntryId },
+      include: { breaks: { where: { endedAt: null } } },
+    });
+
+    if (!timeEntry) throw new NotFoundException('Time entry not found');
+    if (timeEntry.clockOutAt) throw new BadRequestException('Cannot start break on clocked-out entry');
+    if (timeEntry.breaks.length > 0) throw new BadRequestException('Already on a break');
+
+    return this.prisma.staffBreak.create({
+      data: {
+        timeEntryId,
+        type,
+        startedAt: new Date(),
+        note,
+      },
+    });
+  }
+
+  async endBreak(breakId: string) {
+    const brk = await this.prisma.staffBreak.findUnique({ where: { id: breakId } });
+    if (!brk) throw new NotFoundException('Break not found');
+    if (brk.endedAt) throw new BadRequestException('Break already ended');
+
+    const endedAt = new Date();
+    const durationMins = Math.round((endedAt.getTime() - brk.startedAt.getTime()) / 60000);
+
+    return this.prisma.staffBreak.update({
+      where: { id: breakId },
+      data: { endedAt, durationMins },
+    });
+  }
+
+  async getActiveBreak(timeEntryId: string) {
+    return this.prisma.staffBreak.findFirst({
+      where: { timeEntryId, endedAt: null },
+    });
+  }
+
+  async getBreaksForEntry(timeEntryId: string) {
+    return this.prisma.staffBreak.findMany({
+      where: { timeEntryId },
+      orderBy: { startedAt: 'asc' },
+    });
+  }
+
+  // ---- Overtime Config ----
+
+  async getOvertimeConfig(campgroundId: string) {
+    const config = await this.prisma.overtimeConfig.findUnique({
+      where: { campgroundId },
+    });
+
+    return config || {
+      campgroundId,
+      weeklyThreshold: 40,
+      dailyThreshold: null,
+      overtimeMultiplier: 1.5,
+      doubleTimeThreshold: null,
+      doubleTimeMultiplier: null,
+      weekStartDay: 0,
+    };
+  }
+
+  async updateOvertimeConfig(params: {
+    campgroundId: string;
+    weeklyThreshold?: number;
+    dailyThreshold?: number | null;
+    overtimeMultiplier?: number;
+    doubleTimeThreshold?: number | null;
+    doubleTimeMultiplier?: number | null;
+    weekStartDay?: number;
+  }) {
+    return this.prisma.overtimeConfig.upsert({
+      where: { campgroundId: params.campgroundId },
+      update: {
+        weeklyThreshold: params.weeklyThreshold,
+        dailyThreshold: params.dailyThreshold,
+        overtimeMultiplier: params.overtimeMultiplier,
+        doubleTimeThreshold: params.doubleTimeThreshold,
+        doubleTimeMultiplier: params.doubleTimeMultiplier,
+        weekStartDay: params.weekStartDay,
+      },
+      create: {
+        campgroundId: params.campgroundId,
+        weeklyThreshold: params.weeklyThreshold ?? 40,
+        dailyThreshold: params.dailyThreshold,
+        overtimeMultiplier: params.overtimeMultiplier ?? 1.5,
+        doubleTimeThreshold: params.doubleTimeThreshold,
+        doubleTimeMultiplier: params.doubleTimeMultiplier,
+        weekStartDay: params.weekStartDay ?? 0,
+      },
+    });
+  }
+
+  /**
+   * Calculate net worked minutes (gross time minus unpaid breaks)
+   */
+  calculateNetWorkedMinutes(clockInAt: Date, clockOutAt: Date | null, breaks: { type: string; durationMins: number | null }[]) {
+    if (!clockOutAt) return 0;
+    const grossMins = Math.round((clockOutAt.getTime() - clockInAt.getTime()) / 60000);
+    const unpaidBreakMins = breaks
+      .filter((b) => b.type === 'unpaid' || b.type === 'meal')
+      .reduce((sum, b) => sum + (b.durationMins || 0), 0);
+    return Math.max(0, grossMins - unpaidBreakMins);
+  }
+
+  // ---- Shift Swaps ----
+
+  async requestShiftSwap(dto: {
+    campgroundId: string;
+    requesterShiftId: string;
+    requesterId: string;
+    recipientUserId: string;
+    note?: string;
+  }) {
+    // Verify the shift exists and belongs to the requester
+    const shift = await this.prisma.staffShift.findUnique({
+      where: { id: dto.requesterShiftId },
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.userId !== dto.requesterId) {
+      throw new BadRequestException('You can only swap your own shifts');
+    }
+    if (shift.status !== 'scheduled') {
+      throw new BadRequestException('Can only swap scheduled shifts');
+    }
+
+    const swap = await this.prisma.shiftSwapRequest.create({
+      data: {
+        campgroundId: dto.campgroundId,
+        requesterShiftId: dto.requesterShiftId,
+        requesterId: dto.requesterId,
+        recipientUserId: dto.recipientUserId,
+        requesterNote: dto.note,
+        status: 'pending_recipient',
+      },
+      include: {
+        requesterShift: true,
+        requester: { select: { id: true, firstName: true, lastName: true, email: true } },
+        recipient: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+
+    // Send notification to recipient
+    await this.sendNotification(
+      dto.campgroundId,
+      dto.recipientUserId,
+      'SHIFT_SWAP_REQUEST',
+      'Shift Swap Request',
+      `${swap.requester.firstName} ${swap.requester.lastName} wants to swap shifts with you`,
+      { swapId: swap.id }
+    );
+
+    return swap;
+  }
+
+  async respondToSwapRequest(
+    swapId: string,
+    recipientId: string,
+    accept: boolean,
+    note?: string
+  ) {
+    const swap = await this.prisma.shiftSwapRequest.findUnique({
+      where: { id: swapId },
+      include: {
+        requester: { select: { id: true, firstName: true, lastName: true } },
+        recipient: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+    if (!swap) throw new NotFoundException('Swap request not found');
+    if (swap.recipientUserId !== recipientId) {
+      throw new BadRequestException('Only the recipient can respond');
+    }
+    if (swap.status !== 'pending_recipient') {
+      throw new BadRequestException('Swap is no longer pending recipient response');
+    }
+
+    const newStatus = accept ? 'pending_manager' : 'declined';
+    const updated = await this.prisma.shiftSwapRequest.update({
+      where: { id: swapId },
+      data: {
+        status: newStatus,
+        recipientNote: note,
+        recipientRespondedAt: new Date(),
+      },
+      include: {
+        requesterShift: true,
+        requester: { select: { id: true, firstName: true, lastName: true, email: true } },
+        recipient: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+
+    // Notify requester of response
+    await this.sendNotification(
+      swap.campgroundId,
+      swap.requesterId,
+      'SHIFT_SWAP_RESPONSE',
+      accept ? 'Swap Request Accepted' : 'Swap Request Declined',
+      `${swap.recipient.firstName} ${swap.recipient.lastName} has ${accept ? 'accepted' : 'declined'} your shift swap request`,
+      { swapId: swap.id }
+    );
+
+    return updated;
+  }
+
+  async approveShiftSwap(swapId: string, managerId: string, approve: boolean, note?: string) {
+    const swap = await this.prisma.shiftSwapRequest.findUnique({
+      where: { id: swapId },
+      include: {
+        requesterShift: true,
+        requester: { select: { id: true, firstName: true, lastName: true } },
+        recipient: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+    if (!swap) throw new NotFoundException('Swap request not found');
+    if (swap.status !== 'pending_manager') {
+      throw new BadRequestException('Swap is not awaiting manager approval');
+    }
+
+    const newStatus = approve ? 'approved' : 'rejected';
+
+    // If approved, actually swap the shift assignment
+    if (approve) {
+      await this.prisma.staffShift.update({
+        where: { id: swap.requesterShiftId },
+        data: { userId: swap.recipientUserId },
+      });
+    }
+
+    const updated = await this.prisma.shiftSwapRequest.update({
+      where: { id: swapId },
+      data: {
+        status: newStatus,
+        managerId,
+        managerNote: note,
+        managerRespondedAt: new Date(),
+      },
+      include: {
+        requesterShift: true,
+        requester: { select: { id: true, firstName: true, lastName: true, email: true } },
+        recipient: { select: { id: true, firstName: true, lastName: true, email: true } },
+        manager: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    // Notify both parties
+    const statusText = approve ? 'approved' : 'rejected';
+    for (const userId of [swap.requesterId, swap.recipientUserId]) {
+      await this.sendNotification(
+        swap.campgroundId,
+        userId,
+        'SHIFT_SWAP_DECISION',
+        `Shift Swap ${approve ? 'Approved' : 'Rejected'}`,
+        `Manager has ${statusText} the shift swap request`,
+        { swapId: swap.id }
+      );
+    }
+
+    return updated;
+  }
+
+  async cancelSwapRequest(swapId: string, requesterId: string) {
+    const swap = await this.prisma.shiftSwapRequest.findUnique({ where: { id: swapId } });
+    if (!swap) throw new NotFoundException('Swap request not found');
+    if (swap.requesterId !== requesterId) {
+      throw new BadRequestException('Only the requester can cancel');
+    }
+    if (!['pending_recipient', 'pending_manager'].includes(swap.status)) {
+      throw new BadRequestException('Cannot cancel a finalized swap');
+    }
+
+    return this.prisma.shiftSwapRequest.update({
+      where: { id: swapId },
+      data: { status: 'cancelled' },
+    });
+  }
+
+  async listSwapRequests(
+    campgroundId: string,
+    options?: {
+      userId?: string;
+      status?: string;
+      role?: 'requester' | 'recipient' | 'any';
+    }
+  ) {
+    const { userId, status, role = 'any' } = options || {};
+
+    let userFilter = {};
+    if (userId) {
+      if (role === 'requester') {
+        userFilter = { requesterId: userId };
+      } else if (role === 'recipient') {
+        userFilter = { recipientUserId: userId };
+      } else {
+        userFilter = { OR: [{ requesterId: userId }, { recipientUserId: userId }] };
+      }
+    }
+
+    return this.prisma.shiftSwapRequest.findMany({
+      where: {
+        campgroundId,
+        ...userFilter,
+        ...(status ? { status: status as any } : {}),
+      },
+      include: {
+        requesterShift: true,
+        requester: { select: { id: true, firstName: true, lastName: true, email: true } },
+        recipient: { select: { id: true, firstName: true, lastName: true, email: true } },
+        manager: { select: { id: true, firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ---- Schedule Templates ----
+
+  async createScheduleTemplate(dto: {
+    campgroundId: string;
+    name: string;
+    description?: string;
+    createdById: string;
+    shifts: Array<{
+      dayOfWeek: number;
+      roleCode?: string;
+      startTime: string;
+      endTime: string;
+      userId?: string;
+    }>;
+  }) {
+    return this.prisma.scheduleTemplate.create({
+      data: {
+        campgroundId: dto.campgroundId,
+        name: dto.name,
+        description: dto.description,
+        createdById: dto.createdById,
+        shifts: dto.shifts,
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+  }
+
+  async updateScheduleTemplate(
+    templateId: string,
+    dto: {
+      name?: string;
+      description?: string;
+      isActive?: boolean;
+      shifts?: Array<{
+        dayOfWeek: number;
+        roleCode?: string;
+        startTime: string;
+        endTime: string;
+        userId?: string;
+      }>;
+    }
+  ) {
+    return this.prisma.scheduleTemplate.update({
+      where: { id: templateId },
+      data: {
+        name: dto.name,
+        description: dto.description,
+        isActive: dto.isActive,
+        shifts: dto.shifts,
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+  }
+
+  async deleteScheduleTemplate(templateId: string) {
+    return this.prisma.scheduleTemplate.update({
+      where: { id: templateId },
+      data: { isActive: false },
+    });
+  }
+
+  async listScheduleTemplates(campgroundId: string, includeInactive = false) {
+    return this.prisma.scheduleTemplate.findMany({
+      where: {
+        campgroundId,
+        ...(includeInactive ? {} : { isActive: true }),
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async getScheduleTemplate(templateId: string) {
+    const template = await this.prisma.scheduleTemplate.findUnique({
+      where: { id: templateId },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+    if (!template) throw new NotFoundException('Template not found');
+    return template;
+  }
+
+  async applyScheduleTemplate(
+    templateId: string,
+    weekStartDate: Date,
+    createdBy: string
+  ) {
+    const template = await this.getScheduleTemplate(templateId);
+    const shifts = template.shifts as Array<{
+      dayOfWeek: number;
+      roleCode?: string;
+      startTime: string;
+      endTime: string;
+      userId?: string;
+    }>;
+
+    const createdShifts = [];
+
+    for (const shiftDef of shifts) {
+      if (!shiftDef.userId) continue; // Skip unassigned template shifts
+
+      // Calculate the actual date based on dayOfWeek
+      const shiftDate = new Date(weekStartDate);
+      shiftDate.setDate(shiftDate.getDate() + shiftDef.dayOfWeek);
+
+      const dateStr = shiftDate.toISOString().split('T')[0];
+      const start = new Date(`${dateStr}T${shiftDef.startTime}`);
+      const end = new Date(`${dateStr}T${shiftDef.endTime}`);
+      const scheduledMinutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+
+      const shift = await this.prisma.staffShift.create({
+        data: {
+          campgroundId: template.campgroundId,
+          userId: shiftDef.userId,
+          shiftDate,
+          startTime: start,
+          endTime: end,
+          scheduledMinutes,
+          role: shiftDef.roleCode,
+          createdBy,
+        },
+      });
+      createdShifts.push(shift);
+    }
+
+    return {
+      template,
+      weekStartDate,
+      createdShifts,
+      count: createdShifts.length,
+    };
+  }
+
+  async copyWeekSchedule(
+    campgroundId: string,
+    sourceWeekStart: Date,
+    targetWeekStart: Date,
+    createdBy: string
+  ) {
+    // Get all shifts from the source week
+    const sourceWeekEnd = new Date(sourceWeekStart);
+    sourceWeekEnd.setDate(sourceWeekEnd.getDate() + 6);
+
+    const sourceShifts = await this.prisma.staffShift.findMany({
+      where: {
+        campgroundId,
+        shiftDate: { gte: sourceWeekStart, lte: sourceWeekEnd },
+      },
+    });
+
+    const daysDiff = Math.round(
+      (targetWeekStart.getTime() - sourceWeekStart.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    const createdShifts = [];
+
+    for (const shift of sourceShifts) {
+      const newShiftDate = new Date(shift.shiftDate);
+      newShiftDate.setDate(newShiftDate.getDate() + daysDiff);
+
+      const newStart = new Date(shift.startTime);
+      newStart.setDate(newStart.getDate() + daysDiff);
+
+      const newEnd = new Date(shift.endTime);
+      newEnd.setDate(newEnd.getDate() + daysDiff);
+
+      const newShift = await this.prisma.staffShift.create({
+        data: {
+          campgroundId,
+          userId: shift.userId,
+          shiftDate: newShiftDate,
+          startTime: newStart,
+          endTime: newEnd,
+          scheduledMinutes: shift.scheduledMinutes,
+          role: shift.role,
+          notes: shift.notes,
+          createdBy,
+        },
+      });
+      createdShifts.push(newShift);
+    }
+
+    return {
+      sourceWeekStart,
+      targetWeekStart,
+      copiedCount: createdShifts.length,
+      shifts: createdShifts,
+    };
+  }
+
+  // ---- Timesheet Reports ----
+
+  async getTimesheetReport(
+    campgroundId: string,
+    periodStart: Date,
+    periodEnd: Date,
+    options?: {
+      userId?: string;
+      groupBy?: 'user' | 'day' | 'role';
+    }
+  ) {
+    const { userId, groupBy = 'user' } = options || {};
+
+    // Get all time entries for the period
+    const entries = await this.prisma.staffTimeEntry.findMany({
+      where: {
+        campgroundId,
+        clockInAt: { gte: periodStart },
+        clockOutAt: { lte: periodEnd },
+        ...(userId ? { userId } : {}),
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        shift: { select: { id: true, role: true, shiftDate: true } },
+        breaks: true,
+      },
+      orderBy: { clockInAt: 'asc' },
+    });
+
+    // Get overtime config
+    const otConfig = await this.getOvertimeConfig(campgroundId);
+
+    // Calculate totals
+    const report = {
+      periodStart,
+      periodEnd,
+      totalEntries: entries.length,
+      totalGrossMinutes: 0,
+      totalNetMinutes: 0,
+      totalBreakMinutes: 0,
+      regularMinutes: 0,
+      overtimeMinutes: 0,
+      doubleTimeMinutes: 0,
+      byUser: {} as Record<string, {
+        userId: string;
+        name: string;
+        entries: number;
+        grossMinutes: number;
+        netMinutes: number;
+        breakMinutes: number;
+        regularMinutes: number;
+        overtimeMinutes: number;
+      }>,
+      entries: entries.map((e) => {
+        const grossMins = e.clockOutAt
+          ? Math.round((e.clockOutAt.getTime() - e.clockInAt.getTime()) / 60000)
+          : 0;
+        const breakMins = e.breaks.reduce((sum, b) => sum + (b.durationMins || 0), 0);
+        const netMins = this.calculateNetWorkedMinutes(e.clockInAt, e.clockOutAt, e.breaks);
+
+        return {
+          id: e.id,
+          userId: e.userId,
+          userName: `${e.user.firstName} ${e.user.lastName}`,
+          date: e.clockInAt.toISOString().split('T')[0],
+          clockIn: e.clockInAt,
+          clockOut: e.clockOutAt,
+          role: e.shift?.role,
+          grossMinutes: grossMins,
+          breakMinutes: breakMins,
+          netMinutes: netMins,
+          status: e.status,
+        };
+      }),
+    };
+
+    // Aggregate by user
+    for (const entry of report.entries) {
+      if (!report.byUser[entry.userId]) {
+        report.byUser[entry.userId] = {
+          userId: entry.userId,
+          name: entry.userName,
+          entries: 0,
+          grossMinutes: 0,
+          netMinutes: 0,
+          breakMinutes: 0,
+          regularMinutes: 0,
+          overtimeMinutes: 0,
+        };
+      }
+      const user = report.byUser[entry.userId];
+      user.entries++;
+      user.grossMinutes += entry.grossMinutes;
+      user.netMinutes += entry.netMinutes;
+      user.breakMinutes += entry.breakMinutes;
+
+      report.totalGrossMinutes += entry.grossMinutes;
+      report.totalNetMinutes += entry.netMinutes;
+      report.totalBreakMinutes += entry.breakMinutes;
+    }
+
+    // Calculate OT per user based on weekly threshold
+    const weeklyThresholdMins = (otConfig.weeklyThreshold ?? 40) * 60;
+    for (const userId in report.byUser) {
+      const user = report.byUser[userId];
+      if (user.netMinutes > weeklyThresholdMins) {
+        user.regularMinutes = weeklyThresholdMins;
+        user.overtimeMinutes = user.netMinutes - weeklyThresholdMins;
+      } else {
+        user.regularMinutes = user.netMinutes;
+        user.overtimeMinutes = 0;
+      }
+      report.regularMinutes += user.regularMinutes;
+      report.overtimeMinutes += user.overtimeMinutes;
+    }
+
+    return report;
+  }
 }
 

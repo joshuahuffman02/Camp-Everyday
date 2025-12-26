@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
-import { CalendarDays, Tent, Users, CreditCard, XCircle, Settings } from "lucide-react";
+import { CalendarDays, Tent, Users, CreditCard, XCircle, Settings, AlertTriangle, Loader2, Info } from "lucide-react";
+import { GUEST_TOKEN_KEY, SPRING_CONFIG, STATUS_VARIANTS } from "@/lib/portal-constants";
+import { PortalLoadingState } from "@/components/portal/PortalLoadingState";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
+import { StatusBadge, getReservationStatusVariant, getStatusLabel } from "@/components/portal/StatusBadge";
+import { useToast } from "@/hooks/use-toast";
 
 interface Reservation {
   id: string;
@@ -36,6 +41,7 @@ type ActionType = "modify-dates" | "change-site" | "add-guest" | "cancel" | "pay
 
 export default function PortalManagePage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [guest, setGuest] = useState<GuestData | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +49,7 @@ export default function PortalManagePage() {
   const [activeAction, setActiveAction] = useState<ActionType>(null);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("guestPortalToken");
+    const storedToken = localStorage.getItem(GUEST_TOKEN_KEY);
     if (!storedToken) {
       router.replace("/portal/login");
       return;
@@ -70,11 +76,7 @@ export default function PortalManagePage() {
     new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />
-      </div>
-    );
+    return <PortalLoadingState variant="spinner" message="Loading your reservations..." />;
   }
 
   if (!guest || !selectedReservation) {
@@ -83,7 +85,7 @@ export default function PortalManagePage() {
         <p className="text-lg mb-4 text-muted-foreground">No reservations found</p>
         <button
           onClick={() => router.push("/portal/login")}
-          className="text-emerald-600 hover:text-emerald-500"
+          className="text-primary hover:text-primary/80 transition-colors"
         >
           Back to login
         </button>
@@ -96,148 +98,155 @@ export default function PortalManagePage() {
   return (
     <div className="container mx-auto px-4 py-6 space-y-6 max-w-2xl">
       {/* Page Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-3"
-      >
-        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-          <Settings className="h-6 w-6 text-white" />
+      <PortalPageHeader
+        icon={Settings}
+        iconGradient="from-blue-500 to-indigo-600"
+        title="Manage Reservation"
+        description="Modify dates, guests, or cancel"
+      />
+
+      {/* Reservation Selection */}
+      {guest.reservations.length > 1 && (
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <label className="block text-sm text-muted-foreground mb-2">Select Reservation</label>
+          <select
+            value={selectedReservation.id}
+            onChange={(e) =>
+              setSelectedReservation(guest.reservations.find((r) => r.id === e.target.value)!)
+            }
+            className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none"
+          >
+            {guest.reservations.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.campground.name} - Site {r.site.siteNumber} ({formatDate(r.arrivalDate)})
+              </option>
+            ))}
+          </select>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Manage Reservation</h1>
-          <p className="text-muted-foreground">Modify dates, guests, or cancel</p>
+      )}
+
+      {/* Current Reservation Details */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={SPRING_CONFIG}
+        className="bg-card rounded-2xl p-6 border border-border shadow-sm"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-foreground">{selectedReservation.campground.name}</h2>
+            <p className="text-muted-foreground">Site {selectedReservation.site.siteNumber}</p>
+          </div>
+          <StatusBadge
+            status={getStatusLabel(selectedReservation.status)}
+            variant={getReservationStatusVariant(selectedReservation.status)}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-muted-foreground">Check-in</p>
+            <p className="font-medium text-foreground">{formatDate(selectedReservation.arrivalDate)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Check-out</p>
+            <p className="font-medium text-foreground">{formatDate(selectedReservation.departureDate)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Guests</p>
+            <p className="font-medium text-foreground">
+              {selectedReservation.adults} adults
+              {selectedReservation.children > 0 && `, ${selectedReservation.children} children`}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Balance</p>
+            <p className={`font-medium ${balanceDue > 0 ? STATUS_VARIANTS.warning.text : STATUS_VARIANTS.success.text}`}>
+              {balanceDue > 0 ? `$${(balanceDue / 100).toFixed(2)}` : "Paid in full"}
+            </p>
+          </div>
         </div>
       </motion.div>
-        {/* Reservation Selection */}
-        {guest.reservations.length > 1 && (
-          <div className="bg-card rounded-xl p-4 border border-border">
-            <label className="block text-sm text-muted-foreground mb-2">Select Reservation</label>
-            <select
-              value={selectedReservation.id}
-              onChange={(e) =>
-                setSelectedReservation(guest.reservations.find((r) => r.id === e.target.value)!)
-              }
-              className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground"
-            >
-              {guest.reservations.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.campground.name} - Site {r.site.siteNumber} ({formatDate(r.arrivalDate)})
-                </option>
-              ))}
-            </select>
-          </div>
+
+      {/* Self-Service Actions */}
+      <div className="space-y-3">
+        <h3 className="text-lg font-semibold text-foreground">What would you like to do?</h3>
+
+        <ActionButton
+          icon={<CalendarDays className="h-6 w-6" />}
+          title="Modify Dates"
+          description={
+            selectedReservation.status === "checked_in"
+              ? "Cannot modify after check-in. Contact front desk."
+              : "Change your check-in or check-out dates"
+          }
+          onClick={() => setActiveAction("modify-dates")}
+          disabled={selectedReservation.status === "checked_in"}
+        />
+
+        <ActionButton
+          icon={<Tent className="h-6 w-6" />}
+          title="Change Site"
+          description={
+            selectedReservation.status === "checked_in"
+              ? "Cannot change site after check-in. Contact front desk."
+              : "Request a different campsite"
+          }
+          onClick={() => setActiveAction("change-site")}
+          disabled={selectedReservation.status === "checked_in"}
+        />
+
+        <ActionButton
+          icon={<Users className="h-6 w-6" />}
+          title="Add/Remove Guests"
+          description="Update your party size"
+          onClick={() => setActiveAction("add-guest")}
+        />
+
+        {balanceDue > 0 && (
+          <ActionButton
+            icon={<CreditCard className="h-6 w-6" />}
+            title="Pay Balance"
+            description={`Pay your outstanding balance of $${(balanceDue / 100).toFixed(2)}`}
+            onClick={() => setActiveAction("pay-balance")}
+            highlight
+          />
         )}
 
-        {/* Current Reservation Details */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-card rounded-2xl p-6 border border-border shadow-sm"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-foreground">{selectedReservation.campground.name}</h2>
-              <p className="text-muted-foreground">Site {selectedReservation.site.siteNumber}</p>
-            </div>
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-medium ${selectedReservation.status === "confirmed"
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                : selectedReservation.status === "checked_in"
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
-                }`}
-            >
-              {selectedReservation.status.replace("_", " ")}
-            </span>
-          </div>
+        <ActionButton
+          icon={<XCircle className="h-6 w-6" />}
+          title="Cancel Reservation"
+          description={
+            selectedReservation.status === "checked_in"
+              ? "Cannot cancel after check-in. Contact front desk."
+              : "Cancel your reservation (fees may apply)"
+          }
+          onClick={() => setActiveAction("cancel")}
+          danger
+          disabled={selectedReservation.status === "checked_in"}
+        />
+      </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Check-in</p>
-              <p className="font-medium text-foreground">{formatDate(selectedReservation.arrivalDate)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Check-out</p>
-              <p className="font-medium text-foreground">{formatDate(selectedReservation.departureDate)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Guests</p>
-              <p className="font-medium text-foreground">
-                {selectedReservation.adults} adults
-                {selectedReservation.children > 0 && `, ${selectedReservation.children} children`}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Balance Due</p>
-              <p className={`font-medium ${balanceDue > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                {balanceDue > 0 ? `$${(balanceDue / 100).toFixed(2)}` : "Paid"}
-              </p>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Self-Service Actions */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold">What would you like to do?</h3>
-
-          <ActionButton
-            icon={<CalendarDays className="h-6 w-6" />}
-            title="Modify Dates"
-            description="Change your check-in or check-out dates"
-            onClick={() => setActiveAction("modify-dates")}
-            disabled={selectedReservation.status === "checked_in"}
-          />
-
-          <ActionButton
-            icon={<Tent className="h-6 w-6" />}
-            title="Change Site"
-            description="Request a different campsite"
-            onClick={() => setActiveAction("change-site")}
-            disabled={selectedReservation.status === "checked_in"}
-          />
-
-          <ActionButton
-            icon={<Users className="h-6 w-6" />}
-            title="Add/Remove Guests"
-            description="Update your party size"
-            onClick={() => setActiveAction("add-guest")}
-          />
-
-          {balanceDue > 0 && (
-            <ActionButton
-              icon={<CreditCard className="h-6 w-6" />}
-              title="Pay Balance"
-              description={`Pay your outstanding balance of $${(balanceDue / 100).toFixed(2)}`}
-              onClick={() => setActiveAction("pay-balance")}
-              highlight
-            />
-          )}
-
-          <ActionButton
-            icon={<XCircle className="h-6 w-6" />}
-            title="Cancel Reservation"
-            description="Cancel your reservation (fees may apply)"
-            onClick={() => setActiveAction("cancel")}
-            danger
-            disabled={selectedReservation.status === "checked_in"}
-          />
-        </div>
-
-        {/* Action Modals */}
-        {activeAction && (
-          <ActionModal
-            action={activeAction}
-            reservation={selectedReservation}
-            token={token!}
-            onClose={() => setActiveAction(null)}
-            onSuccess={() => {
-              setActiveAction(null);
-              fetchGuest(token!);
-            }}
-          />
-        )}
+      {/* Action Modals */}
+      {activeAction && (
+        <ActionModal
+          action={activeAction}
+          reservation={selectedReservation}
+          token={token!}
+          onClose={() => setActiveAction(null)}
+          onSuccess={(message) => {
+            setActiveAction(null);
+            fetchGuest(token!);
+            if (message) {
+              toast({
+                title: "Request submitted",
+                description: message,
+                duration: 5000,
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -261,25 +270,31 @@ function ActionButton({
 }) {
   return (
     <motion.button
-      whileHover={!disabled ? { scale: 1.01 } : undefined}
+      whileHover={!disabled ? { scale: 1.01, y: -2 } : undefined}
       whileTap={!disabled ? { scale: 0.99 } : undefined}
       onClick={onClick}
       disabled={disabled}
-      className={`w-full p-4 rounded-xl text-left transition-all ${disabled
-        ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-50"
-        : danger
-          ? "bg-red-50 hover:bg-red-100 border border-red-200 dark:bg-red-900/20 dark:hover:bg-red-900/30 dark:border-red-800/30"
+      className={`w-full p-4 rounded-xl text-left transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+        disabled
+          ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-60 focus:ring-muted"
+          : danger
+          ? `${STATUS_VARIANTS.error.bg} hover:opacity-90 ${STATUS_VARIANTS.error.border} border focus:ring-red-500`
           : highlight
-            ? "bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30 dark:border-emerald-700/30"
-            : "bg-card hover:bg-muted/50 border border-border"
-        }`}
+          ? `${STATUS_VARIANTS.success.bg} hover:opacity-90 ${STATUS_VARIANTS.success.border} border focus:ring-emerald-500`
+          : "bg-card hover:bg-muted/50 border border-border focus:ring-primary"
+      }`}
     >
       <div className="flex items-center gap-4">
-        <span className={danger ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}>{icon}</span>
-        <div>
+        <span className={danger ? STATUS_VARIANTS.error.text : highlight ? STATUS_VARIANTS.success.text : "text-primary"}>
+          {icon}
+        </span>
+        <div className="flex-1">
           <h4 className="font-medium text-foreground">{title}</h4>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
+        {!disabled && (
+          <span className="text-muted-foreground text-lg">→</span>
+        )}
       </div>
     </motion.button>
   );
@@ -296,7 +311,7 @@ function ActionModal({
   reservation: Reservation;
   token: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (message?: string) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [newArrival, setNewArrival] = useState(reservation.arrivalDate.split("T")[0]);
@@ -305,8 +320,32 @@ function ActionModal({
   const [children, setChildren] = useState(reservation.children);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+  const [confirmText, setConfirmText] = useState("");
 
   const handleSubmit = async () => {
+    // Validate cancellation confirmation
+    if (action === "cancel" && confirmText !== "CANCEL") {
+      setError('Please type "CANCEL" to confirm');
+      return;
+    }
+
+    // Validate date modifications
+    if (action === "modify-dates") {
+      const arrival = new Date(newArrival);
+      const departure = new Date(newDeparture);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (arrival < today) {
+        setError("Check-in date cannot be in the past");
+        return;
+      }
+      if (departure <= arrival) {
+        setError("Check-out must be after check-in");
+        return;
+      }
+    }
+
     setLoading(true);
     setError("");
     try {
@@ -316,24 +355,27 @@ function ActionModal({
             newArrival,
             newDeparture,
           });
+          onSuccess("We're checking availability. You'll hear from us within 24 hours.");
           break;
         case "change-site":
           await apiClient.requestPortalSiteChange(token, reservation.id, { reason });
+          onSuccess("We'll review your preferences and get back to you soon.");
           break;
         case "add-guest":
           await apiClient.updatePortalGuestCount(token, reservation.id, { adults, children });
+          onSuccess("Your guest count has been updated.");
           break;
         case "cancel":
           await apiClient.requestPortalCancellation(token, reservation.id, { reason });
+          onSuccess("Your cancellation has been processed. Check your email for confirmation.");
           break;
         case "pay-balance":
           window.open(`/portal/pay/${reservation.id}`, "_blank");
           onClose();
           return;
       }
-      onSuccess();
     } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -341,12 +383,18 @@ function ActionModal({
 
   const getTitle = () => {
     switch (action) {
-      case "modify-dates": return "Modify Dates";
-      case "change-site": return "Request Site Change";
-      case "add-guest": return "Update Guest Count";
-      case "cancel": return "Cancel Reservation";
-      case "pay-balance": return "Pay Balance";
-      default: return "";
+      case "modify-dates":
+        return "Modify Dates";
+      case "change-site":
+        return "Request Site Change";
+      case "add-guest":
+        return "Update Guest Count";
+      case "cancel":
+        return "Cancel Reservation";
+      case "pay-balance":
+        return "Pay Balance";
+      default:
+        return "";
     }
   };
 
@@ -355,23 +403,36 @@ function ActionModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-card rounded-2xl w-full max-w-md p-6 border border-border shadow-xl"
+        transition={SPRING_CONFIG}
+        className="bg-card rounded-2xl w-full max-w-md p-6 border border-border shadow-xl max-h-[90vh] overflow-auto"
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-foreground">{getTitle()}</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+          <button
+            onClick={onClose}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="space-y-4">
           {action === "modify-dates" && (
             <>
+              <div className={`${STATUS_VARIANTS.info.bg} ${STATUS_VARIANTS.info.border} border rounded-lg p-3`}>
+                <p className={`text-sm ${STATUS_VARIANTS.info.text} flex items-center gap-2`}>
+                  <Info className="h-4 w-4 shrink-0" />
+                  <span>No commitment yet—we'll confirm availability before any changes are made.</span>
+                </p>
+              </div>
               <div>
                 <label className="block text-sm text-muted-foreground mb-1">New Check-in Date</label>
                 <input
                   type="date"
                   value={newArrival}
                   onChange={(e) => setNewArrival(e.target.value)}
-                  className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground"
+                  className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none"
                 />
               </div>
               <div>
@@ -380,7 +441,7 @@ function ActionModal({
                   type="date"
                   value={newDeparture}
                   onChange={(e) => setNewDeparture(e.target.value)}
-                  className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground"
+                  className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none"
                 />
               </div>
               <p className="text-sm text-muted-foreground">
@@ -400,7 +461,7 @@ function ActionModal({
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   rows={3}
-                  className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground"
+                  className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none resize-none"
                   placeholder="e.g., Need hookups, prefer shaded site..."
                 />
               </div>
@@ -417,7 +478,7 @@ function ActionModal({
                     min={1}
                     value={adults}
                     onChange={(e) => setAdults(parseInt(e.target.value) || 1)}
-                    className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -427,7 +488,7 @@ function ActionModal({
                     min={0}
                     value={children}
                     onChange={(e) => setChildren(parseInt(e.target.value) || 0)}
-                    className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none"
                   />
                 </div>
               </div>
@@ -439,11 +500,16 @@ function ActionModal({
 
           {action === "cancel" && (
             <>
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg p-4">
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  Cancellation fees may apply based on your booking date and campground policy.
-                  This action cannot be undone.
-                </p>
+              <div className={`${STATUS_VARIANTS.error.bg} ${STATUS_VARIANTS.error.border} border rounded-lg p-4`}>
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className={`h-5 w-5 ${STATUS_VARIANTS.error.text} shrink-0 mt-0.5`} />
+                  <div className="space-y-1">
+                    <p className={`font-medium ${STATUS_VARIANTS.error.text}`}>This action cannot be undone</p>
+                    <p className={`text-sm ${STATUS_VARIANTS.error.text} opacity-90`}>
+                      Your reservation will be permanently cancelled. Cancellation fees may apply based on timing and campground policy.
+                    </p>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-muted-foreground mb-1">Reason (optional)</label>
@@ -451,15 +517,31 @@ function ActionModal({
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   rows={2}
-                  className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground"
+                  className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none resize-none"
                   placeholder="Tell us why you're canceling..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-foreground font-medium mb-1">
+                  Type "CANCEL" to confirm
+                </label>
+                <input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
+                  className={`w-full bg-background border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-offset-2 focus:outline-none ${
+                    confirmText === "CANCEL"
+                      ? `${STATUS_VARIANTS.error.border} focus:ring-red-500`
+                      : "border-border focus:ring-primary"
+                  }`}
+                  placeholder="CANCEL"
                 />
               </div>
             </>
           )}
 
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
+            <div className={`${STATUS_VARIANTS.error.bg} ${STATUS_VARIANTS.error.border} border rounded-lg p-3 text-sm ${STATUS_VARIANTS.error.text}`}>
               {error}
             </div>
           )}
@@ -467,19 +549,29 @@ function ActionModal({
           <div className="flex gap-3 pt-2">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted text-foreground"
+              className="flex-1 px-4 py-3 border border-border rounded-lg hover:bg-muted text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              disabled={loading}
-              className={`flex-1 px-4 py-2 rounded-lg font-medium text-white ${action === "cancel"
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-emerald-600 hover:bg-emerald-700"
-                } disabled:opacity-50`}
+              disabled={loading || (action === "cancel" && confirmText !== "CANCEL")}
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                action === "cancel"
+                  ? "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500"
+                  : "bg-primary hover:bg-primary/90 text-primary-foreground focus:ring-primary"
+              }`}
             >
-              {loading ? "Processing..." : action === "cancel" ? "Confirm Cancellation" : "Submit"}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Processing...
+                </span>
+              ) : action === "cancel" ? (
+                "Confirm Cancellation"
+              ) : (
+                "Submit"
+              )}
             </button>
           </div>
         </div>
@@ -487,4 +579,3 @@ function ActionModal({
     </div>
   );
 }
-

@@ -71,5 +71,26 @@ export class AuditController {
   listExports(@Param("campgroundId") campgroundId: string) {
     return this.audit.listExports(campgroundId);
   }
+
+  /**
+   * Get audit logs for a specific entity (guest, reservation, etc.)
+   * GET /campgrounds/:campgroundId/audit/entity/:entityType/:entityId
+   */
+  @Roles(UserRole.owner, UserRole.manager, UserRole.staff)
+  @RequirePermission({ resource: "audit", action: "read" })
+  @Get("entity/:entityType/:entityId")
+  listByEntity(
+    @Param("campgroundId") campgroundId: string,
+    @Param("entityType") entityType: string,
+    @Param("entityId") entityId: string,
+    @Query("limit") limit?: string
+  ) {
+    return this.audit.listByEntity({
+      campgroundId,
+      entity: entityType,
+      entityId,
+      limit: limit ? Math.min(Number(limit) || 50, 200) : 50
+    });
+  }
 }
 

@@ -490,6 +490,13 @@ model User {
   shiftApprovals                   ShiftApproval[]                   @relation("ShiftApprover")
   overrideRequestsRequested        OverrideRequest[]                 @relation("OverrideRequester")
   overrideRequestsApproved         OverrideRequest[]                 @relation("OverrideApprover")
+  timeOffRequestsRequested         TimeOffRequest[]                  @relation("TimeOffRequester")
+  timeOffRequestsReviewed          TimeOffRequest[]                  @relation("TimeOffReviewer")
+  availabilityOverrides            AvailabilityOverride[]            @relation("AvailabilityOverrides")
+  shiftSwapsRequested              ShiftSwapRequest[]                @relation("SwapRequester")
+  shiftSwapsReceived               ShiftSwapRequest[]                @relation("SwapRecipient")
+  shiftSwapsManaged                ShiftSwapRequest[]                @relation("SwapManager")
+  scheduleTemplates                ScheduleTemplate[]                @relation("ScheduleTemplateCreator")
   payrollExportsRequested          PayrollExport[]                   @relation("PayrollExportRequester")
   payrollExportLines               PayrollExportLine[]               @relation("PayrollExportUser")
 
@@ -1268,6 +1275,11 @@ model Campground {
   idVerifications        IdVerification[]
   staffShifts            StaffShift[]
   staffAvailability      StaffAvailability[]
+  timeOffRequests        TimeOffRequest[]
+  availabilityOverrides  AvailabilityOverride[]
+  overtimeConfig         OvertimeConfig?
+  shiftSwapRequests      ShiftSwapRequest[]
+  scheduleTemplates      ScheduleTemplate[]
   pushNotifications      PushNotification[]
   staffPerformance       StaffPerformance[]
   savedReports           SavedReport[]
@@ -5198,6 +5210,39 @@ enum OverrideStatus {
   cancelled
 }
 
+enum TimeOffType {
+  vacation
+  sick
+  personal
+  bereavement
+  jury_duty
+  unpaid
+  other
+}
+
+enum TimeOffStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum BreakType {
+  paid
+  unpaid
+  meal
+  rest
+}
+
+enum SwapStatus {
+  pending_recipient  // Waiting for recipient to accept
+  pending_manager    // Recipient accepted, waiting for manager
+  approved          // Manager approved
+  rejected          // Manager rejected
+  declined          // Recipient declined
+  cancelled         // Requester cancelled
+}
+
 enum PayrollProvider {
   generic
   onpay
@@ -5244,6 +5289,7 @@ model StaffShift {
   approvals  ShiftApproval[]
   timeEntries StaffTimeEntry[]
   payrollExportLines PayrollExportLine[]
+  swapRequests ShiftSwapRequest[] @relation("SwapRequesterShift")
 
   @@index([campgroundId, shiftDate])
   @@index([userId, shiftDate])
@@ -5288,9 +5334,86 @@ model StaffTimeEntry {
   user       User       @relation("StaffTimeEntries", fields: [userId], references: [id], onDelete: Cascade)
   approvedBy User?      @relation("StaffTimeEntryApprover", fields: [approvedById], references: [id])
   payrollExportLines PayrollExportLine[]
+  breaks     StaffBreak[]
 
   @@index([campgroundId, userId, status])
   @@index([shiftId])
+}
+
+model StaffBreak {
+  id           String    @id @default(cuid())
+  timeEntryId  String
+  type         BreakType
+  startedAt    DateTime
+  endedAt      DateTime?
+  durationMins Int?
+  note         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  timeEntry StaffTimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([timeEntryId])
+}
+
+model OvertimeConfig {
+  id                  String   @id @default(cuid())
+  campgroundId        String   @unique
+  weeklyThreshold     Int      @default(40)  // Hours per week before OT kicks in
+  dailyThreshold      Int?                   // Hours per day before daily OT (optional)
+  overtimeMultiplier  Decimal  @default(1.5) @db.Decimal(3, 2)
+  doubleTimeThreshold Int?                   // Hours for double time (optional)
+  doubleTimeMultiplier Decimal? @db.Decimal(3, 2)
+  weekStartDay        Int      @default(0)   // 0=Sunday, 1=Monday, etc.
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  campground Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+}
+
+model ShiftSwapRequest {
+  id                String     @id @default(cuid())
+  campgroundId      String
+  requesterShiftId  String
+  requesterId       String
+  recipientUserId   String
+  status            SwapStatus @default(pending_recipient)
+  requesterNote     String?
+  recipientNote     String?
+  managerId         String?
+  managerNote       String?
+  recipientRespondedAt DateTime?
+  managerRespondedAt   DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  campground     Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  requesterShift StaffShift @relation("SwapRequesterShift", fields: [requesterShiftId], references: [id], onDelete: Cascade)
+  requester      User       @relation("SwapRequester", fields: [requesterId], references: [id])
+  recipient      User       @relation("SwapRecipient", fields: [recipientUserId], references: [id])
+  manager        User?      @relation("SwapManager", fields: [managerId], references: [id])
+
+  @@index([campgroundId, status])
+  @@index([requesterId])
+  @@index([recipientUserId])
+  @@index([requesterShiftId])
+}
+
+model ScheduleTemplate {
+  id           String   @id @default(cuid())
+  campgroundId String
+  name         String
+  description  String?
+  shifts       Json     // Array of template shift definitions
+  createdById  String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campground Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  createdBy  User       @relation("ScheduleTemplateCreator", fields: [createdById], references: [id])
+
+  @@index([campgroundId, isActive])
 }
 
 model ShiftApproval {
@@ -5350,6 +5473,50 @@ model OverrideRequest {
 
   @@index([campgroundId, status, type])
   @@index([targetEntity, targetId])
+}
+
+model TimeOffRequest {
+  id              String        @id @default(cuid())
+  campgroundId    String
+  userId          String
+  type            TimeOffType
+  status          TimeOffStatus @default(pending)
+  startDate       DateTime      @db.Date
+  endDate         DateTime      @db.Date
+  hoursRequested  Float?
+  reason          String?
+  reviewerId      String?
+  reviewerNote    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  campground Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  user       User       @relation("TimeOffRequester", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer   User?      @relation("TimeOffReviewer", fields: [reviewerId], references: [id])
+
+  @@index([campgroundId, status])
+  @@index([userId, startDate])
+  @@index([reviewerId])
+}
+
+model AvailabilityOverride {
+  id           String   @id @default(cuid())
+  campgroundId String
+  userId       String
+  date         DateTime @db.Date
+  isAvailable  Boolean  @default(false)
+  startTime    String?  // HH:mm - if partially available
+  endTime      String?  // HH:mm
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campground Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  user       User       @relation("AvailabilityOverrides", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campgroundId, userId, date])
+  @@index([campgroundId, date])
 }
 
 model PayrollEarningCode {
