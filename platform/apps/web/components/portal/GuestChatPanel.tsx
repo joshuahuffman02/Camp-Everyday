@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,35 +25,63 @@ interface GuestChatPanelProps {
     token: string;
 }
 
+// Polling interval in milliseconds (3 seconds)
+const POLL_INTERVAL = 3000;
+
 export function GuestChatPanel({ reservationId, token }: GuestChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const lastMessageIdRef = useRef<string | null>(null);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
+    }, []);
 
-    useEffect(() => {
-        loadMessages();
-    }, [reservationId, token]);
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
-
-    const loadMessages = async () => {
+    const loadMessages = useCallback(async (isPolling = false) => {
         try {
             const data = await apiClient.getPortalMessages(reservationId, token);
+
+            // Check if there are new messages (for polling)
+            const newLastId = data.length > 0 ? data[data.length - 1].id : null;
+            const hasNewMessages = newLastId !== lastMessageIdRef.current;
+
             setMessages(data);
+            lastMessageIdRef.current = newLastId;
+
+            // Only auto-scroll on new messages during polling, not on initial load scroll
+            if (isPolling && hasNewMessages) {
+                scrollToBottom();
+            }
         } catch (error) {
             console.error("Failed to load messages:", error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [reservationId, token, scrollToBottom]);
+
+    // Initial load
+    useEffect(() => {
+        loadMessages(false);
+    }, [loadMessages]);
+
+    // Polling for real-time updates
+    useEffect(() => {
+        const interval = setInterval(() => {
+            loadMessages(true);
+        }, POLL_INTERVAL);
+
+        return () => clearInterval(interval);
+    }, [loadMessages]);
+
+    // Scroll to bottom on initial messages load
+    useEffect(() => {
+        if (!loading && messages.length > 0) {
+            scrollToBottom("instant");
+        }
+    }, [loading, messages.length, scrollToBottom]);
 
     const handleSend = async () => {
         if (!newMessage.trim() || sending) return;

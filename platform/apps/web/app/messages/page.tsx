@@ -155,11 +155,13 @@ export default function MessagesPage() {
     });
 
     // Fetch all conversations in a single API call (much faster than N sequential calls)
+    // Poll every 3 seconds for real-time updates
     const { data: rawConversations = [], isLoading: loadingConversations } = useQuery({
         queryKey: ["conversations", campground?.id],
         queryFn: () => apiClient.getConversations(campground!.id),
         enabled: !!campground?.id,
-        staleTime: 30000, // Cache for 30 seconds
+        staleTime: 2000, // Consider stale after 2 seconds
+        refetchInterval: 3000, // Poll every 3 seconds for real-time updates
     });
 
     // Apply client-side filters and transform to expected format
