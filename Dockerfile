@@ -5,6 +5,7 @@ WORKDIR /app
 # Install dependencies
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY scripts ./scripts
 COPY platform/packages/shared/package.json ./platform/packages/shared/
 COPY platform/apps/api/package.json ./platform/apps/api/
 COPY platform/apps/web/package.json ./platform/apps/web/
