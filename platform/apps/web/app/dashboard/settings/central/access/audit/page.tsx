@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -17,103 +17,29 @@ import {
   History,
   Search,
   Download,
-  User,
-  Calendar,
   Edit,
   Plus,
   Trash2,
   LogIn,
   Settings,
   CreditCard,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 interface AuditEntry {
   id: string;
-  userId: string;
+  userId: string | null;
   userName: string;
   action: string;
   actionType: "create" | "update" | "delete" | "login" | "setting" | "payment";
   resource: string;
-  resourceId: string;
+  resourceId: string | null;
   details: string;
   timestamp: string;
-  ipAddress: string;
+  ipAddress: string | null;
 }
-
-const mockAuditLog: AuditEntry[] = [
-  {
-    id: "1",
-    userId: "1",
-    userName: "Josh Smith",
-    action: "Updated reservation",
-    actionType: "update",
-    resource: "Reservation",
-    resourceId: "R-1234",
-    details: "Changed check-out date from Dec 28 to Dec 30",
-    timestamp: "2025-12-26T10:30:00",
-    ipAddress: "192.168.1.1",
-  },
-  {
-    id: "2",
-    userId: "2",
-    userName: "Sarah Johnson",
-    action: "Processed payment",
-    actionType: "payment",
-    resource: "Payment",
-    resourceId: "P-5678",
-    details: "Collected $245.00 for reservation R-1234",
-    timestamp: "2025-12-26T10:15:00",
-    ipAddress: "192.168.1.2",
-  },
-  {
-    id: "3",
-    userId: "1",
-    userName: "Josh Smith",
-    action: "Created rate group",
-    actionType: "create",
-    resource: "Rate Group",
-    resourceId: "RG-001",
-    details: "Created 'Peak Summer' rate group",
-    timestamp: "2025-12-26T09:45:00",
-    ipAddress: "192.168.1.1",
-  },
-  {
-    id: "4",
-    userId: "3",
-    userName: "Mike Williams",
-    action: "Logged in",
-    actionType: "login",
-    resource: "Session",
-    resourceId: "S-9012",
-    details: "Successful login from Chrome on macOS",
-    timestamp: "2025-12-26T08:00:00",
-    ipAddress: "192.168.1.3",
-  },
-  {
-    id: "5",
-    userId: "1",
-    userName: "Josh Smith",
-    action: "Updated settings",
-    actionType: "setting",
-    resource: "Booking Policy",
-    resourceId: "BP-001",
-    details: "Changed check-in time from 3 PM to 4 PM",
-    timestamp: "2025-12-25T16:30:00",
-    ipAddress: "192.168.1.1",
-  },
-  {
-    id: "6",
-    userId: "2",
-    userName: "Sarah Johnson",
-    action: "Cancelled reservation",
-    actionType: "delete",
-    resource: "Reservation",
-    resourceId: "R-1122",
-    details: "Guest requested cancellation, refund processed",
-    timestamp: "2025-12-25T14:20:00",
-    ipAddress: "192.168.1.2",
-  },
-];
 
 const actionTypeConfig = {
   create: { icon: Plus, color: "text-emerald-600 bg-emerald-100" },
@@ -124,16 +50,62 @@ const actionTypeConfig = {
   payment: { icon: CreditCard, color: "text-emerald-600 bg-emerald-100" },
 };
 
+function mapActionToType(action: string): "create" | "update" | "delete" | "login" | "setting" | "payment" {
+  const lowerAction = action.toLowerCase();
+  if (lowerAction.includes("create") || lowerAction.includes("add")) return "create";
+  if (lowerAction.includes("delete") || lowerAction.includes("remove") || lowerAction.includes("cancel")) return "delete";
+  if (lowerAction.includes("login") || lowerAction.includes("auth")) return "login";
+  if (lowerAction.includes("payment") || lowerAction.includes("charge") || lowerAction.includes("refund")) return "payment";
+  if (lowerAction.includes("setting") || lowerAction.includes("config")) return "setting";
+  return "update";
+}
+
 export default function AuditLogPage() {
+  const [loading, setLoading] = useState(true);
+  const [campgroundId, setCampgroundId] = useState<string | null>(null);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [actionFilter, setActionFilter] = useState<string>("all");
+
+  useEffect(() => {
+    const id = localStorage.getItem("campreserv:selectedCampground");
+    setCampgroundId(id);
+
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+
+    apiClient.getCampgroundAudit(id, { limit: 100 })
+      .then((entries: any[]) => {
+        const mapped: AuditEntry[] = entries.map((e: any) => ({
+          id: e.id,
+          userId: e.actorId,
+          userName: e.actor ? `${e.actor.firstName || ""} ${e.actor.lastName || ""}`.trim() || e.actor.email : "System",
+          action: e.action,
+          actionType: mapActionToType(e.action),
+          resource: e.resource || "System",
+          resourceId: e.resourceId,
+          details: e.description || e.action,
+          timestamp: e.createdAt,
+          ipAddress: e.ipAddress,
+        }));
+        setAuditLog(mapped);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load audit log:", err);
+        setLoading(false);
+      });
+  }, []);
 
   const getInitials = (name: string) => {
     return name
       .split(" ")
       .map((n) => n[0])
       .join("")
-      .toUpperCase();
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -144,7 +116,7 @@ export default function AuditLogPage() {
     };
   };
 
-  const filteredLog = mockAuditLog.filter((entry) => {
+  const filteredLog = auditLog.filter((entry) => {
     const matchesSearch =
       entry.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       entry.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -152,6 +124,41 @@ export default function AuditLogPage() {
     const matchesAction = actionFilter === "all" || entry.actionType === actionFilter;
     return matchesSearch && matchesAction;
   });
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Audit Log</h2>
+          <p className="text-slate-500 mt-1">
+            Track all user actions and system changes
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!campgroundId) {
+    return (
+      <div className="max-w-5xl space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Audit Log</h2>
+          <p className="text-slate-500 mt-1">
+            Track all user actions and system changes
+          </p>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-3" />
+            <p className="text-slate-600">Please select a campground first.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl space-y-6">

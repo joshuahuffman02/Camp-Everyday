@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,6 +14,8 @@ import {
   Trash2,
   Users,
   Lock,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -23,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
 
 interface Role {
   id: string;
@@ -33,51 +36,113 @@ interface Role {
   isSystem: boolean;
 }
 
-const mockRoles: Role[] = [
+// System roles with their default permissions
+const systemRoles: Omit<Role, "userCount">[] = [
   {
-    id: "1",
+    id: "owner",
     name: "Owner",
     description: "Full access to all features and settings",
-    userCount: 1,
     permissions: ["All permissions"],
     isSystem: true,
   },
   {
-    id: "2",
+    id: "manager",
     name: "Manager",
     description: "Manage reservations, staff, and daily operations",
-    userCount: 1,
     permissions: ["Reservations", "Guests", "Reports", "Staff Management"],
     isSystem: true,
   },
   {
-    id: "3",
+    id: "front_desk",
     name: "Front Desk",
     description: "Handle check-ins, check-outs, and guest inquiries",
-    userCount: 2,
     permissions: ["Reservations", "Guests", "POS"],
     isSystem: true,
   },
   {
-    id: "4",
+    id: "maintenance",
     name: "Maintenance",
     description: "View and update site status and maintenance tasks",
-    userCount: 1,
     permissions: ["Site Status", "Work Orders"],
     isSystem: true,
   },
   {
-    id: "5",
-    name: "Accountant",
+    id: "finance",
+    name: "Finance",
     description: "Access to financial reports and billing",
-    userCount: 0,
     permissions: ["Reports", "Billing", "Invoices"],
-    isSystem: false,
+    isSystem: true,
+  },
+  {
+    id: "marketing",
+    name: "Marketing",
+    description: "Manage promotions and marketing campaigns",
+    permissions: ["Promotions", "Reports"],
+    isSystem: true,
+  },
+  {
+    id: "readonly",
+    name: "Read Only",
+    description: "View-only access to dashboards and reports",
+    permissions: ["View Dashboard", "View Reports"],
+    isSystem: true,
   },
 ];
 
 export default function RolesPage() {
-  const [roles] = useState<Role[]>(mockRoles);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [campgroundId, setCampgroundId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = localStorage.getItem("campreserv:selectedCampground");
+    setCampgroundId(id);
+
+    if (!id) {
+      // Still show roles without counts
+      setRoles(systemRoles.map(r => ({ ...r, userCount: 0 })));
+      setLoading(false);
+      return;
+    }
+
+    // Fetch members to count users per role
+    apiClient.getCampgroundMembers(id)
+      .then((members: any[]) => {
+        const roleCounts: Record<string, number> = {};
+        members.forEach((m: any) => {
+          roleCounts[m.role] = (roleCounts[m.role] || 0) + 1;
+        });
+
+        const rolesWithCounts: Role[] = systemRoles.map(r => ({
+          ...r,
+          userCount: roleCounts[r.id] || 0,
+        }));
+
+        setRoles(rolesWithCounts);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load members:", err);
+        setRoles(systemRoles.map(r => ({ ...r, userCount: 0 })));
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Roles</h2>
+          <p className="text-slate-500 mt-1">
+            Define roles and their permissions for team members
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -97,8 +162,8 @@ export default function RolesPage() {
       <Alert className="bg-blue-50 border-blue-200">
         <Info className="h-4 w-4 text-blue-500" />
         <AlertDescription className="text-blue-800">
-          System roles (Owner, Manager, Front Desk, Maintenance) have predefined
-          permissions. You can create custom roles for specific needs.
+          System roles have predefined permissions that cover common campground staff needs.
+          You can create custom roles for specific requirements.
         </AlertDescription>
       </Alert>
 

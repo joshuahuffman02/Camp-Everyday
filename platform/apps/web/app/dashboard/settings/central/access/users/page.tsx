@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,6 +14,8 @@ import {
   Trash2,
   Mail,
   Shield,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,6 +26,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SettingsTable } from "@/components/settings/tables";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface User {
   id: string;
@@ -31,72 +35,77 @@ interface User {
   email: string;
   role: string;
   avatar?: string;
-  lastActive: string;
+  lastActive: string | null;
   isActive: boolean;
+  isPending: boolean;
 }
 
-const mockUsers: User[] = [
-  {
-    id: "1",
-    name: "Josh Smith",
-    email: "josh@campground.com",
-    role: "Owner",
-    lastActive: "2025-12-26T10:30:00",
-    isActive: true,
-  },
-  {
-    id: "2",
-    name: "Sarah Johnson",
-    email: "sarah@campground.com",
-    role: "Manager",
-    lastActive: "2025-12-26T09:15:00",
-    isActive: true,
-  },
-  {
-    id: "3",
-    name: "Mike Williams",
-    email: "mike@campground.com",
-    role: "Front Desk",
-    lastActive: "2025-12-25T16:45:00",
-    isActive: true,
-  },
-  {
-    id: "4",
-    name: "Emily Davis",
-    email: "emily@campground.com",
-    role: "Front Desk",
-    lastActive: "2025-12-24T11:20:00",
-    isActive: true,
-  },
-  {
-    id: "5",
-    name: "Tom Brown",
-    email: "tom@campground.com",
-    role: "Maintenance",
-    lastActive: "2025-12-20T14:30:00",
-    isActive: false,
-  },
-];
-
 const roleColors: Record<string, string> = {
-  Owner: "bg-purple-100 text-purple-800",
-  Manager: "bg-blue-100 text-blue-800",
-  "Front Desk": "bg-emerald-100 text-emerald-800",
-  Maintenance: "bg-amber-100 text-amber-800",
+  owner: "bg-purple-100 text-purple-800",
+  manager: "bg-blue-100 text-blue-800",
+  front_desk: "bg-emerald-100 text-emerald-800",
+  maintenance: "bg-amber-100 text-amber-800",
+  finance: "bg-cyan-100 text-cyan-800",
+  marketing: "bg-pink-100 text-pink-800",
+  readonly: "bg-slate-100 text-slate-800",
+};
+
+const roleLabels: Record<string, string> = {
+  owner: "Owner",
+  manager: "Manager",
+  front_desk: "Front Desk",
+  maintenance: "Maintenance",
+  finance: "Finance",
+  marketing: "Marketing",
+  readonly: "Read Only",
 };
 
 export default function UsersPage() {
-  const [users] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [campgroundId, setCampgroundId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = localStorage.getItem("campreserv:selectedCampground");
+    setCampgroundId(id);
+
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+
+    apiClient.getCampgroundMembers(id)
+      .then((members: any[]) => {
+        const mappedUsers: User[] = members.map((m: any) => ({
+          id: m.id,
+          name: m.user ? `${m.user.firstName || ""} ${m.user.lastName || ""}`.trim() || m.user.email : "Pending",
+          email: m.user?.email || m.email || "",
+          role: m.role,
+          avatar: m.user?.avatar,
+          lastActive: m.lastInviteRedeemedAt || m.createdAt,
+          isActive: !m.inviteExpiresAt || new Date(m.inviteExpiresAt) > new Date(),
+          isPending: !!m.inviteExpiresAt && !m.lastInviteRedeemedAt,
+        }));
+        setUsers(mappedUsers);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load users:", err);
+        setLoading(false);
+      });
+  }, []);
 
   const getInitials = (name: string) => {
     return name
       .split(" ")
       .map((n) => n[0])
       .join("")
-      .toUpperCase();
+      .toUpperCase()
+      .slice(0, 2);
   };
 
-  const formatLastActive = (date: string) => {
+  const formatLastActive = (date: string | null) => {
+    if (!date) return "Never";
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -133,7 +142,7 @@ export default function UsersPage() {
       label: "Role",
       render: (item: User) => (
         <Badge className={roleColors[item.role] || "bg-slate-100 text-slate-800"}>
-          {item.role}
+          {roleLabels[item.role] || item.role}
         </Badge>
       ),
     },
@@ -142,7 +151,7 @@ export default function UsersPage() {
       label: "Last Active",
       render: (item: User) => (
         <span className="text-sm text-slate-500">
-          {formatLastActive(item.lastActive)}
+          {item.isPending ? "Invite pending" : formatLastActive(item.lastActive)}
         </span>
       ),
     },
@@ -153,16 +162,53 @@ export default function UsersPage() {
         <Badge
           variant={item.isActive ? "default" : "secondary"}
           className={cn(
-            item.isActive
+            item.isPending
+              ? "bg-amber-100 text-amber-800"
+              : item.isActive
               ? "bg-emerald-100 text-emerald-800"
               : "bg-slate-100 text-slate-600"
           )}
         >
-          {item.isActive ? "Active" : "Inactive"}
+          {item.isPending ? "Pending" : item.isActive ? "Active" : "Inactive"}
         </Badge>
       ),
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Users</h2>
+          <p className="text-slate-500 mt-1">
+            Manage staff accounts and access permissions
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!campgroundId) {
+    return (
+      <div className="max-w-5xl space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Users</h2>
+          <p className="text-slate-500 mt-1">
+            Manage staff accounts and access permissions
+          </p>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-3" />
+            <p className="text-slate-600">Please select a campground first.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -207,10 +253,12 @@ export default function UsersPage() {
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Mail className="h-4 w-4 mr-2" />
-                Resend Invite
-              </DropdownMenuItem>
+              {item.isPending && (
+                <DropdownMenuItem>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Resend Invite
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem>
                 <Shield className="h-4 w-4 mr-2" />
                 Change Role
