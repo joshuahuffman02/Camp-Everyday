@@ -468,12 +468,20 @@ export default function GamificationDashboardPage() {
     setXpToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Loading timeout to prevent infinite loading
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  useEffect(() => {
+    const timeout = setTimeout(() => setLoadingTimedOut(true), 20000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   // Fetch dashboard data
   const { data: dashboard, isLoading: dashboardLoading, error: dashboardError } = useQuery({
     queryKey: ["gamification-dashboard", campgroundId],
     queryFn: () => apiClient.getGamificationDashboard(campgroundId!),
     enabled: !!campgroundId,
     retry: 1,
+    staleTime: 30000,
   });
 
   // Fetch leaderboard
@@ -528,7 +536,9 @@ export default function GamificationDashboardPage() {
     : "Staff Member";
 
   // Wait for hydration before showing content to avoid hydration mismatch
-  if (!isHydrated || dashboardLoading || whoamiLoading) {
+  const isLoading = !isHydrated || dashboardLoading || whoamiLoading;
+
+  if (isLoading && !loadingTimedOut) {
     return (
       <DashboardShell>
         <div className="flex flex-col items-center justify-center py-24">
@@ -539,8 +549,8 @@ export default function GamificationDashboardPage() {
     );
   }
 
-  // Show error state if API calls failed
-  if (dashboardError || whoamiError) {
+  // Show error state if API calls failed or loading timed out (while still loading)
+  if (dashboardError || whoamiError || (loadingTimedOut && isLoading)) {
     return (
       <DashboardShell>
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -549,11 +559,16 @@ export default function GamificationDashboardPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Unable to Load Stats</h1>
           <p className="text-slate-500 max-w-md mb-4">
-            There was an error loading your gamification data. Please try refreshing the page.
+            {loadingTimedOut
+              ? "Loading took too long. The server may be unavailable. Please try again later."
+              : "There was an error loading your gamification data. Please try refreshing the page."}
           </p>
-          <p className="text-xs text-slate-400">
-            {(dashboardError as Error)?.message || (whoamiError as Error)?.message || "Unknown error"}
+          <p className="text-xs text-slate-400 mb-4">
+            {(dashboardError as Error)?.message || (whoamiError as Error)?.message || (loadingTimedOut ? "Request timeout" : "Unknown error")}
           </p>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Refresh Page
+          </Button>
         </div>
       </DashboardShell>
     );
