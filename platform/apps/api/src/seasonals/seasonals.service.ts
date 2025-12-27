@@ -43,6 +43,7 @@ export interface SeasonalDashboardStats {
   averageTenure: number;
   longestTenure: number;
   waitlistCount: number;
+  combinedTenureYears: number; // Total years of loyalty across all seasonals
   renewalsByIntent: {
     committed: number;
     likely: number;
@@ -55,6 +56,19 @@ export interface SeasonalDashboardStats {
     years: number;
     type: "5year" | "10year" | "15year" | "20year";
   }>;
+  churnRiskGuests: Array<{
+    guestId: string;
+    guestName: string;
+    tenure: number;
+    riskLevel: "low" | "medium" | "high";
+    renewalIntent: string;
+  }>;
+  paymentAging: {
+    current: number; // Less than 30 days
+    days30: number;  // 30-59 days
+    days60: number;  // 60-89 days
+    days90Plus: number; // 90+ days
+  };
   needsAttention: {
     pastDuePayments: number;
     expiringContracts: number;
@@ -320,23 +334,117 @@ export class SeasonalsService {
   async getDashboardStats(campgroundId: string, seasonYear?: number): Promise<SeasonalDashboardStats> {
     const currentYear = seasonYear || new Date().getFullYear();
     const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-    // Get all seasonals with guest info for milestones
-    const seasonals = await this.prisma.seasonalGuest.findMany({
-      where: { campgroundId },
-      include: {
-        guest: true,
-        payments: {
-          where: { seasonYear: currentYear },
+    // Run all independent queries in parallel for performance
+    const [
+      seasonals,
+      contracts,
+      pastDuePaymentsCount,
+      expiringContracts,
+      expiredInsurance,
+      pendingRenewals,
+      waitlistCount,
+      // Payment aging buckets
+      pastDue30Days,
+      pastDue60Days,
+      pastDue90Days,
+    ] = await Promise.all([
+      // Main seasonals query with relations
+      this.prisma.seasonalGuest.findMany({
+        where: { campgroundId },
+        include: {
+          guest: true,
+          payments: {
+            where: { seasonYear: currentYear },
+          },
+          pricing: {
+            where: { seasonYear: currentYear },
+          },
         },
-        pricing: {
-          where: { seasonYear: currentYear },
+      }),
+      // Contract stats
+      this.prisma.signatureRequest.findMany({
+        where: {
+          campgroundId,
+          seasonYear: currentYear,
+          documentType: { in: ["seasonal", "monthly"] },
         },
-      },
-    });
+        select: { status: true },
+      }),
+      // Past due payments count
+      this.prisma.seasonalPayment.count({
+        where: {
+          campgroundId,
+          status: SeasonalPaymentStatus.past_due,
+        },
+      }),
+      // Expiring contracts (within 7 days)
+      this.prisma.signatureRequest.count({
+        where: {
+          campgroundId,
+          seasonYear: currentYear,
+          documentType: { in: ["seasonal", "monthly"] },
+          status: "sent",
+          expiresAt: {
+            lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        },
+      }),
+      // Expired insurance
+      this.prisma.seasonalGuest.count({
+        where: {
+          campgroundId,
+          status: SeasonalStatus.active,
+          coiExpiresAt: { lt: now },
+        },
+      }),
+      // Pending renewals
+      this.prisma.seasonalGuest.count({
+        where: {
+          campgroundId,
+          status: SeasonalStatus.active,
+          renewalIntent: { in: [null, RenewalIntent.undecided] },
+        },
+      }),
+      // Waitlist count
+      this.prisma.seasonalGuest.count({
+        where: {
+          campgroundId,
+          status: SeasonalStatus.waitlist,
+        },
+      }),
+      // Payment aging: 30+ days
+      this.prisma.seasonalPayment.count({
+        where: {
+          campgroundId,
+          status: SeasonalPaymentStatus.past_due,
+          dueDate: { lt: thirtyDaysAgo, gte: sixtyDaysAgo },
+        },
+      }),
+      // Payment aging: 60+ days
+      this.prisma.seasonalPayment.count({
+        where: {
+          campgroundId,
+          status: SeasonalPaymentStatus.past_due,
+          dueDate: { lt: sixtyDaysAgo, gte: ninetyDaysAgo },
+        },
+      }),
+      // Payment aging: 90+ days
+      this.prisma.seasonalPayment.count({
+        where: {
+          campgroundId,
+          status: SeasonalPaymentStatus.past_due,
+          dueDate: { lt: ninetyDaysAgo },
+        },
+      }),
+    ]);
 
     type SeasonalWithRelations = (typeof seasonals)[number];
     type PaymentRecord = SeasonalWithRelations["payments"][number];
+    type ContractRecord = (typeof contracts)[number];
 
     const activeSeasonals = seasonals.filter((s: SeasonalWithRelations) => s.status === SeasonalStatus.active);
 
@@ -360,9 +468,10 @@ export class SeasonalsService {
         paymentsCurrent++;
       }
 
-      // Sum up monthly revenue from pricing
+      // Sum up monthly revenue from pricing (configurable season length)
       if (seasonal.pricing[0]) {
-        const monthlyRate = seasonal.pricing[0].finalRate.toNumber() / 6; // Assume 6-month season
+        const SEASON_LENGTH_MONTHS = 6; // TODO: Make configurable per campground
+        const monthlyRate = seasonal.pricing[0].finalRate.toNumber() / SEASON_LENGTH_MONTHS;
         totalMonthlyRevenue += monthlyRate;
       }
     }
@@ -379,58 +488,11 @@ export class SeasonalsService {
       ? ((renewalsByIntent.committed + renewalsByIntent.likely * 0.7) / activeSeasonals.length) * 100
       : 0;
 
-    // Get contract stats (from signature requests)
-    const contracts = await this.prisma.signatureRequest.findMany({
-      where: {
-        campgroundId,
-        seasonYear: currentYear,
-        documentType: { in: ["seasonal", "monthly"] },
-      },
-    });
-
-    type ContractRecord = (typeof contracts)[number];
+    // Contract stats
     const contractsSigned = contracts.filter((c: ContractRecord) =>
       ["signed", "signed_paper", "waived"].includes(c.status)
     ).length;
-
-    // Count unsigned contracts (sent but not signed, or not sent at all)
     const unsignedContracts = activeSeasonals.length - contractsSigned;
-
-    // Calculate needs attention
-    const pastDuePayments = await this.prisma.seasonalPayment.count({
-      where: {
-        campgroundId,
-        status: SeasonalPaymentStatus.past_due,
-      },
-    });
-
-    const expiringContracts = await this.prisma.signatureRequest.count({
-      where: {
-        campgroundId,
-        seasonYear: currentYear,
-        documentType: { in: ["seasonal", "monthly"] },
-        status: "sent",
-        expiresAt: {
-          lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Within 7 days
-        },
-      },
-    });
-
-    const expiredInsurance = await this.prisma.seasonalGuest.count({
-      where: {
-        campgroundId,
-        status: SeasonalStatus.active,
-        coiExpiresAt: { lt: now },
-      },
-    });
-
-    const pendingRenewals = await this.prisma.seasonalGuest.count({
-      where: {
-        campgroundId,
-        status: SeasonalStatus.active,
-        renewalIntent: { in: [null, RenewalIntent.undecided] },
-      },
-    });
 
     // Calculate tenure stats
     const totalTenure = seasonals.reduce((sum: number, s: SeasonalWithRelations) => sum + s.totalSeasons, 0);
@@ -438,6 +500,9 @@ export class SeasonalsService {
     const longestTenure = seasonals.length > 0
       ? Math.max(...seasonals.map((s: SeasonalWithRelations) => s.totalSeasons))
       : 0;
+
+    // Community stats - combined years of loyalty
+    const combinedTenureYears = totalTenure;
 
     // Find milestone guests (5, 10, 15, 20 years) - only active
     const milestoneYears = [5, 10, 15, 20];
@@ -467,12 +532,46 @@ export class SeasonalsService {
     // Sort milestones by years descending
     milestones.sort((a, b) => b.years - a.years);
 
-    // Get waitlist count (seasonals with waitlist status)
-    const waitlistCount = await this.prisma.seasonalGuest.count({
-      where: {
-        campgroundId,
-        status: SeasonalStatus.waitlist,
-      },
+    // Calculate churn risk guests (long tenure + undecided/not_renewing = high risk)
+    const churnRiskGuests: SeasonalDashboardStats["churnRiskGuests"] = [];
+    for (const seasonal of activeSeasonals) {
+      const isAtRisk = seasonal.totalSeasons >= 3 &&
+        (seasonal.renewalIntent === RenewalIntent.undecided ||
+         seasonal.renewalIntent === RenewalIntent.not_renewing ||
+         seasonal.renewalIntent === null);
+
+      if (isAtRisk) {
+        const guestName = seasonal.guest
+          ? `${seasonal.guest.primaryFirstName} ${seasonal.guest.primaryLastName}`
+          : "Unknown Guest";
+
+        // Calculate risk level based on tenure and status
+        let riskLevel: "low" | "medium" | "high" = "low";
+        if (seasonal.totalSeasons >= 10) {
+          riskLevel = "high"; // Long-tenured guests leaving is a big deal
+        } else if (seasonal.totalSeasons >= 5) {
+          riskLevel = "medium";
+        } else if (seasonal.renewalIntent === RenewalIntent.not_renewing) {
+          riskLevel = "high"; // Confirmed not renewing
+        }
+
+        churnRiskGuests.push({
+          guestId: seasonal.id,
+          guestName,
+          tenure: seasonal.totalSeasons,
+          riskLevel,
+          renewalIntent: seasonal.renewalIntent || "undecided",
+        });
+      }
+    }
+
+    // Sort by risk level (high first) then tenure
+    churnRiskGuests.sort((a, b) => {
+      const riskOrder = { high: 0, medium: 1, low: 2 };
+      if (riskOrder[a.riskLevel] !== riskOrder[b.riskLevel]) {
+        return riskOrder[a.riskLevel] - riskOrder[b.riskLevel];
+      }
+      return b.tenure - a.tenure;
     });
 
     return {
@@ -490,8 +589,17 @@ export class SeasonalsService {
       waitlistCount,
       renewalsByIntent,
       milestones,
+      // New fields
+      combinedTenureYears,
+      churnRiskGuests: churnRiskGuests.slice(0, 10), // Top 10 at-risk guests
+      paymentAging: {
+        current: pastDuePaymentsCount - pastDue30Days - pastDue60Days - pastDue90Days,
+        days30: pastDue30Days,
+        days60: pastDue60Days,
+        days90Plus: pastDue90Days,
+      },
       needsAttention: {
-        pastDuePayments,
+        pastDuePayments: pastDuePaymentsCount,
         expiringContracts,
         expiredInsurance,
         pendingRenewals,

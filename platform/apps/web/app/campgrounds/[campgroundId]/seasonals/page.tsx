@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useToast } from "../../../../hooks/use-toast";
 import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "../../../../components/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../../components/ui/card";
@@ -14,6 +15,13 @@ import { Textarea } from "../../../../components/ui/textarea";
 import { Label } from "../../../../components/ui/label";
 import { Switch } from "../../../../components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../../../components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../../../components/ui/dropdown-menu";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import {
   Users,
@@ -65,6 +73,11 @@ import {
   History,
   Bell,
   Target,
+  AlertTriangle,
+  TrendingDown,
+  Flame,
+  Gift,
+  Hourglass,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -174,11 +187,25 @@ interface DashboardStats {
   averageTenure: number;
   longestTenure: number;
   waitlistCount: number;
+  combinedTenureYears: number; // Total years of loyalty across all seasonals
   renewalsByIntent: {
     committed: number;
     likely: number;
     undecided: number;
     not_renewing: number;
+  };
+  churnRiskGuests: Array<{
+    guestId: string;
+    guestName: string;
+    tenure: number;
+    riskLevel: "low" | "medium" | "high";
+    renewalIntent: string;
+  }>;
+  paymentAging: {
+    current: number;
+    days30: number;
+    days60: number;
+    days90Plus: number;
   };
   needsAttention: {
     pastDuePayments: number;
@@ -188,6 +215,7 @@ interface DashboardStats {
     unsignedContracts: number;
   };
   milestones: Array<{
+    guestId: string;
     guestName: string;
     years: number;
     type: "5year" | "10year" | "15year" | "20year";
@@ -540,18 +568,206 @@ function RenewalProgressCard({ stats }: { stats: DashboardStats["renewalsByInten
   );
 }
 
+// ==================== CHURN RISK CARD ====================
+
+function ChurnRiskCard({ guests }: { guests: DashboardStats["churnRiskGuests"] }) {
+  if (!guests?.length) return null;
+
+  const riskColors = {
+    high: "bg-rose-100 text-rose-700 border-rose-200",
+    medium: "bg-amber-100 text-amber-700 border-amber-200",
+    low: "bg-slate-100 text-slate-600 border-slate-200",
+  };
+
+  const riskIcons = {
+    high: Flame,
+    medium: AlertTriangle,
+    low: TrendingDown,
+  };
+
+  return (
+    <Card className="border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2 text-rose-800">
+          <AlertTriangle className="h-4 w-4" />
+          Churn Risk - Attention Needed
+        </CardTitle>
+        <CardDescription className="text-rose-600 text-xs">
+          Long-tenured guests who haven&apos;t committed to renewal
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {guests.slice(0, 5).map((guest) => {
+            const Icon = riskIcons[guest.riskLevel];
+            return (
+              <div
+                key={guest.guestId}
+                className="flex items-center justify-between p-2 rounded-lg bg-white/60 border border-rose-100"
+              >
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={riskColors[guest.riskLevel]}>
+                    <Icon className="h-3 w-3 mr-1" />
+                    {guest.riskLevel.toUpperCase()}
+                  </Badge>
+                  <span className="font-medium text-sm">{guest.guestName}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Award className="h-3.5 w-3.5 text-amber-500" />
+                  {guest.tenure} years
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {guests.length > 5 && (
+          <p className="text-xs text-rose-600 mt-2 text-center">
+            +{guests.length - 5} more at risk
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== COMMUNITY STATS CARD ====================
+
+function CommunityStatsCard({ stats }: { stats: DashboardStats }) {
+  return (
+    <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2 text-purple-800">
+          <Heart className="h-4 w-4" />
+          Your Seasonal Family
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-center py-2">
+          <div className="text-4xl font-bold text-purple-700 mb-1">
+            {stats.combinedTenureYears}
+          </div>
+          <div className="text-sm text-purple-600">combined years of loyalty</div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-purple-100">
+          <div className="text-center">
+            <div className="text-lg font-semibold text-slate-700">{stats.activeSeasonals}</div>
+            <div className="text-xs text-slate-500">Active</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-slate-700">{stats.averageTenure}yr</div>
+            <div className="text-xs text-slate-500">Avg Tenure</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-slate-700">{stats.longestTenure}yr</div>
+            <div className="text-xs text-slate-500">Longest</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== PAYMENT AGING CARD ====================
+
+function PaymentAgingCard({ aging }: { aging: DashboardStats["paymentAging"] }) {
+  const total = aging.current + aging.days30 + aging.days60 + aging.days90Plus;
+  if (total === 0) return null;
+
+  const segments = [
+    { key: "current", value: aging.current, color: "bg-emerald-500", label: "< 30 days", textColor: "text-emerald-700" },
+    { key: "days30", value: aging.days30, color: "bg-amber-500", label: "30-59 days", textColor: "text-amber-700" },
+    { key: "days60", value: aging.days60, color: "bg-orange-500", label: "60-89 days", textColor: "text-orange-700" },
+    { key: "days90Plus", value: aging.days90Plus, color: "bg-rose-600", label: "90+ days", textColor: "text-rose-700" },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Hourglass className="h-4 w-4 text-amber-600" />
+          Past Due Aging
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {/* Progress bar */}
+        <div className="h-3 rounded-full bg-slate-100 overflow-hidden flex mb-3">
+          {segments.map((seg) => (
+            <div
+              key={seg.key}
+              className={`${seg.color} transition-all duration-500`}
+              style={{ width: `${total > 0 ? (seg.value / total) * 100 : 0}%` }}
+            />
+          ))}
+        </div>
+        {/* Legend */}
+        <div className="grid grid-cols-2 gap-2">
+          {segments.filter(s => s.value > 0).map((seg) => (
+            <div key={seg.key} className="flex items-center gap-2 text-sm">
+              <div className={`w-3 h-3 rounded-full ${seg.color}`} />
+              <span className={seg.textColor}>{seg.label}</span>
+              <span className="font-semibold ml-auto">{seg.value}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== RENEWAL DEADLINE COUNTDOWN ====================
+
+function RenewalDeadlineCountdown({ deadline }: { deadline?: Date }) {
+  // Default to March 1 of next year if no deadline set
+  const renewalDeadline = deadline || new Date(new Date().getFullYear() + 1, 2, 1);
+  const daysUntil = differenceInDays(renewalDeadline, new Date());
+  const isUrgent = daysUntil <= 14;
+  const isSoon = daysUntil <= 30;
+
+  return (
+    <Card className={`${isUrgent ? 'border-rose-300 bg-rose-50' : isSoon ? 'border-amber-300 bg-amber-50' : 'border-blue-200 bg-blue-50'}`}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-full ${isUrgent ? 'bg-rose-100' : isSoon ? 'bg-amber-100' : 'bg-blue-100'}`}>
+              <Timer className={`h-5 w-5 ${isUrgent ? 'text-rose-600' : isSoon ? 'text-amber-600' : 'text-blue-600'}`} />
+            </div>
+            <div>
+              <p className={`text-sm font-medium ${isUrgent ? 'text-rose-800' : isSoon ? 'text-amber-800' : 'text-blue-800'}`}>
+                Renewal Deadline
+              </p>
+              <p className="text-xs text-slate-500">
+                {format(renewalDeadline, "MMMM d, yyyy")}
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className={`text-2xl font-bold ${isUrgent ? 'text-rose-600' : isSoon ? 'text-amber-600' : 'text-blue-600'}`}>
+              {daysUntil}
+            </div>
+            <div className="text-xs text-slate-500">days left</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ==================== FLOATING ACTION PANEL ====================
 
 function FloatingActionPanel({
   selectedCount,
   onSendMessage,
   onBulkUpdate,
+  onSendContracts,
+  onRecordPayment,
   onExport,
   onClear,
 }: {
   selectedCount: number;
   onSendMessage: () => void;
   onBulkUpdate: (action: string) => void;
+  onSendContracts: () => void;
+  onRecordPayment: () => void;
   onExport: () => void;
   onClear: () => void;
 }) {
@@ -560,23 +776,67 @@ function FloatingActionPanel({
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
       <Card className="shadow-2xl border-slate-300 bg-white/95 backdrop-blur">
-        <CardContent className="p-3 flex items-center gap-3">
+        <CardContent className="p-3 flex flex-wrap items-center gap-2 md:gap-3">
           <Badge className="bg-blue-600 text-white px-3 py-1">
             {selectedCount} selected
           </Badge>
-          <div className="h-6 w-px bg-slate-200" />
+          <div className="h-6 w-px bg-slate-200 hidden md:block" />
+
+          {/* Message */}
           <Button size="sm" onClick={onSendMessage}>
             <Send className="h-4 w-4 mr-1" />
-            Message
+            <span className="hidden sm:inline">Message</span>
           </Button>
-          <Button size="sm" variant="outline" onClick={() => onBulkUpdate("committed")}>
-            <CheckCircle className="h-4 w-4 mr-1" />
-            Mark Committed
+
+          {/* Renewal Intent Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <RefreshCw className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Renewal</span>
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center">
+              <DropdownMenuItem onClick={() => onBulkUpdate("committed")}>
+                <CheckCircle className="h-4 w-4 mr-2 text-emerald-600" />
+                Mark Committed
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onBulkUpdate("likely")}>
+                <TrendingUp className="h-4 w-4 mr-2 text-green-600" />
+                Mark Likely
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onBulkUpdate("undecided")}>
+                <Clock className="h-4 w-4 mr-2 text-amber-600" />
+                Mark Undecided
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onBulkUpdate("not_renewing")} className="text-rose-600">
+                <X className="h-4 w-4 mr-2" />
+                Mark Not Returning
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Contracts */}
+          <Button size="sm" variant="outline" onClick={onSendContracts}>
+            <FileSignature className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Contracts</span>
           </Button>
+
+          {/* Record Payment */}
+          <Button size="sm" variant="outline" onClick={onRecordPayment}>
+            <CreditCard className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Payment</span>
+          </Button>
+
+          {/* Export */}
           <Button size="sm" variant="outline" onClick={onExport}>
             <Download className="h-4 w-4 mr-1" />
-            Export
+            <span className="hidden sm:inline">Export</span>
           </Button>
+
+          {/* Clear */}
           <Button size="sm" variant="ghost" onClick={onClear}>
             <X className="h-4 w-4" />
           </Button>
@@ -930,12 +1190,14 @@ export default function SeasonalsPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const campgroundId = params.campgroundId as string;
   const currentYear = new Date().getFullYear();
 
   // State
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SeasonalStatus | "all">("all");
   const [renewalFilter, setRenewalFilter] = useState<RenewalIntent | "all">("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentStatus | "all">("all");
@@ -948,6 +1210,14 @@ export default function SeasonalsPage() {
   const [messageBody, setMessageBody] = useState("");
   const [selectedSeasonal, setSelectedSeasonal] = useState<SeasonalGuest | null>(null);
   const [seasonYear, setSeasonYear] = useState(currentYear);
+
+  // Debounced search - waits 300ms after typing stops before querying
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Queries
   const statsQuery = useQuery({
@@ -972,7 +1242,10 @@ export default function SeasonalsPage() {
           averageTenure: 0,
           longestTenure: 0,
           waitlistCount: 0,
+          combinedTenureYears: 0,
           renewalsByIntent: { committed: 0, likely: 0, undecided: 0, not_renewing: 0 },
+          churnRiskGuests: [],
+          paymentAging: { current: 0, days30: 0, days60: 0, days90Plus: 0 },
           needsAttention: { pastDuePayments: 0, expiringContracts: 0, expiredInsurance: 0, pendingRenewals: 0, unsignedContracts: 0 },
           milestones: [],
         } as DashboardStats;
@@ -983,13 +1256,13 @@ export default function SeasonalsPage() {
   });
 
   const seasonalsQuery = useQuery({
-    queryKey: ["seasonals", campgroundId, statusFilter, renewalFilter, paymentFilter, searchQuery],
+    queryKey: ["seasonals", campgroundId, statusFilter, renewalFilter, paymentFilter, debouncedSearch],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (renewalFilter !== "all") params.set("renewalIntent", renewalFilter);
       if (paymentFilter !== "all") params.set("paymentStatus", paymentFilter);
-      if (searchQuery) params.set("search", searchQuery);
+      if (debouncedSearch) params.set("search", debouncedSearch);
 
       const response = await fetch(
         `/api/seasonals/campground/${campgroundId}?${params.toString()}`,
@@ -1047,12 +1320,32 @@ export default function SeasonalsPage() {
         credentials: "include",
         body: JSON.stringify({ intent, notes }),
       });
-      if (!response.ok) throw new Error("Failed to update renewal intent");
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(error.message || "Failed to update renewal intent");
+      }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["seasonals", campgroundId] });
       queryClient.invalidateQueries({ queryKey: ["seasonal-stats", campgroundId] });
+      const intentLabels: Record<RenewalIntent, string> = {
+        committed: "Committed",
+        likely: "Likely",
+        undecided: "Undecided",
+        not_renewing: "Not Renewing",
+      };
+      toast({
+        title: "Renewal intent updated",
+        description: `Guest marked as "${intentLabels[variables.intent]}"`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -1070,7 +1363,10 @@ export default function SeasonalsPage() {
           body: messageBody,
         }),
       });
-      if (!response.ok) throw new Error("Failed to send message");
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(error.message || "Failed to send message");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -1078,6 +1374,17 @@ export default function SeasonalsPage() {
       setSelectedIds([]);
       setMessageSubject("");
       setMessageBody("");
+      toast({
+        title: "Messages sent! 🎉",
+        description: `Successfully sent ${messageChannel === "email" ? "emails" : "SMS"} to ${selectedIds.length} guest${selectedIds.length !== 1 ? "s" : ""}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to send messages",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -1115,9 +1422,15 @@ export default function SeasonalsPage() {
   };
 
   const handleBulkUpdate = (action: string) => {
-    if (action === "committed") {
+    const validIntents: RenewalIntent[] = ["committed", "likely", "undecided", "not_renewing"];
+    if (validIntents.includes(action as RenewalIntent)) {
+      const count = selectedIds.length;
       selectedIds.forEach((id) => {
-        updateRenewalMutation.mutate({ id, intent: "committed" });
+        updateRenewalMutation.mutate({ id, intent: action as RenewalIntent });
+      });
+      toast({
+        title: "Updating renewal status...",
+        description: `Marking ${count} guest${count !== 1 ? "s" : ""} as ${action.replace("_", " ")}`,
       });
     }
     setSelectedIds([]);
@@ -1225,11 +1538,21 @@ export default function SeasonalsPage() {
           </div>
         )}
 
-        {/* Milestones & Renewal Progress */}
-        {stats && (stats.milestones?.length > 0 || stats.renewalsByIntent) && (
-          <div className="grid md:grid-cols-2 gap-4">
+        {/* Renewal Deadline Countdown */}
+        {stats && <RenewalDeadlineCountdown />}
+
+        {/* Milestones, Renewal Progress, Community Stats, and Churn Risk */}
+        {stats && (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             <MilestonesCelebration milestones={stats.milestones} />
             <RenewalProgressCard stats={stats.renewalsByIntent} />
+            <CommunityStatsCard stats={stats} />
+            {stats.churnRiskGuests?.length > 0 && (
+              <ChurnRiskCard guests={stats.churnRiskGuests} />
+            )}
+            {stats.paymentAging && (
+              <PaymentAgingCard aging={stats.paymentAging} />
+            )}
           </div>
         )}
 
@@ -1918,7 +2241,24 @@ export default function SeasonalsPage() {
         selectedCount={selectedIds.length}
         onSendMessage={() => setShowMessageModal(true)}
         onBulkUpdate={handleBulkUpdate}
-        onExport={() => {}}
+        onSendContracts={() => {
+          // TODO: Implement bulk send contracts
+          toast({
+            title: "Sending contracts...",
+            description: `Preparing contracts for ${selectedIds.length} guest${selectedIds.length !== 1 ? "s" : ""}`,
+          });
+        }}
+        onRecordPayment={() => {
+          // TODO: Implement bulk payment recording
+          setShowPaymentModal(true);
+        }}
+        onExport={() => {
+          // TODO: Implement export
+          toast({
+            title: "Exporting...",
+            description: `Exporting ${selectedIds.length} guest${selectedIds.length !== 1 ? "s" : ""} to CSV`,
+          });
+        }}
         onClear={() => setSelectedIds([])}
       />
 

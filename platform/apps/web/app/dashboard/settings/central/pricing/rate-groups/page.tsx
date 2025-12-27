@@ -118,14 +118,13 @@ export default function RateGroupsPage() {
         name: newGroupName.trim(),
         rateType: newGroupRateType,
         amount: Math.round(parseFloat(newGroupAmount || "0") * 100),
-        isActive: true,
       });
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
       const ratesWithColors = rates.map((rate, index) => ({
         ...rate,
-        color: rate.color || PRESET_COLORS[index % PRESET_COLORS.length],
+        color: (rate as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
       }));
       setSeasonalRates(ratesWithColors);
 
@@ -155,7 +154,7 @@ export default function RateGroupsPage() {
       const rates = await apiClient.getSeasonalRates(campgroundId);
       const ratesWithColors = rates.map((rate, index) => ({
         ...rate,
-        color: rate.color || PRESET_COLORS[index % PRESET_COLORS.length],
+        color: (rate as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
       }));
       setSeasonalRates(ratesWithColors);
     } catch (err) {
@@ -177,7 +176,7 @@ export default function RateGroupsPage() {
       const rates = await apiClient.getSeasonalRates(campgroundId);
       const ratesWithColors = rates.map((rate, index) => ({
         ...rate,
-        color: rate.color || PRESET_COLORS[index % PRESET_COLORS.length],
+        color: (rate as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
       }));
       setSeasonalRates(ratesWithColors);
     } catch (err) {
@@ -203,14 +202,13 @@ export default function RateGroupsPage() {
         minNights: rate.minNights ?? undefined,
         startDate: rate.startDate ?? undefined,
         endDate: rate.endDate ?? undefined,
-        isActive: rate.isActive,
       });
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
       const ratesWithColors = rates.map((r, index) => ({
         ...r,
-        color: r.color || PRESET_COLORS[index % PRESET_COLORS.length],
+        color: (r as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
       }));
       setSeasonalRates(ratesWithColors);
     } catch (err) {
@@ -244,7 +242,7 @@ export default function RateGroupsPage() {
       const rates = await apiClient.getSeasonalRates(campgroundId);
       const ratesWithColors = rates.map((rate, index) => ({
         ...rate,
-        color: rate.color || PRESET_COLORS[index % PRESET_COLORS.length],
+        color: (rate as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
       }));
       setSeasonalRates(ratesWithColors);
 

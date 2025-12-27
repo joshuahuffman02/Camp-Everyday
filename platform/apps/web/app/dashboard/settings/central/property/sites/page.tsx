@@ -70,17 +70,19 @@ export default function SiteTypesPage() {
 
       // Count sites per class
       const classCounts: Record<string, number> = {};
-      sitesArray.forEach((s: Site) => {
-        classCounts[s.siteClassId] = (classCounts[s.siteClassId] || 0) + 1;
+      sitesArray.forEach((s) => {
+        if (s.siteClassId) {
+          classCounts[s.siteClassId] = (classCounts[s.siteClassId] || 0) + 1;
+        }
       });
 
-      const classesWithCounts = classesArray.map((c: SiteClass) => ({
+      const classesWithCounts = classesArray.map((c) => ({
         ...c,
         siteCount: classCounts[c.id] || 0,
       }));
 
-      setSiteClasses(classesWithCounts);
-      setSites(sitesArray);
+      setSiteClasses(classesWithCounts as unknown as SiteClass[]);
+      setSites(sitesArray as unknown as Site[]);
       setLoading(false);
     });
   }, []);
@@ -284,13 +286,13 @@ export default function SiteTypesPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={`/campgrounds/${campgroundId}/classes`}>
+                      <DropdownMenuItem>
+                        <Link href={`/campgrounds/${campgroundId}/classes`} className="w-full">
                           Edit Class
                         </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`/campgrounds/${campgroundId}/sites`}>
+                      <DropdownMenuItem>
+                        <Link href={`/campgrounds/${campgroundId}/sites`} className="w-full">
                           View Sites
                         </Link>
                       </DropdownMenuItem>
