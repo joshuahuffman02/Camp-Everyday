@@ -1627,6 +1627,16 @@ export const DYNAMIC_PAGE_TEMPLATES: PageDefinition[] = [
     permissions: ["settingsWrite"],
   },
   {
+    href: "/campgrounds/[campgroundId]/seasonals/new",
+    label: "Add Seasonal Guest",
+    icon: "user-plus",
+    category: "operations",
+    description: "Add a new seasonal guest with site assignment and pricing",
+    keywords: ["new seasonal", "add seasonal", "create seasonal"],
+    dynamic: true,
+    permissions: ["operationsWrite"],
+  },
+  {
     href: "/campgrounds/[campgroundId]/reservations",
     label: "Campground Reservations",
     icon: "reservation",

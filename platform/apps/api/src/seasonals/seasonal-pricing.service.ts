@@ -289,7 +289,7 @@ export class SeasonalPricingService {
 
     switch (frequency) {
       case SeasonalBillingFrequency.seasonal:
-        // Single payment
+        // Single payment for full season
         schedule.push({
           dueDate: startDate,
           amount: totalAmount,
@@ -343,6 +343,139 @@ export class SeasonalPricingService {
           quarterStart = new Date(quarterEnd);
         }
         break;
+
+      case SeasonalBillingFrequency.biweekly:
+        // Bi-weekly payments (every 2 weeks)
+        const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const biweeklyPeriods = Math.ceil(totalDays / 14);
+        const biweeklyAmount = totalAmount / biweeklyPeriods;
+        let biweeklyDate = new Date(startDate);
+
+        for (let i = 0; i < biweeklyPeriods; i++) {
+          const periodStart = new Date(biweeklyDate);
+          const periodEnd = new Date(biweeklyDate);
+          periodEnd.setDate(periodEnd.getDate() + 14);
+          if (periodEnd > endDate) periodEnd.setTime(endDate.getTime());
+
+          schedule.push({
+            dueDate: new Date(biweeklyDate),
+            amount: Math.round(biweeklyAmount * 100) / 100,
+            description: `Bi-weekly Payment ${i + 1}`,
+            periodStart,
+            periodEnd,
+          });
+
+          biweeklyDate.setDate(biweeklyDate.getDate() + 14);
+          if (biweeklyDate >= endDate) break;
+        }
+        break;
+
+      case SeasonalBillingFrequency.semi_monthly:
+        // Semi-monthly (1st and 15th of each month)
+        const semiMonthlyMonths = this.getMonthsBetween(startDate, endDate);
+        const semiMonthlyPeriods = semiMonthlyMonths * 2;
+        const semiMonthlyAmount = totalAmount / semiMonthlyPeriods;
+        let semiMonthlyDate = new Date(startDate);
+
+        for (let month = 0; month < semiMonthlyMonths; month++) {
+          // 1st of month payment
+          const firstDate = new Date(semiMonthlyDate.getFullYear(), semiMonthlyDate.getMonth() + month, 1);
+          if (firstDate >= startDate && firstDate <= endDate) {
+            const firstEnd = new Date(firstDate.getFullYear(), firstDate.getMonth(), 15);
+            schedule.push({
+              dueDate: firstDate,
+              amount: Math.round(semiMonthlyAmount * 100) / 100,
+              description: `${firstDate.toLocaleString("default", { month: "short" })} 1st Payment`,
+              periodStart: firstDate,
+              periodEnd: firstEnd > endDate ? endDate : firstEnd,
+            });
+          }
+
+          // 15th of month payment
+          const fifteenthDate = new Date(semiMonthlyDate.getFullYear(), semiMonthlyDate.getMonth() + month, 15);
+          if (fifteenthDate >= startDate && fifteenthDate <= endDate) {
+            const fifteenthEnd = new Date(fifteenthDate.getFullYear(), fifteenthDate.getMonth() + 1, 1);
+            schedule.push({
+              dueDate: fifteenthDate,
+              amount: Math.round(semiMonthlyAmount * 100) / 100,
+              description: `${fifteenthDate.toLocaleString("default", { month: "short" })} 15th Payment`,
+              periodStart: fifteenthDate,
+              periodEnd: fifteenthEnd > endDate ? endDate : fifteenthEnd,
+            });
+          }
+        }
+        break;
+
+      case SeasonalBillingFrequency.deposit_plus_monthly:
+        // Deposit (typically 25-50%) upfront, then monthly payments for remainder
+        const depositPercent = 0.25; // 25% deposit
+        const depositAmount = totalAmount * depositPercent;
+        const remainingAmount = totalAmount - depositAmount;
+        const depositMonths = this.getMonthsBetween(startDate, endDate) - 1; // -1 because deposit covers first month
+        const depositMonthlyAmount = remainingAmount / Math.max(1, depositMonths);
+
+        // Deposit payment
+        schedule.push({
+          dueDate: startDate,
+          amount: Math.round(depositAmount * 100) / 100,
+          description: "Deposit Payment",
+          periodStart: startDate,
+          periodEnd: new Date(startDate.getFullYear(), startDate.getMonth() + 1, startDate.getDate()),
+        });
+
+        // Monthly payments for remainder
+        let depositDate = new Date(startDate);
+        depositDate.setMonth(depositDate.getMonth() + 1);
+
+        for (let i = 0; i < depositMonths && depositDate < endDate; i++) {
+          const periodStart = new Date(depositDate);
+          const periodEnd = new Date(depositDate);
+          periodEnd.setMonth(periodEnd.getMonth() + 1);
+          if (periodEnd > endDate) periodEnd.setTime(endDate.getTime());
+
+          const monthName = depositDate.toLocaleString("default", { month: "long", year: "numeric" });
+
+          schedule.push({
+            dueDate: new Date(depositDate),
+            amount: Math.round(depositMonthlyAmount * 100) / 100,
+            description: monthName,
+            periodStart,
+            periodEnd,
+          });
+
+          depositDate.setMonth(depositDate.getMonth() + 1);
+        }
+        break;
+
+      case SeasonalBillingFrequency.offseason_installments:
+        // Payments during off-season (before season starts)
+        // Typically Oct-Apr for a May-Sep season
+        const offseasonMonths = 6; // 6 monthly payments before season
+        const offseasonAmount = totalAmount / offseasonMonths;
+        const offseasonStart = new Date(startDate);
+        offseasonStart.setMonth(offseasonStart.getMonth() - offseasonMonths);
+
+        for (let i = 0; i < offseasonMonths; i++) {
+          const paymentDate = new Date(offseasonStart);
+          paymentDate.setMonth(paymentDate.getMonth() + i);
+
+          const monthName = paymentDate.toLocaleString("default", { month: "long", year: "numeric" });
+
+          schedule.push({
+            dueDate: paymentDate,
+            amount: Math.round(offseasonAmount * 100) / 100,
+            description: `${monthName} (Off-Season)`,
+            periodStart: paymentDate,
+            periodEnd: new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, paymentDate.getDate()),
+          });
+        }
+        break;
+
+      case SeasonalBillingFrequency.custom:
+        // Custom schedules need to be handled separately with manual schedule input
+        // For now, fall back to monthly
+        this.logger.warn("Custom billing frequency - falling back to monthly schedule");
+        // Fall through to monthly...
 
       case SeasonalBillingFrequency.monthly:
       default:

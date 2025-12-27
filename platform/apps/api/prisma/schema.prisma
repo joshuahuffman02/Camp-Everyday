@@ -8714,9 +8714,14 @@ model OpTaskComment {
 
 enum SeasonalBillingFrequency {
   monthly
+  biweekly              // Every 2 weeks
+  semi_monthly          // 1st and 15th of month
   quarterly
   semi_annual
-  seasonal // One payment for whole season
+  seasonal              // One payment for whole season
+  deposit_plus_monthly  // Deposit upfront + monthly payments
+  offseason_installments // Pay during off-season months
+  custom                // Manually defined schedule
 }
 
 enum SeasonalStatus {

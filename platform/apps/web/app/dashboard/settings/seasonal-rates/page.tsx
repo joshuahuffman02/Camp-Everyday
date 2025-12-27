@@ -272,7 +272,7 @@ export default function SeasonalRatesSettingsPage() {
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                     <div className="font-semibold">Heads up: pricing is consolidating</div>
                     <p className="mt-1">
-                        Use <a href="/settings/pricing-rules" className="underline font-semibold">Pricing Rules</a> for new dynamic/seasonal adjustments.
+                        Use <a href="/dashboard/settings/pricing-rules" className="underline font-semibold">Pricing Rules</a> for new dynamic/seasonal adjustments.
                         This page remains for existing seasonal rates and will be retired after migration.
                     </p>
                 </div>
