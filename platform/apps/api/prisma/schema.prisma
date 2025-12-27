@@ -8446,6 +8446,7 @@ model OpStaffDailyStats {
   totalWorkMinutes  Int  @default(0)
   avgCompletionTime Int? // Average minutes per task
   fastestTask       Int? // Fastest completion in minutes
+  fastCompletions   Int  @default(0) // Tasks completed in under 30 minutes
 
   // Points earned today
   pointsEarned Int @default(0)
@@ -8481,9 +8482,10 @@ model OpStaffStats {
   longestPerfectStreak Int @default(0)
 
   // This week
-  weekTasksCompleted Int @default(0)
-  weekTasksOnTime    Int @default(0)
-  weekPoints         Int @default(0)
+  weekTasksCompleted  Int @default(0)
+  weekTasksOnTime     Int @default(0)
+  weekPoints          Int @default(0)
+  weekFastCompletions Int @default(0) // Fast tasks this week (under 30 min)
 
   // This month
   monthTasksCompleted Int @default(0)
@@ -8491,8 +8493,9 @@ model OpStaffStats {
   monthPoints         Int @default(0)
 
   // Performance metrics
-  avgCompletionTime Int? // Minutes
-  slaComplianceRate Float @default(100) // Percentage
+  avgCompletionTime    Int?  @default(0) // Minutes
+  slaComplianceRate    Float @default(100) // Percentage
+  totalFastCompletions Int   @default(0) // Total fast completions (under 30 min)
 
   // Ranking (updated periodically)
   weeklyRank  Int?

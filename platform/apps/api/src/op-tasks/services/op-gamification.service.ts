@@ -442,6 +442,10 @@ export class OpGamificationService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Track fast completions (under 30 minutes)
+    const FAST_COMPLETION_THRESHOLD_MINUTES = 30;
+    const isFastCompletion = completionTimeMinutes !== undefined && completionTimeMinutes < FAST_COMPLETION_THRESHOLD_MINUTES;
+
     const dailyStats = await this.prisma.opStaffDailyStats.upsert({
       where: {
         userId_campgroundId_date: { userId, campgroundId, date: today },
@@ -455,6 +459,7 @@ export class OpGamificationService {
         tasksLate: wasOnTime ? 0 : 1,
         pointsEarned: result.pointsEarned,
         isWorkDay: true,
+        fastCompletions: isFastCompletion ? 1 : 0,
         ...(completionTimeMinutes && {
           avgCompletionTime: completionTimeMinutes,
           fastestTask: completionTimeMinutes,
@@ -466,6 +471,7 @@ export class OpGamificationService {
         tasksLate: { increment: wasOnTime ? 0 : 1 },
         pointsEarned: { increment: result.pointsEarned },
         isWorkDay: true,
+        fastCompletions: { increment: isFastCompletion ? 1 : 0 },
       },
     });
 
@@ -512,9 +518,11 @@ export class OpGamificationService {
         totalTasksOnTime: { increment: wasOnTime ? 1 : 0 },
         totalTasksLate: { increment: wasOnTime ? 0 : 1 },
         totalPoints: { increment: result.pointsEarned },
+        totalFastCompletions: { increment: isFastCompletion ? 1 : 0 },
         weekTasksCompleted: { increment: 1 },
         weekTasksOnTime: { increment: wasOnTime ? 1 : 0 },
         weekPoints: { increment: result.pointsEarned },
+        weekFastCompletions: { increment: isFastCompletion ? 1 : 0 },
         monthTasksCompleted: { increment: 1 },
         monthTasksOnTime: { increment: wasOnTime ? 1 : 0 },
         monthPoints: { increment: result.pointsEarned },
@@ -607,8 +615,14 @@ export class OpGamificationService {
           break;
 
         case 'speed':
-          // Would need to track fast completions - simplified check
-          qualified = false; // TODO: Implement speed tracking
+          // Check fast completions (tasks completed in under 30 minutes)
+          if (criteria.timeframe === 'day') {
+            qualified = (dailyStats?.fastCompletions || 0) >= criteria.threshold;
+          } else if (criteria.timeframe === 'week') {
+            qualified = stats.weekFastCompletions >= criteria.threshold;
+          } else {
+            qualified = stats.totalFastCompletions >= criteria.threshold;
+          }
           break;
       }
 
@@ -665,6 +679,7 @@ export class OpGamificationService {
         weekTasksCompleted: 0,
         weekTasksOnTime: 0,
         weekPoints: 0,
+        weekFastCompletions: 0,
         weeklyRank: null,
       },
     });
