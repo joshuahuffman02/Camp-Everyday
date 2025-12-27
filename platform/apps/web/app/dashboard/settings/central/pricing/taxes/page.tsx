@@ -174,7 +174,24 @@ export default function TaxRulesPage() {
           Tax Rules ({taxRules.length})
         </h3>
 
-        {taxRules.map((rule) => (
+        {taxRules.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center">
+              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-slate-100 mb-4">
+                <Percent className="h-8 w-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900">No tax rules</h3>
+              <p className="text-slate-500 mt-1 max-w-sm mx-auto">
+                Add tax rules to automatically apply taxes to invoices
+              </p>
+              <Button className="mt-4" onClick={() => setIsEditorOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Tax Rule
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          taxRules.map((rule) => (
           <Card
             key={rule.id}
             className={cn(
@@ -241,7 +258,11 @@ export default function TaxRulesPage() {
                         {rule.isActive ? "Deactivate" : "Activate"}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600">
+                      <DropdownMenuItem
+                        className="text-red-600"
+                        onClick={() => deleteMutation.mutate(rule.id)}
+                        disabled={deleteMutation.isPending}
+                      >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Delete
                       </DropdownMenuItem>
@@ -251,7 +272,8 @@ export default function TaxRulesPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Add Dialog */}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCampground } from "@/contexts/CampgroundContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +38,7 @@ import {
   PartyPopper,
   AlertTriangle,
   MapPin,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -46,6 +49,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SettingsTable } from "@/components/settings/tables";
 import { cn } from "@/lib/utils";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 
 interface SiteClosure {
   id: string;
@@ -87,49 +92,61 @@ const reasonConfig = {
   },
 };
 
-const mockClosures: SiteClosure[] = [
-  {
-    id: "1",
-    name: "Winter Closure - Tent Sites",
-    reason: "seasonal",
-    sites: [],
-    siteClasses: ["Tent Sites"],
-    startDate: "2025-11-01",
-    endDate: "2026-03-15",
-    notes: "Tent sites closed during winter months due to weather",
-    isActive: true,
-  },
-  {
-    id: "2",
-    name: "Sewer Line Repair",
-    reason: "maintenance",
-    sites: ["A-12", "A-13", "A-14"],
-    siteClasses: [],
-    startDate: "2025-01-15",
-    endDate: "2025-01-20",
-    notes: "Replacing sewer connections on row A",
-    isActive: true,
-  },
-  {
-    id: "3",
-    name: "Music Festival",
-    reason: "event",
-    sites: [],
-    siteClasses: ["Full Hookup", "Partial Hookup"],
-    startDate: "2025-06-20",
-    endDate: "2025-06-23",
-    notes: "Sites reserved for festival staff and vendors",
-    isActive: true,
-  },
-];
+async function fetchClosures(campgroundId: string): Promise<SiteClosure[]> {
+  const response = await fetch(`${API_BASE}/campgrounds/${campgroundId}/closures`, {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch closures");
+  }
+  return response.json();
+}
 
-const mockSiteClasses = ["Full Hookup", "Partial Hookup", "Tent Sites", "Cabins"];
-const mockSites = ["A-01", "A-02", "A-03", "A-12", "A-13", "A-14", "B-01", "B-02", "C-01"];
+async function fetchSiteClasses(campgroundId: string): Promise<string[]> {
+  const response = await fetch(`${API_BASE}/campgrounds/${campgroundId}/site-classes`, {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch site classes");
+  }
+  const data = await response.json();
+  return data.map((sc: any) => sc.name);
+}
+
+async function deleteClosure(closureId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/closures/${closureId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to delete closure");
+  }
+}
 
 export default function SiteClosuresPage() {
-  const [closures, setClosures] = useState<SiteClosure[]>(mockClosures);
+  const { selectedCampground, isHydrated } = useCampground();
+  const queryClient = useQueryClient();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingClosure, setEditingClosure] = useState<SiteClosure | null>(null);
+
+  const { data: closures = [], isLoading } = useQuery({
+    queryKey: ["closures", selectedCampground?.id],
+    queryFn: () => fetchClosures(selectedCampground!.id),
+    enabled: isHydrated && !!selectedCampground?.id,
+  });
+
+  const { data: siteClasses = [] } = useQuery({
+    queryKey: ["site-classes", selectedCampground?.id],
+    queryFn: () => fetchSiteClasses(selectedCampground!.id),
+    enabled: isHydrated && !!selectedCampground?.id,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteClosure,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["closures", selectedCampground?.id] });
+    },
+  });
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -169,47 +186,34 @@ export default function SiteClosuresPage() {
 
   const handleSave = useCallback(() => {
     if (!formName.trim() || !formStartDate || !formEndDate) return;
-
-    const closureData = {
-      name: formName.trim(),
-      reason: formReason,
-      sites: formSites,
-      siteClasses: formSiteClasses,
-      startDate: formStartDate,
-      endDate: formEndDate,
-      notes: formNotes,
-      isActive: true,
-    };
-
-    if (editingClosure) {
-      setClosures((prev) =>
-        prev.map((c) =>
-          c.id === editingClosure.id ? { ...c, ...closureData } : c
-        )
-      );
-    } else {
-      const newClosure: SiteClosure = {
-        ...closureData,
-        id: Date.now().toString(),
-      };
-      setClosures((prev) => [...prev, newClosure]);
-    }
-
+    // TODO: Implement save mutation
     setIsEditorOpen(false);
     resetForm();
-  }, [editingClosure, formName, formReason, formSites, formSiteClasses, formStartDate, formEndDate, formNotes, resetForm]);
+  }, [formName, formStartDate, formEndDate, resetForm]);
 
   const handleDelete = useCallback((id: string) => {
-    setClosures((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+    deleteMutation.mutate(id);
+  }, [deleteMutation]);
 
   const handleToggleActive = useCallback((id: string) => {
-    setClosures((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, isActive: !c.isActive } : c
-      )
-    );
+    // TODO: Implement toggle mutation
   }, []);
+
+  if (!isHydrated || !selectedCampground) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
 
   const toggleSiteClass = (siteClass: string) => {
     setFormSiteClasses((prev) =>
@@ -451,7 +455,7 @@ export default function SiteClosuresPage() {
             <div className="space-y-2">
               <Label>Apply to Site Classes</Label>
               <div className="flex flex-wrap gap-2">
-                {mockSiteClasses.map((siteClass) => (
+                {siteClasses.map((siteClass) => (
                   <Button
                     key={siteClass}
                     type="button"

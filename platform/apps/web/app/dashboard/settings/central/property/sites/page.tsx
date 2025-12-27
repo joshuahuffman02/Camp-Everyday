@@ -2,17 +2,55 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tent, ArrowRight, MapPin, Layers, Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Tent,
+  ArrowRight,
+  MapPin,
+  Layers,
+  Loader2,
+  AlertCircle,
+  Plus,
+  ExternalLink,
+  Info,
+  Zap,
+  Droplets,
+  MoreHorizontal,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { apiClient } from "@/lib/api-client";
+
+interface SiteClass {
+  id: string;
+  name: string;
+  description: string | null;
+  basePrice: number;
+  maxOccupancy: number | null;
+  amenities: string[];
+  siteCount?: number;
+}
+
+interface Site {
+  id: string;
+  name: string;
+  siteClassId: string;
+  status: string;
+  siteClass?: SiteClass;
+}
 
 export default function SiteTypesPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [siteClassCount, setSiteClassCount] = useState(0);
-  const [siteCount, setSiteCount] = useState(0);
+  const [siteClasses, setSiteClasses] = useState<SiteClass[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
 
   useEffect(() => {
     const id = localStorage.getItem("campreserv:selectedCampground");
@@ -26,16 +64,48 @@ export default function SiteTypesPage() {
     Promise.all([
       apiClient.getSiteClasses(id).catch(() => []),
       apiClient.getSites(id).catch(() => [])
-    ]).then(([classes, sites]) => {
-      setSiteClassCount(Array.isArray(classes) ? classes.length : 0);
-      setSiteCount(Array.isArray(sites) ? sites.length : 0);
+    ]).then(([classes, siteList]) => {
+      const classesArray = Array.isArray(classes) ? classes : [];
+      const sitesArray = Array.isArray(siteList) ? siteList : [];
+
+      // Count sites per class
+      const classCounts: Record<string, number> = {};
+      sitesArray.forEach((s: Site) => {
+        classCounts[s.siteClassId] = (classCounts[s.siteClassId] || 0) + 1;
+      });
+
+      const classesWithCounts = classesArray.map((c: SiteClass) => ({
+        ...c,
+        siteCount: classCounts[c.id] || 0,
+      }));
+
+      setSiteClasses(classesWithCounts);
+      setSites(sitesArray);
       setLoading(false);
     });
   }, []);
 
-  if (!campgroundId && !loading) {
+  const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  if (loading) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="max-w-5xl space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Site Types</h2>
+          <p className="text-slate-500 mt-1">
+            Manage your campground's site classes and individual sites
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!campgroundId) {
+    return (
+      <div className="max-w-5xl space-y-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Site Types</h2>
           <p className="text-slate-500 mt-1">
@@ -53,53 +123,194 @@ export default function SiteTypesPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Site Types</h2>
-        <p className="text-slate-500 mt-1">
-          Manage your campground's site classes and individual sites
-        </p>
+    <div className="max-w-5xl space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Site Types</h2>
+          <p className="text-slate-500 mt-1">
+            Manage your campground's site classes and individual sites
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/campgrounds/${campgroundId}/map`}>
+              <MapPin className="h-4 w-4 mr-2" />
+              View Map
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href={`/campgrounds/${campgroundId}/classes`}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Class
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-4">
-        <Card className="hover:shadow-md transition-shadow">
+      {/* Info */}
+      <Alert className="bg-emerald-50 border-emerald-200">
+        <Tent className="h-4 w-4 text-emerald-500" />
+        <AlertDescription className="text-emerald-800">
+          Site Classes group similar sites together (e.g., Full Hookup RV, Tent Sites, Cabins).
+          Each class has its own base pricing, amenities, and booking rules.
+        </AlertDescription>
+      </Alert>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
           <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div className="flex gap-4">
-                <div className="p-3 rounded-lg bg-emerald-100">
-                  <Layers className="h-6 w-6 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900">Site Classes</h3>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Configure categories like Full Hookup, Partial Hookup, Tent Sites, and Cabins
-                  </p>
-                  <div className="flex gap-2 mt-3">
-                    {loading ? (
-                      <Badge variant="outline" className="gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Loading...
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">
-                        {siteClassCount} class{siteClassCount !== 1 ? "es" : ""}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-100">
+                <Layers className="h-5 w-5 text-emerald-600" />
               </div>
-              <Button variant="ghost" size="icon" asChild>
-                <Link href={`/campgrounds/${campgroundId}/classes`}>
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-              </Button>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{siteClasses.length}</p>
+                <p className="text-sm text-slate-500">Site Classes</p>
+              </div>
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-100">
+                <MapPin className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{sites.length}</p>
+                <p className="text-sm text-slate-500">Total Sites</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-100">
+                <Tent className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {sites.filter((s) => s.status === "available").length}
+                </p>
+                <p className="text-sm text-slate-500">Available</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
+      {/* Site Classes List */}
+      {siteClasses.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <Layers className="h-12 w-12 mx-auto text-slate-300 mb-4" />
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">
+              No site classes yet
+            </h3>
+            <p className="text-slate-500 mb-4 max-w-md mx-auto">
+              Create site classes to organize your camping spots by type,
+              amenities, and pricing.
+            </p>
+            <Button asChild>
+              <Link href={`/campgrounds/${campgroundId}/classes`}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Your First Site Class
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader className="py-3 px-4 bg-slate-50 border-b flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium">
+              Site Classes ({siteClasses.length})
+            </CardTitle>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/campgrounds/${campgroundId}/classes`}>
+                Manage All
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0 divide-y">
+            {siteClasses.map((siteClass) => (
+              <div
+                key={siteClass.id}
+                className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-100">
+                    <Tent className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-900">{siteClass.name}</p>
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <span>{formatPrice(siteClass.basePrice)}/night</span>
+                      {siteClass.maxOccupancy && (
+                        <span>• Max {siteClass.maxOccupancy} guests</span>
+                      )}
+                    </div>
+                    {siteClass.amenities && siteClass.amenities.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {siteClass.amenities.slice(0, 4).map((amenity) => (
+                          <Badge key={amenity} variant="outline" className="text-xs">
+                            {amenity}
+                          </Badge>
+                        ))}
+                        {siteClass.amenities.length > 4 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{siteClass.amenities.length - 4} more
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary">
+                    {siteClass.siteCount} site{siteClass.siteCount !== 1 ? "s" : ""}
+                  </Badge>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/campgrounds/${campgroundId}/classes`}>
+                          Edit Class
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href={`/campgrounds/${campgroundId}/sites`}>
+                          View Sites
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Quick Links */}
+      <div className="grid grid-cols-2 gap-4">
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
+            <Link
+              href={`/campgrounds/${campgroundId}/sites`}
+              className="flex items-start justify-between"
+            >
               <div className="flex gap-4">
                 <div className="p-3 rounded-lg bg-blue-100">
                   <MapPin className="h-6 w-6 text-blue-600" />
@@ -107,34 +318,24 @@ export default function SiteTypesPage() {
                 <div>
                   <h3 className="font-semibold text-slate-900">Individual Sites</h3>
                   <p className="text-sm text-slate-500 mt-1">
-                    Manage specific sites, their features, and availability
+                    Manage specific sites, status, and features
                   </p>
-                  <div className="flex gap-2 mt-3">
-                    {loading ? (
-                      <Badge variant="outline" className="gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Loading...
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">
-                        {siteCount} site{siteCount !== 1 ? "s" : ""}
-                      </Badge>
-                    )}
-                  </div>
+                  <Badge variant="outline" className="mt-2">
+                    {sites.length} sites
+                  </Badge>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" asChild>
-                <Link href={`/campgrounds/${campgroundId}/sites`}>
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-              </Button>
-            </div>
+              <ArrowRight className="h-5 w-5 text-slate-400" />
+            </Link>
           </CardContent>
         </Card>
 
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
+            <Link
+              href={`/campgrounds/${campgroundId}/map`}
+              className="flex items-start justify-between"
+            >
               <div className="flex gap-4">
                 <div className="p-3 rounded-lg bg-purple-100">
                   <Tent className="h-6 w-6 text-purple-600" />
@@ -142,19 +343,15 @@ export default function SiteTypesPage() {
                 <div>
                   <h3 className="font-semibold text-slate-900">Site Map</h3>
                   <p className="text-sm text-slate-500 mt-1">
-                    View and manage your campground's interactive site map
+                    View interactive campground layout
                   </p>
-                  <div className="flex gap-2 mt-3">
-                    <Badge variant="outline">Visual layout</Badge>
-                  </div>
+                  <Badge variant="outline" className="mt-2">
+                    Visual layout
+                  </Badge>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" asChild>
-                <Link href={`/campgrounds/${campgroundId}/map`}>
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-              </Button>
-            </div>
+              <ArrowRight className="h-5 w-5 text-slate-400" />
+            </Link>
           </CardContent>
         </Card>
       </div>

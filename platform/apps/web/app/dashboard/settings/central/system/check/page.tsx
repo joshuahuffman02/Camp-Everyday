@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCampground } from "@/contexts/CampgroundContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +22,8 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
+
 interface SystemCheckIssue {
   id: string;
   severity: "error" | "warning" | "info";
@@ -30,54 +34,15 @@ interface SystemCheckIssue {
   actionHref: string;
 }
 
-// Mock data - in production this would come from an API
-const mockIssues: SystemCheckIssue[] = [
-  {
-    id: "1",
-    severity: "warning",
-    category: "pricing",
-    message: "Tax rules not configured for Tent sites",
-    description: "Tent site bookings won't have taxes applied until configured.",
-    actionLabel: "Configure taxes",
-    actionHref: "/dashboard/settings/central/pricing/taxes",
-  },
-  {
-    id: "2",
-    severity: "warning",
-    category: "pricing",
-    message: "No rate groups defined for 2026",
-    description: "Rate groups help you organize seasonal pricing on the calendar.",
-    actionLabel: "Add rate groups",
-    actionHref: "/dashboard/settings/central/pricing/rate-groups",
-  },
-  {
-    id: "3",
-    severity: "info",
-    category: "bookings",
-    message: "Grid optimization is disabled",
-    description: "Enable to automatically optimize site assignments for revenue.",
-    actionLabel: "Enable optimization",
-    actionHref: "/dashboard/settings/central/bookings/optimization",
-  },
-  {
-    id: "4",
-    severity: "info",
-    category: "bookings",
-    message: "No custom fields configured",
-    description: "Custom fields let you collect additional info from guests.",
-    actionLabel: "Add custom fields",
-    actionHref: "/dashboard/settings/central/bookings/custom-fields",
-  },
-  {
-    id: "5",
-    severity: "error",
-    category: "access",
-    message: "No backup admin user configured",
-    description: "It's recommended to have at least 2 admin users for account recovery.",
-    actionLabel: "Add admin user",
-    actionHref: "/dashboard/settings/central/access/users",
-  },
-];
+async function fetchSystemIssues(campgroundId: string): Promise<SystemCheckIssue[]> {
+  const response = await fetch(`${API_BASE}/campgrounds/${campgroundId}/system-check`, {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch system check");
+  }
+  return response.json();
+}
 
 const categoryConfig = {
   pricing: { icon: DollarSign, label: "Pricing" },
@@ -120,16 +85,26 @@ const severityConfig = {
 type FilterValue = "all" | "actionable" | "info";
 
 export default function SystemCheckPage() {
-  const [issues, setIssues] = useState<SystemCheckIssue[]>(mockIssues);
-  const [isLoading, setIsLoading] = useState(false);
+  const { selectedCampground, isHydrated } = useCampground();
   const [filter, setFilter] = useState<FilterValue>("actionable");
 
+  const { data: issues = [], isLoading, refetch } = useQuery({
+    queryKey: ["system-check", selectedCampground?.id],
+    queryFn: () => fetchSystemIssues(selectedCampground!.id),
+    enabled: isHydrated && !!selectedCampground?.id,
+  });
+
   const handleRefresh = useCallback(async () => {
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsLoading(false);
-  }, []);
+    await refetch();
+  }, [refetch]);
+
+  if (!isHydrated || !selectedCampground) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
 
   // Sort by severity priority
   const sortedIssues = [...issues].sort(

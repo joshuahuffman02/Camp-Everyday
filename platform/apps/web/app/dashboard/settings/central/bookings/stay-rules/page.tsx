@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCampground } from "@/contexts/CampgroundContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Calendar, Moon, Info, Pencil, Trash2, MoreHorizontal, Copy } from "lucide-react";
+import { Plus, Calendar, Moon, Info, Pencil, Trash2, MoreHorizontal, Copy, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +33,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 
 interface StayRule {
   id: string;
@@ -43,46 +47,60 @@ interface StayRule {
   isActive: boolean;
 }
 
-const mockRules: StayRule[] = [
-  {
-    id: "1",
-    name: "Peak Summer Minimum",
-    minNights: 2,
-    maxNights: 14,
-    siteClasses: ["RV", "Tent", "Cabin"],
-    dateRanges: [{ start: "2025-06-15", end: "2025-08-15" }],
-    ignoreDaysBefore: 14,
-    isActive: true,
-  },
-  {
-    id: "2",
-    name: "Holiday Weekend",
-    minNights: 3,
-    maxNights: 7,
-    siteClasses: ["RV", "Tent", "Cabin"],
-    dateRanges: [
-      { start: "2025-07-04", end: "2025-07-06" },
-      { start: "2025-09-05", end: "2025-09-07" },
-    ],
-    ignoreDaysBefore: 14,
-    isActive: true,
-  },
-  {
-    id: "3",
-    name: "Monthly Maximum",
-    minNights: 1,
-    maxNights: 28,
-    siteClasses: ["RV"],
-    dateRanges: [],
-    ignoreDaysBefore: 0,
-    isActive: true,
-  },
-];
+async function fetchStayRules(campgroundId: string): Promise<StayRule[]> {
+  const response = await fetch(`${API_BASE}/campgrounds/${campgroundId}/stay-rules`, {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch stay rules");
+  }
+  return response.json();
+}
+
+async function deleteStayRule(ruleId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/stay-rules/${ruleId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to delete stay rule");
+  }
+}
 
 export default function StayRulesPage() {
-  const [rules, setRules] = useState<StayRule[]>(mockRules);
+  const { selectedCampground, isHydrated } = useCampground();
+  const queryClient = useQueryClient();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<StayRule | null>(null);
+
+  const { data: rules = [], isLoading } = useQuery({
+    queryKey: ["stay-rules", selectedCampground?.id],
+    queryFn: () => fetchStayRules(selectedCampground!.id),
+    enabled: isHydrated && !!selectedCampground?.id,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteStayRule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stay-rules", selectedCampground?.id] });
+    },
+  });
+
+  if (!isHydrated || !selectedCampground) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -138,7 +156,24 @@ export default function StayRulesPage() {
           Custom Rules ({rules.length})
         </h3>
 
-        {rules.map((rule) => (
+        {rules.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center">
+              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-slate-100 mb-4">
+                <Moon className="h-8 w-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900">No stay rules</h3>
+              <p className="text-slate-500 mt-1 max-w-sm mx-auto">
+                Create stay rules to set minimum and maximum night requirements
+              </p>
+              <Button className="mt-4" onClick={() => setIsEditorOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Stay Rule
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          rules.map((rule) => (
           <Card
             key={rule.id}
             className={cn(
@@ -202,7 +237,11 @@ export default function StayRulesPage() {
                         {rule.isActive ? "Deactivate" : "Activate"}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600">
+                      <DropdownMenuItem
+                        className="text-red-600"
+                        onClick={() => deleteMutation.mutate(rule.id)}
+                        disabled={deleteMutation.isPending}
+                      >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Delete
                       </DropdownMenuItem>
@@ -212,7 +251,8 @@ export default function StayRulesPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Add/Edit Dialog */}
