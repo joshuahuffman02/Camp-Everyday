@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from '../prisma/prisma.module';
 import { GamificationModule } from '../gamification/gamification.module';
+import { EmailModule } from '../email/email.module';
 import { OpTasksController } from './op-tasks.controller';
 import { OpReservationListener } from './op-reservation.listener';
 import {
@@ -21,6 +22,7 @@ import { OpGamificationService } from './services/op-gamification.service';
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
     forwardRef(() => GamificationModule),
+    EmailModule,
   ],
   controllers: [OpTasksController],
   providers: [

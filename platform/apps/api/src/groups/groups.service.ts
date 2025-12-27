@@ -1,9 +1,15 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class GroupsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(GroupsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   async create(data: {
     tenantId: string;
@@ -150,9 +156,65 @@ export class GroupsService {
       });
     }
 
-    // TODO: Emit group change communication if sharedComm
+    // Notify group members of changes if sharedComm is enabled
+    const group = await this.findOne(id);
+    if (group?.sharedComm && (data.addReservationIds?.length || data.removeReservationIds?.length)) {
+      await this.notifyGroupChange(group, data.addReservationIds, data.removeReservationIds);
+    }
 
-    return this.findOne(id);
+    return group;
+  }
+
+  /**
+   * Notify group members when reservations are added or removed
+   */
+  private async notifyGroupChange(
+    group: any,
+    addedIds: string[] | undefined,
+    removedIds: string[] | undefined
+  ) {
+    try {
+      if (!group.reservations?.length) return;
+
+      // Get emails of all guests in the group
+      const guestEmails: string[] = [];
+      for (const res of group.reservations) {
+        if (res.guest?.email) {
+          guestEmails.push(res.guest.email);
+        }
+      }
+
+      if (!guestEmails.length) {
+        this.logger.debug('No guest emails found for group notification');
+        return;
+      }
+
+      const addedCount = addedIds?.length || 0;
+      const removedCount = removedIds?.length || 0;
+      const changes: string[] = [];
+      if (addedCount) changes.push(`${addedCount} reservation(s) added`);
+      if (removedCount) changes.push(`${removedCount} reservation(s) removed`);
+
+      const groupName = group.name || `Group #${group.id.slice(-6)}`;
+
+      for (const email of guestEmails) {
+        await this.emailService.sendEmail({
+          to: email,
+          subject: `Your Group Booking Has Been Updated`,
+          html: `
+            <h2>Group Booking Update</h2>
+            <p>Your group booking <strong>${groupName}</strong> has been updated.</p>
+            <p><strong>Changes:</strong> ${changes.join(', ')}</p>
+            <p><strong>Current Group Size:</strong> ${group.reservations.length} reservation(s)</p>
+            <p>If you have any questions about these changes, please contact the campground directly.</p>
+          `,
+        });
+      }
+
+      this.logger.log(`Sent group change notifications to ${guestEmails.length} guests`);
+    } catch (error: any) {
+      this.logger.error(`Failed to send group change notification: ${error.message}`);
+    }
   }
 
   async remove(id: string) {

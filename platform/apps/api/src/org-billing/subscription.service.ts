@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
+import { EmailService } from "../email/email.service";
 
 /**
  * Maps our internal tier names to Stripe price configuration
@@ -48,7 +49,8 @@ export class SubscriptionService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly stripe: StripeService
+    private readonly stripe: StripeService,
+    private readonly emailService: EmailService
   ) {}
 
   /**
@@ -523,6 +525,54 @@ export class SubscriptionService {
 
     this.logger.warn(`Payment failed for org ${org.id}, invoice ${invoiceId}`);
 
-    // TODO: Send notification to org owner about failed payment
+    // Send notification to org owner about failed payment
+    await this.notifyOrgOwnerPaymentFailed(org, invoice);
+  }
+
+  /**
+   * Send notification to org owner about failed payment
+   */
+  private async notifyOrgOwnerPaymentFailed(org: any, invoice: any) {
+    try {
+      // Get the org owner (user with owner role in this org)
+      const ownerMembership = await this.prisma.campgroundMembership.findFirst({
+        where: {
+          campground: { organizationId: org.id },
+          role: "owner",
+        },
+        include: {
+          user: { select: { email: true, firstName: true, lastName: true } },
+        },
+      });
+
+      if (!ownerMembership?.user?.email) {
+        this.logger.warn(`No owner email found for org ${org.id}, cannot send payment failed notification`);
+        return;
+      }
+
+      const amountDue = invoice.amount_due ? `$${(invoice.amount_due / 100).toFixed(2)}` : "the amount due";
+      const dueDate = invoice.due_date
+        ? new Date(invoice.due_date * 1000).toLocaleDateString()
+        : "soon";
+
+      await this.emailService.sendEmail({
+        to: ownerMembership.user.email,
+        subject: `[Action Required] Payment Failed for ${org.name}`,
+        html: `
+          <h2>Payment Failed</h2>
+          <p>Hi ${ownerMembership.user.firstName || "there"},</p>
+          <p>We were unable to process your payment of <strong>${amountDue}</strong> for your ${org.name} subscription.</p>
+          <p>To avoid service interruption, please update your payment method as soon as possible.</p>
+          <p><strong>Invoice ID:</strong> ${invoice.id}</p>
+          <p><strong>Due Date:</strong> ${dueDate}</p>
+          <p>If you believe this is an error or need assistance, please contact our support team.</p>
+          <p>Thank you,<br/>The Camp Everyday Team</p>
+        `,
+      });
+
+      this.logger.log(`Payment failed notification sent to ${ownerMembership.user.email} for org ${org.id}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to send payment failed notification for org ${org.id}: ${error.message}`);
+    }
   }
 }

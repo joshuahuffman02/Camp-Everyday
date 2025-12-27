@@ -1,14 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GamificationEventCategory, MaintenancePriority, MaintenanceStatus } from '@prisma/client';
 import { GamificationService } from '../gamification/gamification.service';
+import { EmailService } from '../email/email.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class MaintenanceService {
+  private readonly logger = new Logger(MaintenanceService.name);
+
   constructor(
     private prisma: PrismaService,
     private gamification: GamificationService,
+    private emailService: EmailService,
   ) { }
 
   async create(data: {
@@ -169,9 +173,55 @@ export class MaintenanceService {
       });
     }
 
-    // TODO: Emit maintenance state/out_of_order change communication
+    // Notify staff when out_of_order state changes
+    const outOfOrderChanged = existing.outOfOrder !== updated.outOfOrder;
+    if (outOfOrderChanged) {
+      await this.notifyOutOfOrderChange(updated, existing.outOfOrder);
+    }
 
     return updated;
+  }
+
+  /**
+   * Notify staff when a site's out-of-order status changes
+   */
+  private async notifyOutOfOrderChange(ticket: any, wasOutOfOrder: boolean) {
+    try {
+      const campground = await this.prisma.campground.findUnique({
+        where: { id: ticket.campgroundId },
+        select: { name: true, email: true },
+      });
+
+      if (!campground?.email) {
+        this.logger.debug(`No campground email for maintenance notification, skipping`);
+        return;
+      }
+
+      const siteName = ticket.site?.siteNumber || ticket.site?.name || "Unknown site";
+      const isNowOutOfOrder = ticket.outOfOrder;
+      const status = isNowOutOfOrder ? "OUT OF ORDER" : "BACK IN SERVICE";
+      const statusColor = isNowOutOfOrder ? "#dc2626" : "#16a34a";
+
+      await this.emailService.sendEmail({
+        to: campground.email,
+        subject: `[${campground.name}] Site ${siteName} is now ${status}`,
+        html: `
+          <h2 style="color: ${statusColor}">${siteName} is now ${status}</h2>
+          <p><strong>Maintenance Ticket:</strong> ${ticket.title}</p>
+          ${ticket.outOfOrderReason ? `<p><strong>Reason:</strong> ${ticket.outOfOrderReason}</p>` : ''}
+          ${ticket.outOfOrderUntil ? `<p><strong>Expected Return:</strong> ${new Date(ticket.outOfOrderUntil).toLocaleDateString()}</p>` : ''}
+          <p><strong>Priority:</strong> ${ticket.priority || 'medium'}</p>
+          <p><strong>Status:</strong> ${ticket.status}</p>
+          ${ticket.description ? `<p><strong>Description:</strong> ${ticket.description}</p>` : ''}
+          <p style="color: #666; font-size: 12px;">This notification was sent because the site's availability status changed.</p>
+        `,
+        campgroundId: ticket.campgroundId,
+      });
+
+      this.logger.log(`Sent out-of-order notification for site ${siteName} (${status})`);
+    } catch (error: any) {
+      this.logger.error(`Failed to send maintenance notification: ${error.message}`);
+    }
   }
 
   async remove(id: string) {

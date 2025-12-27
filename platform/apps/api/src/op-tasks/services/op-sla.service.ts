@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../../email/email.service';
 import { OpSlaStatus, OpTask, OpTaskState } from '@prisma/client';
 
 @Injectable()
@@ -13,7 +14,10 @@ export class OpSlaService {
   // Time thresholds for at-risk status (in minutes)
   private readonly AT_RISK_THRESHOLD_MINUTES = 30;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   /**
    * Cron job to update SLA statuses every 5 minutes
@@ -70,15 +74,99 @@ export class OpSlaService {
           },
         });
 
-        // Log escalation for breached tasks
+        // Notify manager for breached tasks
         if (newStatus === OpSlaStatus.breached) {
           this.logger.warn(`Task ${task.id} SLA breached`);
-          // TODO: Send notification to manager
+          await this.notifyManagerSlaBreach(task);
         }
       }
     }
 
     this.logger.log(`SLA update complete: ${breachedCount} breached, ${atRiskCount} at-risk`);
+  }
+
+  /**
+   * Notify manager when a task SLA is breached
+   */
+  private async notifyManagerSlaBreach(task: any) {
+    try {
+      // Get the full task with details
+      const fullTask = await this.prisma.opTask.findUnique({
+        where: { id: task.id },
+        include: {
+          template: { select: { name: true } },
+          assignedToUser: { select: { email: true, firstName: true, lastName: true } },
+          assignedToTeam: {
+            select: {
+              name: true,
+              members: {
+                where: { role: 'manager' },
+                include: { user: { select: { email: true, firstName: true, lastName: true } } }
+              }
+            }
+          },
+        },
+      });
+
+      if (!fullTask) return;
+
+      // Find manager emails to notify
+      const managerEmails: string[] = [];
+
+      // If assigned to a team, get team managers
+      if (fullTask.assignedToTeam?.members) {
+        for (const member of fullTask.assignedToTeam.members) {
+          if (member.user?.email) {
+            managerEmails.push(member.user.email);
+          }
+        }
+      }
+
+      // Fallback to campground email if no managers found
+      if (managerEmails.length === 0) {
+        const campground = await this.prisma.campground.findUnique({
+          where: { id: task.campgroundId },
+          select: { email: true, name: true },
+        });
+        if (campground?.email) {
+          managerEmails.push(campground.email);
+        }
+      }
+
+      if (managerEmails.length === 0) {
+        this.logger.debug(`No manager emails found for SLA breach notification, skipping`);
+        return;
+      }
+
+      const taskName = fullTask.template?.name || fullTask.title || 'Unnamed task';
+      const dueAt = fullTask.slaDueAt ? new Date(fullTask.slaDueAt).toLocaleString() : 'Unknown';
+      const assigneeName = fullTask.assignedToUser
+        ? `${fullTask.assignedToUser.firstName} ${fullTask.assignedToUser.lastName}`
+        : fullTask.assignedToTeam?.name || 'Unassigned';
+
+      for (const email of managerEmails) {
+        await this.emailService.sendEmail({
+          to: email,
+          subject: `[SLA BREACH] Task "${taskName}" is overdue`,
+          html: `
+            <h2 style="color: #dc2626">SLA Breach Alert</h2>
+            <p>A task has breached its SLA deadline and requires immediate attention.</p>
+            <table style="border-collapse: collapse; margin: 16px 0;">
+              <tr><td style="padding: 8px; font-weight: bold;">Task:</td><td style="padding: 8px;">${taskName}</td></tr>
+              <tr><td style="padding: 8px; font-weight: bold;">Due:</td><td style="padding: 8px; color: #dc2626;">${dueAt}</td></tr>
+              <tr><td style="padding: 8px; font-weight: bold;">Assigned to:</td><td style="padding: 8px;">${assigneeName}</td></tr>
+              <tr><td style="padding: 8px; font-weight: bold;">Priority:</td><td style="padding: 8px;">${fullTask.priority || 'medium'}</td></tr>
+            </table>
+            <p>Please take action to resolve this task or reassign it if needed.</p>
+          `,
+          campgroundId: task.campgroundId,
+        });
+      }
+
+      this.logger.log(`Sent SLA breach notification for task ${task.id} to ${managerEmails.length} manager(s)`);
+    } catch (error: any) {
+      this.logger.error(`Failed to send SLA breach notification: ${error.message}`);
+    }
   }
 
   /**

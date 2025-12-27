@@ -37,12 +37,12 @@ This document tracks all TODO, FIXME, and incomplete code comments in the codeba
 | 10 | `apps/api/src/security/account-lockout.service.ts` | 14 | Migrate to Redis for distributed locking | Pending |
 | 11 | `apps/api/src/security/pii-encryption.service.ts` | 109 | Support key rotation by version lookup | Pending |
 | 12 | `apps/api/src/campgrounds/campground-review-connectors.service.ts` | 74, 110, 134 | Complete RV Life API integration | Pending |
-| 13 | `apps/api/src/maintenance/maintenance.service.ts` | 172 | Emit maintenance state/out_of_order change communication | Pending |
-| 14 | `apps/api/src/groups/groups.service.ts` | 153 | Emit group change communication if sharedComm | Pending |
+| 13 | `apps/api/src/maintenance/maintenance.service.ts` | 172 | Emit maintenance state/out_of_order change communication | **FIXED** |
+| 14 | `apps/api/src/groups/groups.service.ts` | 153 | Emit group change communication if sharedComm | **FIXED** |
 | 15 | `apps/api/src/operations/operations.service.ts` | 309, 438 | Implement additional notification channels and EmailService.sendEmail | Pending |
-| 16 | `apps/api/src/op-tasks/services/op-sla.service.ts` | 76 | Send notification to manager on SLA breach | Pending |
+| 16 | `apps/api/src/op-tasks/services/op-sla.service.ts` | 76 | Send notification to manager on SLA breach | **FIXED** |
 | 17 | `apps/api/src/op-tasks/services/op-gamification.service.ts` | 611 | Implement speed tracking for gamification | Pending |
-| 18 | `apps/api/src/org-billing/subscription.service.ts` | 526 | Send notification to org owner about failed payment | Pending |
+| 18 | `apps/api/src/org-billing/subscription.service.ts` | 526 | Send notification to org owner about failed payment | **FIXED** |
 | 19 | `apps/api/src/admin/platform-analytics/services/nps-analytics.service.ts` | 705 | Add follow-up tracking fields to NpsResponse model | Pending |
 
 ---
@@ -62,9 +62,9 @@ This document tracks all TODO, FIXME, and incomplete code comments in the codeba
 
 - **Critical:** 0 remaining (1 fixed)
 - **Important:** 5 remaining (2 fixed, 1 partial)
-- **Moderate:** 11 remaining
+- **Moderate:** 7 remaining (4 fixed)
 - **Minor:** 1 remaining (3 fixed)
-- **Total:** 17 remaining (6 fixed)
+- **Total:** 13 remaining (10 fixed)
 
 ---
 
@@ -80,3 +80,7 @@ This document tracks all TODO, FIXME, and incomplete code comments in the codeba
 | 2025-12-27 | 20 | FIXED: Updated store inventory page to use CampgroundContext instead of direct localStorage |
 | 2025-12-27 | 21 | FIXED: Updated SettingsContext to use real /api/system-check endpoint instead of mock data |
 | 2025-12-27 | 23 | FIXED: Implemented save/toggle mutations for closures page using blackouts API |
+| 2025-12-27 | 13 | FIXED: Added EmailModule to maintenance.module.ts, implemented notifyOutOfOrderChange() in maintenance.service.ts |
+| 2025-12-27 | 14 | FIXED: Added EmailModule to groups.module.ts, implemented notifyGroupChange() in groups.service.ts for sharedComm groups |
+| 2025-12-27 | 16 | FIXED: Added EmailModule to op-tasks.module.ts, implemented notifyManagerSlaBreach() in op-sla.service.ts |
+| 2025-12-27 | 18 | FIXED: Added EmailModule to org-billing.module.ts, implemented notifyOrgOwnerPaymentFailed() in subscription.service.ts |
