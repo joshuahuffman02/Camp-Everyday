@@ -35,7 +35,7 @@ This document tracks all TODO, FIXME, and incomplete code comments in the codeba
 |---|------|------|-------|--------|
 | 9 | `apps/api/src/currency-tax/currency-tax.service.ts` | 44, 84 | Integrate real FX provider (OpenExchangeRates, XE.com, ECB) | Pending |
 | 10 | `apps/api/src/security/account-lockout.service.ts` | 14 | Migrate to Redis for distributed locking | Pending |
-| 11 | `apps/api/src/security/pii-encryption.service.ts` | 109 | Support key rotation by version lookup | Pending |
+| 11 | `apps/api/src/security/pii-encryption.service.ts` | 109 | Support key rotation by version lookup | **FIXED** |
 | 12 | `apps/api/src/campgrounds/campground-review-connectors.service.ts` | 74, 110, 134 | Complete RV Life API integration | Pending |
 | 13 | `apps/api/src/maintenance/maintenance.service.ts` | 172 | Emit maintenance state/out_of_order change communication | **FIXED** |
 | 14 | `apps/api/src/groups/groups.service.ts` | 153 | Emit group change communication if sharedComm | **FIXED** |
@@ -62,9 +62,9 @@ This document tracks all TODO, FIXME, and incomplete code comments in the codeba
 
 - **Critical:** 0 remaining (1 fixed)
 - **Important:** 4 remaining (3 fixed, 1 partial)
-- **Moderate:** 4 remaining (7 fixed)
+- **Moderate:** 3 remaining (8 fixed)
 - **Minor:** 0 remaining (4 fixed)
-- **Total:** 8 remaining (15 fixed)
+- **Total:** 7 remaining (16 fixed)
 
 ---
 
@@ -89,3 +89,4 @@ This document tracks all TODO, FIXME, and incomplete code comments in the codeba
 | 2025-12-27 | 15 | FIXED: Added EmailModule to operations.module.ts, implemented sendEmailAlert() in operations.service.ts |
 | 2025-12-27 | 17 | FIXED: Added fastCompletions fields to Prisma schema, implemented speed badge tracking in op-gamification.service.ts |
 | 2025-12-27 | 19 | FIXED: Added follow-up and resolution tracking fields to NpsResponse model, updated nps-analytics.service.ts to use new fields |
+| 2025-12-27 | 11 | FIXED: Added key store Map for multiple key versions, loadHistoricalKeys() for PII_ENCRYPTION_KEY_V1-V10, reEncrypt() method for key rotation |

@@ -21,6 +21,7 @@ export class PiiEncryptionService {
     private readonly algorithm = "aes-256-gcm";
     private readonly primaryKey: Buffer;
     private readonly keyVersion: string;
+    private readonly keyStore: Map<string, Buffer> = new Map();
 
     // Fields that should be encrypted
     private readonly encryptedFields = [
@@ -49,7 +50,39 @@ export class PiiEncryptionService {
         // Derive a proper 256-bit key using SHA-256
         this.primaryKey = createHash("sha256").update(keyString).digest();
 
-        console.log(`[SECURITY] PII encryption initialized with key version: ${this.keyVersion}`);
+        // Store primary key in key store
+        this.keyStore.set(this.keyVersion, this.primaryKey);
+
+        // Load historical keys for rotation support
+        // Format: PII_ENCRYPTION_KEY_V1, PII_ENCRYPTION_KEY_V2, etc.
+        this.loadHistoricalKeys();
+
+        console.log(`[SECURITY] PII encryption initialized with key version: ${this.keyVersion}, ${this.keyStore.size} key(s) loaded`);
+    }
+
+    /**
+     * Load historical encryption keys from environment variables
+     * This allows decryption of data encrypted with older keys during rotation
+     */
+    private loadHistoricalKeys(): void {
+        // Check for versioned keys (v1, v2, v3, etc.)
+        for (let i = 1; i <= 10; i++) {
+            const version = `v${i}`;
+            const keyEnvVar = `PII_ENCRYPTION_KEY_V${i}`;
+            const keyString = process.env[keyEnvVar];
+
+            if (keyString && !this.keyStore.has(version)) {
+                const key = createHash("sha256").update(keyString).digest();
+                this.keyStore.set(version, key);
+            }
+        }
+    }
+
+    /**
+     * Get the encryption key for a specific version
+     */
+    private getKeyForVersion(version: string): Buffer | null {
+        return this.keyStore.get(version) || null;
     }
 
     /**
@@ -106,15 +139,21 @@ export class PiiEncryptionService {
 
             const [version, ivHex, authTagHex, ciphertext] = parts;
 
-            // TODO: Support key rotation by version lookup
+            // Get the appropriate key for this version
+            const decryptionKey = this.getKeyForVersion(version);
+            if (!decryptionKey) {
+                console.error(`[SECURITY] No key found for version: ${version}. Available versions: ${Array.from(this.keyStore.keys()).join(", ")}`);
+                throw new Error(`Encryption key not found for version: ${version}`);
+            }
+
             if (version !== this.keyVersion) {
-                console.warn(`[SECURITY] Encrypted with different key version: ${version}`);
+                console.info(`[SECURITY] Decrypting data from older key version: ${version} (current: ${this.keyVersion})`);
             }
 
             const iv = Buffer.from(ivHex, "hex");
             const authTag = Buffer.from(authTagHex, "hex");
 
-            const decipher = createDecipheriv(this.algorithm, this.primaryKey, iv);
+            const decipher = createDecipheriv(this.algorithm, decryptionKey, iv);
             decipher.setAuthTag(authTag);
 
             let decrypted = decipher.update(ciphertext, "hex", "utf8");
@@ -206,17 +245,68 @@ export class PiiEncryptionService {
     }
 
     /**
+     * Re-encrypt a value with the current key version
+     * Useful for key rotation - decrypt with old key, encrypt with new key
+     */
+    reEncrypt(encrypted: string | null | undefined): string | null {
+        if (!encrypted) return null;
+
+        // Check if it's encrypted and get the version
+        if (!encrypted.includes(":")) {
+            // Not encrypted yet, encrypt with current key
+            return this.encrypt(encrypted);
+        }
+
+        const parts = encrypted.split(":");
+        if (parts.length !== 4) {
+            // Invalid format, try to encrypt as-is
+            return this.encrypt(encrypted);
+        }
+
+        const [version] = parts;
+
+        // If already using current version, no re-encryption needed
+        if (version === this.keyVersion) {
+            return encrypted;
+        }
+
+        // Decrypt with old key, encrypt with new key
+        const decrypted = this.decrypt(encrypted);
+        if (decrypted === encrypted) {
+            // Decryption failed, return original
+            return encrypted;
+        }
+
+        return this.encrypt(decrypted);
+    }
+
+    /**
+     * Check if a value needs re-encryption (encrypted with an old key)
+     */
+    needsReEncryption(encrypted: string | null | undefined): boolean {
+        if (!encrypted || !encrypted.includes(":")) return false;
+
+        const parts = encrypted.split(":");
+        if (parts.length !== 4) return false;
+
+        const [version] = parts;
+        return version !== this.keyVersion;
+    }
+
+    /**
      * Get service stats for monitoring
      */
     getStats(): {
         keyVersion: string;
         algorithmUsed: string;
         encryptedFieldCount: number;
+        availableKeyVersions: string[];
     } {
         return {
             keyVersion: this.keyVersion,
             algorithmUsed: this.algorithm,
             encryptedFieldCount: this.encryptedFields.length,
+            availableKeyVersions: Array.from(this.keyStore.keys()),
         };
     }
 }
