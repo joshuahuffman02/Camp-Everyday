@@ -32,11 +32,10 @@ import {
 
 type Guest = {
   id: string;
-  name: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
-  phone: string | null;
+  primaryFirstName: string;
+  primaryLastName: string;
+  email: string;
+  phone: string;
 };
 
 type Site = {
@@ -127,9 +126,8 @@ export default function NewSeasonalGuestPage() {
       if (guestSearch) {
         const search = guestSearch.toLowerCase();
         return data.filter((g: Guest) =>
-          g.name?.toLowerCase().includes(search) ||
-          g.firstName?.toLowerCase().includes(search) ||
-          g.lastName?.toLowerCase().includes(search) ||
+          g.primaryFirstName?.toLowerCase().includes(search) ||
+          g.primaryLastName?.toLowerCase().includes(search) ||
           g.email?.toLowerCase().includes(search)
         );
       }
@@ -310,7 +308,7 @@ export default function NewSeasonalGuestPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="font-medium">
-                            {guest.firstName} {guest.lastName}
+                            {guest.primaryFirstName} {guest.primaryLastName}
                           </span>
                           {guest.email && (
                             <span className="text-sm text-muted-foreground ml-2">
@@ -721,7 +719,7 @@ export default function NewSeasonalGuestPage() {
                   <span className="text-muted-foreground">Guest</span>
                   <span className="font-medium">
                     {selectedGuest
-                      ? `${selectedGuest.firstName} ${selectedGuest.lastName}`
+                      ? `${selectedGuest.primaryFirstName} ${selectedGuest.primaryLastName}`
                       : "Not selected"}
                   </span>
                 </div>

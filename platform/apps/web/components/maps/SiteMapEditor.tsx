@@ -445,6 +445,9 @@ export function SiteMapEditor({
   const [selectedPreset, setSelectedPreset] = useState<PresetShape>("freeform");
   const [showCelebration, setShowCelebration] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const [quickAssignShapeId, setQuickAssignShapeId] = useState<string | null>(null);
+  const [quickAssignPosition, setQuickAssignPosition] = useState<{ x: number; y: number } | null>(null);
+  const [quickAssignSearch, setQuickAssignSearch] = useState("");
 
   // Announce to screen readers
   const announce = useCallback((message: string) => {
@@ -733,6 +736,11 @@ export function SiteMapEditor({
     const point = getSvgPoint(event);
     if (!point) return;
 
+    // Close quick-assign popup if open
+    if (quickAssignShapeId) {
+      closeQuickAssign();
+    }
+
     // If using preset shapes, place the shape immediately
     if (selectedPreset !== "freeform" && !isDrawing) {
       const size = Math.min(viewBox.width, viewBox.height) * 0.08;
@@ -964,6 +972,13 @@ export function SiteMapEditor({
     setResizeCorner(null);
   };
 
+  // Close the quick-assign popup
+  const closeQuickAssign = useCallback(() => {
+    setQuickAssignShapeId(null);
+    setQuickAssignPosition(null);
+    setQuickAssignSearch("");
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -1018,6 +1033,10 @@ export function SiteMapEditor({
       }
 
       if (event.key === "Escape") {
+        if (quickAssignShapeId) {
+          closeQuickAssign();
+          return;
+        }
         if (showShortcuts) {
           setShowShortcuts(false);
           return;
@@ -1052,7 +1071,7 @@ export function SiteMapEditor({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [announce, dragIndex, handleFinish, handleUndo, isDrawing, showShortcuts, snapToGrid]);
+  }, [announce, dragIndex, handleFinish, handleUndo, isDrawing, showShortcuts, snapToGrid, quickAssignShapeId, closeQuickAssign]);
 
   const handleSaveShapes = async () => {
     if (!campgroundId) return;
@@ -1168,6 +1187,102 @@ export function SiteMapEditor({
       setAssigning(false);
     }
   };
+
+  const handleShapeClick = (shapeId: string, event: React.PointerEvent<SVGPathElement>) => {
+    // Select the shape
+    setSelectedShapeId(shapeId);
+
+    // Check if shape is unassigned - if so, show quick assign popup
+    const isAssigned = assignedSiteByShape.has(shapeId);
+    const isDraft = draftShapes[shapeId]?.isNew;
+
+    if (!isAssigned && !isDraft) {
+      // Get click position for popup
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (rect) {
+        setQuickAssignPosition({
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top
+        });
+        setQuickAssignShapeId(shapeId);
+        setQuickAssignSearch("");
+      }
+    } else {
+      setQuickAssignShapeId(null);
+      setQuickAssignPosition(null);
+    }
+  };
+
+  const handleQuickAssign = async (siteId: string) => {
+    if (!campgroundId || !quickAssignShapeId) return;
+
+    const shapeId = quickAssignShapeId;
+    const shape = mergedShapes.get(shapeId);
+
+    if (shape?.isNew || draftShapes[shapeId]?.isNew) {
+      toast({ title: "Save the shape first", description: "New shapes must be saved before assigning." });
+      return;
+    }
+    if (draftShapes[shapeId]) {
+      toast({ title: "Save edits first", description: "Save shape edits before assigning so geometry is current." });
+      return;
+    }
+
+    const currentShapeForSite = assignedShapeBySite.get(siteId);
+    const siteLabel = siteLabelById.get(siteId) ?? siteId;
+    const shapeLabel = shapeLabelById.get(shapeId) ?? shapeId;
+
+    if (currentShapeForSite && currentShapeForSite !== shapeId) {
+      const ok = window.confirm(`"${siteLabel}" already has a shape. Replace it with "${shapeLabel}"?`);
+      if (!ok) {
+        setQuickAssignShapeId(null);
+        setQuickAssignPosition(null);
+        return;
+      }
+    }
+
+    setAssigning(true);
+    try {
+      if (currentShapeForSite && currentShapeForSite !== shapeId) {
+        await apiClient.unassignCampgroundMapSite(campgroundId, siteId);
+      }
+
+      const site = sites.find(s => s.id === siteId);
+      const label = site?.mapLabel ?? site?.siteNumber ?? site?.name ?? null;
+      await apiClient.upsertCampgroundMapAssignments(campgroundId, {
+        assignments: [{ siteId, shapeId, label }]
+      });
+      toast({ title: "Assigned!", description: `${shapeLabel} mapped to ${siteLabel}.` });
+      announce(`Shape assigned to ${siteLabel}`);
+      setSelectedSiteId(siteId);
+      onSaved?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Assignment failed";
+      toast({ title: "Assignment failed", description: message, variant: "destructive" });
+    } finally {
+      setAssigning(false);
+      setQuickAssignShapeId(null);
+      setQuickAssignPosition(null);
+    }
+  };
+
+  // Filter sites for quick assign popup
+  const quickAssignSites = useMemo(() => {
+    const term = quickAssignSearch.trim().toLowerCase();
+    const filtered = term
+      ? sites.filter((site) => {
+          const label = `${site.siteNumber ?? ""} ${site.name ?? ""} ${site.mapLabel ?? ""}`.toLowerCase();
+          return label.includes(term);
+        })
+      : sites;
+    // Show unassigned sites first
+    return [...filtered].sort((a, b) => {
+      const aAssigned = assignedSiteIds.has(a.id);
+      const bAssigned = assignedSiteIds.has(b.id);
+      if (aAssigned === bAssigned) return 0;
+      return aAssigned ? 1 : -1;
+    });
+  }, [sites, quickAssignSearch, assignedSiteIds]);
 
   const handleDeleteShape = async () => {
     if (!campgroundId) return;
@@ -1609,7 +1724,7 @@ export function SiteMapEditor({
           )}
 
           {/* Canvas */}
-          <div className={cn("rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-2", isFullscreen && "h-full")}>
+          <div className={cn("relative rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-2", isFullscreen && "h-full")}>
             <svg
               ref={svgRef}
               viewBox={`${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}`}
@@ -1657,7 +1772,16 @@ export function SiteMapEditor({
                         strokeWidth={isAssigned ? 2 : 1.5}
                         strokeDasharray={isAssigned ? undefined : "4 3"}
                         opacity={isDraft ? 0.95 : 0.85}
-                        className="transition-all duration-150"
+                        className={cn(
+                          "transition-all duration-150",
+                          !isDrawing && "cursor-pointer hover:opacity-100 hover:stroke-blue-500 hover:stroke-[3]"
+                        )}
+                        style={{ pointerEvents: isDrawing ? "none" : "auto" }}
+                        onPointerDown={(e) => {
+                          if (isDrawing) return;
+                          e.stopPropagation();
+                          handleShapeClick(shape.id, e);
+                        }}
                       />
                       {/* Show site label on assigned shapes */}
                       {siteLabel && centroid && (
@@ -1919,6 +2043,87 @@ export function SiteMapEditor({
                 </g>
               )}
             </svg>
+
+            {/* Quick Assign Popup */}
+            <AnimatePresence>
+              {quickAssignShapeId && quickAssignPosition && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  className="absolute z-50 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-3 w-64"
+                  style={{
+                    left: Math.min(quickAssignPosition.x, (svgRef.current?.getBoundingClientRect()?.width ?? 300) - 280),
+                    top: Math.min(quickAssignPosition.y + 10, (svgRef.current?.getBoundingClientRect()?.height ?? 400) - 300),
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                      <Link2 className="h-4 w-4 text-emerald-600" />
+                      Assign to Site
+                    </span>
+                    <button
+                      onClick={closeQuickAssign}
+                      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4 text-slate-400" />
+                    </button>
+                  </div>
+                  <Input
+                    placeholder="Search sites..."
+                    value={quickAssignSearch}
+                    onChange={(e) => setQuickAssignSearch(e.target.value)}
+                    className="mb-2 h-8 text-sm"
+                    autoFocus
+                  />
+                  <div className="max-h-48 overflow-auto space-y-1">
+                    {quickAssignSites.slice(0, 20).map((site) => {
+                      const isMapped = assignedSiteIds.has(site.id);
+                      const label = site.siteNumber || site.mapLabel || site.name || site.id;
+                      return (
+                        <button
+                          key={site.id}
+                          onClick={() => handleQuickAssign(site.id)}
+                          disabled={assigning}
+                          className={cn(
+                            "w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm text-left transition-all",
+                            "hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-300",
+                            "border border-transparent",
+                            isMapped && "opacity-60"
+                          )}
+                        >
+                          <span className="font-medium text-slate-700 dark:text-slate-200 truncate">
+                            {label}
+                          </span>
+                          {isMapped ? (
+                            <Badge variant="secondary" className="text-[10px] ml-2 shrink-0">
+                              Mapped
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] ml-2 shrink-0 text-emerald-600 border-emerald-300">
+                              Available
+                            </Badge>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {quickAssignSites.length === 0 && (
+                      <div className="text-center py-3 text-sm text-slate-400">
+                        No matching sites
+                      </div>
+                    )}
+                    {quickAssignSites.length > 20 && (
+                      <div className="text-center py-2 text-xs text-slate-400">
+                        +{quickAssignSites.length - 20} more (search to filter)
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

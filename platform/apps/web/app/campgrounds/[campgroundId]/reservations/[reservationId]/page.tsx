@@ -13,7 +13,9 @@ import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
 import { format } from "date-fns";
-import { DollarSign, ArrowLeft, MessageSquare, Calculator, ActivitySquare, MapPin, CheckCircle, DoorOpen, Users, AlertTriangle, Clock, ShieldCheck, ClipboardList } from "lucide-react";
+import { DollarSign, ArrowLeft, MessageSquare, Calculator, ActivitySquare, MapPin, CheckCircle, DoorOpen, Users, AlertTriangle, Clock, ShieldCheck, ClipboardList, Tent, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../../../../components/ui/dialog";
+import { Switch } from "../../../../../components/ui/switch";
 import { AuditLogTimeline } from "../../../../../components/audit/AuditLogTimeline";
 import { ReservationFormsCard } from "../../../../../components/reservations/ReservationFormsCard";
 
@@ -45,6 +47,10 @@ export default function ReservationDetailPage() {
   const [coiExpiresAt, setCoiExpiresAt] = useState("");
   const [accessProvider, setAccessProvider] = useState<"kisi" | "brivo" | "cloudkey">("kisi");
   const [accessCode, setAccessCode] = useState("");
+  // Convert to Seasonal state
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertIsMetered, setConvertIsMetered] = useState(false);
+  const [convertPaysInFull, setConvertPaysInFull] = useState(false);
   const reservationId = params.reservationId as string;
   const campgroundId = params.campgroundId as string;
 
@@ -149,6 +155,31 @@ export default function ReservationDetailPage() {
     }
   });
 
+  // Convert reservation to seasonal guest
+  const convertToSeasonalMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/seasonals/convert-from-reservation/${reservationId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          isMetered: convertIsMetered,
+          paysInFull: convertPaysInFull,
+        }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to convert to seasonal");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setShowConvertModal(false);
+      queryClient.invalidateQueries({ queryKey: ["reservation", reservationId] });
+      // Navigate to the seasonal guest detail page
+      router.push(`/campgrounds/${campgroundId}/seasonals`);
+    },
+  });
 
   const signaturesQuery = useQuery({
     queryKey: ["signatures", reservationId],
@@ -400,6 +431,31 @@ export default function ReservationDetailPage() {
               <MessageSquare className="h-4 w-4 mr-1" />
               Message
             </Button>
+            {/* Show Convert to Seasonal button for long-term stays (28+ nights) */}
+            {(quote?.nights ?? 0) >= 28 && !reservation.seasonalGuestId && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowConvertModal(true)}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                <Tent className="h-4 w-4 mr-1" />
+                Convert to Seasonal
+              </Button>
+            )}
+            {reservation.seasonalGuestId && (
+              <Button
+                size="sm"
+                variant="outline"
+                asChild
+                className="border-green-300 text-green-700 hover:bg-green-50"
+              >
+                <a href={`/campgrounds/${campgroundId}/seasonals`}>
+                  <Tent className="h-4 w-4 mr-1" />
+                  View Seasonal
+                </a>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1327,6 +1383,89 @@ export default function ReservationDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Convert to Seasonal Modal */}
+      <Dialog open={showConvertModal} onOpenChange={setShowConvertModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tent className="h-5 w-5 text-amber-600" />
+              Convert to Seasonal Guest
+            </DialogTitle>
+            <DialogDescription>
+              This {quote?.nights ?? 0}-night stay qualifies for seasonal guest management.
+              Converting will create a seasonal guest record linked to this reservation.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-sm font-medium text-slate-900">{guestName}</div>
+              <div className="text-xs text-slate-500">
+                {formatDate(reservation.arrivalDate)} → {formatDate(reservation.departureDate)} • {siteLabel}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="metered" className="text-sm font-medium">Metered Utilities</Label>
+                  <p className="text-xs text-slate-500">Guest pays for electric/water usage separately</p>
+                </div>
+                <Switch
+                  id="metered"
+                  checked={convertIsMetered}
+                  onCheckedChange={setConvertIsMetered}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="paysFull" className="text-sm font-medium">Pays in Full</Label>
+                  <p className="text-xs text-slate-500">Full season payment upfront (vs monthly)</p>
+                </div>
+                <Switch
+                  id="paysFull"
+                  checked={convertPaysInFull}
+                  onCheckedChange={setConvertPaysInFull}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <strong>Note:</strong> You can assign a rate card and configure additional options
+              after conversion from the Seasonals dashboard.
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowConvertModal(false)}
+              disabled={convertToSeasonalMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => convertToSeasonalMutation.mutate()}
+              disabled={convertToSeasonalMutation.isPending}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {convertToSeasonalMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Converting...
+                </>
+              ) : (
+                <>
+                  <Tent className="h-4 w-4 mr-2" />
+                  Convert to Seasonal
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardShell>
   );
 }
