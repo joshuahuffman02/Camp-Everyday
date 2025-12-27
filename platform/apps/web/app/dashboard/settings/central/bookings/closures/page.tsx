@@ -93,13 +93,25 @@ const reasonConfig = {
 };
 
 async function fetchClosures(campgroundId: string): Promise<SiteClosure[]> {
-  const response = await fetch(`${API_BASE}/campgrounds/${campgroundId}/closures`, {
+  const response = await fetch(`${API_BASE}/blackouts/campgrounds/${campgroundId}`, {
     credentials: "include",
   });
   if (!response.ok) {
     throw new Error("Failed to fetch closures");
   }
-  return response.json();
+  // Transform blackout data to closure format
+  const data = await response.json();
+  return data.map((blackout: any) => ({
+    id: blackout.id,
+    name: blackout.name || blackout.reason || "Site Closure",
+    reason: blackout.reason || "other",
+    sites: blackout.siteIds || [],
+    siteClasses: blackout.siteClassIds || [],
+    startDate: blackout.startDate,
+    endDate: blackout.endDate,
+    notes: blackout.notes || "",
+    isActive: blackout.isActive !== false,
+  }));
 }
 
 async function fetchSiteClasses(campgroundId: string): Promise<string[]> {
@@ -114,7 +126,7 @@ async function fetchSiteClasses(campgroundId: string): Promise<string[]> {
 }
 
 async function deleteClosure(closureId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/closures/${closureId}`, {
+  const response = await fetch(`${API_BASE}/blackouts/${closureId}`, {
     method: "DELETE",
     credentials: "include",
   });

@@ -41,17 +41,29 @@ interface Discount {
 }
 
 async function fetchDiscounts(campgroundId: string): Promise<Discount[]> {
-  const response = await fetch(`${API_BASE}/campgrounds/${campgroundId}/discounts`, {
+  const response = await fetch(`${API_BASE}/promotions/campgrounds/${campgroundId}`, {
     credentials: "include",
   });
   if (!response.ok) {
     throw new Error("Failed to fetch discounts");
   }
-  return response.json();
+  // Transform promotions to discount format
+  const data = await response.json();
+  return data.map((promo: any) => ({
+    id: promo.id,
+    name: promo.name,
+    code: promo.code || promo.name.toUpperCase().replace(/\s+/g, ""),
+    type: promo.discountType === "percentage" ? "percent" : "fixed",
+    value: promo.discountValue || promo.amount || 0,
+    appliesTo: promo.appliesTo || "All Items",
+    validUntil: promo.endDate || null,
+    usageCount: promo.usageCount || 0,
+    isActive: promo.isActive !== false,
+  }));
 }
 
 async function deleteDiscount(discountId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/discounts/${discountId}`, {
+  const response = await fetch(`${API_BASE}/promotions/${discountId}`, {
     method: "DELETE",
     credentials: "include",
   });

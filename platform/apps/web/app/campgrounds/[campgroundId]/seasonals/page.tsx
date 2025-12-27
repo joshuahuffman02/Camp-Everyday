@@ -824,7 +824,7 @@ function RateCardDisplay({
             <span className="text-slate-500">/{rateCard.billingFrequency}</span>
           </div>
 
-          {rateCard.includedUtilities?.length > 0 && (
+          {(rateCard.includedUtilities?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Included</p>
               <div className="flex flex-wrap gap-1">
@@ -835,7 +835,7 @@ function RateCardDisplay({
             </div>
           )}
 
-          {rateCard.discounts?.length > 0 && (
+          {(rateCard.discounts?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Discounts</p>
               <div className="space-y-1">
