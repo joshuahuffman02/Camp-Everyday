@@ -10,6 +10,27 @@ Target burn-in complete: **Jan 3, 2026**. All items must be true before GA.
 - POS hardware/offline limits set (reader/printer, storage) — Owner: Taylor — Due Dec 20 — Status: ☐
 - UX mocks (POS, gift card apply, waitlist CTA) approved — Owner: Jordan — Due Dec 20 — Status: ☐
 
+## External Integrations Required (TODO Audit Items)
+
+The following integrations have stub implementations and require external API credentials or infrastructure before go-live:
+
+| Item | Service | What's Needed | Status |
+|------|---------|---------------|--------|
+| #7 | OTA Provider APIs | API credentials from Booking.com, Airbnb, VRBO, etc. Partner signup required. | ☐ |
+| #9 | Currency FX Provider | API key from OpenExchangeRates, ExchangeRate-API, or ECB. Free tiers available. | ☐ |
+| #10 | Redis (Distributed Locking) | Redis instance for account lockout service. Options: Railway Redis addon, Upstash, or self-hosted. Env var: `REDIS_URL` | ☐ |
+| #12 | RV Life Reviews API | Partner API access from RV Life for review aggregation. Contact RV Life for credentials. | ☐ |
+
+**Quick wins:**
+- Currency FX: Sign up at openexchangerates.org (free tier) → add `FX_PROVIDER_API_KEY`
+- Redis: Add Redis service in Railway dashboard → copy `REDIS_URL` to env vars
+
+**Requires partner relationships:**
+- OTA APIs: Each channel (Booking.com, Airbnb) requires separate partner application
+- RV Life: Contact their partnerships team for API access
+
+---
+
 ## Functional checks
 - Gift cards: 20 parallel redeems → 1 success, rest 409; idempotent retry returns same body; expiry → 410; taxable-load flag works; balance lookup/apply throttled; liability snapshot equals sum of balances; logs redact code/contact/PAN.
 - POS: tender sum validated; split tender reconciles; charge-to-site posts folio with audit; gift card tender decrements balance once; offline replay rejects duplicate `offline_seq` and alerts on backlog; returns/exchanges adjust inventory and refund to original/credit; receipts print/email; charge-to-site notice sent.
