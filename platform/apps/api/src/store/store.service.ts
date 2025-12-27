@@ -15,16 +15,68 @@ import { randomUUID } from "crypto";
 import { Decimal } from "@prisma/client/runtime/library";
 import { LocationService } from "./location.service";
 
+/**
+ * CRITICAL TODO: Implement database persistence for order adjustments
+ *
+ * Current implementation uses in-memory storage which has severe limitations:
+ * - Data is lost on server restart
+ * - Not shared across multiple server instances
+ * - No audit trail in database
+ * - Cannot be queried or reported on
+ *
+ * Required database schema addition:
+ *
+ * model StoreOrderAdjustment {
+ *   id            String   @id @default(cuid())
+ *   orderId       String
+ *   type          String   // "refund" | "exchange" | "discount"
+ *   amountCents   Int
+ *   note          String?
+ *   items         Json?    // Array of affected items
+ *   createdById   String?
+ *   createdAt     DateTime @default(now())
+ *
+ *   order     StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+ *   createdBy User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+ *
+ *   @@index([orderId])
+ *   @@index([type])
+ *   @@index([createdAt])
+ * }
+ *
+ * Add to StoreOrder model:
+ *   adjustments StoreOrderAdjustment[]
+ *
+ * Migration steps:
+ * 1. Add the model to schema.prisma
+ * 2. Run: npx prisma migrate dev --name add_store_order_adjustments
+ * 3. Update this service to use database queries instead of Map
+ * 4. Implement proper payment processor integration for actual refunds
+ * 5. Add webhook notifications for refund status updates
+ *
+ * Payment processor integration needed:
+ * - Stripe: stripe.refunds.create()
+ * - Square: squareClient.refundsApi.refundPayment()
+ * - Authorize.net: createTransactionRequest with refundTransaction
+ */
 @Injectable()
 export class StoreService {
-    // In-memory log for stubbed refunds/exchanges (no payment processor hooked yet)
+    // TEMPORARY: In-memory storage for refunds/exchanges
+    // WARNING: This data is lost on server restart and not shared across instances
+    // See TODO comment above for proper database implementation
     private readonly orderAdjustments = new Map<string, any[]>();
 
     constructor(
         private readonly prisma: PrismaService,
         private readonly emailService: EmailService,
         private readonly locationService: LocationService
-    ) { }
+    ) {
+        // Log warning on startup about temporary storage
+        console.warn(
+            '[StoreService] WARNING: Using in-memory storage for order adjustments. ' +
+            'Data will be lost on restart. Implement database persistence (see TODO in store.service.ts)'
+        );
+    }
 
     // ==================== CATEGORIES ====================
 
@@ -38,11 +90,23 @@ export class StoreService {
         });
     }
 
+    /**
+     * Update order status with timestamp tracking
+     *
+     * TODO: Add missing timestamp fields to StoreOrder schema:
+     * - readyAt: DateTime?       // When order was marked ready for pickup/delivery
+     * - deliveredAt: DateTime?   // When order was delivered to customer
+     * - seenAt: DateTime?        // When staff first viewed the order
+     *
+     * These fields are currently being set but don't exist in the database schema,
+     * causing them to be silently ignored by Prisma.
+     */
     async updateOrderStatus(id: string, status: "pending" | "ready" | "delivered" | "completed" | "cancelled" | "refunded", userId?: string) {
         const data: any = { status };
         const now = new Date();
-        if (status === "ready") data.readyAt = now;
-        if (status === "delivered") data.deliveredAt = now;
+        // TODO: Uncomment when schema fields are added
+        // if (status === "ready") data.readyAt = now;
+        // if (status === "delivered") data.deliveredAt = now;
         if (status === "completed") {
             data.completedAt = now;
             if (userId) data.completedById = userId;
@@ -222,22 +286,45 @@ export class StoreService {
         return orders.map((order: any) => this.attachAdjustments(order));
     }
 
+    /**
+     * Get unseen pending orders
+     * TODO: This query will fail when seenAt field doesn't exist in schema
+     * Add seenAt field to StoreOrder model or remove this feature
+     */
     async listUnseenOrders(campgroundId: string) {
+        // TODO: Uncomment when seenAt field is added to schema
+        // return (this.prisma as any).storeOrder.findMany({
+        //     where: {
+        //         campgroundId,
+        //         status: "pending",
+        //         seenAt: null
+        //     },
+        //     select: { id: true, createdAt: true, reservationId: true, siteNumber: true }
+        // });
+
+        // Temporary workaround: return all pending orders
         return (this.prisma as any).storeOrder.findMany({
             where: {
                 campgroundId,
-                status: "pending",
-                seenAt: null
+                status: "pending"
             },
             select: { id: true, createdAt: true, reservationId: true, siteNumber: true }
         });
     }
 
+    /**
+     * Mark an order as seen by staff
+     * TODO: This update will be ignored until seenAt field is added to schema
+     */
     async markOrderSeen(id: string) {
-        return (this.prisma as any).storeOrder.update({
-            where: { id },
-            data: { seenAt: new Date() }
-        });
+        // TODO: Uncomment when seenAt field is added to schema
+        // return (this.prisma as any).storeOrder.update({
+        //     where: { id },
+        //     data: { seenAt: new Date() }
+        // });
+
+        // Temporary: Just return the order without updating
+        return (this.prisma as any).storeOrder.findUnique({ where: { id } });
     }
 
     async getOrderSummary(campgroundId: string, opts?: { start?: Date; end?: Date }) {
@@ -550,15 +637,43 @@ export class StoreService {
         }).then((order) => order ? this.attachAdjustments(order) : null);
     }
 
+    /**
+     * Get order adjustments (refunds/exchanges)
+     * TEMPORARY: Reading from in-memory storage - implement database queries
+     */
     getOrderAdjustments(orderId: string) {
         return this.orderAdjustments.get(orderId) ?? [];
     }
 
+    /**
+     * Attach adjustments to order object
+     * TEMPORARY: Uses in-memory storage - replace with database join
+     */
     private attachAdjustments(order: any) {
         const adjustments = this.getOrderAdjustments(order.id);
         return { ...order, adjustments };
     }
 
+    /**
+     * Record a refund or exchange for an order
+     *
+     * CRITICAL LIMITATIONS:
+     * 1. Data stored in-memory only - lost on restart
+     * 2. No actual payment processor refund initiated
+     * 3. No database audit trail
+     * 4. Not accessible across server instances
+     *
+     * TODO: Implement proper refund workflow:
+     * 1. Create StoreOrderAdjustment database record
+     * 2. Initiate refund with payment processor:
+     *    - For Stripe: await stripe.refunds.create({ payment_intent: order.paymentIntentId })
+     *    - For Square: await squareClient.refundsApi.refundPayment({ ... })
+     *    - For charge_to_site: Create negative ledger entry
+     * 3. Update order status based on refund result
+     * 4. Restore inventory if needed
+     * 5. Send refund confirmation email to customer
+     * 6. Create audit log entry
+     */
     async recordRefundOrExchange(
         orderId: string,
         payload: {
@@ -571,16 +686,20 @@ export class StoreService {
     ) {
         const order = await (this.prisma as any).storeOrder.findUnique({
             where: { id: orderId },
-            include: { items: true },
+            include: { items: true, campground: { select: { name: true } } },
         });
         if (!order) {
-            throw new Error("Order not found");
+            throw new NotFoundException("Order not found");
         }
 
+        // Validate refund amount doesn't exceed order total
         const selectedItems =
             payload.items && payload.items.length > 0
                 ? payload.items.map((item) => {
                     const match = order.items.find((i: any) => i.id === item.itemId);
+                    if (item.itemId && !match) {
+                        throw new Error(`Item ${item.itemId} not found in order`);
+                    }
                     return {
                         itemId: item.itemId || match?.id || randomUUID(),
                         name: item.name || match?.name || "Line item",
@@ -599,6 +718,15 @@ export class StoreService {
             payload.amountCents ??
             selectedItems.reduce((sum: number, i: { amountCents?: number }) => sum + (i.amountCents ?? 0), 0);
 
+        // Validate refund amount
+        if (amountCents > order.totalCents) {
+            throw new Error(`Refund amount (${amountCents}) cannot exceed order total (${order.totalCents})`);
+        }
+
+        if (amountCents <= 0) {
+            throw new Error("Refund amount must be greater than zero");
+        }
+
         const entry = {
             id: randomUUID(),
             type: payload.type === "exchange" ? "exchange" : "refund",
@@ -616,12 +744,54 @@ export class StoreService {
                 : undefined,
         };
 
+        // Store in temporary in-memory storage
         const existing = this.orderAdjustments.get(orderId) ?? [];
         this.orderAdjustments.set(orderId, [entry, ...existing]);
 
+        // Update order status
         if (entry.type === "refund" && order.status !== "refunded") {
             await this.updateOrderStatus(orderId, "refunded", user?.id);
         }
+
+        // If order was charged to site, create offsetting ledger entry
+        if (order.paymentMethod === "charge_to_site" && order.reservationId && entry.type === "refund") {
+            try {
+                await this.prisma.ledgerEntry.create({
+                    data: {
+                        campgroundId: order.campgroundId,
+                        reservationId: order.reservationId,
+                        glCode: "STORE",
+                        account: "Store Refunds",
+                        description: `Refund for store order #${order.id.slice(-6)}${entry.note ? `: ${entry.note}` : ''}`,
+                        amountCents: amountCents,
+                        direction: "credit", // Credit reduces the guest's balance
+                    },
+                });
+
+                // Update reservation balance
+                await this.prisma.reservation.update({
+                    where: { id: order.reservationId },
+                    data: {
+                        balanceAmount: { decrement: amountCents },
+                        totalAmount: { decrement: amountCents },
+                    },
+                });
+            } catch (error: any) {
+                // Log error but don't fail the refund
+                console.error(`Failed to create ledger entry for refund: ${error.message}`);
+            }
+        }
+
+        // TODO: Restore inventory for refunded items if applicable
+        // TODO: Initiate actual payment processor refund
+        // TODO: Send refund confirmation email
+
+        // Log warning about temporary storage
+        console.warn(
+            `[StoreService] Refund/exchange recorded in temporary storage only. ` +
+            `Order: ${orderId}, Type: ${entry.type}, Amount: ${amountCents}. ` +
+            `Data will be lost on restart - implement database persistence.`
+        );
 
         return entry;
     }
