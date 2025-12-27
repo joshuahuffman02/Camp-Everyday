@@ -4192,6 +4192,18 @@ model NpsResponse {
   sentiment     String?
   createdAt     DateTime @default(now())
 
+  // Follow-up tracking
+  followedUp   Boolean   @default(false)
+  followUpAt   DateTime?
+  followUpNote String?   @db.Text
+  followUpBy   String?   // User ID who did the follow-up
+
+  // Resolution tracking
+  resolved      Boolean   @default(false)
+  resolvedAt    DateTime?
+  resolvedBy    String?   // User ID who resolved
+  resolvedNote  String?   @db.Text
+
   survey      NpsSurvey    @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   invite      NpsInvite?   @relation(fields: [inviteId], references: [id], onDelete: SetNull)
   campground  Campground   @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
@@ -4203,6 +4215,8 @@ model NpsResponse {
   @@index([surveyId])
   @@index([guestId])
   @@index([reservationId])
+  @@index([followedUp])
+  @@index([resolved])
 }
 
 model NpsEvent {

@@ -695,6 +695,12 @@ export class NpsAnalyticsService {
         score: true,
         comment: true,
         createdAt: true,
+        followedUp: true,
+        followUpAt: true,
+        followUpNote: true,
+        resolved: true,
+        resolvedAt: true,
+        resolvedNote: true,
         campground: { select: { name: true } },
         guest: { select: { email: true } },
       },
@@ -702,8 +708,6 @@ export class NpsAnalyticsService {
       take: limit,
     });
 
-    // TODO: Add follow-up tracking fields to NpsResponse model
-    // For now, return with default follow-up status
     return responses.map((r) => ({
       id: r.id,
       score: r.score,
@@ -711,10 +715,12 @@ export class NpsAnalyticsService {
       campgroundName: r.campground.name,
       guestEmail: r.guest?.email,
       createdAt: r.createdAt,
-      followedUp: false, // Would come from DB once model is extended
-      followUpAt: undefined,
-      followUpNote: undefined,
-      resolved: false,
+      followedUp: r.followedUp,
+      followUpAt: r.followUpAt,
+      followUpNote: r.followUpNote,
+      resolved: r.resolved,
+      resolvedAt: r.resolvedAt,
+      resolvedNote: r.resolvedNote,
     }));
   }
 }
