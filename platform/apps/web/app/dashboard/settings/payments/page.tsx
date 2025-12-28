@@ -2,28 +2,33 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/components/ui/use-toast";
 import { HelpAnchor } from "@/components/help/HelpAnchor";
 import { TerminalManagement } from "@/components/settings/TerminalManagement";
 import { PaymentMethodsConfig } from "@/components/settings/PaymentMethodsConfig";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, CreditCard, Settings2, Smartphone } from "lucide-react";
+import { CreditCard, Settings2, Smartphone } from "lucide-react";
 import {
   PaymentSetupProgress,
   GettingStartedCard,
   StripeConnectCard,
   PlatformFeeCard,
-  PaymentGatewayCard,
+  StripeSettingsCard,
 } from "@/components/settings/payments";
 
 export default function PaymentsSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const [campgroundId, setCampgroundId] = useState<string>("");
   const [refreshingCapabilities, setRefreshingCapabilities] = useState(false);
   const [feeSaveSuccess, setFeeSaveSuccess] = useState(false);
-  const [gatewaySaveSuccess, setGatewaySaveSuccess] = useState(false);
+  const [stripeSaveSuccess, setStripeSaveSuccess] = useState(false);
+
+  // @ts-ignore - platformRole might not be in types
+  const isPlatformAdmin = session?.user?.platformRole === "platform_admin";
 
   // Get campground ID from localStorage
   useEffect(() => {
@@ -77,25 +82,21 @@ export default function PaymentsSettingsPage() {
     },
   });
 
-  // Update gateway mutation
-  const updateGatewayMutation = useMutation({
+  // Update Stripe settings mutation
+  const updateStripeMutation = useMutation({
     mutationFn: (payload: {
-      gateway: "stripe" | "adyen" | "authorize_net" | "other";
       mode: "test" | "prod";
       feeMode: "absorb" | "pass_through";
-      feePercentBasisPoints?: number;
-      feeFlatCents?: number;
-      feePresetId?: string | null;
-      publishableKeySecretId?: string;
-      secretKeySecretId?: string;
-      merchantAccountIdSecretId?: string;
-      webhookSecretId?: string;
-    }) => apiClient.upsertPaymentGatewayConfig(campgroundId, payload),
+    }) => apiClient.upsertPaymentGatewayConfig(campgroundId, {
+      gateway: "stripe",
+      mode: payload.mode,
+      feeMode: payload.feeMode,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-gateway", campgroundId] });
-      setGatewaySaveSuccess(true);
-      toast({ title: "Settings saved", description: "Gateway settings updated." });
-      setTimeout(() => setGatewaySaveSuccess(false), 2000);
+      setStripeSaveSuccess(true);
+      toast({ title: "Settings saved", description: "Stripe settings updated." });
+      setTimeout(() => setStripeSaveSuccess(false), 2000);
     },
     onError: (err: Error) => {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
@@ -225,37 +226,28 @@ export default function PaymentsSettingsPage() {
                 campgroundId={campgroundId}
               />
 
-              {/* Platform Fee Card */}
-              <PlatformFeeCard
-                initialFee={paymentSettings?.perBookingFeeCents ?? undefined}
-                initialPlan={paymentSettings?.billingPlan}
-                initialFeeMode={paymentSettings?.feeMode}
-                initialMonthlyFee={paymentSettings?.monthlyFeeCents ?? undefined}
-                onSave={(data) => updateFeeMutation.mutate(data)}
-                isSaving={updateFeeMutation.isPending}
-                saveSuccess={feeSaveSuccess}
-                disabled={!campgroundId}
-              />
+              {/* Platform Fee Card - Only visible to platform admins */}
+              {isPlatformAdmin && (
+                <PlatformFeeCard
+                  initialFee={paymentSettings?.perBookingFeeCents ?? undefined}
+                  initialPlan={paymentSettings?.billingPlan}
+                  initialFeeMode={paymentSettings?.feeMode}
+                  initialMonthlyFee={paymentSettings?.monthlyFeeCents ?? undefined}
+                  onSave={(data) => updateFeeMutation.mutate(data)}
+                  isSaving={updateFeeMutation.isPending}
+                  saveSuccess={feeSaveSuccess}
+                  disabled={!campgroundId}
+                />
+              )}
 
-              {/* Payment Gateway Card */}
-              <PaymentGatewayCard
-                initialGateway={gatewayConfig?.gateway}
-                initialMode={gatewayConfig?.mode}
-                initialFeeMode={gatewayConfig?.feeMode}
-                initialFeePercent={gatewayConfig?.feePercentBasisPoints ?? gatewayConfig?.effectiveFee?.percentBasisPoints ?? undefined}
-                initialFeeFlat={gatewayConfig?.feeFlatCents ?? gatewayConfig?.effectiveFee?.flatFeeCents ?? undefined}
-                initialPresetId={gatewayConfig?.feePresetId}
-                hasProductionCredentials={gatewayConfig?.hasProductionCredentials}
-                credentials={gatewayConfig?.credentials ? {
-                  publishableKeySecretId: gatewayConfig.credentials.publishableKeySecretId ?? undefined,
-                  secretKeySecretId: gatewayConfig.credentials.secretKeySecretId ?? undefined,
-                  merchantAccountIdSecretId: gatewayConfig.credentials.merchantAccountIdSecretId ?? undefined,
-                  webhookSecretId: gatewayConfig.credentials.webhookSecretId ?? undefined,
-                } : undefined}
+              {/* Stripe Settings Card */}
+              <StripeSettingsCard
+                initialMode={gatewayConfig?.mode ?? "test"}
+                initialFeeMode={gatewayConfig?.feeMode ?? "absorb"}
                 effectiveFee={gatewayConfig?.effectiveFee}
-                onSave={(data) => updateGatewayMutation.mutate(data)}
-                isSaving={updateGatewayMutation.isPending}
-                saveSuccess={gatewaySaveSuccess}
+                onSave={(data) => updateStripeMutation.mutate(data)}
+                isSaving={updateStripeMutation.isPending}
+                saveSuccess={stripeSaveSuccess}
                 disabled={!campgroundId}
               />
             </>

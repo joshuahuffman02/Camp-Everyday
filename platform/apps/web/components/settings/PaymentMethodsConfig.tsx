@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CreditCard,
   Smartphone,
@@ -15,11 +15,12 @@ import {
   Receipt,
   Gift,
   Info,
-  Sparkles,
-  ChevronDown,
   Check,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GiftCardsManagement } from "@/components/settings/payments/GiftCardsManagement";
+import { ExternalPOSRecording } from "@/components/settings/payments/ExternalPOSRecording";
 
 type CardBrand = "visa" | "mastercard" | "amex" | "discover" | "diners" | "jcb";
 
@@ -117,13 +118,13 @@ export function PaymentMethodsConfig({ campgroundId }: PaymentMethodsConfigProps
     enableCash: true,
     enableCheck: true,
     enableFolio: true,
-    enableGiftCards: false,
-    enableExternalPOS: false,
+    enableGiftCards: true,
+    enableExternalPOS: true,
     allowedCardBrands: ["visa", "mastercard", "amex", "discover"],
     showFeeBreakdown: false,
   });
 
-  const [showRoadmap, setShowRoadmap] = useState(false);
+  const [activeTab, setActiveTab] = useState("settings");
 
   const handleToggle = (key: keyof PaymentMethodSettings, value: boolean) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -149,31 +150,48 @@ export function PaymentMethodsConfig({ campgroundId }: PaymentMethodsConfigProps
   ].filter(Boolean).length;
 
   return (
-    <div className="space-y-6">
-      {/* Info Banner - Warmer design */}
-      <div
-        className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl"
-        role="status"
-        aria-live="polite"
-      >
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <Info className="h-4 w-4 text-blue-600" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="font-medium text-blue-900">Preview Mode</p>
-            <p className="text-sm text-blue-700 mt-1">
-              These settings show how your payment options will appear. Full API integration is coming soon.
-            </p>
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsTrigger value="settings" className="gap-2">
+          <Settings2 className="w-4 h-4" />
+          <span className="hidden sm:inline">Settings</span>
+        </TabsTrigger>
+        <TabsTrigger value="gift-cards" className="gap-2">
+          <Gift className="w-4 h-4" />
+          <span className="hidden sm:inline">Gift Cards</span>
+        </TabsTrigger>
+        <TabsTrigger value="external-pos" className="gap-2">
+          <Smartphone className="w-4 h-4" />
+          <span className="hidden sm:inline">External POS</span>
+        </TabsTrigger>
+      </TabsList>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="space-y-6 motion-safe:animate-in motion-safe:fade-in">
+        {/* Info Banner - Warmer design */}
+        <div
+          className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+              <Info className="h-4 w-4 text-blue-600" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="font-medium text-blue-900">Payment Method Settings</p>
+              <p className="text-sm text-blue-700 mt-1">
+                Configure which payment methods to accept at checkout.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Summary badge */}
-      <div className="flex items-center gap-2 text-sm text-slate-600">
-        <Check className="w-4 h-4 text-emerald-500" aria-hidden="true" />
-        <span>{enabledCount} payment methods enabled</span>
-      </div>
+        {/* Summary badge */}
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+          <Check className="w-4 h-4 text-emerald-500" aria-hidden="true" />
+          <span>{enabledCount} payment methods enabled</span>
+        </div>
 
       {/* Card Payments */}
       <Card className="overflow-hidden">
@@ -338,61 +356,30 @@ export function PaymentMethodsConfig({ campgroundId }: PaymentMethodsConfigProps
         </CardContent>
       </Card>
 
-      {/* Coming Soon - Collapsed */}
-      <Collapsible open={showRoadmap} onOpenChange={setShowRoadmap}>
-        <CollapsibleTrigger className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors w-full justify-center py-2">
-          <Sparkles className="w-4 h-4" aria-hidden="true" />
-          <span>Coming soon features</span>
-          <ChevronDown className={cn(
-            "w-4 h-4 transition-transform",
-            showRoadmap && "rotate-180"
-          )} aria-hidden="true" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-4">
-          <Card className="border-dashed opacity-75">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Gift className="h-5 w-5 text-slate-400" aria-hidden="true" />
-                Special Payment Methods
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="divide-y divide-slate-100">
-              <MethodToggle
-                id="enable-gift-cards"
-                label="Gift cards"
-                description="Sell and redeem gift cards"
-                checked={settings.enableGiftCards}
-                onCheckedChange={(checked) => handleToggle("enableGiftCards", checked)}
-                disabled
-                comingSoon
-              />
-              <MethodToggle
-                id="enable-external-pos"
-                label="External POS"
-                description="Integration with Square, Clover, and more"
-                checked={settings.enableExternalPOS}
-                onCheckedChange={(checked) => handleToggle("enableExternalPOS", checked)}
-                disabled
-                comingSoon
-              />
-            </CardContent>
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
+        {/* Save Button */}
+        <div className="flex justify-end pt-4">
+          <Button
+            disabled
+            className="opacity-50 cursor-not-allowed"
+            aria-describedby="save-note"
+          >
+            Save Changes
+          </Button>
+        </div>
+        <p id="save-note" className="text-xs text-slate-500 text-right">
+          Saving will be available when API integration is complete.
+        </p>
+      </TabsContent>
 
-      {/* Save Button */}
-      <div className="flex justify-end pt-4">
-        <Button
-          disabled
-          className="opacity-50 cursor-not-allowed"
-          aria-describedby="save-note"
-        >
-          Save Changes
-        </Button>
-      </div>
-      <p id="save-note" className="text-xs text-slate-500 text-right">
-        Saving will be available when API integration is complete.
-      </p>
-    </div>
+      {/* Gift Cards Tab */}
+      <TabsContent value="gift-cards" className="motion-safe:animate-in motion-safe:fade-in">
+        <GiftCardsManagement campgroundId={campgroundId} />
+      </TabsContent>
+
+      {/* External POS Tab */}
+      <TabsContent value="external-pos" className="motion-safe:animate-in motion-safe:fade-in">
+        <ExternalPOSRecording campgroundId={campgroundId} />
+      </TabsContent>
+    </Tabs>
   );
 }
