@@ -2852,12 +2852,12 @@ export class ReservationsService {
     });
 
     // Audit
-    await this.audit.log({
+    await this.audit.record({
       action: "reservation.checkin",
       campgroundId: reservation.campgroundId,
       actorId: options?.actorId ?? null,
-      targetType: "reservation",
-      targetId: id,
+      entity: "reservation",
+      entityId: id,
       before: { status: reservation.status },
       after: { status: updated.status, checkInAt: now, source: "staff" }
     });
@@ -2935,12 +2935,12 @@ export class ReservationsService {
     });
 
     // Audit
-    await this.audit.log({
+    await this.audit.record({
       action: "reservation.checkout",
       campgroundId: reservation.campgroundId,
       actorId: options?.actorId ?? null,
-      targetType: "reservation",
-      targetId: id,
+      entity: "reservation",
+      entityId: id,
       before: { status: reservation.status },
       after: { status: updated.status, checkOutAt: now, source: "staff" }
     });
@@ -3094,17 +3094,17 @@ export class ReservationsService {
     });
 
     // Record audit log
-    await this.audit.log({
+    await this.audit.record({
       action: "reservation.split",
-      resourceType: "Reservation",
-      resourceId: reservationId,
-      userId: options?.actorId ?? null,
+      entity: "reservation",
+      entityId: reservationId,
+      actorId: options?.actorId ?? null,
       campgroundId: reservation.campgroundId,
-      metadata: {
+      before: { totalAmount: reservation.totalAmount, segmentCount: 0 },
+      after: {
         segmentCount: sortedSegments.length,
         siteIds: sortedSegments.map((s) => s.siteId),
-        oldTotalCents: reservation.totalAmount,
-        newTotalCents: newTotalAmount
+        totalAmount: newTotalAmount
       }
     });
 
