@@ -67,10 +67,13 @@ export class SmsService {
   }
 
   /**
-   * Get Twilio credentials for a campground (per-campground first, then global fallback)
+   * Get Twilio credentials for a campground
+   * Priority:
+   * 1. Full campground credentials (campground has their own Twilio account)
+   * 2. Campground assigned number + global credentials (platform assigns a dedicated number)
+   * 3. Global credentials with global number (shared platform number)
    */
   private async getCredentialsForCampground(campgroundId?: string): Promise<TwilioCredentials | null> {
-    // Try per-campground credentials first
     if (campgroundId) {
       const campground = await this.prisma.campground.findUnique({
         where: { id: campgroundId },
@@ -82,6 +85,7 @@ export class SmsService {
         },
       });
 
+      // Option 1: Campground has their own full Twilio credentials
       if (campground?.smsEnabled && campground.twilioAccountSid && campground.twilioAuthToken && campground.twilioFromNumber) {
         return {
           accountSid: campground.twilioAccountSid,
@@ -90,9 +94,19 @@ export class SmsService {
           source: "campground",
         };
       }
+
+      // Option 2: Campground has an assigned number but uses platform credentials
+      if (campground?.twilioFromNumber && this.globalIsConfigured) {
+        return {
+          accountSid: this.globalTwilioSid,
+          authToken: this.globalTwilioToken,
+          fromNumber: campground.twilioFromNumber,
+          source: "campground", // Still "campground" since it's their dedicated number
+        };
+      }
     }
 
-    // Fall back to global credentials
+    // Option 3: Fall back to global credentials with global number
     if (this.globalIsConfigured) {
       return {
         accountSid: this.globalTwilioSid,

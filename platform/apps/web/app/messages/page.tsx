@@ -94,9 +94,10 @@ export default function MessagesPage() {
 
     // Compose message state
     const [isComposeOpen, setIsComposeOpen] = useState(false);
-    const [composeType, setComposeType] = useState<"email" | "sms">("email");
+    const [composeType, setComposeType] = useState<"message" | "email" | "sms">("message");
     const [composeGuestSearch, setComposeGuestSearch] = useState("");
-    const [composeSelectedGuest, setComposeSelectedGuest] = useState<{ id: string; name: string; email?: string; phone?: string } | null>(null);
+    const [composeSelectedGuest, setComposeSelectedGuest] = useState<{ id: string; name: string; email?: string; phone?: string; reservations?: { id: string; siteName: string; arrivalDate: string; status: string }[] } | null>(null);
+    const [composeSelectedReservation, setComposeSelectedReservation] = useState<{ id: string; siteName: string; arrivalDate: string } | null>(null);
     const [composeSubject, setComposeSubject] = useState("");
     const [composeBody, setComposeBody] = useState("");
     const [composeSending, setComposeSending] = useState(false);
@@ -449,7 +450,57 @@ export default function MessagesPage() {
     const handleComposeSubmit = async () => {
         if (!composeSelectedGuest || !composeBody.trim() || !campground?.id) return;
 
-        // Validate recipient address
+        // For in-app messages, require a reservation
+        if (composeType === "message") {
+            if (!composeSelectedReservation) {
+                toast({
+                    title: "Reservation required",
+                    description: "Please select a reservation to send the message to.",
+                    variant: "destructive"
+                });
+                return;
+            }
+
+            setComposeSending(true);
+            try {
+                await apiClient.sendReservationMessage(
+                    composeSelectedReservation.id,
+                    composeBody.trim(),
+                    "staff",
+                    composeSelectedGuest.id
+                );
+
+                toast({
+                    title: "Message sent",
+                    description: `Your message was sent to ${composeSelectedGuest.name}'s portal inbox.`,
+                    variant: "default"
+                });
+
+                // Reset form and close dialog
+                setIsComposeOpen(false);
+                setComposeSelectedGuest(null);
+                setComposeSelectedReservation(null);
+                setComposeGuestSearch("");
+                setComposeSubject("");
+                setComposeBody("");
+                setComposeType("message");
+
+                // Refresh conversations
+                queryClient.invalidateQueries({ queryKey: ["conversations"] });
+            } catch (err) {
+                console.error("Failed to send message:", err);
+                toast({
+                    title: "Failed to send message",
+                    description: "Please try again.",
+                    variant: "destructive"
+                });
+            } finally {
+                setComposeSending(false);
+            }
+            return;
+        }
+
+        // Validate recipient address for email/SMS
         const toAddress = composeType === "email" ? composeSelectedGuest.email : composeSelectedGuest.phone;
         if (!toAddress) {
             toast({
@@ -491,10 +542,11 @@ export default function MessagesPage() {
             // Reset form and close dialog
             setIsComposeOpen(false);
             setComposeSelectedGuest(null);
+            setComposeSelectedReservation(null);
             setComposeGuestSearch("");
             setComposeSubject("");
             setComposeBody("");
-            setComposeType("email");
+            setComposeType("message");
 
             // Refresh conversations
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
@@ -1902,6 +1954,16 @@ export default function MessagesPage() {
                             <div className="flex gap-2">
                                 <Button
                                     type="button"
+                                    variant={composeType === "message" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setComposeType("message")}
+                                    className="flex items-center gap-2"
+                                >
+                                    <MessageSquare className="h-4 w-4" />
+                                    Message
+                                </Button>
+                                <Button
+                                    type="button"
                                     variant={composeType === "email" ? "default" : "outline"}
                                     size="sm"
                                     onClick={() => setComposeType("email")}
@@ -1921,6 +1983,11 @@ export default function MessagesPage() {
                                     SMS
                                 </Button>
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                                {composeType === "message" && "Sends to the guest's portal inbox (requires a reservation)"}
+                                {composeType === "email" && "Sends an email to the guest's email address"}
+                                {composeType === "sms" && "Sends a text message to the guest's phone"}
+                            </p>
                         </div>
 
                         {/* Guest Search/Selection */}
@@ -1935,7 +2002,9 @@ export default function MessagesPage() {
                                         <div>
                                             <p className="font-medium text-sm">{composeSelectedGuest.name}</p>
                                             <p className="text-xs text-muted-foreground">
-                                                {composeType === "email"
+                                                {composeType === "message"
+                                                    ? `${composeSelectedGuest.reservations?.length || 0} reservation(s)`
+                                                    : composeType === "email"
                                                     ? (composeSelectedGuest.email || "No email")
                                                     : (composeSelectedGuest.phone || "No phone")}
                                             </p>
@@ -1948,6 +2017,7 @@ export default function MessagesPage() {
                                         className="h-8 w-8"
                                         onClick={() => {
                                             setComposeSelectedGuest(null);
+                                            setComposeSelectedReservation(null);
                                             setComposeGuestSearch("");
                                         }}
                                     >
@@ -1971,12 +2041,28 @@ export default function MessagesPage() {
                                                     type="button"
                                                     className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-3 transition-colors"
                                                     onClick={() => {
+                                                        // Get reservations from conversations for this guest
+                                                        const guestReservations = conversations
+                                                            .filter(c => c.guestId === guest.id)
+                                                            .map(c => ({
+                                                                id: c.reservationId,
+                                                                siteName: c.siteName,
+                                                                arrivalDate: c.arrivalDate || "",
+                                                                status: c.status
+                                                            }));
                                                         setComposeSelectedGuest({
                                                             id: guest.id,
                                                             name: `${guest.primaryFirstName || ""} ${guest.primaryLastName || ""}`.trim() || "Unknown Guest",
                                                             email: guest.email || undefined,
-                                                            phone: guest.phone || undefined
+                                                            phone: guest.phone || undefined,
+                                                            reservations: guestReservations.length > 0 ? guestReservations : guest.reservations?.map((r: any) => ({
+                                                                id: r.id,
+                                                                siteName: r.site?.siteNumber || "Unknown Site",
+                                                                arrivalDate: r.arrivalDate,
+                                                                status: r.status || "confirmed"
+                                                            })) || []
                                                         });
+                                                        setComposeSelectedReservation(null);
                                                         setComposeGuestSearch("");
                                                     }}
                                                 >
@@ -2003,6 +2089,47 @@ export default function MessagesPage() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Reservation Selection (for in-app messages) */}
+                        {composeType === "message" && composeSelectedGuest && (
+                            <div className="space-y-2">
+                                <Label>Reservation</Label>
+                                {composeSelectedGuest.reservations && composeSelectedGuest.reservations.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {composeSelectedGuest.reservations.map((res) => (
+                                            <button
+                                                key={res.id}
+                                                type="button"
+                                                onClick={() => setComposeSelectedReservation(res)}
+                                                className={cn(
+                                                    "w-full text-left p-3 rounded-lg border transition-colors flex items-center gap-3",
+                                                    composeSelectedReservation?.id === res.id
+                                                        ? "border-primary bg-primary/5"
+                                                        : "hover:bg-muted"
+                                                )}
+                                            >
+                                                <Tent className="h-4 w-4 text-muted-foreground" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-sm">{res.siteName}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {res.arrivalDate ? format(new Date(res.arrivalDate), "MMM d, yyyy") : "No date"} • {res.status}
+                                                    </p>
+                                                </div>
+                                                {composeSelectedReservation?.id === res.id && (
+                                                    <CheckCheck className="h-4 w-4 text-primary" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-4 rounded-lg border border-dashed bg-muted/30 text-center">
+                                        <p className="text-sm text-muted-foreground">
+                                            This guest has no reservations. Use Email or SMS instead.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Subject (email only) */}
                         {composeType === "email" && (
@@ -2046,7 +2173,13 @@ export default function MessagesPage() {
                         </Button>
                         <Button
                             onClick={handleComposeSubmit}
-                            disabled={composeSending || !composeSelectedGuest || !composeBody.trim() || (composeType === "email" && !composeSubject.trim())}
+                            disabled={
+                                composeSending ||
+                                !composeSelectedGuest ||
+                                !composeBody.trim() ||
+                                (composeType === "email" && !composeSubject.trim()) ||
+                                (composeType === "message" && !composeSelectedReservation)
+                            }
                             className="flex items-center gap-2"
                         >
                             {composeSending ? (
