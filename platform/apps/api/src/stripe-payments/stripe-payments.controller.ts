@@ -11,9 +11,8 @@ import {
     Req,
     UseGuards,
 } from "@nestjs/common";
-import { JwtAuthGuard, RolesGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
 import { ScopeGuard } from "../permissions/scope.guard";
-import { Roles } from "../auth/roles.decorator";
 import { RequireScope } from "../permissions/require-scope.decorator";
 import { UserRole } from "@prisma/client";
 
