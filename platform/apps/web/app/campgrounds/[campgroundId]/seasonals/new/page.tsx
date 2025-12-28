@@ -121,23 +121,44 @@ export default function NewSeasonalGuestPage() {
   const currentYear = new Date().getFullYear();
   const [firstSeasonYear, setFirstSeasonYear] = useState(currentYear);
 
-  // Fetch guests - search globally, not just this campground
-  const { data: guests = [], isLoading: loadingGuests } = useQuery<Guest[]>({
-    queryKey: ["guests-search", guestSearch],
+  // Create new guest state
+  const [showCreateGuest, setShowCreateGuest] = useState(false);
+  const [newGuestFirstName, setNewGuestFirstName] = useState("");
+  const [newGuestLastName, setNewGuestLastName] = useState("");
+  const [newGuestEmail, setNewGuestEmail] = useState("");
+  const [newGuestPhone, setNewGuestPhone] = useState("");
+
+  // Fetch guests with backend search
+  const { data: guests = [], isLoading: loadingGuests, refetch: refetchGuests } = useQuery<Guest[]>({
+    queryKey: ["guests-search", campgroundId, guestSearch],
     queryFn: async () => {
-      // Fetch guests without campground filter to find all guests
-      const data = await apiClient.getGuests();
-      if (guestSearch && guestSearch.length >= 2) {
-        const search = guestSearch.toLowerCase();
-        return data.filter((g: Guest) =>
-          g.primaryFirstName?.toLowerCase().includes(search) ||
-          g.primaryLastName?.toLowerCase().includes(search) ||
-          g.email?.toLowerCase().includes(search)
-        );
-      }
-      return data.slice(0, 50); // Limit to first 50 if no search
+      return apiClient.getGuests(campgroundId, {
+        search: guestSearch.length >= 2 ? guestSearch : undefined,
+        limit: 50
+      });
     },
     enabled: guestSearch.length >= 2 || guestSearch.length === 0,
+  });
+
+  // Create guest mutation
+  const createGuestMutation = useMutation({
+    mutationFn: async () => {
+      return apiClient.createGuest({
+        primaryFirstName: newGuestFirstName,
+        primaryLastName: newGuestLastName,
+        email: newGuestEmail,
+        phone: newGuestPhone,
+      });
+    },
+    onSuccess: (newGuest) => {
+      setSelectedGuestId(newGuest.id);
+      setShowCreateGuest(false);
+      setNewGuestFirstName("");
+      setNewGuestLastName("");
+      setNewGuestEmail("");
+      setNewGuestPhone("");
+      refetchGuests();
+    },
   });
 
   // Fetch sites and filter to seasonal/flexible only

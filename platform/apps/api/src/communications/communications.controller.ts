@@ -94,6 +94,19 @@ export class CommunicationsController {
     return digits;
   }
 
+  /**
+   * Generate a consistent conversation ID for SMS threading
+   * This creates the same ID regardless of who sent the message
+   */
+  private generateSmsConversationId(phone1: string, phone2: string, campgroundId: string): string {
+    const norm1 = this.normalizePhone(phone1);
+    const norm2 = this.normalizePhone(phone2);
+    // Sort to ensure same ID regardless of direction
+    const sorted = [norm1, norm2].sort().join("-");
+    // Include campgroundId to scope conversations per campground
+    return `sms:${campgroundId}:${sorted}`;
+  }
+
   private normalizeEmail(email?: string) {
     return email?.trim().toLowerCase() || "";
   }
@@ -404,12 +417,15 @@ export class CommunicationsController {
         throw new BadRequestException("Quiet hours in effect; try again later or override");
       }
       const normalizedPhone = this.normalizePhone(toPhone);
+      const campgroundFromPhone = process.env.TWILIO_FROM_NUMBER || body.fromAddress || "";
+      const conversationId = this.generateSmsConversationId(normalizedPhone, campgroundFromPhone, body.campgroundId);
       const comm = await prisma.communication.create({
         data: {
           campgroundId: body.campgroundId,
           organizationId: body.organizationId ?? null,
           guestId: body.guestId ?? null,
           reservationId: body.reservationId ?? null,
+          conversationId,
           type: "sms",
           direction: "outbound",
           subject: null,
@@ -419,7 +435,7 @@ export class CommunicationsController {
           provider: "twilio",
           providerMessageId: null,
           toAddress: normalizedPhone,
-          fromAddress: body.fromAddress ?? null,
+          fromAddress: campgroundFromPhone || null,
           metadata: {
             consentSource: consentMeta.consentSource,
             consentCheckedAt: consentMeta.consentCheckedAt,
@@ -546,13 +562,16 @@ export class CommunicationsController {
     }
 
     const { guestId, reservationId, campgroundId } = await this.resolveGuestAndReservationByPhone(from);
+    const resolvedCampgroundId = body.campgroundId || campgroundId || "";
+    const conversationId = resolvedCampgroundId ? this.generateSmsConversationId(from, to, resolvedCampgroundId) : null;
 
     const communication = await (this.prisma as any).communication.create({
       data: {
-        campgroundId: body.campgroundId || campgroundId || "",
+        campgroundId: resolvedCampgroundId,
         organizationId: null,
         guestId,
         reservationId,
+        conversationId,
         type: "sms",
         direction: "inbound",
         subject: null,
@@ -1171,6 +1190,227 @@ export class CommunicationsController {
         routingAssigneeId: body.routingAssigneeId !== undefined ? body.routingAssigneeId : existing.routingAssigneeId
       }
     });
+  }
+
+  // ===========================================================================
+  // SMS CONVERSATIONS (Threading)
+  // ===========================================================================
+
+  /**
+   * List SMS conversations (grouped by conversationId)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "communications", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance, UserRole.marketing, UserRole.readonly)
+  @Get("communications/sms/conversations")
+  async listSmsConversations(@Query("campgroundId") campgroundId?: string) {
+    if (!campgroundId) throw new BadRequestException("campgroundId is required");
+
+    // Get the latest message per conversationId, plus metadata
+    const conversations = await (this.prisma as any).$queryRaw`
+      WITH latest_messages AS (
+        SELECT
+          "conversationId",
+          MAX("createdAt") as "lastMessageAt",
+          COUNT(*) as "messageCount",
+          SUM(CASE WHEN direction = 'inbound' AND status = 'received' THEN 1 ELSE 0 END) as "unreadCount"
+        FROM "Communication"
+        WHERE "campgroundId" = ${campgroundId}
+          AND type = 'sms'
+          AND "conversationId" IS NOT NULL
+        GROUP BY "conversationId"
+      )
+      SELECT
+        c."conversationId",
+        c.id as "lastMessageId",
+        c.body as "lastMessagePreview",
+        c.direction as "lastMessageDirection",
+        c."toAddress",
+        c."fromAddress",
+        c."guestId",
+        c."createdAt" as "lastMessageAt",
+        lm."messageCount",
+        lm."unreadCount",
+        g."primaryFirstName" as "guestFirstName",
+        g."primaryLastName" as "guestLastName",
+        g.phone as "guestPhone"
+      FROM "Communication" c
+      INNER JOIN latest_messages lm ON c."conversationId" = lm."conversationId" AND c."createdAt" = lm."lastMessageAt"
+      LEFT JOIN "Guest" g ON c."guestId" = g.id
+      WHERE c."campgroundId" = ${campgroundId}
+        AND c.type = 'sms'
+      ORDER BY c."createdAt" DESC
+    `;
+
+    return conversations.map((conv: any) => ({
+      conversationId: conv.conversationId,
+      lastMessageId: conv.lastMessageId,
+      lastMessagePreview: conv.lastMessagePreview?.slice(0, 100) || "",
+      lastMessageDirection: conv.lastMessageDirection,
+      lastMessageAt: conv.lastMessageAt,
+      messageCount: Number(conv.messageCount),
+      unreadCount: Number(conv.unreadCount),
+      guestId: conv.guestId,
+      guestName: conv.guestFirstName || conv.guestLastName
+        ? `${conv.guestFirstName || ""} ${conv.guestLastName || ""}`.trim()
+        : null,
+      phoneNumber: conv.lastMessageDirection === "inbound" ? conv.fromAddress : conv.toAddress
+    }));
+  }
+
+  /**
+   * Get messages in an SMS conversation
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "communications", action: "read" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance, UserRole.marketing, UserRole.readonly)
+  @Get("communications/sms/conversations/:conversationId")
+  async getSmsConversation(
+    @Param("conversationId") conversationId: string,
+    @Query("campgroundId") campgroundId?: string,
+    @Query("limit") limit?: string
+  ) {
+    if (!campgroundId) throw new BadRequestException("campgroundId is required");
+    const take = Math.min(Number(limit) || 50, 200);
+
+    const messages = await (this.prisma as any).communication.findMany({
+      where: {
+        campgroundId,
+        conversationId,
+        type: "sms"
+      },
+      orderBy: { createdAt: "asc" },
+      take,
+      include: {
+        guest: {
+          select: {
+            id: true,
+            primaryFirstName: true,
+            primaryLastName: true,
+            phone: true
+          }
+        }
+      }
+    });
+
+    return { messages, conversationId };
+  }
+
+  /**
+   * Send a reply in an SMS conversation
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "communications", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.marketing)
+  @Post("communications/sms/conversations/:conversationId/reply")
+  async replySmsConversation(
+    @Param("conversationId") conversationId: string,
+    @Body() body: { campgroundId: string; message: string; toPhone?: string }
+  ) {
+    if (!body.campgroundId || !body.message) {
+      throw new BadRequestException("campgroundId and message are required");
+    }
+
+    // Get the conversation to find the phone number to reply to
+    const lastMessage = await (this.prisma as any).communication.findFirst({
+      where: {
+        campgroundId: body.campgroundId,
+        conversationId,
+        type: "sms"
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    if (!lastMessage) {
+      throw new BadRequestException("Conversation not found");
+    }
+
+    // Determine the recipient (the other party in the conversation)
+    const toPhone = body.toPhone || (lastMessage.direction === "inbound" ? lastMessage.fromAddress : lastMessage.toAddress);
+    if (!toPhone) {
+      throw new BadRequestException("Could not determine recipient phone number");
+    }
+
+    const normalizedPhone = this.normalizePhone(toPhone);
+    const campgroundFromPhone = process.env.TWILIO_FROM_NUMBER || "";
+
+    const comm = await (this.prisma as any).communication.create({
+      data: {
+        campgroundId: body.campgroundId,
+        organizationId: null,
+        guestId: lastMessage.guestId,
+        reservationId: lastMessage.reservationId,
+        conversationId,
+        type: "sms",
+        direction: "outbound",
+        subject: null,
+        body: body.message,
+        preview: body.message.slice(0, 280),
+        status: "queued",
+        provider: "twilio",
+        providerMessageId: null,
+        toAddress: normalizedPhone,
+        fromAddress: campgroundFromPhone
+      }
+    });
+
+    try {
+      const result = await this.smsService.sendSms({ to: normalizedPhone, body: body.message });
+      const updated = await (this.prisma as any).communication.update({
+        where: { id: comm.id },
+        data: {
+          status: result.success ? "sent" : "failed",
+          provider: result.provider,
+          providerMessageId: result.providerMessageId ?? null,
+          sentAt: new Date()
+        }
+      });
+
+      if (result.success) {
+        this.recordComms("sent", { campgroundId: body.campgroundId, provider: result.provider });
+      } else {
+        this.recordComms("failed", { campgroundId: body.campgroundId, provider: result.provider });
+      }
+
+      return updated;
+    } catch (err) {
+      await (this.prisma as any).communication.update({
+        where: { id: comm.id },
+        data: { status: "failed", metadata: { error: (err as any)?.message } }
+      });
+      this.recordComms("failed", { campgroundId: body.campgroundId, error: (err as any)?.message });
+      throw new InternalServerErrorException("Failed to send SMS reply");
+    }
+  }
+
+  /**
+   * Mark SMS conversation messages as read
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+  @RequireScope({ resource: "communications", action: "write" })
+  @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.marketing)
+  @Patch("communications/sms/conversations/:conversationId/read")
+  async markSmsConversationRead(
+    @Param("conversationId") conversationId: string,
+    @Query("campgroundId") campgroundId?: string
+  ) {
+    if (!campgroundId) throw new BadRequestException("campgroundId is required");
+
+    // Mark inbound messages as "delivered" (read)
+    const result = await (this.prisma as any).communication.updateMany({
+      where: {
+        campgroundId,
+        conversationId,
+        type: "sms",
+        direction: "inbound",
+        status: "received"
+      },
+      data: {
+        status: "delivered"
+      }
+    });
+
+    return { updated: result.count };
   }
 }
 

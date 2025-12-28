@@ -143,6 +143,11 @@ export default function MessagesPage() {
     const [newChannelName, setNewChannelName] = useState("");
     const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
 
+    // SMS Conversations State
+    const [selectedSmsConversationId, setSelectedSmsConversationId] = useState<string | null>(null);
+    const [newSmsMessage, setNewSmsMessage] = useState("");
+    const [sendingSms, setSendingSms] = useState(false);
+
     const queryClient = useQueryClient();
 
     // Get campground
@@ -357,6 +362,69 @@ export default function MessagesPage() {
         enabled: !!selectedInternalConversationId,
         refetchInterval: 5000
     });
+
+    // SMS Conversations
+    const { data: smsConversations = [], isLoading: loadingSmsConversations } = useQuery({
+        queryKey: ["sms-conversations", campground?.id],
+        queryFn: () => apiClient.getSmsConversations(campground!.id),
+        enabled: !!campground?.id,
+        staleTime: 4000,
+        refetchInterval: 5000,
+        refetchIntervalInBackground: false
+    });
+
+    const smsUnreadCount = smsConversations.reduce((acc, c) => acc + c.unreadCount, 0);
+
+    const { data: selectedSmsMessages } = useQuery({
+        queryKey: ["sms-messages", selectedSmsConversationId, campground?.id],
+        queryFn: () => apiClient.getSmsConversation(selectedSmsConversationId!, campground!.id),
+        enabled: !!selectedSmsConversationId && !!campground?.id,
+        refetchInterval: 5000
+    });
+
+    const selectedSmsConversation = smsConversations.find(c => c.conversationId === selectedSmsConversationId);
+
+    const handleSelectSmsConversation = async (conv: typeof smsConversations[0]) => {
+        setSelectedSmsConversationId(conv.conversationId);
+        if (conv.unreadCount > 0) {
+            try {
+                await apiClient.markSmsConversationRead(conv.conversationId, campground!.id);
+                queryClient.setQueryData(["sms-conversations", campground?.id], (old: typeof smsConversations) => {
+                    if (!old) return old;
+                    return old.map(c =>
+                        c.conversationId === conv.conversationId
+                            ? { ...c, unreadCount: 0 }
+                            : c
+                    );
+                });
+            } catch { }
+        }
+    };
+
+    const handleSendSmsReply = async () => {
+        if (!selectedSmsConversationId || !newSmsMessage.trim() || !campground?.id) return;
+        setSendingSms(true);
+        try {
+            await apiClient.replySmsConversation(selectedSmsConversationId, campground.id, newSmsMessage.trim());
+            setNewSmsMessage("");
+            queryClient.invalidateQueries({ queryKey: ["sms-messages", selectedSmsConversationId] });
+            queryClient.invalidateQueries({ queryKey: ["sms-conversations"] });
+            toast({
+                title: "SMS sent",
+                description: "Your message was delivered.",
+                variant: "default"
+            });
+        } catch (err) {
+            console.error("Failed to send SMS:", err);
+            toast({
+                title: "Failed to send SMS",
+                description: "Please try again.",
+                variant: "destructive"
+            });
+        } finally {
+            setSendingSms(false);
+        }
+    };
 
     const createConversationMutation = useMutation({
         mutationFn: (payload: { name?: string; type: "channel" | "dm"; participantIds: string[] }) =>
@@ -791,13 +859,22 @@ export default function MessagesPage() {
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
                         <div className="px-4 pb-2">
-                            <TabsList className="grid w-full grid-cols-2">
+                            <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="guests" className="flex items-center gap-2">
                                     <User className="h-4 w-4" />
                                     <span>Guests</span>
                                     {overdueCount > 0 && (
-                                        <Badge variant="destructive" className="ml-auto">
-                                            {overdueCount} need reply
+                                        <Badge variant="destructive" className="ml-auto text-[10px] px-1.5">
+                                            {overdueCount}
+                                        </Badge>
+                                    )}
+                                </TabsTrigger>
+                                <TabsTrigger value="sms" className="flex items-center gap-2">
+                                    <Phone className="h-4 w-4" />
+                                    <span>SMS</span>
+                                    {smsUnreadCount > 0 && (
+                                        <Badge variant="destructive" className="ml-auto text-[10px] px-1.5">
+                                            {smsUnreadCount}
                                         </Badge>
                                     )}
                                 </TabsTrigger>
@@ -1005,6 +1082,88 @@ export default function MessagesPage() {
                             )}
                         </div>
 
+                        {/* SMS Conversations Tab */}
+                        <div className="overflow-y-auto px-4" style={{ display: activeTab === "sms" ? "block" : "none", flex: activeTab === "sms" ? 1 : "none" }}>
+                            {loadingSmsConversations ? (
+                                <div className="flex justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : smsConversations.length === 0 ? (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="flex flex-col items-center gap-3 text-center py-8 px-4 border border-dashed rounded-lg bg-muted/30"
+                                >
+                                    <Phone className="h-10 w-10 text-muted-foreground/50" />
+                                    <div>
+                                        <p className="font-medium text-foreground">No SMS conversations</p>
+                                        <p className="text-sm text-muted-foreground mt-1">SMS conversations will appear here when guests text your number</p>
+                                    </div>
+                                </motion.div>
+                            ) : (
+                                <div className="space-y-2 pb-4">
+                                    <AnimatePresence mode="popLayout">
+                                        {smsConversations.map((conv, index) => (
+                                            <motion.button
+                                                key={conv.conversationId}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                transition={{ delay: index * 0.02, duration: 0.2 }}
+                                                layout
+                                                onClick={() => handleSelectSmsConversation(conv)}
+                                                className={cn(
+                                                    "w-full text-left p-3 rounded-lg transition-all duration-200 relative group",
+                                                    selectedSmsConversationId === conv.conversationId
+                                                        ? "bg-primary/10 border border-primary/20 shadow-sm"
+                                                        : conv.unreadCount > 0
+                                                        ? "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800"
+                                                        : "hover:bg-muted border border-transparent hover:border-border"
+                                                )}
+                                            >
+                                                {conv.unreadCount > 0 && (
+                                                    <motion.div
+                                                        layoutId={`unread-sms-${conv.conversationId}`}
+                                                        className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 rounded-l-lg"
+                                                    />
+                                                )}
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="font-medium truncate flex items-center gap-2 text-foreground">
+                                                        {conv.guestName || conv.phoneNumber || "Unknown"}
+                                                    </div>
+                                                    {conv.unreadCount > 0 && (
+                                                        <motion.div
+                                                            initial={{ scale: 0 }}
+                                                            animate={{ scale: 1 }}
+                                                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                                        >
+                                                            <Badge variant="destructive" className="ml-2 flex-shrink-0">
+                                                                {conv.unreadCount}
+                                                            </Badge>
+                                                        </motion.div>
+                                                    )}
+                                                </div>
+                                                <div className="text-sm text-muted-foreground truncate">
+                                                    {conv.phoneNumber}
+                                                </div>
+                                                {conv.lastMessagePreview && (
+                                                    <div className="text-sm text-muted-foreground truncate mt-1">
+                                                        {conv.lastMessageDirection === "outbound" && <span className="font-medium">You: </span>}
+                                                        {conv.lastMessagePreview}
+                                                    </div>
+                                                )}
+                                                {conv.lastMessageAt && (
+                                                    <div className="text-xs text-muted-foreground mt-1">
+                                                        {formatDistanceToNow(new Date(conv.lastMessageAt), { addSuffix: true })}
+                                                    </div>
+                                                )}
+                                            </motion.button>
+                                        ))}
+                                    </AnimatePresence>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="overflow-y-auto px-4" style={{ display: activeTab === "team" ? "block" : "none", flex: activeTab === "team" ? 1 : "none" }}>
                             <div className="space-y-4 pb-4">
                                 {/* Quick link to guest failed filter */}
@@ -1167,7 +1326,93 @@ export default function MessagesPage() {
 
                 {/* Main Content - Conversation View */}
                 <Card className="flex-1 flex flex-col min-h-[320px]">
-                    {activeTab === "team" ? (
+                    {activeTab === "sms" ? (
+                        selectedSmsConversation && selectedSmsMessages ? (
+                            <>
+                                <CardHeader className="border-b">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <CardTitle className="flex items-center gap-2">
+                                                <Phone className="h-5 w-5" />
+                                                {selectedSmsConversation.guestName || selectedSmsConversation.phoneNumber || "Unknown"}
+                                            </CardTitle>
+                                            <CardDescription>{selectedSmsConversation.phoneNumber} • {selectedSmsConversation.messageCount} messages</CardDescription>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+
+                                <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+                                    <div className="space-y-4">
+                                        {selectedSmsMessages.messages.length === 0 ? (
+                                            <div className="flex flex-col items-center gap-2 text-muted-foreground py-4 border border-dashed rounded-md bg-muted/30">
+                                                <MessageSquare className="h-8 w-8 opacity-50" />
+                                                <p>No messages yet</p>
+                                            </div>
+                                        ) : (
+                                            <AnimatePresence mode="popLayout">
+                                                {selectedSmsMessages.messages.map((msg, index) => {
+                                                    const isOutbound = msg.direction === "outbound";
+                                                    return (
+                                                        <motion.div
+                                                            key={msg.id}
+                                                            initial={{ opacity: 0, y: 10 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            transition={{ delay: index * 0.02, duration: 0.2 }}
+                                                            className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
+                                                        >
+                                                            <div
+                                                                className={`max-w-[85%] sm:max-w-[65%] rounded-lg p-3 ${isOutbound
+                                                                    ? "bg-primary text-primary-foreground"
+                                                                    : "bg-muted"
+                                                                }`}
+                                                            >
+                                                                <div className="text-sm whitespace-pre-wrap">{msg.body}</div>
+                                                                <div
+                                                                    className={`flex items-center gap-1 mt-1 text-xs ${isOutbound ? "text-primary-foreground/70" : "text-muted-foreground"}`}
+                                                                >
+                                                                    <Clock className="h-3 w-3" />
+                                                                    {format(new Date(msg.createdAt), "h:mm a")}
+                                                                    {isOutbound && msg.status === "sent" && (
+                                                                        <CheckCheck className="h-3 w-3 ml-1 text-emerald-400" />
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </motion.div>
+                                                    );
+                                                })}
+                                            </AnimatePresence>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="p-4 border-t">
+                                    <div className="flex gap-2">
+                                        <Input
+                                            placeholder="Type an SMS..."
+                                            value={newSmsMessage}
+                                            onChange={(e) => setNewSmsMessage(e.target.value)}
+                                            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendSmsReply()}
+                                            className="transition-all focus:ring-2 focus:ring-primary/20"
+                                        />
+                                        <Button
+                                            onClick={handleSendSmsReply}
+                                            disabled={sendingSms || !newSmsMessage.trim()}
+                                        >
+                                            {sendingSms ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                                <div className="text-center">
+                                    <Phone className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                    <p className="text-lg font-medium">Select an SMS conversation</p>
+                                    <p className="text-sm">Choose a conversation to view messages</p>
+                                </div>
+                            </div>
+                        )
+                    ) : activeTab === "team" ? (
                         selectedInternalConversation ? (
                             <>
                                 <CardHeader className="border-b">

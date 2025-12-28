@@ -3991,6 +3991,7 @@ model Communication {
   organizationId    String?
   guestId           String?
   reservationId     String?
+  conversationId    String?   // For SMS threading: hash of normalized phone pairs
   type              String // email | sms | note | call
   direction         String // inbound | outbound
   subject           String?
@@ -4015,6 +4016,7 @@ model Communication {
   @@index([guestId, createdAt])
   @@index([reservationId, createdAt])
   @@index([type, direction])
+  @@index([campgroundId, conversationId, createdAt])
 }
 
 model CommunicationTemplate {

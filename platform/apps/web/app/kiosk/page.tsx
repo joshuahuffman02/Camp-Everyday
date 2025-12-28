@@ -176,6 +176,7 @@ export default function KioskPage() {
 
     // Walk-in form
     const [nights, setNights] = useState(1);
+    const [searchingNights, setSearchingNights] = useState<number | null>(null);
     const [showCustomNights, setShowCustomNights] = useState(false);
     const [availableSites, setAvailableSites] = useState<Site[]>([]);
     const [selectedSite, setSelectedSite] = useState<Site | null>(null);
@@ -386,6 +387,7 @@ export default function KioskPage() {
         setFirewoodQty(0);
         setIceQty(0);
         setNights(1);
+        setSearchingNights(null);
         setShowCustomNights(false);
         setAvailableSites([]);
         setSelectedSite(null);
@@ -605,6 +607,7 @@ export default function KioskPage() {
     // Walk-in: Search Sites
     const handleSearchSites = async (selectedNights: number) => {
         setNights(selectedNights);
+        setSearchingNights(selectedNights);
         setLoading(true);
         setError(null);
         handleActivity();
@@ -616,6 +619,7 @@ export default function KioskPage() {
             if (!campground?.slug) {
                 setError("Kiosk not configured. Please restart or contact staff.");
                 setLoading(false);
+                setSearchingNights(null);
                 return;
             }
             const sites = await apiClient.getPublicAvailability(campground.slug, {
@@ -631,6 +635,7 @@ export default function KioskPage() {
             setError("Couldn't load available sites. Please try again.");
         } finally {
             setLoading(false);
+            setSearchingNights(null);
         }
     };
 
@@ -1071,19 +1076,30 @@ export default function KioskPage() {
                                             <motion.div key={n} variants={fadeInUp}>
                                                 <Button
                                                     variant="outline"
-                                                    className="w-full h-32 md:h-40 flex flex-col gap-2 md:gap-4 text-xl active:scale-[0.98] active:border-green-500 active:bg-green-50 transition-all"
+                                                    className="w-full h-32 md:h-40 flex flex-col gap-2 md:gap-4 text-xl active:scale-[0.98] active:border-green-500 active:bg-green-50 transition-all disabled:opacity-50"
                                                     onClick={() => handleSearchSites(n)}
+                                                    disabled={loading}
                                                 >
-                                                    <span className="text-5xl md:text-6xl font-bold text-green-600">{n}</span>
-                                                    Night{n > 1 ? "s" : ""}
+                                                    {searchingNights === n ? (
+                                                        <>
+                                                            <Loader2 className="w-10 h-10 md:w-12 md:h-12 animate-spin text-green-600" />
+                                                            <span className="text-base">Searching...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span className="text-5xl md:text-6xl font-bold text-green-600">{n}</span>
+                                                            Night{n > 1 ? "s" : ""}
+                                                        </>
+                                                    )}
                                                 </Button>
                                             </motion.div>
                                         ))}
                                         <motion.div variants={fadeInUp}>
                                             <Button
                                                 variant="outline"
-                                                className="w-full h-32 md:h-40 flex flex-col gap-2 md:gap-4 text-xl active:scale-[0.98] active:border-blue-500 active:bg-blue-50 transition-all"
+                                                className="w-full h-32 md:h-40 flex flex-col gap-2 md:gap-4 text-xl active:scale-[0.98] active:border-blue-500 active:bg-blue-50 transition-all disabled:opacity-50"
                                                 onClick={() => { setShowCustomNights(true); setNights(4); }}
+                                                disabled={loading}
                                             >
                                                 <Grid3X3 className="w-10 h-10 md:w-12 md:h-12 text-blue-600" />
                                                 More nights

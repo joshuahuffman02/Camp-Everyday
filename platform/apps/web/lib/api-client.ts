@@ -2929,7 +2929,7 @@ export const apiClient = {
     if (!res.ok) throw new Error("Failed to delete site class");
     return true;
   },
-  async getGuests(campgroundId?: string) {
+  async getGuests(campgroundId?: string, options?: { search?: string; limit?: number }) {
     let resolvedCampgroundId = campgroundId;
     if (!resolvedCampgroundId && typeof window !== "undefined") {
       try {
@@ -2938,7 +2938,11 @@ export const apiClient = {
         resolvedCampgroundId = undefined;
       }
     }
-    const query = resolvedCampgroundId ? `?campgroundId=${resolvedCampgroundId}` : "";
+    const params = new URLSearchParams();
+    if (resolvedCampgroundId) params.set("campgroundId", resolvedCampgroundId);
+    if (options?.search) params.set("search", options.search);
+    if (options?.limit) params.set("limit", String(options.limit));
+    const query = params.toString() ? `?${params.toString()}` : "";
     const data = await fetchJSON<unknown>(`/guests${query}`);
     return GuestArray.parse(data);
   },
@@ -10760,6 +10764,64 @@ export const apiClient = {
     });
     if (!res.ok) throw new Error("Failed to delete payment method");
     return true;
+  },
+
+  // =========================================================================
+  // SMS Conversations (Threading)
+  // =========================================================================
+  async getSmsConversations(campgroundId: string) {
+    const data = await fetchJSON<unknown>(`/communications/sms/conversations?campgroundId=${campgroundId}`);
+    return z.array(z.object({
+      conversationId: z.string(),
+      lastMessageId: z.string(),
+      lastMessagePreview: z.string(),
+      lastMessageDirection: z.enum(["inbound", "outbound"]),
+      lastMessageAt: z.string(),
+      messageCount: z.number(),
+      unreadCount: z.number(),
+      guestId: z.string().nullable(),
+      guestName: z.string().nullable(),
+      phoneNumber: z.string().nullable()
+    })).parse(data);
+  },
+  async getSmsConversation(conversationId: string, campgroundId: string, limit?: number) {
+    const url = `/communications/sms/conversations/${encodeURIComponent(conversationId)}?campgroundId=${campgroundId}${limit ? `&limit=${limit}` : ""}`;
+    const data = await fetchJSON<unknown>(url);
+    return z.object({
+      conversationId: z.string(),
+      messages: z.array(z.object({
+        id: z.string(),
+        campgroundId: z.string(),
+        guestId: z.string().nullable(),
+        direction: z.string(),
+        body: z.string().nullable(),
+        status: z.string(),
+        toAddress: z.string().nullable(),
+        fromAddress: z.string().nullable(),
+        createdAt: z.string(),
+        guest: z.object({
+          id: z.string(),
+          primaryFirstName: z.string().nullable(),
+          primaryLastName: z.string().nullable(),
+          phone: z.string().nullable()
+        }).nullable()
+      }))
+    }).parse(data);
+  },
+  async replySmsConversation(conversationId: string, campgroundId: string, message: string) {
+    const res = await fetch(`${API_BASE}/communications/sms/conversations/${encodeURIComponent(conversationId)}/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify({ campgroundId, message })
+    });
+    return parseResponse<unknown>(res);
+  },
+  async markSmsConversationRead(conversationId: string, campgroundId: string) {
+    const res = await fetch(`${API_BASE}/communications/sms/conversations/${encodeURIComponent(conversationId)}/read?campgroundId=${campgroundId}`, {
+      method: "PATCH",
+      headers: scopedHeaders()
+    });
+    return parseResponse<{ updated: number }>(res);
   },
 };
 
