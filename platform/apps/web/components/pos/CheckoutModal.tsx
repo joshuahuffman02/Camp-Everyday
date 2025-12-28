@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { CartItem } from "../../app/pos/page";
+import { apiClient } from "../../lib/api-client";
 
 // Extended CartItem type that supports location-aware pricing
 type ExtendedCartItem = CartItem & {
@@ -15,6 +17,21 @@ import { recordTelemetry } from "../../lib/sync-telemetry";
 import { RoundUpInline } from "../checkout/RoundUpForCharity";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
+
+type TerminalReader = {
+    id: string;
+    label: string;
+    status: string;
+    stripeReaderId: string;
+};
+
+type SavedCard = {
+    id: string;
+    last4: string | null;
+    brand: string | null;
+    isDefault: boolean;
+    nickname: string | null;
+};
 
 async function fetchJSON<T = any>(url: string, init?: RequestInit): Promise<T> {
     const res = await fetch(url, init);
@@ -50,7 +67,7 @@ interface CheckoutModalProps {
     walletBalanceCents?: number;
 }
 
-type PaymentMethod = "card" | "cash" | "charge_to_site" | "guest_wallet";
+type PaymentMethod = "card" | "cash" | "charge_to_site" | "guest_wallet" | "terminal" | "saved_card";
 
 export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId, onSuccess, onQueued, isOnline, queueOrder, guestId, guestName, walletBalanceCents = 0 }: CheckoutModalProps) {
     const [method, setMethod] = useState<PaymentMethod>("card");
@@ -61,8 +78,47 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
     const [locationHint, setLocationHint] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [charityDonation, setCharityDonation] = useState<{ optedIn: boolean; amountCents: number; charityId: string | null }>({ optedIn: false, amountCents: 0, charityId: null });
-    const offlineCardWarning = !isOnline && method === "card";
+
+    // Terminal state
+    const [readers, setReaders] = useState<TerminalReader[]>([]);
+    const [selectedReaderId, setSelectedReaderId] = useState<string>("");
+    const [terminalStatus, setTerminalStatus] = useState<string>("");
+
+    // Saved cards state
+    const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+    const [selectedCardId, setSelectedCardId] = useState<string>("");
+
+    const offlineCardWarning = !isOnline && (method === "card" || method === "terminal" || method === "saved_card");
     const hasWallet = !!guestId && walletBalanceCents > 0;
+    const hasSavedCards = savedCards.length > 0;
+    const hasTerminal = readers.some(r => r.status === "online");
+
+    // Fetch terminal readers on mount
+    useEffect(() => {
+        if (!campgroundId || !isOpen) return;
+        apiClient.getTerminalReaders(campgroundId)
+            .then((data) => {
+                setReaders(data);
+                // Auto-select first online reader
+                const onlineReader = data.find(r => r.status === "online");
+                if (onlineReader) setSelectedReaderId(onlineReader.id);
+            })
+            .catch(() => setReaders([]));
+    }, [campgroundId, isOpen]);
+
+    // Fetch saved cards if guest is selected
+    useEffect(() => {
+        if (!campgroundId || !guestId || !isOpen) return;
+        apiClient.getChargeablePaymentMethods(campgroundId, guestId)
+            .then((data) => {
+                setSavedCards(data);
+                // Auto-select default card
+                const defaultCard = data.find(c => c.isDefault);
+                if (defaultCard) setSelectedCardId(defaultCard.id);
+                else if (data.length > 0) setSelectedCardId(data[0].id);
+            })
+            .catch(() => setSavedCards([]));
+    }, [campgroundId, guestId, isOpen]);
 
     const subtotalCents = cart.reduce((sum, item) => sum + (item.effectivePriceCents ?? item.priceCents) * item.qty, 0);
     const totalCents = subtotalCents + (charityDonation.optedIn ? charityDonation.amountCents : 0);
@@ -70,7 +126,109 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
     const handleSubmit = async () => {
         setLoading(true);
         setError(null);
+        setTerminalStatus("");
         try {
+            // Handle terminal payment separately
+            if (method === "terminal") {
+                if (!selectedReaderId) {
+                    throw new Error("Please select a card reader");
+                }
+                setTerminalStatus("Creating payment...");
+
+                // Create terminal payment
+                const terminalPayment = await apiClient.createTerminalPayment(campgroundId, {
+                    readerId: selectedReaderId,
+                    amountCents: totalCents,
+                    guestId: guestId || undefined,
+                    saveCard: !!guestId, // Auto-save card if guest is linked
+                    metadata: { source: "pos", fulfillment },
+                });
+
+                setTerminalStatus("Present card on reader...");
+
+                // Process payment on reader
+                const result = await apiClient.processTerminalPayment(
+                    campgroundId,
+                    selectedReaderId,
+                    terminalPayment.paymentIntentId
+                );
+
+                if (!result.success) {
+                    throw new Error(result.error || "Terminal payment failed");
+                }
+
+                setTerminalStatus("Payment successful!");
+                recordTelemetry({ source: "pos", type: "sync", status: "success", message: "Terminal payment processed", meta: { items: cart.length, paymentMethod: "terminal" } });
+
+                // Create the order with the payment reference
+                const payload = {
+                    items: cart.map(item => ({
+                        productId: item.id,
+                        qty: item.qty,
+                        priceCents: item.effectivePriceCents ?? item.priceCents,
+                    })),
+                    paymentMethod: "card",
+                    channel: "pos",
+                    fulfillmentType: fulfillment,
+                    locationId: locationId || undefined,
+                    paymentId: result.paymentId,
+                    charityDonation: charityDonation.optedIn && charityDonation.charityId ? {
+                        charityId: charityDonation.charityId,
+                        amountCents: charityDonation.amountCents,
+                    } : undefined,
+                    guestId: guestId || undefined,
+                };
+
+                const order = await posApi.createStoreOrder(campgroundId, payload);
+                onSuccess(order);
+                return;
+            }
+
+            // Handle saved card payment
+            if (method === "saved_card") {
+                if (!guestId || !selectedCardId) {
+                    throw new Error("Please select a saved card");
+                }
+
+                const result = await apiClient.chargeSavedCard(campgroundId, {
+                    guestId,
+                    paymentMethodId: selectedCardId,
+                    amountCents: totalCents,
+                    description: `POS Order - ${cart.length} items`,
+                    metadata: { source: "pos", fulfillment },
+                });
+
+                if (!result.success) {
+                    throw new Error("Failed to charge saved card");
+                }
+
+                recordTelemetry({ source: "pos", type: "sync", status: "success", message: "Saved card charged", meta: { items: cart.length, paymentMethod: "saved_card" } });
+
+                // Create the order with the payment reference
+                const payload = {
+                    items: cart.map(item => ({
+                        productId: item.id,
+                        qty: item.qty,
+                        priceCents: item.effectivePriceCents ?? item.priceCents,
+                    })),
+                    paymentMethod: "card",
+                    channel: "pos",
+                    fulfillmentType: fulfillment,
+                    locationId: locationId || undefined,
+                    paymentId: result.paymentId,
+                    charityDonation: charityDonation.optedIn && charityDonation.charityId ? {
+                        charityId: charityDonation.charityId,
+                        amountCents: charityDonation.amountCents,
+                    } : undefined,
+                    guestId,
+                };
+
+                const order = await posApi.createStoreOrder(campgroundId, payload);
+                onSuccess(order);
+                return;
+            }
+
+            // Standard payment flow (card, cash, charge_to_site, guest_wallet)
             const payload: any = {
                 items: cart.map(item => ({
                     productId: item.id,
@@ -94,11 +252,6 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
                 if (!siteSearch) {
                     throw new Error("Please enter a site number or guest name");
                 }
-                // In a real app, we'd probably have a proper search/select UI here.
-                // For now, we'll just pass the search string as siteNumber if it looks like one,
-                // or rely on the backend to figure it out (or mock it).
-                // Based on requirements: "lookup reservation by site # or guest name"
-                // We'll send it as siteNumber for simplicity in this MVP or add a note.
                 payload.siteNumber = siteSearch;
             }
 
@@ -124,6 +277,7 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
         } catch (err: any) {
             console.error(err);
             setError(err.message || "Failed to process order");
+            setTerminalStatus("");
             recordTelemetry({ source: "pos", type: "error", status: "failed", message: "Order failed", meta: { error: err?.message } });
         } finally {
             setLoading(false);
@@ -202,7 +356,53 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
                         />
                     </div>
 
-                    <div className={`grid gap-3 ${hasWallet ? "grid-cols-2" : "grid-cols-3"}`}>
+                    <div className="grid gap-3 grid-cols-3">
+                        {/* Terminal - show first if available */}
+                        {readers.length > 0 && (
+                            <button
+                                onClick={() => setMethod("terminal")}
+                                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${method === "terminal"
+                                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                                        : hasTerminal
+                                            ? "border-slate-200 hover:border-slate-300 text-slate-600"
+                                            : "border-slate-100 text-slate-400 cursor-not-allowed"
+                                    }`}
+                                disabled={!hasTerminal}
+                            >
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                                    <path d="M8 21h8" />
+                                    <path d="M12 17v4" />
+                                    <circle cx="12" cy="10" r="2" />
+                                </svg>
+                                <span className="font-medium text-sm">Terminal</span>
+                                {hasTerminal ? (
+                                    <span className="text-xs text-emerald-600">Ready</span>
+                                ) : (
+                                    <span className="text-xs text-slate-400">Offline</span>
+                                )}
+                            </button>
+                        )}
+
+                        {/* Saved Card - show if guest has cards on file */}
+                        {hasSavedCards && (
+                            <button
+                                onClick={() => setMethod("saved_card")}
+                                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${method === "saved_card"
+                                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                                    }`}
+                            >
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                                    <line x1="2" y1="10" x2="22" y2="10" />
+                                    <path d="m9 15 2 2 4-4" />
+                                </svg>
+                                <span className="font-medium text-sm">Card on File</span>
+                                <span className="text-xs text-slate-500">{savedCards.length} saved</span>
+                            </button>
+                        )}
+
                         <button
                             onClick={() => setMethod("card")}
                             className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${method === "card"
@@ -259,6 +459,59 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
                             </button>
                         )}
                     </div>
+
+                    {/* Terminal reader selection */}
+                    {method === "terminal" && readers.length > 0 && (
+                        <div className="space-y-2">
+                            <Label>Select reader</Label>
+                            <Select value={selectedReaderId} onValueChange={setSelectedReaderId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a card reader" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {readers.map((reader) => (
+                                        <SelectItem
+                                            key={reader.id}
+                                            value={reader.id}
+                                            disabled={reader.status !== "online"}
+                                        >
+                                            {reader.label} {reader.status === "online" ? "(Ready)" : "(Offline)"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {/* Saved card selection */}
+                    {method === "saved_card" && savedCards.length > 0 && (
+                        <div className="space-y-2">
+                            <Label>Select card</Label>
+                            <Select value={selectedCardId} onValueChange={setSelectedCardId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a saved card" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {savedCards.map((card) => (
+                                        <SelectItem key={card.id} value={card.id}>
+                                            {card.brand} ···· {card.last4} {card.nickname && `(${card.nickname})`} {card.isDefault && "★"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {/* Terminal status message */}
+                    {terminalStatus && (
+                        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 flex items-center gap-2">
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10" strokeWidth="2" opacity="0.25" />
+                                <path d="M4 12a8 8 0 018-8" strokeWidth="2" />
+                            </svg>
+                            {terminalStatus}
+                        </div>
+                    )}
 
                     {/* Round up for charity */}
                     <RoundUpInline

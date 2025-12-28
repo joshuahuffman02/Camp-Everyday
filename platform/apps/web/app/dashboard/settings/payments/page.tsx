@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HelpAnchor } from "@/components/help/HelpAnchor";
+import { TerminalManagement } from "@/components/settings/TerminalManagement";
 
 export default function PaymentsSettingsPage() {
   const { toast } = useToast();
@@ -596,6 +597,9 @@ export default function PaymentsSettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Terminal Management */}
+        {campgroundId && <TerminalManagement campgroundId={campgroundId} />}
       </div>
   );
 }

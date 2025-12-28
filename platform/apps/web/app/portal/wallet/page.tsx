@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Wallet, ArrowDownLeft, ArrowUpRight, History, Building2, CreditCard, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Wallet, ArrowDownLeft, ArrowUpRight, History, Building2, CreditCard, Loader2, Trash2, Star, Shield, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { GUEST_TOKEN_KEY, SPRING_CONFIG, STATUS_VARIANTS } from "@/lib/portal-constants";
 import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import { PortalLoadingState, EmptyState } from "@/components/portal/PortalLoadingState";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 type WalletBalance = {
     walletId: string;
@@ -35,13 +39,42 @@ type WalletTransaction = {
     createdAt: string;
 };
 
+type SavedPaymentMethod = {
+    id: string;
+    campgroundId: string;
+    campgroundName: string;
+    type: string;
+    last4: string | null;
+    brand: string | null;
+    expMonth: number | null;
+    expYear: number | null;
+    isDefault: boolean;
+    nickname: string | null;
+    createdAt: string;
+};
+
+const CARD_BRAND_COLORS: Record<string, string> = {
+    visa: "bg-blue-600",
+    mastercard: "bg-red-500",
+    amex: "bg-blue-400",
+    discover: "bg-orange-500",
+    default: "bg-slate-600",
+};
+
 export default function WalletPage() {
     const router = useRouter();
+    const { toast } = useToast();
     const [wallets, setWallets] = useState<WalletBalance[]>([]);
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadingTransactions, setLoadingTransactions] = useState(false);
+
+    // Payment methods state
+    const [paymentMethods, setPaymentMethods] = useState<SavedPaymentMethod[]>([]);
+    const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true);
+    const [deleteCardConfirm, setDeleteCardConfirm] = useState<string | null>(null);
+    const [deletingCard, setDeletingCard] = useState(false);
 
     useEffect(() => {
         const storedToken = localStorage.getItem(GUEST_TOKEN_KEY);
@@ -66,8 +99,48 @@ export default function WalletPage() {
             }
         };
 
+        const fetchPaymentMethods = async () => {
+            try {
+                const methods = await apiClient.getPortalPaymentMethods(storedToken);
+                setPaymentMethods(methods || []);
+            } catch (err) {
+                console.error(err);
+                setPaymentMethods([]);
+            } finally {
+                setLoadingPaymentMethods(false);
+            }
+        };
+
         fetchWallets();
+        fetchPaymentMethods();
     }, [router]);
+
+    const handleDeleteCard = async (paymentMethodId: string) => {
+        const storedToken = localStorage.getItem(GUEST_TOKEN_KEY);
+        if (!storedToken) return;
+
+        setDeletingCard(true);
+        try {
+            await apiClient.deletePortalPaymentMethod(storedToken, paymentMethodId);
+            setPaymentMethods((prev) => prev.filter((pm) => pm.id !== paymentMethodId));
+            toast({ title: "Card removed", description: "Payment method deleted successfully." });
+        } catch (err: any) {
+            toast({ title: "Error", description: err.message || "Failed to delete card", variant: "destructive" });
+        } finally {
+            setDeletingCard(false);
+            setDeleteCardConfirm(null);
+        }
+    };
+
+    const getCardBrandColor = (brand: string | null): string => {
+        if (!brand) return CARD_BRAND_COLORS.default;
+        return CARD_BRAND_COLORS[brand.toLowerCase()] || CARD_BRAND_COLORS.default;
+    };
+
+    const formatExpiry = (month: number | null, year: number | null) => {
+        if (!month || !year) return "N/A";
+        return `${month.toString().padStart(2, "0")}/${year.toString().slice(-2)}`;
+    };
 
     const selectedWallet = wallets.find((wallet) => wallet.walletId === selectedWalletId) ?? null;
 
@@ -215,6 +288,95 @@ export default function WalletPage() {
                             </Card>
                         )}
 
+                        {/* Saved Payment Methods */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <CreditCard className="h-5 w-5" />
+                                    Saved Cards
+                                </CardTitle>
+                                <CardDescription>
+                                    Your saved payment methods for faster checkout
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {loadingPaymentMethods ? (
+                                    <div className="flex justify-center py-6">
+                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                    </div>
+                                ) : paymentMethods.length === 0 ? (
+                                    <div className="text-center py-6">
+                                        <CreditCard className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+                                        <p className="text-sm text-muted-foreground">No saved cards</p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Cards are automatically saved when you make payments online
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {paymentMethods.map((pm) => (
+                                            <motion.div
+                                                key={pm.id}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className={`flex items-center justify-between p-4 rounded-lg border ${
+                                                    pm.isDefault ? "border-emerald-200 bg-emerald-50/50" : "border-border bg-muted/30"
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div
+                                                        className={`w-12 h-8 rounded flex items-center justify-center text-white text-xs font-bold ${getCardBrandColor(
+                                                            pm.brand
+                                                        )}`}
+                                                    >
+                                                        {pm.brand?.toUpperCase().slice(0, 4) || "CARD"}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-medium">
+                                                                •••• {pm.last4 || "****"}
+                                                            </span>
+                                                            {pm.isDefault && (
+                                                                <Badge className="bg-emerald-100 text-emerald-800 text-xs">
+                                                                    <Star className="w-3 h-3 mr-1" />
+                                                                    Default
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                                            Expires {formatExpiry(pm.expMonth, pm.expYear)}
+                                                            {pm.campgroundName && ` · ${pm.campgroundName}`}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setDeleteCardConfirm(pm.id)}
+                                                    className="text-muted-foreground hover:text-destructive"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                    <div className="flex items-start gap-2">
+                                        <Shield className="w-4 h-4 text-blue-600 mt-0.5" />
+                                        <div className="text-xs text-blue-800">
+                                            <p className="font-medium">Secure Card Storage</p>
+                                            <p className="mt-0.5">
+                                                Your cards are securely stored with Stripe. Refunds are automatically
+                                                processed to the original payment method.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
                         {/* How Wallet Works */}
                         <Card>
                             <CardHeader>
@@ -324,6 +486,34 @@ export default function WalletPage() {
                         </Card>
                     </>
                 )}
+
+            {/* Delete Card Confirmation Dialog */}
+            <Dialog open={!!deleteCardConfirm} onOpenChange={() => setDeleteCardConfirm(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Remove Card?</DialogTitle>
+                        <DialogDescription>
+                            This will remove the card from your account. You can add it again later when making a payment.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteCardConfirm(null)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => {
+                                if (deleteCardConfirm) {
+                                    handleDeleteCard(deleteCardConfirm);
+                                }
+                            }}
+                            disabled={deletingCard}
+                        >
+                            {deletingCard ? "Removing..." : "Remove Card"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

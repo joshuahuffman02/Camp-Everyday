@@ -10396,6 +10396,354 @@ export const apiClient = {
       `/ai/autopilot/campgrounds/${campgroundId}/autonomous-actions/summary${params}`
     );
   },
+
+  // =============================================================================
+  // STRIPE PAYMENTS - Terminal, Saved Cards, Refunds
+  // =============================================================================
+
+  // Terminal Locations
+  async getTerminalLocations(campgroundId: string) {
+    return fetchJSON<Array<{
+      id: string;
+      campgroundId: string;
+      stripeLocationId: string;
+      displayName: string;
+      address: { line1: string; line2?: string; city: string; state: string; postal_code: string; country?: string } | null;
+      isActive: boolean;
+      readerCount: number;
+      createdAt: string;
+    }>>(`/campgrounds/${campgroundId}/terminal/locations`);
+  },
+
+  async createTerminalLocation(campgroundId: string, payload: {
+    displayName: string;
+    address: { line1: string; line2?: string; city: string; state: string; postal_code: string; country?: string };
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/locations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{ id: string; stripeLocationId: string }>(res);
+  },
+
+  async deleteTerminalLocation(campgroundId: string, locationId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/locations/${locationId}`, {
+      method: "DELETE",
+      headers: scopedHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to delete terminal location");
+    return true;
+  },
+
+  // Terminal Readers
+  async getTerminalReaders(campgroundId: string, locationId?: string) {
+    const params = locationId ? `?locationId=${locationId}` : "";
+    return fetchJSON<Array<{
+      id: string;
+      campgroundId: string;
+      locationId: string | null;
+      stripeReaderId: string;
+      label: string;
+      deviceType: string;
+      status: string;
+      serialNumber: string | null;
+      ipAddress: string | null;
+      lastSeenAt: string | null;
+      createdAt: string;
+      location?: { displayName: string } | null;
+    }>>(`/campgrounds/${campgroundId}/terminal/readers${params}`);
+  },
+
+  async registerTerminalReader(campgroundId: string, payload: {
+    registrationCode: string;
+    label: string;
+    locationId?: string;
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/readers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{ id: string; stripeReaderId: string }>(res);
+  },
+
+  async updateTerminalReader(campgroundId: string, readerId: string, payload: { label: string }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/readers/${readerId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{ id: string }>(res);
+  },
+
+  async deleteTerminalReader(campgroundId: string, readerId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/readers/${readerId}`, {
+      method: "DELETE",
+      headers: scopedHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to delete terminal reader");
+    return true;
+  },
+
+  async getTerminalConnectionToken(campgroundId: string, readerId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/readers/${readerId}/connection-token`, {
+      method: "POST",
+      headers: scopedHeaders(),
+    });
+    return parseResponse<{ secret: string }>(res);
+  },
+
+  // Terminal Payments
+  async createTerminalPayment(campgroundId: string, payload: {
+    readerId: string;
+    amountCents: number;
+    currency?: string;
+    guestId?: string;
+    reservationId?: string;
+    saveCard?: boolean;
+    metadata?: Record<string, string>;
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/payments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{
+      paymentIntentId: string;
+      clientSecret: string;
+      status: string;
+    }>(res);
+  },
+
+  async processTerminalPayment(campgroundId: string, readerId: string, paymentIntentId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/payments/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify({ readerId, paymentIntentId }),
+    });
+    return parseResponse<{
+      success: boolean;
+      status: string;
+      paymentId?: string;
+      error?: string;
+    }>(res);
+  },
+
+  async cancelTerminalPayment(campgroundId: string, paymentIntentId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/terminal/payments/${paymentIntentId}`, {
+      method: "DELETE",
+      headers: scopedHeaders(),
+    });
+    return parseResponse<{ canceled: boolean }>(res);
+  },
+
+  // Guest Payment Methods (Saved Cards)
+  async createPaymentMethodSetupIntent(campgroundId: string, guestId: string, metadata?: Record<string, string>) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/payment-methods/setup-intent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify({ guestId, metadata }),
+    });
+    return parseResponse<{
+      setupIntentId: string;
+      clientSecret: string;
+      customerId: string;
+    }>(res);
+  },
+
+  async attachPaymentMethod(campgroundId: string, payload: {
+    guestId: string;
+    stripePaymentMethodId: string;
+    nickname?: string;
+    setAsDefault?: boolean;
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/payment-methods/attach`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{ id: string; last4: string; brand: string }>(res);
+  },
+
+  async getGuestPaymentMethods(campgroundId: string, guestId: string) {
+    return fetchJSON<Array<{
+      id: string;
+      stripePaymentMethodId: string;
+      type: string;
+      last4: string | null;
+      brand: string | null;
+      expMonth: number | null;
+      expYear: number | null;
+      isDefault: boolean;
+      nickname: string | null;
+      addedBy: string;
+      createdAt: string;
+    }>>(`/campgrounds/${campgroundId}/payment-methods/guest/${guestId}`);
+  },
+
+  async updatePaymentMethod(campgroundId: string, paymentMethodId: string, payload: { nickname?: string }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/payment-methods/${paymentMethodId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{ id: string }>(res);
+  },
+
+  async deletePaymentMethod(campgroundId: string, paymentMethodId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/payment-methods/${paymentMethodId}`, {
+      method: "DELETE",
+      headers: scopedHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to delete payment method");
+    return true;
+  },
+
+  async setDefaultPaymentMethod(campgroundId: string, guestId: string, paymentMethodId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/payment-methods/${paymentMethodId}/default`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify({ guestId }),
+    });
+    return parseResponse<{ id: string }>(res);
+  },
+
+  // Charge Saved Cards
+  async chargeSavedCard(campgroundId: string, payload: {
+    guestId: string;
+    paymentMethodId: string;
+    amountCents: number;
+    currency?: string;
+    reservationId?: string;
+    description?: string;
+    metadata?: Record<string, string>;
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/saved-cards/charge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{
+      success: boolean;
+      paymentId: string;
+      paymentIntentId: string;
+      status: string;
+    }>(res);
+  },
+
+  async chargeDefaultCard(campgroundId: string, payload: {
+    guestId: string;
+    amountCents: number;
+    currency?: string;
+    reservationId?: string;
+    metadata?: Record<string, string>;
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/saved-cards/charge-default`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{
+      success: boolean;
+      paymentId: string;
+      paymentIntentId: string;
+      status: string;
+    }>(res);
+  },
+
+  async getChargeablePaymentMethods(campgroundId: string, guestId: string) {
+    return fetchJSON<Array<{
+      id: string;
+      type: string;
+      last4: string | null;
+      brand: string | null;
+      isDefault: boolean;
+      nickname: string | null;
+    }>>(`/campgrounds/${campgroundId}/saved-cards/guest/${guestId}/chargeable`);
+  },
+
+  // Refunds
+  async getRefundEligibility(campgroundId: string, paymentId: string) {
+    return fetchJSON<{
+      eligible: boolean;
+      reason?: string;
+      maxRefundCents: number;
+      alreadyRefundedCents: number;
+      originalAmountCents: number;
+      originalPaymentMethod: { type: string; last4?: string; brand?: string } | null;
+    }>(`/campgrounds/${campgroundId}/refunds/${paymentId}/eligibility`);
+  },
+
+  async processRefund(campgroundId: string, paymentId: string, payload: {
+    amountCents?: number;
+    reason?: "duplicate" | "fraudulent" | "requested_by_customer";
+    note?: string;
+  }) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/refunds/${paymentId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{
+      refundId: string;
+      stripeRefundId: string;
+      amountCents: number;
+      status: string;
+    }>(res);
+  },
+
+  async getRefundHistory(campgroundId: string, paymentId: string) {
+    return fetchJSON<Array<{
+      id: string;
+      stripeRefundId: string;
+      amountCents: number;
+      status: string;
+      reason: string | null;
+      createdAt: string;
+    }>>(`/campgrounds/${campgroundId}/refunds/${paymentId}/history`);
+  },
+
+  // Portal - Guest Payment Methods (for self-service)
+  async getPortalPaymentMethods(token: string) {
+    const res = await fetch(`${API_BASE}/portal/payment-methods`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return parseResponse<Array<{
+      id: string;
+      campgroundId: string;
+      campgroundName: string;
+      type: string;
+      last4: string | null;
+      brand: string | null;
+      expMonth: number | null;
+      expYear: number | null;
+      isDefault: boolean;
+      nickname: string | null;
+      createdAt: string;
+    }>>(res);
+  },
+
+  async createPortalSetupIntent(token: string, campgroundId: string) {
+    const res = await fetch(`${API_BASE}/portal/payment-methods/setup-intent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ campgroundId }),
+    });
+    return parseResponse<{
+      setupIntentId: string;
+      clientSecret: string;
+    }>(res);
+  },
+
+  async deletePortalPaymentMethod(token: string, paymentMethodId: string) {
+    const res = await fetch(`${API_BASE}/portal/payment-methods/${paymentMethodId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to delete payment method");
+    return true;
+  },
 };
 
 export type PublicCampgroundList = z.infer<typeof PublicCampgroundListSchema>;

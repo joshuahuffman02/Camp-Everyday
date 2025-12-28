@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { Badge } from "../../../components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
-import { Trophy, Star, History, ArrowLeft, Trash2, Plus, Car, Truck, Mail, MessageSquare, GitBranch, RotateCcw, PlusCircle, Send, Wallet, DollarSign, ClipboardList } from "lucide-react";
+import { Trophy, Star, History, ArrowLeft, Trash2, Plus, Car, Truck, Mail, MessageSquare, GitBranch, RotateCcw, PlusCircle, Send, Wallet, DollarSign, ClipboardList, CreditCard } from "lucide-react";
+import { GuestPaymentMethods } from "../../../components/guests/GuestPaymentMethods";
 import { AuditLogTimeline } from "../../../components/audit/AuditLogTimeline";
 import { cn } from "../../../lib/utils";
 import { useToast } from "../../../components/ui/use-toast";
@@ -340,6 +341,10 @@ export default function GuestDetailPage() {
                         <TabsTrigger value="overview">Overview</TabsTrigger>
                         <TabsTrigger value="equipment">Equipment</TabsTrigger>
                         <TabsTrigger value="wallet">Wallet</TabsTrigger>
+                        <TabsTrigger value="payment-methods" className="gap-1">
+                            <CreditCard className="h-3.5 w-3.5" />
+                            Cards
+                        </TabsTrigger>
                         <TabsTrigger value="loyalty">Loyalty & Rewards</TabsTrigger>
                         <TabsTrigger value="communications">Communications</TabsTrigger>
                         <TabsTrigger value="activity" className="gap-1">
@@ -412,6 +417,18 @@ export default function GuestDetailPage() {
 
                     <TabsContent value="equipment" className="space-y-4">
                         <GuestEquipmentTab guestId={guestId} />
+                    </TabsContent>
+
+                    <TabsContent value="payment-methods" className="space-y-4">
+                        {campgroundIdForGuest ? (
+                            <GuestPaymentMethods guestId={guestId} campgroundId={campgroundIdForGuest} />
+                        ) : (
+                            <Card>
+                                <CardContent className="py-8 text-center text-slate-500">
+                                    Select a campground to view payment methods.
+                                </CardContent>
+                            </Card>
+                        )}
                     </TabsContent>
 
                     <TabsContent value="wallet" className="space-y-4">
