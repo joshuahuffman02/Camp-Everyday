@@ -57,12 +57,17 @@ export function StripeSettingsCard({
   }, [saveSuccess]);
 
   const effectiveFeeLabel = useMemo(() => {
-    if (effectiveFee) {
+    // If we have actual fee values configured, show them
+    if (effectiveFee && (effectiveFee.percentBasisPoints > 0 || effectiveFee.flatFeeCents > 0)) {
       const pct = effectiveFee.percentBasisPoints / 100;
       const flat = effectiveFee.flatFeeCents / 100;
       return `${pct.toFixed(2)}% + $${flat.toFixed(2)}`;
     }
-    return mode === "test" ? "No fees (test mode)" : "2.9% + $0.30";
+    // Default Stripe fees - 2.9% + $0.30 for standard US pricing
+    if (mode === "test") {
+      return "2.9% + $0.30 (test mode)";
+    }
+    return "2.9% + $0.30";
   }, [effectiveFee, mode]);
 
   const handleSave = () => {
