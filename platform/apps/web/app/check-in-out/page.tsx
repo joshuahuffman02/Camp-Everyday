@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
+import { PaymentModal } from "@/components/payments/PaymentModal";
 
 type Reservation = {
   id: string;
@@ -63,7 +64,9 @@ export default function CheckInOutPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState("card");
+  const [paymentMethod, setPaymentMethod] = useState("cash"); // Default to cash for manual entry
+  const [isStripePaymentOpen, setIsStripePaymentOpen] = useState(false);
+  const [checkInAfterPayment, setCheckInAfterPayment] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -533,42 +536,99 @@ export default function CheckInOutPage() {
             <Button variant="outline" onClick={() => setIsPaymentOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={() => selectedReservation && paymentMutation.mutate({
-                id: selectedReservation.id,
-                amount: paymentAmount,
-                method: paymentMethod as "card" | "cash" | "check" | "folio"
-              })}
-              disabled={paymentMutation.isPending}
-              variant="outline"
-            >
-              {paymentMutation.isPending ? "Processing..." : "Record Payment Only"}
-            </Button>
-            {tab === "arrivals" && selectedReservation?.status !== "checked_in" && (
-              <Button
-                onClick={async () => {
-                  if (!selectedReservation) return;
-                  try {
-                    await apiClient.recordReservationPayment(selectedReservation.id, paymentAmount, [
-                      { method: paymentMethod as "card" | "cash" | "check" | "folio", amountCents: paymentAmount }
-                    ]);
-                    await apiClient.checkInReservation(selectedReservation.id);
-                    queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
-                    toast({ title: "Payment recorded and guest checked in" });
+            {paymentMethod === "card" ? (
+              <>
+                <Button
+                  onClick={() => {
+                    setCheckInAfterPayment(false);
                     setIsPaymentOpen(false);
-                  } catch {
-                    toast({ title: "Failed to complete operation", variant: "destructive" });
-                  }
-                }}
-                disabled={paymentMutation.isPending}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                Pay & Check In
-              </Button>
+                    setIsStripePaymentOpen(true);
+                  }}
+                  variant="outline"
+                >
+                  Pay with Card
+                </Button>
+                {tab === "arrivals" && selectedReservation?.status !== "checked_in" && (
+                  <Button
+                    onClick={() => {
+                      setCheckInAfterPayment(true);
+                      setIsPaymentOpen(false);
+                      setIsStripePaymentOpen(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    Pay & Check In
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={() => selectedReservation && paymentMutation.mutate({
+                    id: selectedReservation.id,
+                    amount: paymentAmount,
+                    method: paymentMethod as "cash" | "check" | "folio"
+                  })}
+                  disabled={paymentMutation.isPending}
+                  variant="outline"
+                >
+                  {paymentMutation.isPending ? "Processing..." : `Record ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} Payment`}
+                </Button>
+                {tab === "arrivals" && selectedReservation?.status !== "checked_in" && (
+                  <Button
+                    onClick={async () => {
+                      if (!selectedReservation) return;
+                      try {
+                        await apiClient.recordReservationPayment(selectedReservation.id, paymentAmount, [
+                          { method: paymentMethod as "cash" | "check" | "folio", amountCents: paymentAmount }
+                        ]);
+                        await apiClient.checkInReservation(selectedReservation.id);
+                        queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
+                        toast({ title: "Payment recorded and guest checked in" });
+                        setIsPaymentOpen(false);
+                      } catch {
+                        toast({ title: "Failed to complete operation", variant: "destructive" });
+                      }
+                    }}
+                    disabled={paymentMutation.isPending}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    Record & Check In
+                  </Button>
+                )}
+              </>
             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Stripe Payment Modal for card payments */}
+      {selectedReservation && (
+        <PaymentModal
+          isOpen={isStripePaymentOpen}
+          onClose={() => {
+            setIsStripePaymentOpen(false);
+            setCheckInAfterPayment(false);
+          }}
+          reservationId={selectedReservation.id}
+          amountCents={paymentAmount}
+          onSuccess={async () => {
+            setIsStripePaymentOpen(false);
+            queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
+            if (checkInAfterPayment) {
+              try {
+                await apiClient.checkInReservation(selectedReservation.id);
+                toast({ title: "Payment successful and guest checked in" });
+              } catch {
+                toast({ title: "Payment successful but check-in failed", variant: "destructive" });
+              }
+            } else {
+              toast({ title: "Payment successful" });
+            }
+            setCheckInAfterPayment(false);
+          }}
+        />
+      )}
     </DashboardShell>
   );
 }
