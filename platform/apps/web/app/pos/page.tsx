@@ -8,7 +8,7 @@ import { CategoryTabs } from "../../components/pos/CategoryTabs";
 import { CartSidebar } from "../../components/pos/CartSidebar";
 import { CartDrawer } from "../../components/pos/CartDrawer";
 import { FloatingCartButton } from "../../components/pos/FloatingCartButton";
-import { CheckoutModal } from "../../components/pos/CheckoutModal";
+import { POSCheckoutFlow } from "../../components/pos/POSCheckoutFlow";
 import { ReceiptView } from "../../components/pos/ReceiptView";
 import { z } from "zod";
 import { recordTelemetry } from "../../lib/sync-telemetry";
@@ -782,7 +782,7 @@ export default function POSPage() {
             </div>
 
             {showContent && isCheckoutOpen && (
-                <CheckoutModal
+                <POSCheckoutFlow
                     isOpen={isCheckoutOpen}
                     onClose={() => setIsCheckoutOpen(false)}
                     cart={cart}

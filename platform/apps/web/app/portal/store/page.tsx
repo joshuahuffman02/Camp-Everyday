@@ -6,7 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ProductGrid } from "@/components/pos/ProductGrid";
-import { GuestCheckoutModal } from "@/components/portal/GuestCheckoutModal";
+import { PortalCheckoutFlow } from "@/components/portal/PortalCheckoutFlow";
 import { ShoppingCart, Trash2, Plus, Minus, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -510,7 +510,7 @@ export default function PortalStorePage() {
 
             {/* Checkout Modal */}
             {selectedReservation && (
-                <GuestCheckoutModal
+                <PortalCheckoutFlow
                     isOpen={isCheckoutOpen}
                     onClose={() => setIsCheckoutOpen(false)}
                     cart={cart}

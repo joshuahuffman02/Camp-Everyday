@@ -3,7 +3,7 @@ import { Reservation } from "@campreserv/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DollarSign, CreditCard } from "lucide-react";
-import { PaymentModal } from "../payments/PaymentModal";
+import { PaymentCollectionModal } from "../payments/PaymentCollectionModal";
 
 interface FinancialSummaryProps {
     reservation: Reservation;
@@ -29,6 +29,14 @@ export function FinancialSummary({ reservation }: FinancialSummaryProps) {
     const feeMode = (reservation as any)?.feeMode ?? (reservation as any)?.metadata?.feeMode ?? null;
 
     const isPaid = balanceCents <= 0;
+
+    // Get guest info from reservation
+    const guest = (reservation as any).guest;
+    const guestId = guest?.id;
+    const guestEmail = guest?.email;
+    const guestName = guest
+        ? `${guest.primaryFirstName || ''} ${guest.primaryLastName || ''}`.trim()
+        : undefined;
 
     return (
         <>
@@ -96,13 +104,19 @@ export function FinancialSummary({ reservation }: FinancialSummaryProps) {
                 </CardContent>
             </Card>
 
-            <PaymentModal
+            <PaymentCollectionModal
                 isOpen={isPaymentModalOpen}
                 onClose={() => setIsPaymentModalOpen(false)}
-                reservationId={reservation.id}
-                amountCents={balanceCents}
+                campgroundId={(reservation as any).campgroundId}
+                amountDueCents={balanceCents}
+                subject={{ type: "balance", reservationId: reservation.id }}
+                context="staff_checkin"
+                guestId={guestId}
+                guestEmail={guestEmail}
+                guestName={guestName}
+                enableSplitTender={true}
+                enableCharityRoundUp={true}
                 onSuccess={() => {
-                    // In a real app, we'd trigger a revalidation or toast here
                     setIsPaymentModalOpen(false);
                     window.location.reload();
                 }}

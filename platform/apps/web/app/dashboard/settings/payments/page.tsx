@@ -12,6 +12,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HelpAnchor } from "@/components/help/HelpAnchor";
 import { TerminalManagement } from "@/components/settings/TerminalManagement";
+import { PaymentMethodsConfig } from "@/components/settings/PaymentMethodsConfig";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function PaymentsSettingsPage() {
   const { toast } = useToast();
@@ -287,9 +289,17 @@ export default function PaymentsSettingsPage() {
           <HelpAnchor topicId="payments-config" label="Payments setup help" />
         </div>
         <div>
-          <p className="text-slate-600 text-sm">Connect Stripe and set your platform fee per booking.</p>
+          <p className="text-slate-600 text-sm">Connect Stripe, set fees, and configure payment methods.</p>
         </div>
 
+        <Tabs defaultValue="gateway" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="gateway">Gateway & Fees</TabsTrigger>
+            <TabsTrigger value="methods">Payment Methods</TabsTrigger>
+            <TabsTrigger value="terminals">Terminals</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="gateway" className="space-y-4 mt-4">
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
@@ -597,9 +607,16 @@ export default function PaymentsSettingsPage() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
 
-        {/* Terminal Management */}
-        {campgroundId && <TerminalManagement campgroundId={campgroundId} />}
+          <TabsContent value="methods" className="mt-4">
+            {campgroundId && <PaymentMethodsConfig campgroundId={campgroundId} />}
+          </TabsContent>
+
+          <TabsContent value="terminals" className="mt-4">
+            {campgroundId && <TerminalManagement campgroundId={campgroundId} />}
+          </TabsContent>
+        </Tabs>
       </div>
   );
 }

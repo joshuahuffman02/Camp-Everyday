@@ -29,7 +29,7 @@ import { Switch } from "../../components/ui/switch";
 import { Badge } from "../../components/ui/badge";
 import { Textarea } from "../../components/ui/textarea";
 import { useToast } from "../../components/ui/use-toast";
-import { PaymentModal } from "../../components/payments/PaymentModal";
+import { PaymentCollectionModal } from "../../components/payments/PaymentCollectionModal";
 import { apiClient } from "../../lib/api-client";
 import { cn } from "../../lib/utils";
 import { useWhoami } from "@/hooks/use-whoami";
@@ -1314,13 +1314,9 @@ function BookingLabPageInner() {
           </div>
         )}
       </div>
-      {paymentModal && (
-        <PaymentModal
+      {paymentModal && selectedCampground && (
+        <PaymentCollectionModal
           isOpen={!!paymentModal}
-          reservationId={paymentModal.reservationId}
-          amountCents={paymentModal.amountCents}
-          entryMode={formData.cardEntryMode === "reader" ? "reader" : "manual"}
-          defaultPostalCode={formData.guestPostalCode}
           onClose={() => {
             const reservationId = paymentModal.reservationId;
             setPaymentModal(null);
@@ -1331,13 +1327,25 @@ function BookingLabPageInner() {
             apiClient.cancelReservation(reservationId).catch(() => undefined);
             toast({ title: "Payment canceled", description: "Reservation canceled." });
           }}
-          onSuccess={() => {
+          campgroundId={selectedCampground.id}
+          amountDueCents={paymentModal.amountCents}
+          subject={{ type: "reservation", reservationId: paymentModal.reservationId }}
+          context="staff_booking"
+          guestId={formData.guestId || undefined}
+          guestEmail={selectedGuest?.email || undefined}
+          guestName={selectedGuest ? `${selectedGuest.primaryFirstName || ''} ${selectedGuest.primaryLastName || ''}`.trim() : undefined}
+          enableSplitTender={true}
+          enableCharityRoundUp={true}
+          onSuccess={(result) => {
             const reservationId = paymentModal.reservationId;
             paymentCompletedRef.current = true;
             setPaymentModal(null);
             apiClient.updateReservation(reservationId, { status: "confirmed" }).catch(() => undefined);
-            toast({ title: "Payment captured", description: "Booking confirmed." });
+            toast({ title: "Payment captured", description: `$${(result.totalPaidCents / 100).toFixed(2)} collected. Booking confirmed.` });
             router.push(`/reservations/${reservationId}`);
+          }}
+          onError={(error) => {
+            toast({ title: "Payment failed", description: error.message, variant: "destructive" });
           }}
         />
       )}

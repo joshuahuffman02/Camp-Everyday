@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { PaymentModal } from "@/components/payments/PaymentModal";
+import { PaymentCollectionModal } from "@/components/payments/PaymentCollectionModal";
 
 type Reservation = {
   id: string;
@@ -602,17 +602,24 @@ export default function CheckInOutPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Stripe Payment Modal for card payments */}
+      {/* Unified Payment Collection Modal */}
       {selectedReservation && (
-        <PaymentModal
+        <PaymentCollectionModal
           isOpen={isStripePaymentOpen}
           onClose={() => {
             setIsStripePaymentOpen(false);
             setCheckInAfterPayment(false);
           }}
-          reservationId={selectedReservation.id}
-          amountCents={paymentAmount}
-          onSuccess={async () => {
+          campgroundId={campgroundId}
+          amountDueCents={paymentAmount}
+          subject={{ type: "balance", reservationId: selectedReservation.id }}
+          context="staff_checkin"
+          guestId={selectedReservation.guest?.id}
+          guestEmail={selectedReservation.guest?.email}
+          guestName={`${selectedReservation.guest?.primaryFirstName || ''} ${selectedReservation.guest?.primaryLastName || ''}`.trim()}
+          enableSplitTender={true}
+          enableCharityRoundUp={true}
+          onSuccess={async (result) => {
             setIsStripePaymentOpen(false);
             queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
             if (checkInAfterPayment) {
@@ -623,9 +630,12 @@ export default function CheckInOutPage() {
                 toast({ title: "Payment successful but check-in failed", variant: "destructive" });
               }
             } else {
-              toast({ title: "Payment successful" });
+              toast({ title: `Payment of $${(result.totalPaidCents / 100).toFixed(2)} successful` });
             }
             setCheckInAfterPayment(false);
+          }}
+          onError={(error) => {
+            toast({ title: "Payment failed", description: error.message, variant: "destructive" });
           }}
         />
       )}

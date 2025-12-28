@@ -542,9 +542,10 @@ export const PAGE_REGISTRY: PageDefinition[] = [
     label: "Payment Settings",
     icon: "payments",
     category: "settings",
-    description: "Configure payment processing",
-    keywords: ["stripe", "credit cards", "billing"],
+    description: "Configure payment methods, card brands, terminals, and processing fees",
+    keywords: ["stripe", "credit cards", "billing", "payment methods", "apple pay", "google pay", "cash", "check", "terminal", "card reader", "fees", "pass through", "absorb"],
     permissions: ["settingsWrite"],
+    defaultForRoles: ["manager", "owner", "admin"],
   },
   {
     href: "/dashboard/settings/tax-rules",

@@ -1152,6 +1152,18 @@ model Campground {
 
   stripeCapabilities          Json?
   stripeCapabilitiesFetchedAt DateTime?
+
+  // Payment method configuration
+  enableCardPayments  Boolean  @default(true)
+  enableApplePay      Boolean  @default(true)
+  enableGooglePay     Boolean  @default(true)
+  enableACH           Boolean  @default(true)
+  enableCash          Boolean  @default(true)
+  enableCheck         Boolean  @default(true)
+  enableFolio         Boolean  @default(true)
+  allowedCardBrands   String[] @default(["visa", "mastercard", "amex", "discover"])
+  showFeeBreakdown    Boolean  @default(false) // Show processing fee to guest in pass-through mode
+
   reviewScore                 Decimal?       @db.Decimal(4, 2)
   reviewCount                 Int            @default(0)
   reviewSources               Json?
