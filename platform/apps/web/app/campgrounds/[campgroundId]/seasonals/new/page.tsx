@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -130,7 +131,7 @@ export default function NewSeasonalGuestPage() {
   const [newGuestEmail, setNewGuestEmail] = useState("");
   const [newGuestPhone, setNewGuestPhone] = useState("");
 
-  // Fetch guests with backend search
+  // Fetch guests with backend search - always load some guests by default
   const { data: guests = [], isLoading: loadingGuests, refetch: refetchGuests } = useQuery<Guest[]>({
     queryKey: ["guests-search", campgroundId, guestSearch],
     queryFn: async () => {
@@ -139,7 +140,7 @@ export default function NewSeasonalGuestPage() {
         limit: 50
       });
     },
-    enabled: guestSearch.length >= 2 || guestSearch.length === 0,
+    enabled: !!campgroundId, // Always fetch when we have a campgroundId
   });
 
   // Create guest mutation
@@ -291,19 +292,20 @@ export default function NewSeasonalGuestPage() {
   const canSubmit = selectedGuestId && selectedRateCardId;
 
   return (
-    <div className="space-y-6 p-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Add Seasonal Guest</h1>
-          <p className="text-muted-foreground">
-            Set up a new seasonal guest with site assignment and pricing
-          </p>
+    <DashboardShell>
+      <div className="space-y-6 max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Add Seasonal Guest</h1>
+            <p className="text-muted-foreground">
+              Set up a new seasonal guest with site assignment and pricing
+            </p>
+          </div>
         </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form - 2 cols */}
@@ -415,22 +417,18 @@ export default function NewSeasonalGuestPage() {
                 /* Search Existing Guests */
                 <>
                   <Input
-                    placeholder="Search guests by name or email (min 2 characters)..."
+                    placeholder="Search guests by name or email..."
                     value={guestSearch}
                     onChange={(e) => setGuestSearch(e.target.value)}
                   />
-                  {guestSearch.length === 1 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      Type at least 2 characters to search...
-                    </p>
-                  ) : loadingGuests ? (
+                  {loadingGuests ? (
                     <div className="flex justify-center py-4">
                       <Loader2 className="h-5 w-5 animate-spin" />
                     </div>
-                  ) : guests.length === 0 && guestSearch.length >= 2 ? (
+                  ) : guests.length === 0 ? (
                     <div className="text-center py-4 space-y-3">
                       <p className="text-sm text-muted-foreground">
-                        No guests found for "{guestSearch}".
+                        {guestSearch ? `No guests found for "${guestSearch}".` : "No guests found."}
                       </p>
                       <Button
                         variant="outline"
@@ -438,19 +436,17 @@ export default function NewSeasonalGuestPage() {
                         onClick={() => {
                           setShowCreateGuest(true);
                           // Pre-fill name from search if it looks like a name
-                          const parts = guestSearch.trim().split(/\s+/);
-                          if (parts.length >= 1) setNewGuestFirstName(parts[0]);
-                          if (parts.length >= 2) setNewGuestLastName(parts.slice(1).join(" "));
+                          if (guestSearch) {
+                            const parts = guestSearch.trim().split(/\s+/);
+                            if (parts.length >= 1) setNewGuestFirstName(parts[0]);
+                            if (parts.length >= 2) setNewGuestLastName(parts.slice(1).join(" "));
+                          }
                         }}
                       >
                         <Plus className="h-4 w-4 mr-1" />
-                        Create "{guestSearch}" as New Guest
+                        {guestSearch ? `Create "${guestSearch}" as New Guest` : "Create New Guest"}
                       </Button>
                     </div>
-                  ) : guests.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      Start typing to search for guests...
-                    </p>
                   ) : (
                     <div className="max-h-48 overflow-y-auto border rounded-md divide-y">
                       {guests.slice(0, 20).map((guest) => (
@@ -944,6 +940,7 @@ export default function NewSeasonalGuestPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </DashboardShell>
   );
 }

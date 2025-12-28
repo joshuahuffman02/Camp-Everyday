@@ -962,7 +962,7 @@ export class ReservationsService {
       toDate?: Date;
     }
   ) {
-    const limit = Math.min(options?.limit ?? 100, 500); // Cap at 500
+    const limit = Math.min(options?.limit ?? 1000, 2000); // Increased default for calendar view
     const offset = options?.offset ?? 0;
 
     return this.prisma.reservation.findMany({
@@ -973,7 +973,7 @@ export class ReservationsService {
         ...(options?.toDate && { departureDate: { lte: options.toDate } })
       },
       include: { guest: true, site: true },
-      orderBy: { arrivalDate: 'desc' },
+      orderBy: { arrivalDate: 'asc' }, // Changed to ASC so current/near-term reservations come first
       take: limit,
       skip: offset
     });

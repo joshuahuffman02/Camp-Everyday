@@ -867,8 +867,8 @@ function CalendarLabRow({
 
           {reservations.map((res) => {
             const start = days[0].date;
-            const resStart = parseLocalDateInput(res.arrivalDate);
-            const resEnd = parseLocalDateInput(res.departureDate);
+            const resStart = toLocalDate(res.arrivalDate);
+            const resEnd = toLocalDate(res.departureDate);
             const startIdx = Math.max(0, diffInDays(resStart, start));
             const endIdx = Math.min(dayCount, diffInDays(resEnd, start));
             if (endIdx <= 0 || startIdx >= dayCount) return null;

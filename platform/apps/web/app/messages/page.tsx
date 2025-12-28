@@ -185,11 +185,14 @@ export default function MessagesPage() {
         enabled: !!campground?.id
     });
 
-    // Get guests for compose search
+    // Get guests for compose search - always fetch when campground exists, filter by search if provided
     const { data: searchedGuests = [] } = useQuery({
         queryKey: ["guests-search", campground?.id, composeGuestSearch],
-        queryFn: () => apiClient.getGuests(campground!.id, { search: composeGuestSearch, limit: 10 }),
-        enabled: !!campground?.id && composeGuestSearch.length >= 2,
+        queryFn: () => apiClient.getGuests(campground!.id, {
+            search: composeGuestSearch.length >= 2 ? composeGuestSearch : undefined,
+            limit: 20
+        }),
+        enabled: !!campground?.id,
         staleTime: 30000
     });
 
@@ -2033,7 +2036,7 @@ export default function MessagesPage() {
                                         onChange={(e) => setComposeGuestSearch(e.target.value)}
                                         className="pl-9"
                                     />
-                                    {composeGuestSearch.length >= 2 && searchedGuests.length > 0 && (
+                                    {searchedGuests.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-lg z-50 max-h-48 overflow-y-auto">
                                             {searchedGuests.map((guest: any) => (
                                                 <button
@@ -2081,9 +2084,9 @@ export default function MessagesPage() {
                                             ))}
                                         </div>
                                     )}
-                                    {composeGuestSearch.length >= 2 && searchedGuests.length === 0 && (
+                                    {searchedGuests.length === 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-lg z-50 p-4 text-center text-sm text-muted-foreground">
-                                            No guests found
+                                            {composeGuestSearch ? `No guests found for "${composeGuestSearch}"` : "No guests found"}
                                         </div>
                                     )}
                                 </div>
