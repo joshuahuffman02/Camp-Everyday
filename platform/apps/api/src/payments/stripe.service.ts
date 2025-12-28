@@ -735,4 +735,515 @@ export class StripeService {
 
         return stripe.coupons.create(params);
     }
+
+    // =========================================================================
+    // STRIPE CUSTOMER MANAGEMENT (on Connected Accounts - for guest card storage)
+    // =========================================================================
+
+    /**
+     * Create a Stripe Customer on a connected account for storing payment methods
+     */
+    async createCustomerOnConnectedAccount(
+        stripeAccountId: string,
+        email: string,
+        name?: string,
+        metadata?: Record<string, string>
+    ): Promise<Stripe.Customer> {
+        const stripe = this.assertConfigured("create customers on connected accounts");
+        return stripe.customers.create(
+            {
+                email,
+                name,
+                metadata,
+            },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Retrieve a customer from a connected account
+     */
+    async getCustomerOnConnectedAccount(
+        stripeAccountId: string,
+        customerId: string
+    ): Promise<Stripe.Customer> {
+        const stripe = this.assertConfigured("get customers on connected accounts");
+        return stripe.customers.retrieve(
+            customerId,
+            { stripeAccount: stripeAccountId }
+        ) as Promise<Stripe.Customer>;
+    }
+
+    /**
+     * Update customer's default payment method on a connected account
+     */
+    async setCustomerDefaultPaymentMethod(
+        stripeAccountId: string,
+        customerId: string,
+        paymentMethodId: string
+    ): Promise<Stripe.Customer> {
+        const stripe = this.assertConfigured("update customers on connected accounts");
+        return stripe.customers.update(
+            customerId,
+            { invoice_settings: { default_payment_method: paymentMethodId } },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    // =========================================================================
+    // PAYMENT METHOD MANAGEMENT (on Connected Accounts)
+    // =========================================================================
+
+    /**
+     * Attach a payment method to a customer on a connected account
+     */
+    async attachPaymentMethodOnConnectedAccount(
+        stripeAccountId: string,
+        paymentMethodId: string,
+        customerId: string
+    ): Promise<Stripe.PaymentMethod> {
+        const stripe = this.assertConfigured("attach payment methods");
+        return stripe.paymentMethods.attach(
+            paymentMethodId,
+            { customer: customerId },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Detach a payment method from a customer on a connected account
+     */
+    async detachPaymentMethodOnConnectedAccount(
+        stripeAccountId: string,
+        paymentMethodId: string
+    ): Promise<Stripe.PaymentMethod> {
+        const stripe = this.assertConfigured("detach payment methods");
+        return stripe.paymentMethods.detach(
+            paymentMethodId,
+            {},
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Retrieve payment method details on a connected account
+     */
+    async getPaymentMethodOnConnectedAccount(
+        stripeAccountId: string,
+        paymentMethodId: string
+    ): Promise<Stripe.PaymentMethod> {
+        const stripe = this.assertConfigured("get payment methods");
+        return stripe.paymentMethods.retrieve(
+            paymentMethodId,
+            {},
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * List all payment methods for a customer on a connected account
+     */
+    async listPaymentMethodsOnConnectedAccount(
+        stripeAccountId: string,
+        customerId: string,
+        type: "card" | "us_bank_account" = "card"
+    ): Promise<Stripe.PaymentMethod[]> {
+        const stripe = this.assertConfigured("list payment methods");
+        const result = await stripe.paymentMethods.list(
+            {
+                customer: customerId,
+                type,
+            },
+            { stripeAccount: stripeAccountId }
+        );
+        return result.data;
+    }
+
+    /**
+     * Create a SetupIntent on a connected account for saving a payment method
+     */
+    async createSetupIntentOnConnectedAccount(
+        stripeAccountId: string,
+        customerId: string,
+        metadata?: Record<string, string>,
+        paymentMethodTypes: string[] = ["card"]
+    ): Promise<Stripe.SetupIntent> {
+        const stripe = this.assertConfigured("create setup intents on connected accounts");
+        return stripe.setupIntents.create(
+            {
+                customer: customerId,
+                usage: "off_session",
+                payment_method_types: paymentMethodTypes,
+                metadata,
+            },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Retrieve a SetupIntent on a connected account
+     */
+    async retrieveSetupIntentOnConnectedAccount(
+        stripeAccountId: string,
+        setupIntentId: string
+    ): Promise<Stripe.SetupIntent> {
+        const stripe = this.assertConfigured("retrieve setup intents");
+        return stripe.setupIntents.retrieve(
+            setupIntentId,
+            {},
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    // =========================================================================
+    // STRIPE TERMINAL (for in-person card payments - per campground)
+    // =========================================================================
+
+    /**
+     * Create a Terminal Location on a connected account
+     */
+    async createTerminalLocation(
+        stripeAccountId: string,
+        displayName: string,
+        address: {
+            line1: string;
+            city: string;
+            state: string;
+            postal_code: string;
+            country: string;
+            line2?: string;
+        }
+    ): Promise<Stripe.Terminal.Location> {
+        const stripe = this.assertConfigured("create terminal locations");
+        return stripe.terminal.locations.create(
+            {
+                display_name: displayName,
+                address: {
+                    line1: address.line1,
+                    line2: address.line2,
+                    city: address.city,
+                    state: address.state,
+                    postal_code: address.postal_code,
+                    country: address.country,
+                },
+            },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * List Terminal Locations on a connected account
+     */
+    async listTerminalLocations(
+        stripeAccountId: string
+    ): Promise<Stripe.Terminal.Location[]> {
+        const stripe = this.assertConfigured("list terminal locations");
+        const result = await stripe.terminal.locations.list(
+            { limit: 100 },
+            { stripeAccount: stripeAccountId }
+        );
+        return result.data;
+    }
+
+    /**
+     * Delete a Terminal Location on a connected account
+     */
+    async deleteTerminalLocation(
+        stripeAccountId: string,
+        locationId: string
+    ): Promise<Stripe.Terminal.DeletedLocation> {
+        const stripe = this.assertConfigured("delete terminal locations");
+        return stripe.terminal.locations.del(
+            locationId,
+            {},
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Register a new Terminal Reader on a connected account
+     */
+    async registerTerminalReader(
+        stripeAccountId: string,
+        registrationCode: string,
+        label: string,
+        locationId?: string
+    ): Promise<Stripe.Terminal.Reader> {
+        const stripe = this.assertConfigured("register terminal readers");
+        return stripe.terminal.readers.create(
+            {
+                registration_code: registrationCode,
+                label,
+                location: locationId,
+            },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * List Terminal Readers on a connected account
+     */
+    async listTerminalReaders(
+        stripeAccountId: string,
+        locationId?: string
+    ): Promise<Stripe.Terminal.Reader[]> {
+        const stripe = this.assertConfigured("list terminal readers");
+        const params: Stripe.Terminal.ReaderListParams = { limit: 100 };
+        if (locationId) {
+            params.location = locationId;
+        }
+        const result = await stripe.terminal.readers.list(
+            params,
+            { stripeAccount: stripeAccountId }
+        );
+        return result.data;
+    }
+
+    /**
+     * Get Terminal Reader details on a connected account
+     */
+    async getTerminalReader(
+        stripeAccountId: string,
+        readerId: string
+    ): Promise<Stripe.Terminal.Reader> {
+        const stripe = this.assertConfigured("get terminal readers");
+        return stripe.terminal.readers.retrieve(
+            readerId,
+            {},
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Delete a Terminal Reader on a connected account
+     */
+    async deleteTerminalReader(
+        stripeAccountId: string,
+        readerId: string
+    ): Promise<Stripe.Terminal.DeletedReader> {
+        const stripe = this.assertConfigured("delete terminal readers");
+        return stripe.terminal.readers.del(
+            readerId,
+            {},
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Update Terminal Reader label on a connected account
+     */
+    async updateTerminalReader(
+        stripeAccountId: string,
+        readerId: string,
+        label: string
+    ): Promise<Stripe.Terminal.Reader> {
+        const stripe = this.assertConfigured("update terminal readers");
+        return stripe.terminal.readers.update(
+            readerId,
+            { label },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Create a PaymentIntent for Terminal (card_present)
+     */
+    async createTerminalPaymentIntent(
+        stripeAccountId: string,
+        amountCents: number,
+        currency: string,
+        metadata: Record<string, string>,
+        applicationFeeCents: number = 0,
+        options?: {
+            customerId?: string;
+            setupFutureUsage?: "off_session";
+            captureMethod?: "automatic" | "manual";
+            idempotencyKey?: string;
+        }
+    ): Promise<Stripe.PaymentIntent> {
+        const stripe = this.assertConfigured("create terminal payment intents");
+
+        const params: Stripe.PaymentIntentCreateParams = {
+            amount: amountCents,
+            currency,
+            payment_method_types: ["card_present"],
+            capture_method: options?.captureMethod ?? "automatic",
+            metadata,
+            application_fee_amount: applicationFeeCents > 0 ? applicationFeeCents : undefined,
+        };
+
+        if (options?.customerId) {
+            params.customer = options.customerId;
+        }
+
+        if (options?.setupFutureUsage) {
+            params.setup_future_usage = options.setupFutureUsage;
+        }
+
+        const requestOptions: Stripe.RequestOptions = {
+            stripeAccount: stripeAccountId,
+        };
+
+        if (options?.idempotencyKey) {
+            requestOptions.idempotencyKey = options.idempotencyKey;
+        }
+
+        return stripe.paymentIntents.create(params, requestOptions);
+    }
+
+    /**
+     * Process a payment on a Terminal Reader
+     * Sends the PaymentIntent to the physical device for card collection
+     */
+    async processPaymentOnReader(
+        stripeAccountId: string,
+        readerId: string,
+        paymentIntentId: string
+    ): Promise<Stripe.Terminal.Reader> {
+        const stripe = this.assertConfigured("process terminal payments");
+        return stripe.terminal.readers.processPaymentIntent(
+            readerId,
+            { payment_intent: paymentIntentId },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Cancel an action on a Terminal Reader
+     */
+    async cancelTerminalReaderAction(
+        stripeAccountId: string,
+        readerId: string
+    ): Promise<Stripe.Terminal.Reader> {
+        const stripe = this.assertConfigured("cancel terminal reader actions");
+        return stripe.terminal.readers.cancelAction(
+            readerId,
+            {},
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Create a connection token for Terminal SDK (used by frontend)
+     */
+    async createConnectionToken(
+        stripeAccountId: string,
+        locationId?: string
+    ): Promise<Stripe.Terminal.ConnectionToken> {
+        const stripe = this.assertConfigured("create connection tokens");
+        const params: Stripe.Terminal.ConnectionTokenCreateParams = {};
+        if (locationId) {
+            params.location = locationId;
+        }
+        return stripe.terminal.connectionTokens.create(
+            params,
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Retrieve PaymentIntent on a connected account
+     */
+    async retrievePaymentIntentOnConnectedAccount(
+        stripeAccountId: string,
+        paymentIntentId: string
+    ): Promise<Stripe.PaymentIntent> {
+        const stripe = this.assertConfigured("retrieve payment intents");
+        return stripe.paymentIntents.retrieve(
+            paymentIntentId,
+            { expand: ["payment_method", "charges.data.payment_method_details"] },
+            { stripeAccount: stripeAccountId }
+        );
+    }
+
+    /**
+     * Capture a PaymentIntent on a connected account
+     */
+    async capturePaymentIntentOnConnectedAccount(
+        stripeAccountId: string,
+        paymentIntentId: string,
+        amountCents?: number,
+        idempotencyKey?: string
+    ): Promise<Stripe.PaymentIntent> {
+        const stripe = this.assertConfigured("capture payment intents");
+        const params: Stripe.PaymentIntentCaptureParams = {};
+        if (amountCents !== undefined) {
+            params.amount_to_capture = amountCents;
+        }
+        const requestOptions: Stripe.RequestOptions = {
+            stripeAccount: stripeAccountId,
+        };
+        if (idempotencyKey) {
+            requestOptions.idempotencyKey = idempotencyKey;
+        }
+        return stripe.paymentIntents.capture(paymentIntentId, params, requestOptions);
+    }
+
+    /**
+     * Create a refund on a connected account (always to original payment method)
+     */
+    async createRefundOnConnectedAccount(
+        stripeAccountId: string,
+        paymentIntentId: string,
+        amountCents?: number,
+        reason?: "duplicate" | "fraudulent" | "requested_by_customer",
+        idempotencyKey?: string
+    ): Promise<Stripe.Refund> {
+        const stripe = this.assertConfigured("create refunds on connected accounts");
+        const params: Stripe.RefundCreateParams = {
+            payment_intent: paymentIntentId,
+        };
+        if (amountCents !== undefined) {
+            params.amount = amountCents;
+        }
+        if (reason) {
+            params.reason = reason;
+        }
+        // Note: Stripe automatically refunds to the original payment method
+        // There is no option to specify a different destination
+        const requestOptions: Stripe.RequestOptions = {
+            stripeAccount: stripeAccountId,
+        };
+        if (idempotencyKey) {
+            requestOptions.idempotencyKey = idempotencyKey;
+        }
+        return stripe.refunds.create(params, requestOptions);
+    }
+
+    /**
+     * Charge a saved payment method off-session on a connected account
+     */
+    async chargeOffSessionOnConnectedAccount(
+        stripeAccountId: string,
+        customerId: string,
+        paymentMethodId: string,
+        amountCents: number,
+        currency: string,
+        metadata: Record<string, string>,
+        applicationFeeCents: number = 0,
+        idempotencyKey?: string
+    ): Promise<Stripe.PaymentIntent> {
+        const stripe = this.assertConfigured("charge off-session on connected accounts");
+
+        const params: Stripe.PaymentIntentCreateParams = {
+            amount: amountCents,
+            currency,
+            customer: customerId,
+            payment_method: paymentMethodId,
+            off_session: true,
+            confirm: true,
+            metadata,
+            application_fee_amount: applicationFeeCents > 0 ? applicationFeeCents : undefined,
+        };
+
+        const requestOptions: Stripe.RequestOptions = {
+            stripeAccount: stripeAccountId,
+        };
+
+        if (idempotencyKey) {
+            requestOptions.idempotencyKey = idempotencyKey;
+        }
+
+        return stripe.paymentIntents.create(params, requestOptions);
+    }
 }

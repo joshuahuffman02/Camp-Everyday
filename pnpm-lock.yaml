@@ -71,6 +71,7 @@ importers:
       jest: ^29.7.0
       node-fetch: ^2.7.0
       nodemailer: ^7.0.11
+      openai: ^6.15.0
       otpauth: ^9.4.1
       passport: ^0.7.0
       passport-jwt: ^4.0.1
@@ -128,6 +129,7 @@ importers:
       ioredis: 5.8.2
       node-fetch: 2.7.0
       nodemailer: 7.0.12
+      openai: 6.15.0_ws@8.18.3+zod@3.25.76
       otpauth: 9.4.1
       passport: 0.7.0
       passport-jwt: 4.0.1
@@ -11848,6 +11850,22 @@ packages:
     dependencies:
       mimic-fn: 2.1.0
     dev: true
+
+  /openai/6.15.0_ws@8.18.3+zod@3.25.76:
+    resolution: {integrity: sha512-F1Lvs5BoVvmZtzkUEVyh8mDQPPFolq4F+xdsx/DO8Hee8YF3IGAlZqUIsF+DVGhqf4aU0a3bTghsxB6OIsRy1g==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      ws: 8.18.3
+      zod: 3.25.76
+    dev: false
 
   /optionator/0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
