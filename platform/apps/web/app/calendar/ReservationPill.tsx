@@ -1,7 +1,7 @@
-import { CheckCircle, Clock, XCircle, HelpCircle, Wrench, Sparkles, AlertTriangle, Lock, LogIn } from "lucide-react";
+import { CheckCircle, Clock, XCircle, HelpCircle, Wrench, Sparkles, AlertTriangle, Lock, LogIn, GripVertical } from "lucide-react";
 import { useCalendarContext } from "./CalendarContext";
 import { cn } from "../../lib/utils";
-import type { CalendarReservation, ReservationStatus } from "./types";
+import type { CalendarReservation, ReservationStatus, ReservationDragMode } from "./types";
 
 interface ReservationPillProps {
     reservation: CalendarReservation;
@@ -15,6 +15,7 @@ interface ReservationPillProps {
     onPointerUp: (e: React.PointerEvent) => void;
     onQuickCheckIn?: (reservationId: string) => void;
     isArrivalToday?: boolean;
+    onDragStart?: (reservationId: string, mode: ReservationDragMode) => void;
 }
 
 export function ReservationPill({
@@ -28,10 +29,12 @@ export function ReservationPill({
     needsCleaning,
     hasConflict,
     onQuickCheckIn,
-    isArrivalToday
+    isArrivalToday,
+    onDragStart
 }: ReservationPillProps) {
-    const { dragState } = useCalendarContext();
+    const { dragState, reservationDrag } = useCalendarContext();
     const isDragging = dragState.isDragging;
+    const isBeingDragged = reservationDrag.reservationId === reservation.id;
     // Wrapper handlers that stop propagation to prevent double events
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -53,6 +56,30 @@ export function ReservationPill({
         e.preventDefault();
         if (onQuickCheckIn && reservation.status === "confirmed") {
             onQuickCheckIn(reservation.id);
+        }
+    };
+
+    const handleExtendStartDrag = (e: React.PointerEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (onDragStart) {
+            onDragStart(reservation.id, "extend-start");
+        }
+    };
+
+    const handleExtendEndDrag = (e: React.PointerEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (onDragStart) {
+            onDragStart(reservation.id, "extend-end");
+        }
+    };
+
+    const handleMoveDrag = (e: React.PointerEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (onDragStart) {
+            onDragStart(reservation.id, "move");
         }
     };
 
@@ -105,7 +132,8 @@ export function ReservationPill({
                 config.shadow,
                 lockedAccent,
                 isHighlighted ? "ring-2 ring-white/60 ring-offset-2 ring-offset-slate-100 z-20 shadow-lg" : "z-10",
-                isDragging && "pointer-events-none opacity-40 grayscale-[0.5]"
+                isDragging && !isBeingDragged && "pointer-events-none opacity-40 grayscale-[0.5]",
+                isBeingDragged && "ring-2 ring-blue-400 ring-offset-1 opacity-90 scale-[1.02] shadow-2xl z-50"
             )}
             style={style}
             title={`${guestName} • ${reservation.status}`}
@@ -137,6 +165,38 @@ export function ReservationPill({
                     </div>
                 )}
             </div>
+
+            {/* Drag handles - visible on hover */}
+            {onDragStart && (
+                <>
+                    {/* Left edge - extend start date */}
+                    <div
+                        className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center bg-gradient-to-r from-black/20 to-transparent rounded-l-lg"
+                        onPointerDown={handleExtendStartDrag}
+                        title="Drag to change arrival date"
+                    >
+                        <div className="w-0.5 h-4 bg-white/60 rounded-full" />
+                    </div>
+
+                    {/* Right edge - extend end date */}
+                    <div
+                        className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center bg-gradient-to-l from-black/20 to-transparent rounded-r-lg"
+                        onPointerDown={handleExtendEndDrag}
+                        title="Drag to change departure date"
+                    >
+                        <div className="w-0.5 h-4 bg-white/60 rounded-full" />
+                    </div>
+
+                    {/* Center grip - move reservation */}
+                    <div
+                        className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-8 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        onPointerDown={handleMoveDrag}
+                        title="Drag to move reservation"
+                    >
+                        <GripVertical className="w-3 h-3 text-white/60" />
+                    </div>
+                </>
+            )}
 
             {/* Gloss Highlight effect */}
             <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />

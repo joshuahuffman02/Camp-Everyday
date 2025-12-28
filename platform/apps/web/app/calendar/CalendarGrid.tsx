@@ -2,7 +2,8 @@ import React, { useMemo, useCallback, useEffect } from "react";
 import { CalendarRow } from "./CalendarRow";
 import { useCalendarContext } from "./CalendarContext";
 import { useCalendarData } from "./useCalendarData";
-import { formatLocalDateInput, toLocalDate, parseLocalDateInput } from "./utils";
+import { formatLocalDateInput, toLocalDate, parseLocalDateInput, diffInDays } from "./utils";
+import type { ReservationDragMode, CalendarReservation } from "./types";
 
 function Skeleton({ className }: { className?: string }) {
     return <div className={cn("animate-pulse bg-slate-200 rounded", className)} />;
@@ -13,12 +14,13 @@ import { cn } from "../../lib/utils";
 interface CalendarGridProps {
     data: ReturnType<typeof useCalendarData>;
     onSelectionComplete: (siteId: string, arrival: Date, departure: Date) => void;
+    onReservationMove?: (reservationId: string, siteId: string, arrivalDate: string, departureDate: string) => void;
 }
 
-export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
-    const { setDragVisual, dragRef } = useCalendarContext();
+export function CalendarGrid({ data, onSelectionComplete, onReservationMove }: CalendarGridProps) {
+    const { setDragVisual, dragRef, reservationDrag, startReservationDrag, updateReservationDrag, endReservationDrag } = useCalendarContext();
     const gridRef = React.useRef<HTMLDivElement>(null);
-    const { queries, derived, state, actions } = data;
+    const { queries, derived, state, actions, mutations } = data;
     const { sites, reservations, blackouts } = queries;
     const { days, dayCount, reservationsBySite, ganttSelection } = derived;
 
@@ -98,24 +100,138 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
     }, [days, onSelectionComplete, setDragVisual, dragRef]);
 
     const handleGridPointerMove = useCallback((e: React.PointerEvent) => {
-        if (!dragRef.current.isDragging) return;
+        if (!dragRef.current.isDragging && !reservationDrag.isDragging) return;
         const target = resolveDragTarget(e.clientX, e.clientY);
         if (!target) return;
-        handleDragEnter(target.siteId, target.dayIdx);
-    }, [dragRef, resolveDragTarget, handleDragEnter]);
+
+        if (dragRef.current.isDragging) {
+            handleDragEnter(target.siteId, target.dayIdx);
+        }
+
+        if (reservationDrag.isDragging) {
+            updateReservationDrag({
+                currentSiteId: target.siteId,
+                currentEndIdx: target.dayIdx,
+            });
+        }
+    }, [dragRef, resolveDragTarget, handleDragEnter, reservationDrag.isDragging, updateReservationDrag]);
+
+    // Handler for starting a reservation drag (move or extend)
+    const handleReservationDragStart = useCallback((reservationId: string, mode: ReservationDragMode) => {
+        const reservation = (reservations.data || []).find((r: CalendarReservation) => r.id === reservationId);
+        if (!reservation || !reservation.siteId) return;
+
+        startReservationDrag({
+            reservationId,
+            siteId: reservation.siteId,
+            arrival: reservation.arrivalDate,
+            departure: reservation.departureDate,
+            mode,
+        });
+    }, [reservations.data, startReservationDrag]);
+
+    // Handler for ending a reservation drag
+    const handleReservationDragEnd = useCallback(() => {
+        if (!reservationDrag.isDragging || !reservationDrag.reservationId) {
+            endReservationDrag();
+            return;
+        }
+
+        const { reservationId, originalSiteId, originalArrival, originalDeparture, mode, currentSiteId, currentEndIdx } = reservationDrag;
+
+        if (currentEndIdx === null || !originalArrival || !originalDeparture) {
+            endReservationDrag();
+            return;
+        }
+
+        const startDate = days[0].date;
+        const originalArrivalDate = parseLocalDateInput(originalArrival);
+        const originalDepartureDate = parseLocalDateInput(originalDeparture);
+        const originalStartIdx = diffInDays(originalArrivalDate, startDate);
+        const originalEndIdx = diffInDays(originalDepartureDate, startDate);
+
+        let newArrivalDate: Date;
+        let newDepartureDate: Date;
+        let newSiteId = originalSiteId;
+
+        if (mode === "extend-end") {
+            // Extend the departure date
+            newArrivalDate = originalArrivalDate;
+            newDepartureDate = new Date(days[currentEndIdx].date);
+            newDepartureDate.setDate(newDepartureDate.getDate() + 1); // Departure is exclusive
+
+            // Don't allow departure before arrival
+            if (newDepartureDate <= newArrivalDate) {
+                endReservationDrag();
+                return;
+            }
+        } else if (mode === "extend-start") {
+            // Extend the arrival date
+            newArrivalDate = new Date(days[currentEndIdx].date);
+            newDepartureDate = originalDepartureDate;
+
+            // Don't allow arrival after departure
+            if (newArrivalDate >= newDepartureDate) {
+                endReservationDrag();
+                return;
+            }
+        } else if (mode === "move") {
+            // Move the entire reservation
+            const nights = diffInDays(originalDepartureDate, originalArrivalDate);
+            newArrivalDate = new Date(days[currentEndIdx].date);
+            newDepartureDate = new Date(newArrivalDate);
+            newDepartureDate.setDate(newDepartureDate.getDate() + nights);
+            newSiteId = currentSiteId || originalSiteId;
+        } else {
+            endReservationDrag();
+            return;
+        }
+
+        const newArrivalStr = formatLocalDateInput(newArrivalDate);
+        const newDepartureStr = formatLocalDateInput(newDepartureDate);
+
+        // Only update if something changed
+        if (newArrivalStr !== originalArrival || newDepartureStr !== originalDeparture || newSiteId !== originalSiteId) {
+            if (onReservationMove) {
+                onReservationMove(reservationId, newSiteId!, newArrivalStr, newDepartureStr);
+            } else {
+                // Use the built-in mutation
+                mutations.move.mutate({
+                    id: reservationId,
+                    siteId: newSiteId!,
+                    arrivalDate: newArrivalStr,
+                    departureDate: newDepartureStr,
+                });
+            }
+        }
+
+        endReservationDrag();
+    }, [reservationDrag, days, endReservationDrag, onReservationMove, mutations.move]);
 
     useEffect(() => {
         const handleGlobalPointerUp = () => {
             if (dragRef.current.isDragging) {
                 handleDragEnd(null, null);
             }
+            if (reservationDrag.isDragging) {
+                handleReservationDragEnd();
+            }
         };
 
         const handleGlobalPointerMove = (e: PointerEvent) => {
-            if (!dragRef.current.isDragging) return;
+            if (!dragRef.current.isDragging && !reservationDrag.isDragging) return;
             const target = resolveDragTarget(e.clientX, e.clientY);
             if (!target) return;
-            handleDragEnter(target.siteId, target.dayIdx);
+
+            if (dragRef.current.isDragging) {
+                handleDragEnter(target.siteId, target.dayIdx);
+            }
+            if (reservationDrag.isDragging) {
+                updateReservationDrag({
+                    currentSiteId: target.siteId,
+                    currentEndIdx: target.dayIdx,
+                });
+            }
         };
 
         window.addEventListener("pointerup", handleGlobalPointerUp);
@@ -124,7 +240,7 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
             window.removeEventListener("pointerup", handleGlobalPointerUp);
             window.removeEventListener("pointermove", handleGlobalPointerMove);
         };
-    }, [handleDragEnd, handleDragEnter, resolveDragTarget, dragRef]);
+    }, [handleDragEnd, handleDragEnter, resolveDragTarget, dragRef, reservationDrag.isDragging, handleReservationDragEnd, updateReservationDrag]);
 
     if (sites.isLoading || reservations.isLoading) {
         return (
@@ -196,7 +312,8 @@ export function CalendarGrid({ data, onSelectionComplete }: CalendarGridProps) {
                                 onDragEnter: handleDragEnter,
                                 onDragEnd: handleDragEnd,
                                 onReservationClick: actions.setSelectedReservationId,
-                                onQuickCheckIn: actions.handleQuickCheckIn
+                                onQuickCheckIn: actions.handleQuickCheckIn,
+                                onReservationDragStart: handleReservationDragStart,
                             }}
                             today={new Date()}
                         />

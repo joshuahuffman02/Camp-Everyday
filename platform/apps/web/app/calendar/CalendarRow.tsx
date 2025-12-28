@@ -2,7 +2,7 @@ import { memo } from "react";
 import { ReservationPill } from "./ReservationPill";
 import { RowSelectionOverlay } from "./RowSelectionOverlay";
 import { cn } from "../../lib/utils";
-import type { CalendarSite, CalendarReservation, CalendarSelection, GanttSelection, DayMeta } from "./types";
+import type { CalendarSite, CalendarReservation, CalendarSelection, GanttSelection, DayMeta, ReservationDragMode } from "./types";
 import { Wrench, Sparkles, AlertTriangle, Calendar, Tent } from "lucide-react";
 import { diffInDays, parseLocalDateInput } from "./utils";
 
@@ -21,6 +21,7 @@ interface CalendarRowProps {
         onDragEnd: (siteId: string | null, dayIdx: number | null) => void;
         onReservationClick: (resId: string) => void;
         onQuickCheckIn?: (reservationId: string) => void;
+        onReservationDragStart?: (reservationId: string, mode: ReservationDragMode) => void;
     };
     today: Date;
 }
@@ -37,7 +38,7 @@ export const CalendarRow = memo(function CalendarRow({
     handlers,
     today
 }: CalendarRowProps) {
-    const { onDragStart, onDragEnter, onDragEnd, onReservationClick, onQuickCheckIn } = handlers;
+    const { onDragStart, onDragEnter, onDragEnd, onReservationClick, onQuickCheckIn, onReservationDragStart } = handlers;
 
     const isArrivalToday = (res: CalendarReservation) => {
         const arrivalDate = parseLocalDateInput(res.arrivalDate);
@@ -165,6 +166,7 @@ export const CalendarRow = memo(function CalendarRow({
                                     onPointerUp={(e) => e.stopPropagation()}
                                     onQuickCheckIn={onQuickCheckIn}
                                     isArrivalToday={isArrivalToday(res)}
+                                    onDragStart={onReservationDragStart}
                                 />
                             </div>
                         );

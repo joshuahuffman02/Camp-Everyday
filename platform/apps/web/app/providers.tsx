@@ -7,6 +7,7 @@ import { PropsWithChildren, useState } from "react";
 import { KeyboardShortcutsProvider } from "@/contexts/KeyboardShortcutsContext";
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 import { KeyboardSequenceIndicator } from "@/components/ui/keyboard-sequence-indicator";
+import { GlobalCommandPalette } from "@/components/ui/global-command-palette";
 import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
@@ -20,6 +21,7 @@ export function Providers({ children }: PropsWithChildren) {
           <AccessibilityProvider>
             <KeyboardShortcutsProvider>
               {children}
+              <GlobalCommandPalette />
               <KeyboardShortcutsDialog />
               <KeyboardSequenceIndicator />
               <ReactQueryDevtools initialIsOpen={false} />

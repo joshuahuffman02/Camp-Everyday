@@ -42,7 +42,10 @@ type Site = {
   id: string;
   name: string;
   siteClassId?: string | null;
-  siteClass?: { name: string };
+  siteClass?: {
+    name: string;
+    rentalType?: string; // "transient" | "seasonal" | "flexible"
+  };
 };
 
 type RateCard = {
@@ -118,12 +121,13 @@ export default function NewSeasonalGuestPage() {
   const currentYear = new Date().getFullYear();
   const [firstSeasonYear, setFirstSeasonYear] = useState(currentYear);
 
-  // Fetch guests
+  // Fetch guests - search globally, not just this campground
   const { data: guests = [], isLoading: loadingGuests } = useQuery<Guest[]>({
-    queryKey: ["guests", campgroundId, guestSearch],
+    queryKey: ["guests-search", guestSearch],
     queryFn: async () => {
-      const data = await apiClient.getGuests(campgroundId);
-      if (guestSearch) {
+      // Fetch guests without campground filter to find all guests
+      const data = await apiClient.getGuests();
+      if (guestSearch && guestSearch.length >= 2) {
         const search = guestSearch.toLowerCase();
         return data.filter((g: Guest) =>
           g.primaryFirstName?.toLowerCase().includes(search) ||
@@ -133,13 +137,22 @@ export default function NewSeasonalGuestPage() {
       }
       return data.slice(0, 50); // Limit to first 50 if no search
     },
+    enabled: guestSearch.length >= 2 || guestSearch.length === 0,
   });
 
-  // Fetch sites
-  const { data: sites = [], isLoading: loadingSites } = useQuery<Site[]>({
+  // Fetch sites and filter to seasonal/flexible only
+  const { data: allSites = [], isLoading: loadingSites } = useQuery<Site[]>({
     queryKey: ["sites", campgroundId],
     queryFn: () => apiClient.getSites(campgroundId),
   });
+
+  // Filter to only show sites with seasonal or flexible rental type
+  const sites = useMemo(() => {
+    return allSites.filter((site) => {
+      const rentalType = site.siteClass?.rentalType;
+      return rentalType === "seasonal" || rentalType === "flexible";
+    });
+  }, [allSites]);
 
   // Fetch rate cards
   const { data: rateCards = [], isLoading: loadingRateCards } = useQuery<RateCard[]>({
@@ -283,17 +296,25 @@ export default function NewSeasonalGuestPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <Input
-                placeholder="Search guests by name or email..."
+                placeholder="Search guests by name or email (min 2 characters)..."
                 value={guestSearch}
                 onChange={(e) => setGuestSearch(e.target.value)}
               />
-              {loadingGuests ? (
+              {guestSearch.length === 1 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Type at least 2 characters to search...
+                </p>
+              ) : loadingGuests ? (
                 <div className="flex justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
+              ) : guests.length === 0 && guestSearch.length >= 2 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No guests found for "{guestSearch}". Try a different search or create a new guest.
+                </p>
               ) : guests.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No guests found. Try a different search.
+                  Start typing to search for guests...
                 </p>
               ) : (
                 <div className="max-h-48 overflow-y-auto border rounded-md divide-y">
@@ -334,9 +355,23 @@ export default function NewSeasonalGuestPage() {
                 <MapPin className="h-5 w-5" />
                 Site Assignment
               </CardTitle>
-              <CardDescription>Assign a site for the season (optional)</CardDescription>
+              <CardDescription>
+                Assign a seasonal site (only sites with rental type "seasonal" or "flexible" are shown)
+              </CardDescription>
             </CardHeader>
             <CardContent>
+              {loadingSites ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : sites.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  <p className="text-sm">No seasonal sites available.</p>
+                  <p className="text-xs mt-1">
+                    Configure site classes with rental type "seasonal" in Settings → Site Classes.
+                  </p>
+                </div>
+              ) : (
               <Select value={selectedSiteId || "__none__"} onValueChange={(v) => setSelectedSiteId(v === "__none__" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a site..." />
@@ -355,6 +390,7 @@ export default function NewSeasonalGuestPage() {
                   ))}
                 </SelectContent>
               </Select>
+              )}
             </CardContent>
           </Card>
 

@@ -130,3 +130,19 @@ export type CalendarViewMode = "day" | "week" | "month" | "list";
 
 // Assignment filter
 export type AssignmentFilter = "all" | "assigned" | "unassigned";
+
+// Reservation drag operation type
+export type ReservationDragMode = "move" | "extend-start" | "extend-end" | null;
+
+// Reservation drag state
+export interface ReservationDragState {
+  reservationId: string | null;
+  originalSiteId: string | null;
+  originalArrival: string | null;
+  originalDeparture: string | null;
+  mode: ReservationDragMode;
+  currentSiteId: string | null;
+  currentStartIdx: number | null;
+  currentEndIdx: number | null;
+  isDragging: boolean;
+}
