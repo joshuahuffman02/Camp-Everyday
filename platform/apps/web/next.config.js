@@ -168,12 +168,22 @@ const nextConfig = {
       ? "https://camp-everydayapi-production.up.railway.app"
       : "http://localhost:4000";
 
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendUrl}/api/:path*`,
-      },
-    ];
+    return {
+      // beforeFiles rewrites are checked before pages/public files
+      // which allows page files to override rewrites
+      beforeFiles: [],
+      // afterFiles rewrites are checked after pages/public files
+      // but before fallback
+      afterFiles: [
+        {
+          // Proxy all /api/* requests EXCEPT /api/auth/* (NextAuth routes)
+          source: "/api/:path((?!auth).*)",
+          destination: `${backendUrl}/api/:path*`,
+        },
+      ],
+      // fallback rewrites are checked after both pages and afterFiles
+      fallback: [],
+    };
   },
 
   // Experimental features for performance

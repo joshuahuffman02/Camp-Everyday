@@ -15,26 +15,26 @@ const TIER_CONFIGS: Record<string, TierConfig> = {
     monthlyFeeCents: 0,
     perBookingFeeCents: 75, // $0.75
     freeMonthlyUntil: null, // Forever free
-    smsOutboundCents: 10,
-    smsInboundCents: 4,
+    smsOutboundCents: 3, // $0.03
+    smsInboundCents: 3, // $0.03
   },
   pioneer: {
     monthlyFeeCents: 0, // Free for 12 months, then $29
     perBookingFeeCents: 100, // $1.00
-    smsOutboundCents: 10,
-    smsInboundCents: 4,
+    smsOutboundCents: 3, // $0.03
+    smsInboundCents: 3, // $0.03
   },
   trailblazer: {
     monthlyFeeCents: 1450, // $14.50 for 6 months, then $29
     perBookingFeeCents: 125, // $1.25
-    smsOutboundCents: 10,
-    smsInboundCents: 4,
+    smsOutboundCents: 3, // $0.03
+    smsInboundCents: 3, // $0.03
   },
   standard: {
     monthlyFeeCents: 6900, // $69
     perBookingFeeCents: 250, // $2.50
-    smsOutboundCents: 10,
-    smsInboundCents: 4,
+    smsOutboundCents: 3, // $0.03
+    smsInboundCents: 3, // $0.03
   },
 };
 
@@ -238,7 +238,7 @@ export class OrgBillingService {
     const smsOutbound = await this.prisma.usageEvent.count({
       where: {
         organizationId,
-        eventType: "sms_sent",
+        eventType: "sms_outbound",
         createdAt: {
           gte: periodStart,
           lte: periodEnd,
@@ -249,7 +249,7 @@ export class OrgBillingService {
     const smsInbound = await this.prisma.usageEvent.count({
       where: {
         organizationId,
-        eventType: "sms_received",
+        eventType: "sms_inbound",
         createdAt: {
           gte: periodStart,
           lte: periodEnd,
@@ -325,10 +325,10 @@ export class OrgBillingService {
       case "booking_created":
         unitCents = org?.earlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents;
         break;
-      case "sms_sent":
+      case "sms_outbound":
         unitCents = tierConfig.smsOutboundCents;
         break;
-      case "sms_received":
+      case "sms_inbound":
         unitCents = tierConfig.smsInboundCents;
         break;
     }
