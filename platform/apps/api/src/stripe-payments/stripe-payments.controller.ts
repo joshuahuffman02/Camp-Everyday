@@ -11,8 +11,7 @@ import {
     Req,
     UseGuards,
 } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { RolesGuard } from "../auth/roles.guard";
+import { JwtAuthGuard, RolesGuard } from "../auth/guards";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { Roles } from "../auth/roles.decorator";
 import { RequireScope } from "../permissions/require-scope.decorator";
