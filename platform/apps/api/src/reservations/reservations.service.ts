@@ -1994,16 +1994,6 @@ export class ReservationsService {
       tenders?: { method: string; amountCents: number; note?: string }[];
     }
   ) {
-    const reservation = await this.prisma.reservation.findUnique({
-      where: { id },
-      include: {
-        site: { include: { siteClass: true } },
-        guest: true,
-        campground: { select: { name: true } }
-      }
-    });
-    if (!reservation) throw new NotFoundException("Reservation not found");
-
     const tenderList =
       options?.tenders && options.tenders.length > 0
         ? options.tenders
@@ -2013,16 +2003,48 @@ export class ReservationsService {
     const totalTenderCents = tenderList.reduce((sum, t) => sum + (t.amountCents || 0), 0);
     if (totalTenderCents <= 0) throw new BadRequestException("Payment amount must be positive");
 
-    const newPaid = (reservation.paidAmount ?? 0) + totalTenderCents;
-    const paymentFields = this.buildPaymentFields(reservation.totalAmount, newPaid);
-
-    const revenueGl = reservation.site?.siteClass?.glCode ?? "REVENUE_UNMAPPED";
-    const revenueAccount = reservation.site?.siteClass?.clientAccount ?? "Revenue";
     const externalRef = options?.stripeBalanceTransactionId ?? options?.stripeChargeId ?? options?.stripePaymentIntentId ?? options?.transactionId ?? null;
 
-    // Wrap reservation update, payment creation, and ledger entries in a single transaction
-    // to ensure atomic consistency - either all succeed or all rollback
-    const updated = await this.prisma.$transaction(async (tx) => {
+    // Wrap entire operation in transaction with row-level locking to prevent race conditions
+    // This ensures concurrent payments don't overwrite each other's paidAmount updates
+    const { updated, reservation } = await this.prisma.$transaction(async (tx) => {
+      // Lock the reservation row using SELECT FOR UPDATE to prevent concurrent modifications
+      const [lockedReservation] = await tx.$queryRaw<Array<{
+        id: string;
+        campgroundId: string;
+        guestId: string;
+        siteId: string;
+        paidAmount: number | null;
+        totalAmount: number;
+        arrivalDate: Date;
+        departureDate: Date;
+        source: string | null;
+      }>>`
+        SELECT id, "campgroundId", "guestId", "siteId", "paidAmount", "totalAmount", "arrivalDate", "departureDate", source
+        FROM "Reservation"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      if (!lockedReservation) throw new NotFoundException("Reservation not found");
+
+      // Calculate new paid amount atomically with the locked row
+      const newPaid = (lockedReservation.paidAmount ?? 0) + totalTenderCents;
+      const paymentFields = this.buildPaymentFields(lockedReservation.totalAmount, newPaid);
+
+      // Get related data for ledger entries (these don't need locking)
+      const site = await tx.site.findUnique({
+        where: { id: lockedReservation.siteId },
+        include: { siteClass: true }
+      });
+      const guest = await tx.guest.findUnique({ where: { id: lockedReservation.guestId } });
+      const campground = await tx.campground.findUnique({
+        where: { id: lockedReservation.campgroundId },
+        select: { name: true }
+      });
+
+      const revenueGl = site?.siteClass?.glCode ?? "REVENUE_UNMAPPED";
+      const revenueAccount = site?.siteClass?.clientAccount ?? "Revenue";
+
       const updatedReservation = await tx.reservation.update({
         where: { id },
         data: {
@@ -2031,11 +2053,19 @@ export class ReservationsService {
         }
       });
 
+      // Combine locked data with related data for return
+      const fullReservation = {
+        ...lockedReservation,
+        site,
+        guest,
+        campground
+      };
+
       for (const tender of tenderList) {
         await tx.payment.create({
           data: {
-            campgroundId: reservation.campgroundId,
-            reservationId: reservation.id,
+            campgroundId: fullReservation.campgroundId,
+            reservationId: fullReservation.id,
             amountCents: tender.amountCents,
             method: tender.method || options?.paymentMethod || "card",
             direction: "charge",
@@ -2052,39 +2082,39 @@ export class ReservationsService {
         });
         await postBalancedLedgerEntries(tx, [
           {
-            campgroundId: reservation.campgroundId,
-            reservationId: reservation.id,
+            campgroundId: fullReservation.campgroundId,
+            reservationId: fullReservation.id,
             glCode: "CASH",
             account: "Cash",
             description: options?.transactionId ? `Payment ${options.transactionId}` : `Reservation payment (${tender.method})`,
             amountCents: tender.amountCents,
             direction: "debit",
             externalRef,
-            dedupeKey: externalRef ? `res:${reservation.id}:payment:${externalRef}:${tender.method}:debit` : `res:${reservation.id}:payment:${tender.method}:debit`
+            dedupeKey: externalRef ? `res:${fullReservation.id}:payment:${externalRef}:${tender.method}:debit` : `res:${fullReservation.id}:payment:${tender.method}:debit`
           },
           {
-            campgroundId: reservation.campgroundId,
-            reservationId: reservation.id,
+            campgroundId: fullReservation.campgroundId,
+            reservationId: fullReservation.id,
             glCode: revenueGl,
             account: revenueAccount,
             description: `Reservation payment (${tender.method})`,
             amountCents: tender.amountCents,
             direction: "credit",
             externalRef,
-            dedupeKey: externalRef ? `res:${reservation.id}:payment:${externalRef}:${tender.method}:credit` : `res:${reservation.id}:payment:${tender.method}:credit`
+            dedupeKey: externalRef ? `res:${fullReservation.id}:payment:${externalRef}:${tender.method}:credit` : `res:${fullReservation.id}:payment:${tender.method}:credit`
           }
         ]);
       }
 
-      return updatedReservation;
+      return { updated: updatedReservation, reservation: fullReservation };
     });
 
     // Send payment receipt email
     try {
       await this.emailService.sendPaymentReceipt({
-        guestEmail: reservation.guest.email,
-        guestName: `${reservation.guest.primaryFirstName} ${reservation.guest.primaryLastName}`,
-        campgroundName: reservation.campground.name,
+        guestEmail: reservation.guest?.email,
+        guestName: `${reservation.guest?.primaryFirstName} ${reservation.guest?.primaryLastName}`,
+        campgroundName: reservation.campground?.name,
         amountCents: totalTenderCents,
         paymentMethod: options?.paymentMethod || (tenderList.length === 1 ? tenderList[0].method : 'Mixed'),
         transactionId: options?.transactionId,
@@ -2113,30 +2143,54 @@ export class ReservationsService {
     options?: { destination?: "card" | "wallet"; reason?: string }
   ) {
     if (amountCents <= 0) throw new BadRequestException("Refund amount must be positive");
-    const reservation = await this.prisma.reservation.findUnique({
-      where: { id },
-      include: {
-        site: { include: { siteClass: true } },
-        guest: true,
-        campground: { select: { name: true } }
-      }
-    });
-    if (!reservation) throw new NotFoundException("Reservation not found");
 
-    if ((reservation.paidAmount ?? 0) < amountCents) {
-      throw new BadRequestException("Refund exceeds paid amount");
-    }
-
-    const newPaid = (reservation.paidAmount ?? 0) - amountCents;
-    const paymentFields = this.buildPaymentFields(reservation.totalAmount, newPaid);
     const destination = options?.destination ?? "card";
-    const revenueGl = reservation.site?.siteClass?.glCode ?? "REVENUE_UNMAPPED";
-    const revenueAccount = reservation.site?.siteClass?.clientAccount ?? "Revenue";
     const refundTimestamp = Date.now();
 
-    // Wrap reservation update, payment creation, and ledger entries in a single transaction
-    // to ensure atomic consistency - either all succeed or all rollback
-    const updated = await this.prisma.$transaction(async (tx) => {
+    // Wrap entire operation in transaction with row-level locking to prevent race conditions
+    const { updated, reservation } = await this.prisma.$transaction(async (tx) => {
+      // Lock the reservation row using SELECT FOR UPDATE to prevent concurrent modifications
+      const [lockedReservation] = await tx.$queryRaw<Array<{
+        id: string;
+        campgroundId: string;
+        guestId: string;
+        siteId: string;
+        paidAmount: number | null;
+        totalAmount: number;
+        arrivalDate: Date;
+        departureDate: Date;
+        source: string | null;
+      }>>`
+        SELECT id, "campgroundId", "guestId", "siteId", "paidAmount", "totalAmount", "arrivalDate", "departureDate", source
+        FROM "Reservation"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      if (!lockedReservation) throw new NotFoundException("Reservation not found");
+
+      // Validate refund amount against locked paidAmount
+      if ((lockedReservation.paidAmount ?? 0) < amountCents) {
+        throw new BadRequestException("Refund exceeds paid amount");
+      }
+
+      // Calculate new paid amount atomically
+      const newPaid = (lockedReservation.paidAmount ?? 0) - amountCents;
+      const paymentFields = this.buildPaymentFields(lockedReservation.totalAmount, newPaid);
+
+      // Get related data for ledger entries
+      const site = await tx.site.findUnique({
+        where: { id: lockedReservation.siteId },
+        include: { siteClass: true }
+      });
+      const guest = await tx.guest.findUnique({ where: { id: lockedReservation.guestId } });
+      const campground = await tx.campground.findUnique({
+        where: { id: lockedReservation.campgroundId },
+        select: { name: true }
+      });
+
+      const revenueGl = site?.siteClass?.glCode ?? "REVENUE_UNMAPPED";
+      const revenueAccount = site?.siteClass?.clientAccount ?? "Revenue";
+
       const updatedReservation = await tx.reservation.update({
         where: { id },
         data: {
@@ -2145,20 +2199,22 @@ export class ReservationsService {
         }
       });
 
+      const fullReservation = { ...lockedReservation, site, guest, campground };
+
       // Handle wallet refund
-      if (destination === "wallet" && reservation.guestId) {
+      if (destination === "wallet" && fullReservation.guestId) {
         await this.guestWalletService.creditFromRefund(
-          reservation.campgroundId,
-          reservation.id,
-          reservation.guestId,
+          fullReservation.campgroundId,
+          fullReservation.id,
+          fullReservation.guestId,
           amountCents,
           options?.reason ?? "Reservation refund"
         );
 
         await tx.payment.create({
           data: {
-            campgroundId: reservation.campgroundId,
-            reservationId: reservation.id,
+            campgroundId: fullReservation.campgroundId,
+            reservationId: fullReservation.id,
             amountCents,
             method: "wallet_credit",
             direction: "refund",
@@ -2169,8 +2225,8 @@ export class ReservationsService {
         // Standard card refund
         await tx.payment.create({
           data: {
-            campgroundId: reservation.campgroundId,
-            reservationId: reservation.id,
+            campgroundId: fullReservation.campgroundId,
+            reservationId: fullReservation.id,
             amountCents,
             method: "card",
             direction: "refund",
@@ -2181,44 +2237,44 @@ export class ReservationsService {
 
       await postBalancedLedgerEntries(tx, [
         {
-          campgroundId: reservation.campgroundId,
-          reservationId: reservation.id,
+          campgroundId: fullReservation.campgroundId,
+          reservationId: fullReservation.id,
           glCode: destination === "wallet" ? "GUEST_WALLET" : "CASH",
           account: destination === "wallet" ? "Guest Wallet Liability" : "Cash",
           description: options?.reason ?? "Reservation refund",
           amountCents,
           direction: "credit",
-          dedupeKey: `res:${reservation.id}:refund:${amountCents}:credit:${refundTimestamp}`
+          dedupeKey: `res:${fullReservation.id}:refund:${amountCents}:credit:${refundTimestamp}`
         },
         {
-          campgroundId: reservation.campgroundId,
-          reservationId: reservation.id,
+          campgroundId: fullReservation.campgroundId,
+          reservationId: fullReservation.id,
           glCode: revenueGl,
           account: revenueAccount,
           description: options?.reason ?? "Reservation refund",
           amountCents,
           direction: "debit",
-          dedupeKey: `res:${reservation.id}:refund:${amountCents}:debit:${refundTimestamp}`
+          dedupeKey: `res:${fullReservation.id}:refund:${amountCents}:debit:${refundTimestamp}`
         }
       ]);
 
-      return updatedReservation;
+      return { updated: updatedReservation, reservation: fullReservation };
     });
 
     // Send refund receipt
     try {
       await this.emailService.sendPaymentReceipt({
-        guestEmail: (reservation as any)?.guest?.email ?? "",
-        guestName: reservation ? `${(reservation as any)?.guest?.primaryFirstName ?? ""} ${(reservation as any)?.guest?.primaryLastName ?? ""}`.trim() : "",
-        campgroundName: (reservation as any)?.campground?.name ?? "Campground",
+        guestEmail: reservation.guest?.email ?? "",
+        guestName: `${reservation.guest?.primaryFirstName ?? ""} ${reservation.guest?.primaryLastName ?? ""}`.trim(),
+        campgroundName: reservation.campground?.name ?? "Campground",
         amountCents,
         paymentMethod: destination === "wallet" ? "Guest Wallet Credit" : "Card",
         transactionId: undefined,
         reservationId: reservation.id,
-        siteNumber: (reservation as any)?.site?.siteNumber,
-        arrivalDate: (reservation as any)?.arrivalDate,
-        departureDate: (reservation as any)?.departureDate,
-        source: (reservation as any)?.source ?? "admin",
+        siteNumber: reservation.site?.siteNumber,
+        arrivalDate: reservation.arrivalDate,
+        departureDate: reservation.departureDate,
+        source: reservation.source ?? "admin",
         kind: "refund",
         totalCents: amountCents
       });

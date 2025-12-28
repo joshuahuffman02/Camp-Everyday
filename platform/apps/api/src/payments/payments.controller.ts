@@ -1044,32 +1044,42 @@ export class PaymentsController {
       const amountCents = paymentIntent.amount;
 
       if (reservationId) {
-        const toNumber = (v: any) => (v === undefined || v === null || Number.isNaN(Number(v)) ? 0 : Number(v));
-        const lineItems = [
-          { label: "Reservation charge", amountCents: toNumber(paymentIntent.metadata?.baseAmountCents ?? amountCents) }
-        ];
-        const platformFee = toNumber(paymentIntent.metadata?.platformPassThroughFeeCents ?? paymentIntent.metadata?.applicationFeeCents);
-        const gatewayFee = toNumber(paymentIntent.metadata?.gatewayPassThroughFeeCents);
-        if (platformFee > 0) lineItems.push({ label: "Platform fee", amountCents: platformFee });
-        if (gatewayFee > 0) lineItems.push({ label: "Gateway fee", amountCents: gatewayFee });
-        const taxCents = toNumber((paymentIntent.metadata as any)?.taxCents);
-
-        await this.reservations.recordPayment(reservationId, amountCents, {
-          transactionId: paymentIntent.id,
-          paymentMethod: paymentIntent.payment_method_types?.[0] || 'card',
-          source: paymentIntent.metadata.source || 'online',
-          stripePaymentIntentId: paymentIntent.id,
-          stripeChargeId: paymentIntent.latest_charge,
-          stripeBalanceTransactionId: paymentIntent.charges?.data?.[0]?.balance_transaction,
-          applicationFeeCents: paymentIntent.application_fee_amount ?? undefined,
-          methodType: paymentIntent.payment_method_types?.[0],
-          capturedAt: paymentIntent.status === 'succeeded' ? new Date(paymentIntent.created * 1000) : undefined,
-          lineItems,
-          taxCents: taxCents || undefined,
-          feeCents: platformFee + gatewayFee > 0 ? platformFee + gatewayFee : undefined,
-          totalCents: amountCents,
-          receiptKind: "payment"
+        // Idempotency check: Skip if payment was already recorded for this Stripe payment intent
+        // This prevents duplicate payments when webhooks are delivered multiple times
+        const existingPayment = await this.prisma.payment.findFirst({
+          where: { stripePaymentIntentId: paymentIntent.id }
         });
+
+        if (existingPayment) {
+          console.log(`[Webhook] Payment already recorded for intent ${paymentIntent.id}, skipping`);
+        } else {
+          const toNumber = (v: any) => (v === undefined || v === null || Number.isNaN(Number(v)) ? 0 : Number(v));
+          const lineItems = [
+            { label: "Reservation charge", amountCents: toNumber(paymentIntent.metadata?.baseAmountCents ?? amountCents) }
+          ];
+          const platformFee = toNumber(paymentIntent.metadata?.platformPassThroughFeeCents ?? paymentIntent.metadata?.applicationFeeCents);
+          const gatewayFee = toNumber(paymentIntent.metadata?.gatewayPassThroughFeeCents);
+          if (platformFee > 0) lineItems.push({ label: "Platform fee", amountCents: platformFee });
+          if (gatewayFee > 0) lineItems.push({ label: "Gateway fee", amountCents: gatewayFee });
+          const taxCents = toNumber((paymentIntent.metadata as any)?.taxCents);
+
+          await this.reservations.recordPayment(reservationId, amountCents, {
+            transactionId: paymentIntent.id,
+            paymentMethod: paymentIntent.payment_method_types?.[0] || 'card',
+            source: paymentIntent.metadata.source || 'online',
+            stripePaymentIntentId: paymentIntent.id,
+            stripeChargeId: paymentIntent.latest_charge,
+            stripeBalanceTransactionId: paymentIntent.charges?.data?.[0]?.balance_transaction,
+            applicationFeeCents: paymentIntent.application_fee_amount ?? undefined,
+            methodType: paymentIntent.payment_method_types?.[0],
+            capturedAt: paymentIntent.status === 'succeeded' ? new Date(paymentIntent.created * 1000) : undefined,
+            lineItems,
+            taxCents: taxCents || undefined,
+            feeCents: platformFee + gatewayFee > 0 ? platformFee + gatewayFee : undefined,
+            totalCents: amountCents,
+            receiptKind: "payment"
+          });
+        }
       }
     }
 

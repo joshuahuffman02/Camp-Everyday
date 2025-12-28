@@ -481,8 +481,9 @@ export class StoreService {
             include: { items: true },
         });
 
-        // Fire-and-forget notifications
-        this.notifyStaffNewOrder(order, campground?.email, campground?.name, (campground as any)?.orderWebhookUrl).catch(() => { /* ignore */ });
+        // Fire-and-forget notifications - log errors but don't block the order
+        this.notifyStaffNewOrder(order, campground?.email, campground?.name, (campground as any)?.orderWebhookUrl)
+          .catch((err) => console.warn('[Store] Failed to notify staff of new order:', err instanceof Error ? err.message : err));
 
         const perLocationItems: Array<{ productId: string; qty: number }> = [];
         const channelItems: Array<{ product: any; qty: number }> = [];

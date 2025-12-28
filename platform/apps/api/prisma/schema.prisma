@@ -2509,8 +2509,10 @@ model Payment {
   capturedAt                 DateTime?
   createdAt                  DateTime  @default(now())
 
-  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
-  campground  Campground  @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  // Use Restrict to prevent accidental deletion of financial records
+  // Payment history must be preserved for auditing and reconciliation
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  campground  Campground  @relation(fields: [campgroundId], references: [id], onDelete: Restrict)
 
   @@index([campgroundId])
   @@index([reservationId])

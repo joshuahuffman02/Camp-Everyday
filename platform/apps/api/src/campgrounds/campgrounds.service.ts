@@ -1193,8 +1193,9 @@ export class CampgroundsService {
             </div>
           </div>
         `
-      }).catch(() => {
-        // best-effort email; don't block
+      }).catch((err) => {
+        // best-effort email; don't block - but log for debugging
+        console.warn('[Campground] Failed to send invite email:', err instanceof Error ? err.message : err);
       });
     }
 
@@ -1267,7 +1268,7 @@ export class CampgroundsService {
           </div>
         </div>
       `
-    }).catch(() => { });
+    }).catch((err) => console.warn('[Campground] Failed to send invite email:', err instanceof Error ? err.message : err));
 
     await this.audit.record({
       campgroundId,
