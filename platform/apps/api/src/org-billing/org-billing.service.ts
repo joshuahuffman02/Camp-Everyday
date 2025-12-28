@@ -8,6 +8,7 @@ interface TierConfig {
   freeMonthlyUntil?: Date | null;
   smsOutboundCents: number;
   smsInboundCents: number;
+  aiTokensPer1kCents: number; // Price per 1,000 AI tokens
 }
 
 const TIER_CONFIGS: Record<string, TierConfig> = {
@@ -17,24 +18,28 @@ const TIER_CONFIGS: Record<string, TierConfig> = {
     freeMonthlyUntil: null, // Forever free
     smsOutboundCents: 3, // $0.03
     smsInboundCents: 3, // $0.03
+    aiTokensPer1kCents: 5, // $0.05 per 1K tokens (cost coverage)
   },
   pioneer: {
     monthlyFeeCents: 0, // Free for 12 months, then $29
     perBookingFeeCents: 100, // $1.00
     smsOutboundCents: 3, // $0.03
     smsInboundCents: 3, // $0.03
+    aiTokensPer1kCents: 5, // $0.05 per 1K tokens
   },
   trailblazer: {
     monthlyFeeCents: 1450, // $14.50 for 6 months, then $29
     perBookingFeeCents: 125, // $1.25
     smsOutboundCents: 3, // $0.03
     smsInboundCents: 3, // $0.03
+    aiTokensPer1kCents: 5, // $0.05 per 1K tokens
   },
   standard: {
     monthlyFeeCents: 6900, // $69
     perBookingFeeCents: 250, // $2.50
     smsOutboundCents: 3, // $0.03
     smsInboundCents: 3, // $0.03
+    aiTokensPer1kCents: 5, // $0.05 per 1K tokens
   },
 };
 
@@ -135,8 +140,9 @@ export class OrgBillingService {
     const bookingFeesCents = usageSummary.bookingCount * (org.earlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents);
     const smsOutboundCents = usageSummary.smsOutbound * tierConfig.smsOutboundCents;
     const smsInboundCents = usageSummary.smsInbound * tierConfig.smsInboundCents;
+    const aiTokensCents = Math.round((usageSummary.aiTokens / 1000) * tierConfig.aiTokensPer1kCents);
     const setupServiceSurchargeCents = usageSummary.setupServiceSurchargeCents || 0;
-    const totalCents = subscriptionCents + bookingFeesCents + smsOutboundCents + smsInboundCents + setupServiceSurchargeCents;
+    const totalCents = subscriptionCents + bookingFeesCents + smsOutboundCents + smsInboundCents + aiTokensCents + setupServiceSurchargeCents;
 
     // Get active setup services with balance for display
     const activeSetupServices = await this.prisma.setupService.findMany({
@@ -194,6 +200,12 @@ export class OrgBillingService {
           quantity: usageSummary.smsInbound,
           unitCents: tierConfig.smsInboundCents,
           amountCents: smsInboundCents,
+        },
+        aiUsage: {
+          description: `AI Usage (${(usageSummary.aiTokens / 1000).toFixed(1)}K tokens)`,
+          quantity: usageSummary.aiTokens,
+          unitCents: tierConfig.aiTokensPer1kCents, // per 1K tokens
+          amountCents: aiTokensCents,
         },
         setupServiceSurcharge: {
           description: `Setup service pay-over-time (${usageSummary.setupServiceSurchargeCount || 0} bookings)`,
@@ -261,7 +273,7 @@ export class OrgBillingService {
     const aiUsage = await this.prisma.usageEvent.aggregate({
       where: {
         organizationId,
-        eventType: "ai_tokens_used",
+        eventType: "ai_usage",
         createdAt: {
           gte: periodStart,
           lte: periodEnd,
@@ -514,6 +526,18 @@ export class OrgBillingService {
         quantity: usage.smsInbound,
         unitCents: tierConfig.smsInboundCents,
         totalCents: usage.smsInbound * tierConfig.smsInboundCents,
+      });
+    }
+
+    // AI usage
+    if (usage.aiTokens > 0) {
+      const aiTokensCents = Math.round((usage.aiTokens / 1000) * tierConfig.aiTokensPer1kCents);
+      lineItems.push({
+        type: "ai_usage" as const,
+        description: `AI Usage (${(usage.aiTokens / 1000).toFixed(1)}K tokens)`,
+        quantity: usage.aiTokens,
+        unitCents: tierConfig.aiTokensPer1kCents, // per 1K tokens
+        totalCents: aiTokensCents,
       });
     }
 

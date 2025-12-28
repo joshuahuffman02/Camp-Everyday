@@ -28,6 +28,7 @@ import {
   BarChart3,
   Info,
   Building,
+  Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -68,6 +69,12 @@ interface BillingSummary {
       amountCents: number;
     };
     smsInbound: {
+      description: string;
+      quantity: number;
+      unitCents: number;
+      amountCents: number;
+    };
+    aiUsage?: {
       description: string;
       quantity: number;
       unitCents: number;
@@ -779,6 +786,27 @@ export default function BillingPage() {
                     </div>
                     <p className="font-semibold text-slate-900">
                       {formatCents(summary.charges.smsInbound.amountCents)}
+                    </p>
+                  </div>
+                )}
+
+                {/* AI Usage */}
+                {summary.charges.aiUsage && summary.charges.aiUsage.quantity > 0 && (
+                  <div className="px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+                        <Cpu className="h-5 w-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900">AI Usage</p>
+                        <p className="text-sm text-slate-500">
+                          {(summary.charges.aiUsage.quantity / 1000).toFixed(1)}K tokens @{" "}
+                          {formatCents(summary.charges.aiUsage.unitCents)}/1K
+                        </p>
+                      </div>
+                    </div>
+                    <p className="font-semibold text-slate-900">
+                      {formatCents(summary.charges.aiUsage.amountCents)}
                     </p>
                   </div>
                 )}

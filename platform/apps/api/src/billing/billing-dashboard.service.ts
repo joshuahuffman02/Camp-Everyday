@@ -447,9 +447,9 @@ export class BillingDashboardService {
   private getEventDescription(eventType: string): string {
     const descriptions: Record<string, string> = {
       booking_created: "Per-booking fee",
-      sms_sent: "Outbound SMS",
-      sms_received: "Inbound SMS",
-      ai_tokens_used: "AI assistant usage",
+      sms_outbound: "Outbound SMS",
+      sms_inbound: "Inbound SMS",
+      ai_usage: "AI assistant usage",
       setup_service_surcharge: "Setup service (pay-over-time)",
     };
     return descriptions[eventType] ?? eventType;
