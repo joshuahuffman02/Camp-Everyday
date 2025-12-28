@@ -490,6 +490,26 @@ export default function CheckInOutPage() {
                           </Button>
                         </div>
                       )
+                    ) : tab === "onsite" ? (
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        <Link href={`/reservations/${res.id}`}>
+                          <Button variant="outline" size="sm">
+                            View Details
+                          </Button>
+                        </Link>
+                        {res.balanceAmount > 0 && (
+                          <Button variant="outline" className="text-amber-700 border-amber-200 hover:bg-amber-50" onClick={() => openUnifiedPayment(res, false)}>
+                            Settle Balance
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() => handlePayAndCheckout(res)}
+                          disabled={checkOutMutation.isPending}
+                          className={res.balanceAmount > 0 ? "bg-amber-600 hover:bg-amber-700" : ""}
+                        >
+                          {res.balanceAmount > 0 ? "Pay & Check Out" : "Check Out"}
+                        </Button>
+                      </div>
                     ) : res.status === "checked_out" ? (
                       <Button disabled variant="outline" className="bg-slate-50">
                         Checked Out
@@ -686,17 +706,21 @@ export default function CheckInOutPage() {
   );
 }
 
-function SummaryCard({ label, value, icon, href }: { label: string; value: string | number; icon: React.ReactNode; href?: string }) {
+function SummaryCard({ label, value, icon, href, onClick, highlight }: { label: string; value: string | number; icon: React.ReactNode; href?: string; onClick?: () => void; highlight?: boolean }) {
   const content = (
-    <div className="card border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between">
+    <div className={`card border p-4 shadow-sm flex items-center justify-between ${
+      highlight
+        ? "border-emerald-300 bg-emerald-50"
+        : "border-slate-200 bg-white"
+    }`}>
       <div className="flex items-center gap-3">
-        <span className="rounded-md bg-slate-50 p-2 text-slate-500">{icon}</span>
+        <span className={`rounded-md p-2 ${highlight ? "bg-emerald-100 text-emerald-600" : "bg-slate-50 text-slate-500"}`}>{icon}</span>
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-          <div className="text-xl font-bold text-slate-900">{value}</div>
+          <div className={`text-xs font-semibold uppercase tracking-wide ${highlight ? "text-emerald-600" : "text-slate-500"}`}>{label}</div>
+          <div className={`text-xl font-bold ${highlight ? "text-emerald-700" : "text-slate-900"}`}>{value}</div>
         </div>
       </div>
-      <ArrowRight className="h-4 w-4 text-slate-300" />
+      <ArrowRight className={`h-4 w-4 ${highlight ? "text-emerald-400" : "text-slate-300"}`} />
     </div>
   );
   if (href) {
@@ -704,6 +728,13 @@ function SummaryCard({ label, value, icon, href }: { label: string; value: strin
       <Link href={href} className="block hover:shadow-md transition">
         {content}
       </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="block w-full text-left hover:shadow-md transition">
+        {content}
+      </button>
     );
   }
   return content;
