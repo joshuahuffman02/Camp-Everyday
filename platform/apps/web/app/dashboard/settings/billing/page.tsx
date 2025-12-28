@@ -244,7 +244,7 @@ export default function BillingPage() {
       const res = await fetch(
         `${API_BASE}/campgrounds/${selectedCampground?.id}`,
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("campreserv:authToken")}` },
         }
       );
       if (!res.ok) throw new Error("Failed to fetch campground");
@@ -261,7 +261,7 @@ export default function BillingPage() {
       const res = await fetch(
         `${API_BASE}/organizations/${organizationId}/billing/summary`,
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("campreserv:authToken")}` },
         }
       );
       if (!res.ok) throw new Error("Failed to fetch billing summary");
@@ -276,7 +276,7 @@ export default function BillingPage() {
       const res = await fetch(
         `${API_BASE}/organizations/${organizationId}/billing/history?limit=6`,
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("campreserv:authToken")}` },
         }
       );
       if (!res.ok) throw new Error("Failed to fetch billing history");
@@ -292,7 +292,7 @@ export default function BillingPage() {
       const res = await fetch(
         `${API_BASE}/organizations/${organizationId}/setup-services`,
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("campreserv:authToken")}` },
         }
       );
       if (!res.ok) throw new Error("Failed to fetch setup services");
@@ -308,7 +308,7 @@ export default function BillingPage() {
       const res = await fetch(
         `${API_BASE}/campgrounds/${selectedCampground?.id}/billing-dashboard/summary`,
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("campreserv:authToken")}` },
         }
       );
       if (!res.ok) throw new Error("Failed to fetch revenue summary");
@@ -324,7 +324,7 @@ export default function BillingPage() {
       const res = await fetch(
         `${API_BASE}/campgrounds/${selectedCampground?.id}/billing-dashboard/payouts?limit=5`,
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("campreserv:authToken")}` },
         }
       );
       if (!res.ok) throw new Error("Failed to fetch payouts");
@@ -351,7 +351,7 @@ export default function BillingPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${localStorage.getItem("campreserv:authToken")}`,
           },
           body: JSON.stringify({ serviceType, payUpfront }),
         }
