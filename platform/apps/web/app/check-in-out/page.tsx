@@ -125,7 +125,10 @@ export default function CheckInOutPage() {
   });
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { id: string; amount: number }) => apiClient.recordReservationPayment(data.id, data.amount),
+    mutationFn: (data: { id: string; amount: number; method: "card" | "cash" | "check" | "folio" }) =>
+      apiClient.recordReservationPayment(data.id, data.amount, [
+        { method: data.method, amountCents: data.amount }
+      ]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
       toast({ title: "Payment recorded" });
@@ -531,7 +534,11 @@ export default function CheckInOutPage() {
               Cancel
             </Button>
             <Button
-              onClick={() => selectedReservation && paymentMutation.mutate({ id: selectedReservation.id, amount: paymentAmount })}
+              onClick={() => selectedReservation && paymentMutation.mutate({
+                id: selectedReservation.id,
+                amount: paymentAmount,
+                method: paymentMethod as "card" | "cash" | "check" | "folio"
+              })}
               disabled={paymentMutation.isPending}
               variant="outline"
             >
@@ -542,7 +549,9 @@ export default function CheckInOutPage() {
                 onClick={async () => {
                   if (!selectedReservation) return;
                   try {
-                    await apiClient.recordReservationPayment(selectedReservation.id, paymentAmount);
+                    await apiClient.recordReservationPayment(selectedReservation.id, paymentAmount, [
+                      { method: paymentMethod as "card" | "cash" | "check" | "folio", amountCents: paymentAmount }
+                    ]);
                     await apiClient.checkInReservation(selectedReservation.id);
                     queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
                     toast({ title: "Payment recorded and guest checked in" });

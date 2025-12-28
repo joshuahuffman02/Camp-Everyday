@@ -123,11 +123,13 @@ export async function postBalancedLedgerEntries(
     }
   }
 
-  return (prisma as any).$transaction(
-    normalized.map((entry) =>
-      (prisma as any).ledgerEntry.create({
-        data: entry
-      })
-    )
-  );
+  // Create entries directly - caller is responsible for wrapping in transaction if needed
+  // This works both inside and outside transactions:
+  // - When called from within a $transaction callback, entries are part of that transaction
+  // - When called with regular PrismaService, each create is its own operation
+  const results = [];
+  for (const entry of normalized) {
+    results.push(await (prisma as any).ledgerEntry.create({ data: entry }));
+  }
+  return results;
 }
