@@ -438,6 +438,15 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
     dispatch({ type: "SET_ERROR", payload: null });
   }, []);
 
+  const setStep = useCallback((step: PaymentContextState["step"]) => {
+    dispatch({ type: "SET_STEP", payload: step });
+  }, []);
+
+  const completePayment = useCallback(() => {
+    // Transition to success view - the actual onSuccess callback is called from SuccessView
+    dispatch({ type: "SET_STEP", payload: "success" });
+  }, []);
+
   const reset = useCallback(() => {
     dispatch({ type: "RESET" });
   }, []);
@@ -453,6 +462,8 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
     processPayment,
     cancelPayment,
     calculateFees,
+    setStep,
+    completePayment,
     reset,
   };
 

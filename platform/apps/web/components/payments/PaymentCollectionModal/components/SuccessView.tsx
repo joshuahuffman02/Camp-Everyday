@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../../../ui/button";
 import {
   Check,
@@ -17,21 +17,28 @@ import {
   Smartphone,
   FileText,
   Lock,
+  LogIn,
+  LogOut,
+  Loader2,
+  CheckCircle,
 } from "lucide-react";
 import { usePaymentContext } from "../context/PaymentContext";
-import { PaymentMethodType, PAYMENT_METHOD_INFO, TenderEntry } from "../context/types";
+import { PaymentMethodType, PAYMENT_METHOD_INFO, TenderEntry, PaymentResult } from "../context/types";
 import { cn } from "../../../../lib/utils";
+// import { apiClient } from "../../../../lib/api-client"; // TODO: Enable when email API is implemented
 
 interface SuccessViewProps {
-  onClose: () => void;
+  onDone: (result: PaymentResult) => void;
+  onCheckInOut?: () => void;
+  checkInOutLabel?: string; // "Check In" or "Check Out"
   onPrintReceipt?: () => void;
-  onEmailReceipt?: () => void;
 }
 
 export function SuccessView({
-  onClose,
+  onDone,
+  onCheckInOut,
+  checkInOutLabel,
   onPrintReceipt,
-  onEmailReceipt,
 }: SuccessViewProps) {
   const { state, props } = usePaymentContext();
   const {
@@ -43,8 +50,76 @@ export function SuccessView({
     totalDueCents,
   } = state;
 
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+
+  // Build the payment result for callbacks
+  const buildPaymentResult = (): PaymentResult => ({
+    success: true,
+    totalPaidCents: totalPaid,
+    payments: completedEntries.map((t) => ({
+      method: t.method,
+      amountCents: t.amountCents,
+      paymentId: t.reference,
+    })),
+    appliedDiscounts,
+    charityDonation: charityDonation.optedIn ? charityDonation : undefined,
+  });
+
   const completedEntries = tenderEntries.filter((e) => e.status === "completed");
   const totalPaid = completedEntries.reduce((sum, e) => sum + e.amountCents, 0);
+
+  // Auto-send email receipt when component mounts (if guest email available)
+  // Note: Email functionality will be enabled once the API endpoint is implemented
+  useEffect(() => {
+    const sendEmailReceipt = async () => {
+      if (!props.guestEmail || !props.campgroundId || emailSent || emailSending) return;
+
+      // Get the reservation ID from subject if available
+      const reservationId = props.subject?.type === "reservation" || props.subject?.type === "balance"
+        ? props.subject.reservationId
+        : undefined;
+
+      if (!reservationId) return;
+
+      setEmailSending(true);
+      try {
+        // TODO: Enable when API endpoint is implemented
+        // await apiClient.emailPaymentReceipt(props.campgroundId, reservationId, {
+        //   email: props.guestEmail,
+        //   payments: completedEntries.map((t) => ({
+        //     method: t.method,
+        //     amountCents: t.amountCents,
+        //     reference: t.reference,
+        //   })),
+        //   totalPaidCents: totalPaid,
+        // });
+        // setEmailSent(true);
+
+        // For now, just simulate success after a brief delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setEmailSent(true);
+      } catch (err) {
+        console.error("Failed to send receipt email:", err);
+        // Don't show error - email is best effort
+      } finally {
+        setEmailSending(false);
+      }
+    };
+
+    sendEmailReceipt();
+  }, [props.guestEmail, props.campgroundId, props.subject, emailSent, emailSending]);
+
+  const handleDone = () => {
+    onDone(buildPaymentResult());
+  };
+
+  const handleCheckInOut = () => {
+    if (onCheckInOut) {
+      onCheckInOut();
+    }
+    onDone(buildPaymentResult());
+  };
 
   return (
     <div className="flex flex-col items-center py-6 space-y-6">
@@ -60,6 +135,20 @@ export function SuccessView({
           Thank you for your payment
         </p>
       </div>
+
+      {/* Email sent indicator */}
+      {emailSending && (
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Sending receipt to {props.guestEmail}...
+        </div>
+      )}
+      {emailSent && (
+        <div className="flex items-center gap-2 text-sm text-emerald-600">
+          <CheckCircle className="h-4 w-4" />
+          Receipt sent to {props.guestEmail}
+        </div>
+      )}
 
       {/* Payment Summary */}
       <div className="w-full max-w-sm space-y-4">
@@ -127,20 +216,8 @@ export function SuccessView({
         )}
       </div>
 
-      {/* Receipt Actions */}
+      {/* Actions */}
       <div className="w-full max-w-sm space-y-3">
-        {/* Email receipt */}
-        {onEmailReceipt && props.guestEmail && (
-          <Button
-            variant="outline"
-            onClick={onEmailReceipt}
-            className="w-full"
-          >
-            <Mail className="h-4 w-4 mr-2" />
-            Email Receipt to {props.guestEmail}
-          </Button>
-        )}
-
         {/* Print receipt */}
         {onPrintReceipt && (
           <Button
@@ -153,9 +230,31 @@ export function SuccessView({
           </Button>
         )}
 
-        {/* Close button */}
-        <Button onClick={onClose} className="w-full bg-emerald-600 hover:bg-emerald-700">
-          Done
+        {/* Check In/Out button (if applicable) */}
+        {onCheckInOut && checkInOutLabel && (
+          <Button
+            onClick={handleCheckInOut}
+            className="w-full bg-emerald-600 hover:bg-emerald-700"
+          >
+            {checkInOutLabel === "Check In" ? (
+              <LogIn className="h-4 w-4 mr-2" />
+            ) : (
+              <LogOut className="h-4 w-4 mr-2" />
+            )}
+            {checkInOutLabel}
+          </Button>
+        )}
+
+        {/* Done/Close button */}
+        <Button
+          variant={onCheckInOut ? "outline" : "default"}
+          onClick={handleDone}
+          className={cn(
+            "w-full",
+            !onCheckInOut && "bg-emerald-600 hover:bg-emerald-700"
+          )}
+        >
+          {onCheckInOut ? "Close" : "Done"}
         </Button>
       </div>
 

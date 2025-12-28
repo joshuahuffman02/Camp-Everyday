@@ -3034,6 +3034,23 @@ export const apiClient = {
     return ReservationSchema.parse(data);
   },
 
+  async emailPaymentReceipt(
+    campgroundId: string,
+    reservationId: string,
+    payload: {
+      email: string;
+      payments: Array<{ method: string; amountCents: number; reference?: string }>;
+      totalPaidCents: number;
+    }
+  ) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/reservations/${reservationId}/receipt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return parseResponse<{ success: boolean }>(res);
+  },
+
   async splitReservation(
     id: string,
     payload: { segments: Array<{ siteId: string; startDate: string; endDate: string }>; sendNotification?: boolean }

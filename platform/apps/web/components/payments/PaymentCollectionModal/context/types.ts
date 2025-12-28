@@ -268,6 +268,10 @@ export interface PaymentCollectionModalProps {
   onSuccess: (result: PaymentResult) => void;
   onError?: (error: PaymentError) => void;
   onPartialPayment?: (paidCents: number, remainingCents: number) => void;
+
+  // Check-in/out integration (optional)
+  onCheckInOut?: () => void;           // Called when user clicks check-in/out button
+  checkInOutLabel?: "Check In" | "Check Out"; // Label for the button
 }
 
 // ============================================================================
@@ -336,6 +340,10 @@ export interface PaymentContextActions {
 
   // Fee calculation
   calculateFees: (method: PaymentMethodType, amountCents: number) => number;
+
+  // Step management
+  setStep: (step: PaymentContextState["step"]) => void;
+  completePayment: () => void;
 
   // Reset
   reset: () => void;

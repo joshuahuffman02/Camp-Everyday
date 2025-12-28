@@ -165,12 +165,12 @@ function PaymentModalContent() {
           {/* Success Step */}
           {step === "success" && (
             <SuccessView
-              onClose={handleClose}
+              onDone={(result) => {
+                props.onSuccess(result);
+              }}
+              onCheckInOut={props.onCheckInOut}
+              checkInOutLabel={props.checkInOutLabel}
               onPrintReceipt={() => window.print()}
-              onEmailReceipt={props.guestEmail ? () => {
-                // Email receipt functionality would be implemented here
-                console.log("Email receipt to:", props.guestEmail);
-              } : undefined}
             />
           )}
         </div>
@@ -193,18 +193,8 @@ function PaymentMethodRenderer({ method }: PaymentMethodRendererProps) {
   const handleSuccess = (paymentId: string) => {
     // Check if payment is complete or if more is needed (split tender)
     if (state.remainingCents <= 0 || !props.enableSplitTender) {
-      // Payment complete - call success callback
-      props.onSuccess({
-        success: true,
-        totalPaidCents: state.totalDueCents,
-        payments: state.tenderEntries.map((t) => ({
-          method: t.method,
-          amountCents: t.amountCents,
-          paymentId: t.reference,
-        })),
-        appliedDiscounts: state.appliedDiscounts,
-        charityDonation: state.charityDonation.optedIn ? state.charityDonation : undefined,
-      });
+      // Payment complete - show success view (onSuccess called when user clicks Done)
+      actions.completePayment();
     } else {
       // More payment needed - go back to method selection
       actions.selectMethod(null);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import {
   AlertCircle,
   ArrowRight,
@@ -11,11 +12,13 @@ import {
   CheckCircle,
   Clock,
   CreditCard,
+  Eye,
   LogOut,
   Mail,
   MessageCircle,
   MessageSquare,
   Search,
+  Sparkles,
   Tag,
   Users,
   UserCheck,
@@ -853,6 +856,12 @@ export default function CheckInOutPage() {
           guestName={`${selectedReservation.guest?.primaryFirstName || ''} ${selectedReservation.guest?.primaryLastName || ''}`.trim()}
           enableSplitTender={true}
           enableCharityRoundUp={true}
+          // Show Check In/Out button in success view if applicable
+          checkInOutLabel={
+            checkInAfterPayment ? "Check In" :
+            checkOutAfterPayment ? "Check Out" :
+            undefined
+          }
           onSuccess={async (result) => {
             setIsStripePaymentOpen(false);
             queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
@@ -884,7 +893,7 @@ export default function CheckInOutPage() {
 
       {/* Bulk Message Modal */}
       <Dialog open={isMessageModalOpen} onOpenChange={setIsMessageModalOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {messageType === "sms" ? (
@@ -895,16 +904,45 @@ export default function CheckInOutPage() {
               Send {messageType === "sms" ? "SMS" : "Email"} to {selectedCount} Guest{selectedCount !== 1 ? "s" : ""}
             </DialogTitle>
             <DialogDescription>
-              Compose your message below. It will be sent to all selected guests.
+              Use personalization tags to customize each message automatically.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
+            {/* Personalization Tags */}
+            <div className="space-y-2">
+              <Label className="text-xs text-slate-500 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                Personalization Tags (click to insert)
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { tag: "{first_name}", label: "First Name" },
+                  { tag: "{last_name}", label: "Last Name" },
+                  { tag: "{site_name}", label: "Site" },
+                  { tag: "{arrival_date}", label: "Arrival" },
+                  { tag: "{departure_date}", label: "Departure" },
+                  { tag: "{balance}", label: "Balance" },
+                  { tag: "{nights}", label: "# Nights" },
+                ].map(({ tag, label }) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                    onClick={() => setMessageBody(prev => prev + tag)}
+                  >
+                    {label}
+                    <span className="text-blue-400 font-mono text-[10px]">{tag}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {messageType === "email" && (
               <div className="grid gap-2">
                 <Label>Subject</Label>
                 <Input
-                  placeholder="e.g., Important update about your stay"
+                  placeholder="e.g., {first_name}, important update about your stay"
                   value={messageSubject}
                   onChange={(e) => setMessageSubject(e.target.value)}
                 />
@@ -915,8 +953,8 @@ export default function CheckInOutPage() {
               <Label>Message</Label>
               <Textarea
                 placeholder={messageType === "sms"
-                  ? "e.g., Hi! Just a reminder that checkout is at 11am tomorrow. Thanks for staying with us!"
-                  : "e.g., We hope you're enjoying your stay! Here's some important information..."}
+                  ? "e.g., Hi {first_name}! Just a reminder that checkout is at 11am tomorrow. Thanks for staying with us!"
+                  : "e.g., Hi {first_name}, we hope you're enjoying your stay at site {site_name}!"}
                 value={messageBody}
                 onChange={(e) => setMessageBody(e.target.value)}
                 rows={4}
@@ -928,6 +966,35 @@ export default function CheckInOutPage() {
               )}
             </div>
 
+            {/* Preview */}
+            {messageBody && (
+              <div className="space-y-2">
+                <Label className="text-xs text-slate-500 flex items-center gap-1">
+                  <Eye className="h-3 w-3" />
+                  Preview (example with first selected guest)
+                </Label>
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700">
+                  {(() => {
+                    const firstSelected = filteredList.find(r => selectedIds.has(r.id));
+                    if (!firstSelected) return messageBody;
+                    const arrivalDate = firstSelected.arrivalDate ? format(new Date(firstSelected.arrivalDate), "MMM d") : "";
+                    const departureDate = firstSelected.departureDate ? format(new Date(firstSelected.departureDate), "MMM d") : "";
+                    const nights = firstSelected.arrivalDate && firstSelected.departureDate
+                      ? Math.ceil((new Date(firstSelected.departureDate).getTime() - new Date(firstSelected.arrivalDate).getTime()) / (1000 * 60 * 60 * 24))
+                      : 0;
+                    return messageBody
+                      .replace(/{first_name}/g, firstSelected.guest?.primaryFirstName || "Guest")
+                      .replace(/{last_name}/g, firstSelected.guest?.primaryLastName || "")
+                      .replace(/{site_name}/g, firstSelected.site?.name || "your site")
+                      .replace(/{arrival_date}/g, arrivalDate)
+                      .replace(/{departure_date}/g, departureDate)
+                      .replace(/{balance}/g, `$${((firstSelected.balanceAmount || 0) / 100).toFixed(2)}`)
+                      .replace(/{nights}/g, String(nights));
+                  })()}
+                </div>
+              </div>
+            )}
+
             {/* Quick templates */}
             <div className="space-y-2">
               <Label className="text-xs text-slate-500">Quick Templates</Label>
@@ -936,7 +1003,7 @@ export default function CheckInOutPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setMessageBody("Welcome! We're excited to have you. Check-in starts at 3pm. Need help? Reply to this message!")}
+                  onClick={() => setMessageBody("Hi {first_name}! Welcome to your stay at site {site_name}. Check-in starts at 3pm. Need help? Reply to this message!")}
                 >
                   Welcome
                 </Button>
@@ -944,7 +1011,7 @@ export default function CheckInOutPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setMessageBody("Reminder: Checkout is at 11am tomorrow. Please return keys to the office. Thanks for staying with us!")}
+                  onClick={() => setMessageBody("Hi {first_name}, reminder: Checkout is at 11am on {departure_date}. Please return keys to the office. Thanks for staying with us!")}
                 >
                   Checkout Reminder
                 </Button>
@@ -952,7 +1019,7 @@ export default function CheckInOutPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setMessageBody("Weather alert: Please secure outdoor items and be prepared for incoming weather. Stay safe!")}
+                  onClick={() => setMessageBody("Hi {first_name}, weather alert for site {site_name}: Please secure outdoor items and be prepared for incoming weather. Stay safe!")}
                 >
                   Weather Alert
                 </Button>
@@ -960,9 +1027,17 @@ export default function CheckInOutPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setMessageBody("Pool hours today: 9am-9pm. Don't forget your towel! 🏊")}
+                  onClick={() => setMessageBody("Hi {first_name}! Pool hours today: 9am-9pm. Don't forget your towel!")}
                 >
                   Pool Hours
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMessageBody("Hi {first_name}, just a reminder that your current balance is {balance}. Please stop by the office if you have any questions!")}
+                >
+                  Balance Reminder
                 </Button>
               </div>
             </div>
