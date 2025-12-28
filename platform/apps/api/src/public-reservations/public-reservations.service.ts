@@ -533,7 +533,14 @@ export class PublicReservationsService {
     async getQuote(slug: string, dto: PublicQuoteDto) {
         const campground = await this.prisma.campground.findUnique({
             where: { slug },
-            select: { id: true, isPublished: true, isBookable: true, isExternal: true, nonBookableReason: true }
+            select: {
+                id: true,
+                isPublished: true,
+                isBookable: true,
+                isExternal: true,
+                nonBookableReason: true,
+                maxDiscountFraction: true  // Configurable discount cap
+            }
         });
 
         // Check for preview token to bypass publish/bookable checks
@@ -634,7 +641,11 @@ export class PublicReservationsService {
             }
         }
 
-        const resolved = resolveDiscounts(total, candidates);
+        // Use campground's configured discount cap, or default to 40%
+        const maxDiscountFraction = campground.maxDiscountFraction
+            ? Number(campground.maxDiscountFraction)
+            : 0.4;
+        const resolved = resolveDiscounts(total, candidates, { maxDiscountFraction });
         let discountCents = resolved.totalDiscount;
         const discountCapped = resolved.capped;
 
@@ -1061,7 +1072,7 @@ export class PublicReservationsService {
                         referralChannel: referralChannel,
                         referralIncentiveType: referralIncentiveType,
                         referralIncentiveValue: referralIncentiveValue,
-                        source: "online",
+                        source: dto.source ?? "online",
                         bookedAt: now,
                         leadTimeDays: leadTimeDays,
                         additionalGuests: dto.additionalGuests ? JSON.parse(JSON.stringify(dto.additionalGuests)) : null,

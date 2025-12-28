@@ -91,6 +91,7 @@ import { HealthModule } from "./health/health.module";
 import { OnboardingModule } from "./onboarding/onboarding.module";
 import { AccessControlModule } from "./access-control/access-control.module";
 import { BillingModule } from "./billing/billing.module";
+import { AccountingModule } from "./accounting/accounting.module";
 import { ReferralsModule } from "./referrals/referrals.module";
 import { SignaturesModule } from "./signatures/signatures.module";
 import { TicketsModule } from "./tickets/tickets.module";
@@ -204,6 +205,7 @@ import { SystemCheckModule } from "./system-check/system-check.module";
     PosModule,
     AccessControlModule,
     BillingModule,
+    AccountingModule,
     // Phase 3 modules
     DynamicPricingModule,
     WorkflowsModule,

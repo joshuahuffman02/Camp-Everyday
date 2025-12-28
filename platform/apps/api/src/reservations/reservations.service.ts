@@ -978,6 +978,17 @@ export class ReservationsService {
           arrival,
           departure
         );
+
+        // Get campground pricing control settings
+        const pricingControls = await this.prisma.campground.findUnique({
+          where: { id: data.campgroundId },
+          select: {
+            maxDiscountFraction: true,
+            managerApprovalThreshold: true,
+            minOverrideRateCents: true,
+            maxOverrideRateCents: true
+          }
+        });
         const manualPriceProvided = data.totalAmount !== undefined && data.totalAmount !== null && data.totalAmount > 0;
         const price = manualPriceProvided
           ? {
@@ -995,6 +1006,53 @@ export class ReservationsService {
         const needsOverrideApproval = (manualPriceProvided && manualOverrideDelta !== 0) || manualDiscountProvided;
         if (needsOverrideApproval && (!overrideReason || !overrideApprovedBy)) {
           throw new BadRequestException("Manual pricing overrides require overrideReason and overrideApprovedBy.");
+        }
+
+        // Validate override against campground pricing controls
+        if (manualPriceProvided && pricingControls) {
+          const maxDiscountFraction = pricingControls.maxDiscountFraction
+            ? Number(pricingControls.maxDiscountFraction)
+            : 0.4;
+          const managerThreshold = pricingControls.managerApprovalThreshold
+            ? Number(pricingControls.managerApprovalThreshold)
+            : 0.25;
+
+          // Calculate discount percentage (negative delta = discount)
+          if (manualOverrideDelta < 0 && baselinePrice.totalCents > 0) {
+            const discountPct = Math.abs(manualOverrideDelta) / baselinePrice.totalCents;
+
+            // Hard cap - cannot exceed max discount
+            if (discountPct > maxDiscountFraction) {
+              throw new BadRequestException(
+                `Override discount of ${Math.round(discountPct * 100)}% exceeds maximum allowed (${Math.round(maxDiscountFraction * 100)}%). ` +
+                `Minimum allowed price: $${((baselinePrice.totalCents * (1 - maxDiscountFraction)) / 100).toFixed(2)}`
+              );
+            }
+
+            // Manager approval required for discounts above threshold
+            if (discountPct > managerThreshold && !overrideApprovedBy) {
+              throw new BadRequestException(
+                `Discounts above ${Math.round(managerThreshold * 100)}% require manager approval. ` +
+                `Please provide overrideApprovedBy with a manager's user ID.`
+              );
+            }
+          }
+
+          // Validate against min/max rate bounds if configured
+          const nights = this.computeNights(arrival, departure);
+          const perNightRate = data.totalAmount / nights;
+
+          if (pricingControls.minOverrideRateCents !== null && perNightRate < pricingControls.minOverrideRateCents) {
+            throw new BadRequestException(
+              `Per-night rate of $${(perNightRate / 100).toFixed(2)} is below minimum allowed ($${(pricingControls.minOverrideRateCents / 100).toFixed(2)}/night).`
+            );
+          }
+
+          if (pricingControls.maxOverrideRateCents !== null && perNightRate > pricingControls.maxOverrideRateCents) {
+            throw new BadRequestException(
+              `Per-night rate of $${(perNightRate / 100).toFixed(2)} exceeds maximum allowed ($${(pricingControls.maxOverrideRateCents / 100).toFixed(2)}/night).`
+            );
+          }
         }
 
         let subtotal = price.totalCents;
@@ -1377,6 +1435,18 @@ export class ReservationsService {
           arrival,
           departure
         );
+
+        // Get campground pricing control settings
+        const pricingControls = await this.prisma.campground.findUnique({
+          where: { id: existing.campgroundId },
+          select: {
+            maxDiscountFraction: true,
+            managerApprovalThreshold: true,
+            minOverrideRateCents: true,
+            maxOverrideRateCents: true
+          }
+        });
+
         const shouldReprice = data.totalAmount === undefined || data.totalAmount === null;
         const price = shouldReprice ? baselinePrice : null;
         const totalAmount = shouldReprice ? baselinePrice.totalCents : data.totalAmount ?? existing.totalAmount;
@@ -1388,6 +1458,53 @@ export class ReservationsService {
         const needsOverrideApproval = !shouldReprice && (manualOverrideDelta !== 0 || manualDiscountProvided);
         if (needsOverrideApproval && (!overrideReason || !overrideApprovedBy)) {
           throw new BadRequestException("Manual pricing overrides require overrideReason and overrideApprovedBy.");
+        }
+
+        // Validate override against campground pricing controls
+        if (!shouldReprice && pricingControls) {
+          const maxDiscountFraction = pricingControls.maxDiscountFraction
+            ? Number(pricingControls.maxDiscountFraction)
+            : 0.4;
+          const managerThreshold = pricingControls.managerApprovalThreshold
+            ? Number(pricingControls.managerApprovalThreshold)
+            : 0.25;
+
+          // Calculate discount percentage (negative delta = discount)
+          if (manualOverrideDelta < 0 && baselinePrice.totalCents > 0) {
+            const discountPct = Math.abs(manualOverrideDelta) / baselinePrice.totalCents;
+
+            // Hard cap - cannot exceed max discount
+            if (discountPct > maxDiscountFraction) {
+              throw new BadRequestException(
+                `Override discount of ${Math.round(discountPct * 100)}% exceeds maximum allowed (${Math.round(maxDiscountFraction * 100)}%). ` +
+                `Minimum allowed price: $${((baselinePrice.totalCents * (1 - maxDiscountFraction)) / 100).toFixed(2)}`
+              );
+            }
+
+            // Manager approval required for discounts above threshold
+            if (discountPct > managerThreshold && !overrideApprovedBy) {
+              throw new BadRequestException(
+                `Discounts above ${Math.round(managerThreshold * 100)}% require manager approval. ` +
+                `Please provide overrideApprovedBy with a manager's user ID.`
+              );
+            }
+          }
+
+          // Validate against min/max rate bounds if configured
+          const nights = baselinePrice.nights;
+          const perNightRate = totalAmount / nights;
+
+          if (pricingControls.minOverrideRateCents !== null && perNightRate < pricingControls.minOverrideRateCents) {
+            throw new BadRequestException(
+              `Per-night rate of $${(perNightRate / 100).toFixed(2)} is below minimum allowed ($${(pricingControls.minOverrideRateCents / 100).toFixed(2)}/night).`
+            );
+          }
+
+          if (pricingControls.maxOverrideRateCents !== null && perNightRate > pricingControls.maxOverrideRateCents) {
+            throw new BadRequestException(
+              `Per-night rate of $${(perNightRate / 100).toFixed(2)} exceeds maximum allowed ($${(pricingControls.maxOverrideRateCents / 100).toFixed(2)}/night).`
+            );
+          }
         }
 
         const depositCalc = await assertReservationDepositV2(this.depositPoliciesService, {

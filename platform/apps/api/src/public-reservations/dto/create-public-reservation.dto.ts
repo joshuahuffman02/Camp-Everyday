@@ -212,6 +212,10 @@ export class CreatePublicReservationDto {
     @IsOptional()
     @IsString()
     holdId?: string;
+
+    @IsOptional()
+    @IsString()
+    source?: "online" | "kiosk" | "api";
 }
 
 export class CreatePublicWaitlistDto {

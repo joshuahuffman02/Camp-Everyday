@@ -21,6 +21,13 @@ import {
   Database,
   Headphones,
   Loader2,
+  DollarSign,
+  ArrowDownRight,
+  ArrowUpRight,
+  Wallet,
+  BarChart3,
+  Info,
+  Building,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -116,6 +123,57 @@ interface BillingPeriod {
   totalCents: number;
   paidAt: string | null;
   dueAt: string | null;
+}
+
+interface RevenueSummary {
+  campground: {
+    id: string;
+    name: string;
+    billingTier: string;
+  };
+  summary: {
+    periodStart: string;
+    periodEnd: string;
+    revenue: {
+      grossRevenueCents: number;
+      reservationCount: number;
+      averageBookingValue: number;
+    };
+    platformFees: {
+      perBookingFeeCents: number;
+      bookingCount: number;
+      smsOutboundCents: number;
+      smsInboundCents: number;
+      totalCents: number;
+    };
+    paymentFees: {
+      stripeFeesCents: number;
+      refundsCents: number;
+      disputesCents: number;
+      totalCents: number;
+    };
+    netRevenue: {
+      totalCents: number;
+      payoutsCents: number;
+      pendingPayoutCents: number;
+    };
+  };
+}
+
+interface PayoutRecord {
+  id: string;
+  stripePayoutId: string;
+  status: string;
+  amountCents: number;
+  currency: string;
+  arrivalDate: string;
+  paidAt: string | null;
+  createdAt: string;
+  summary: {
+    chargeCount: number;
+    refundCount: number;
+    feeCount: number;
+  };
 }
 
 function formatCents(cents: number): string {
@@ -241,6 +299,38 @@ export default function BillingPage() {
       return res.json();
     },
     enabled: !!organizationId,
+  });
+
+  // Revenue dashboard - campground-level billing transparency
+  const { data: revenueSummary } = useQuery<RevenueSummary>({
+    queryKey: ["revenue-summary", selectedCampground?.id],
+    queryFn: async () => {
+      const res = await fetch(
+        `${API_BASE}/campgrounds/${selectedCampground?.id}/billing-dashboard/summary`,
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+      if (!res.ok) throw new Error("Failed to fetch revenue summary");
+      return res.json();
+    },
+    enabled: !!selectedCampground?.id,
+  });
+
+  // Payout history
+  const { data: payouts } = useQuery<PayoutRecord[]>({
+    queryKey: ["payouts", selectedCampground?.id],
+    queryFn: async () => {
+      const res = await fetch(
+        `${API_BASE}/campgrounds/${selectedCampground?.id}/billing-dashboard/payouts?limit=5`,
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+      if (!res.ok) throw new Error("Failed to fetch payouts");
+      return res.json();
+    },
+    enabled: !!selectedCampground?.id,
   });
 
   const queryClient = useQueryClient();
@@ -369,13 +459,224 @@ export default function BillingPage() {
               </div>
             </div>
 
-            {/* Current Period Summary */}
+            {/* Revenue Transparency Section */}
+            {revenueSummary && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                        <DollarSign className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          Revenue This Month
+                        </h3>
+                        <p className="text-sm text-slate-500">
+                          What you earned from guest payments
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-emerald-600 text-sm">
+                      <Info className="h-4 w-4" />
+                      <span>Fee breakdown included</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Revenue Summary Cards */}
+                <div className="grid md:grid-cols-4 gap-4 p-6 bg-slate-50">
+                  <div className="bg-white rounded-xl p-4 border border-slate-200">
+                    <div className="flex items-center gap-2 text-slate-600 text-sm mb-1">
+                      <ArrowUpRight className="h-4 w-4 text-emerald-500" />
+                      Gross Revenue
+                    </div>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {formatCents(revenueSummary.summary.revenue.grossRevenueCents)}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {revenueSummary.summary.revenue.reservationCount} bookings
+                    </p>
+                  </div>
+
+                  <div className="bg-white rounded-xl p-4 border border-slate-200">
+                    <div className="flex items-center gap-2 text-slate-600 text-sm mb-1">
+                      <ArrowDownRight className="h-4 w-4 text-red-500" />
+                      Payment Fees
+                    </div>
+                    <p className="text-2xl font-bold text-slate-900">
+                      -{formatCents(revenueSummary.summary.paymentFees.totalCents)}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Stripe processing fees
+                    </p>
+                  </div>
+
+                  <div className="bg-white rounded-xl p-4 border border-slate-200">
+                    <div className="flex items-center gap-2 text-slate-600 text-sm mb-1">
+                      <Building className="h-4 w-4 text-blue-500" />
+                      Platform Fees
+                    </div>
+                    <p className="text-2xl font-bold text-slate-900">
+                      -{formatCents(revenueSummary.summary.platformFees.totalCents)}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Per-booking + SMS
+                    </p>
+                  </div>
+
+                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                    <div className="flex items-center gap-2 text-emerald-700 text-sm mb-1">
+                      <Wallet className="h-4 w-4" />
+                      Net Earnings
+                    </div>
+                    <p className="text-2xl font-bold text-emerald-700">
+                      {formatCents(revenueSummary.summary.netRevenue.totalCents)}
+                    </p>
+                    <p className="text-xs text-emerald-600 mt-1">
+                      {revenueSummary.summary.netRevenue.pendingPayoutCents > 0 && (
+                        <>
+                          {formatCents(revenueSummary.summary.netRevenue.pendingPayoutCents)} pending
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Fee Details */}
+                <div className="p-6 border-t border-slate-100">
+                  <h4 className="text-sm font-semibold text-slate-700 mb-4">
+                    Fee Breakdown
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Stripe processing fees</span>
+                      <span className="text-slate-900 font-medium">
+                        {formatCents(revenueSummary.summary.paymentFees.stripeFeesCents)}
+                      </span>
+                    </div>
+                    {revenueSummary.summary.paymentFees.refundsCents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Refunds processed</span>
+                        <span className="text-slate-900 font-medium">
+                          {formatCents(revenueSummary.summary.paymentFees.refundsCents)}
+                        </span>
+                      </div>
+                    )}
+                    {revenueSummary.summary.paymentFees.disputesCents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-red-600">Disputes/Chargebacks</span>
+                        <span className="text-red-600 font-medium">
+                          {formatCents(revenueSummary.summary.paymentFees.disputesCents)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="border-t border-slate-100 pt-3 flex justify-between text-sm">
+                      <span className="text-slate-600">
+                        Per-booking fees ({revenueSummary.summary.platformFees.bookingCount} bookings)
+                      </span>
+                      <span className="text-slate-900 font-medium">
+                        {formatCents(revenueSummary.summary.platformFees.perBookingFeeCents)}
+                      </span>
+                    </div>
+                    {revenueSummary.summary.platformFees.smsOutboundCents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">SMS messaging</span>
+                        <span className="text-slate-900 font-medium">
+                          {formatCents(
+                            revenueSummary.summary.platformFees.smsOutboundCents +
+                              revenueSummary.summary.platformFees.smsInboundCents
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Recent Payouts */}
+            {payouts && payouts.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                      <Wallet className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        Recent Payouts
+                      </h3>
+                      <p className="text-sm text-slate-500">
+                        Bank deposits from Stripe
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/dashboard/settings/payments">
+                      View All
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {payouts.map((payout) => (
+                    <div
+                      key={payout.id}
+                      className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            payout.status === "paid"
+                              ? "bg-emerald-50"
+                              : payout.status === "failed"
+                                ? "bg-red-50"
+                                : "bg-blue-50"
+                          }`}
+                        >
+                          {payout.status === "paid" ? (
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                          ) : payout.status === "failed" ? (
+                            <AlertCircle className="h-5 w-5 text-red-600" />
+                          ) : (
+                            <Clock className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">
+                            {formatCents(payout.amountCents)}
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {payout.summary.chargeCount} charges
+                            {payout.summary.refundCount > 0 &&
+                              `, ${payout.summary.refundCount} refunds`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-slate-900 capitalize">
+                          {payout.status === "paid" ? "Deposited" : payout.status}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {payout.paidAt
+                            ? formatDate(payout.paidAt)
+                            : `Est. ${formatDate(payout.arrivalDate)}`}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Platform Fees - Current Period Summary */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-slate-100">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">
-                      Current Period
+                      Platform Fees - Current Period
                     </h3>
                     <p className="text-slate-600">
                       {formatPeriod(

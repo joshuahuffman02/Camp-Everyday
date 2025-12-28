@@ -335,6 +335,7 @@ export class KioskService {
       children: dto.children ?? 0,
       guest: dto.guest,
       equipment: dto.equipment,
+      source: "kiosk",  // Mark as kiosk booking for analytics
     });
 
     return reservation;

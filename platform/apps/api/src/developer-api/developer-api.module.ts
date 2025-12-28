@@ -14,9 +14,11 @@ import { GuestsService } from "../guests/guests.service";
 import { ApiTokenGuard } from "./guards/api-token.guard";
 import { ApiScopeGuard } from "./guards/api-scope.guard";
 import { AuditModule } from "../audit/audit.module";
+import { PricingV2Module } from "../pricing-v2/pricing-v2.module";
+import { DepositPoliciesModule } from "../deposit-policies/deposit-policies.module";
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, PricingV2Module, DepositPoliciesModule],
   controllers: [
     ApiAuthController,
     DeveloperAdminController,

@@ -2,6 +2,11 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { PrismaService } from "../prisma/prisma.service";
 import { WebhookService, WebhookEvent } from "./webhook.service";
 import { GuestsService } from "../guests/guests.service";
+import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
+import { evaluatePricingV2 } from "../reservations/reservation-pricing";
+import { DepositPoliciesService } from "../deposit-policies/deposit-policies.service";
+import { calculateReservationDepositV2 } from "../reservations/reservation-deposit";
+import { AuditService } from "../audit/audit.service";
 
 export interface ApiReservationInput {
   siteId: string;
@@ -13,6 +18,10 @@ export interface ApiReservationInput {
   status?: string;
   notes?: string;
   siteLocked?: boolean;
+  // Pricing override (requires validation)
+  totalAmountOverride?: number;
+  overrideReason?: string;
+  promoCode?: string;
 }
 
 export interface ApiGuestInput {
@@ -35,7 +44,10 @@ export class PublicApiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly webhook: WebhookService,
-    private readonly guests: GuestsService
+    private readonly guests: GuestsService,
+    private readonly pricingV2Service: PricingV2Service,
+    private readonly depositPoliciesService: DepositPoliciesService,
+    private readonly audit: AuditService
   ) { }
 
   private async assertSiteInCampground(siteId: string, campgroundId: string) {
@@ -76,22 +88,139 @@ export class PublicApiService {
     return reservation;
   }
 
+  /**
+   * Calculate occupancy percentage for demand-based pricing
+   */
+  private async calculateOccupancy(campgroundId: string, arrivalDate: Date): Promise<number> {
+    const totalSites = await this.prisma.site.count({
+      where: { campgroundId, isActive: true }
+    });
+    if (totalSites === 0) return 0;
+
+    const occupiedSites = await this.prisma.reservation.count({
+      where: {
+        campgroundId,
+        arrivalDate: { lte: arrivalDate },
+        departureDate: { gt: arrivalDate },
+        status: { in: ["confirmed", "checked_in", "pending"] }
+      }
+    });
+
+    return Math.round((occupiedSites / totalSites) * 100);
+  }
+
   async createReservation(campgroundId: string, input: ApiReservationInput) {
     await this.assertSiteInCampground(input.siteId, campgroundId);
+
+    const arrival = new Date(input.arrivalDate);
+    const departure = new Date(input.departureDate);
+
+    // Calculate occupancy for demand-based pricing
+    const occupancyPct = await this.calculateOccupancy(campgroundId, arrival);
+
+    // Calculate pricing using the shared pricing engine
+    const pricing = await evaluatePricingV2(
+      this.prisma,
+      this.pricingV2Service,
+      campgroundId,
+      input.siteId,
+      arrival,
+      departure,
+      occupancyPct
+    );
+
+    // Get campground discount cap setting
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { maxDiscountFraction: true }
+    });
+    const maxDiscountFraction = (campground as any)?.maxDiscountFraction ?? 0.4;
+
+    // Determine final amount and validate override if provided
+    let totalAmount = pricing.totalCents;
+    let pricingSource = "calculated";
+
+    if (input.totalAmountOverride !== undefined && input.totalAmountOverride !== null) {
+      const overrideDelta = input.totalAmountOverride - pricing.totalCents;
+      const discountPct = overrideDelta < 0
+        ? Math.abs(overrideDelta) / pricing.totalCents
+        : 0;
+
+      // Validate against discount cap
+      if (discountPct > maxDiscountFraction) {
+        throw new BadRequestException(
+          `Override exceeds maximum discount cap of ${Math.round(maxDiscountFraction * 100)}%`
+        );
+      }
+
+      if (!input.overrideReason) {
+        throw new BadRequestException(
+          "overrideReason is required when providing totalAmountOverride"
+        );
+      }
+
+      totalAmount = input.totalAmountOverride;
+      pricingSource = "api_override";
+
+      // Audit the override
+      await this.audit.record({
+        campgroundId,
+        actorId: null,
+        action: "api_pricing_override",
+        entity: "reservation",
+        entityId: null,
+        before: { calculatedTotal: pricing.totalCents },
+        after: {
+          overrideTotal: totalAmount,
+          reason: input.overrideReason,
+          discountPercent: Math.round(discountPct * 100)
+        }
+      });
+    }
+
+    // Calculate deposit
+    const site = await this.prisma.site.findUnique({
+      where: { id: input.siteId },
+      select: { siteClassId: true }
+    });
+
+    const depositCalc = await calculateReservationDepositV2(this.depositPoliciesService, {
+      campgroundId,
+      siteClassId: site?.siteClassId ?? null,
+      totalAmountCents: totalAmount,
+      lodgingOnlyCents: pricing.baseSubtotalCents,
+      nights: pricing.nights
+    });
+
     const created = await this.prisma.reservation.create({
       data: {
         campgroundId,
         siteId: input.siteId,
         siteLocked: input.siteLocked ?? false,
         guestId: input.guestId,
-        arrivalDate: new Date(input.arrivalDate),
-        departureDate: new Date(input.departureDate),
+        arrivalDate: arrival,
+        departureDate: departure,
         adults: input.adults,
         children: input.children ?? 0,
         status: (input.status as any) || "confirmed",
-        notes: input.notes || null
+        notes: input.notes || null,
+        source: "api",
+        // PRICING FIELDS (previously missing!)
+        totalAmount,
+        baseSubtotal: pricing.baseSubtotalCents,
+        feesAmount: 0,
+        taxesAmount: 0,
+        discountsAmount: pricing.rulesDeltaCents < 0 ? Math.abs(pricing.rulesDeltaCents) : 0,
+        paidAmount: 0,
+        balanceAmount: totalAmount,
+        paymentStatus: "unpaid",
+        depositAmount: depositCalc.depositAmount,
+        depositPolicyVersion: depositCalc.depositPolicyVersion ?? null,
+        pricingRuleVersion: pricingSource === "api_override" ? "api_override" : pricing.pricingRuleVersion,
+        promoCode: input.promoCode ?? null
       }
     });
+
     await this.webhook.emit("reservation.created", campgroundId, { reservationId: created.id });
     return created;
   }
