@@ -2871,10 +2871,10 @@ export class ReservationsService {
       });
       await this.gamification.recordEvent({
         campgroundId: reservation.campgroundId,
-        staffMembershipId: membership?.id || null,
+        userId: reservation.createdBy,
+        membershipId: membership?.id,
         category: GamificationEventCategory.operational,
-        eventType: "smooth_checkin",
-        points: 5,
+        xpOverride: 5,
         reason: "Smooth check-in (staff)",
         sourceType: "reservation",
         sourceId: reservation.id,
