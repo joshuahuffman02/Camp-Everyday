@@ -13,7 +13,7 @@ import {
 } from "@nestjs/common";
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
 import { ScopeGuard } from "../permissions/scope.guard";
-import { RequireScope } from "../permissions/require-scope.decorator";
+import { RequireScope } from "../permissions/scope.decorator";
 import { UserRole } from "@prisma/client";
 
 import { CustomerService } from "./customer.service";
