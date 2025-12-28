@@ -2,6 +2,8 @@ import { Reservation } from "@campreserv/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import Link from "next/link";
+import { Pencil } from "lucide-react";
 
 interface ReservationHeaderProps {
     reservation: Reservation;
@@ -9,9 +11,10 @@ interface ReservationHeaderProps {
     onCheckOut: () => void;
     onCancel: () => void;
     isProcessing: boolean;
+    onEdit?: () => void;
 }
 
-export function ReservationHeader({ reservation, onCheckIn, onCheckOut, onCancel, isProcessing }: ReservationHeaderProps) {
+export function ReservationHeader({ reservation, onCheckIn, onCheckOut, onCancel, isProcessing, onEdit }: ReservationHeaderProps) {
     const isToday = (date: Date | string) => {
         const d = new Date(date);
         const today = new Date();
@@ -46,6 +49,15 @@ export function ReservationHeader({ reservation, onCheckIn, onCheckOut, onCancel
                 </p>
             </div>
             <div className="flex gap-2">
+                {/* Edit button - always show for non-cancelled reservations */}
+                {reservation.status !== "cancelled" && reservation.status !== "checked_out" && (
+                    <Link href={`/campgrounds/${reservation.campgroundId}/reservations/${reservation.id}`}>
+                        <Button variant="outline" disabled={isProcessing}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                        </Button>
+                    </Link>
+                )}
                 {canCheckIn && (
                     <Button onClick={onCheckIn} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700">
                         Check In Guest

@@ -2115,6 +2115,8 @@ export class ReservationsService {
         guestEmail: reservation.guest?.email,
         guestName: `${reservation.guest?.primaryFirstName} ${reservation.guest?.primaryLastName}`,
         campgroundName: reservation.campground?.name,
+        campgroundId: reservation.campgroundId,
+        guestId: reservation.guestId,
         amountCents: totalTenderCents,
         paymentMethod: options?.paymentMethod || (tenderList.length === 1 ? tenderList[0].method : 'Mixed'),
         transactionId: options?.transactionId,

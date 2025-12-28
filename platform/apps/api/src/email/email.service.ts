@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import nodemailer from 'nodemailer';
 import fetch from 'node-fetch';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface EmailOptions {
     to: string;
@@ -20,6 +21,8 @@ interface PaymentReceiptOptions {
     guestEmail: string;
     guestName: string;
     campgroundName: string;
+    campgroundId?: string;
+    guestId?: string;
     amountCents: number;
     paymentMethod?: string;
     transactionId?: string;
@@ -42,7 +45,7 @@ export class EmailService {
     private postmarkToken: string | null = null;
     private resendApiKey: string | null = null;
 
-    constructor() {
+    constructor(private readonly prisma: PrismaService) {
         const host = process.env.SMTP_HOST;
         const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
         const user = process.env.SMTP_USER;
@@ -298,11 +301,50 @@ ${options.html}
             </div>
         `;
 
-        await this.sendEmail({
+        // Validate email address
+        if (!options.guestEmail || !options.guestEmail.includes('@')) {
+            this.logger.warn(`Cannot send payment receipt: invalid or missing email address for guest ${options.guestName}`);
+            return;
+        }
+
+        const subject = `Payment Receipt - ${formattedAmount} - ${options.campgroundName}`;
+
+        const result = await this.sendEmail({
             to: options.guestEmail,
-            subject: `Payment Receipt - ${formattedAmount} - ${options.campgroundName}`,
+            subject,
             html
         });
+
+        // Record the communication in the database if we have campground context
+        if (options.campgroundId) {
+            try {
+                await this.prisma.communication.create({
+                    data: {
+                        campgroundId: options.campgroundId,
+                        guestId: options.guestId,
+                        reservationId: options.reservationId,
+                        type: 'email',
+                        direction: 'outbound',
+                        subject,
+                        body: html,
+                        preview: `Payment receipt for ${formattedAmount}`,
+                        status: result.fallback === 'log_only' ? 'pending' : 'sent',
+                        provider: result.provider,
+                        providerMessageId: result.providerMessageId,
+                        toAddress: options.guestEmail,
+                        sentAt: new Date(),
+                        metadata: {
+                            kind: options.kind ?? 'payment',
+                            amountCents: options.amountCents,
+                            paymentMethod: options.paymentMethod,
+                            transactionId: options.transactionId
+                        }
+                    }
+                });
+            } catch (err) {
+                this.logger.error('Failed to record payment receipt in communications:', err);
+            }
+        }
     }
 
     /**

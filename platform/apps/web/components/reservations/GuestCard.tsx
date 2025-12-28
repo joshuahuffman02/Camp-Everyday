@@ -1,6 +1,7 @@
 import { Guest } from "@campreserv/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Phone, MapPin, User } from "lucide-react";
+import { Mail, Phone, MapPin, User, ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 interface GuestCardProps {
     guest: Guest;
@@ -10,17 +11,26 @@ export function GuestCard({ guest }: GuestCardProps) {
     const createdYear = (guest as any).createdAt ? new Date((guest as any).createdAt).getFullYear() : "—";
     return (
         <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <User className="w-5 h-5 text-slate-500" />
                     Guest Details
                 </CardTitle>
+                <Link
+                    href={`/guests/${guest.id}`}
+                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                >
+                    View Profile <ExternalLink className="w-3 h-3" />
+                </Link>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div>
-                    <div className="font-semibold text-slate-900 text-lg">
+                    <Link
+                        href={`/guests/${guest.id}`}
+                        className="font-semibold text-slate-900 text-lg hover:text-blue-600 transition-colors"
+                    >
                         {guest.primaryFirstName} {guest.primaryLastName}
-                    </div>
+                    </Link>
                     <div className="text-sm text-slate-500">Guest since {createdYear}</div>
                 </div>
 

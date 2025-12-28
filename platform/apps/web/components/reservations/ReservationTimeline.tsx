@@ -1,6 +1,6 @@
 import { Reservation } from "@campreserv/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, CheckCircle2, XCircle, CreditCard } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, CreditCard, DoorOpen } from "lucide-react";
 import { format } from "date-fns";
 
 interface ReservationTimelineProps {
@@ -10,6 +10,12 @@ interface ReservationTimelineProps {
 export function ReservationTimeline({ reservation }: ReservationTimelineProps) {
     const normalizeDate = (d?: string | Date | null) => (d ? new Date(d) : new Date());
     const paidCents = reservation.paidAmount ?? 0;
+
+    // Get payments from reservation if available
+    const payments = (reservation as any).payments || [];
+    const firstPaymentDate = payments.length > 0
+        ? normalizeDate(payments[0].createdAt || payments[0].date)
+        : null;
 
     const events = [
         {
@@ -21,10 +27,26 @@ export function ReservationTimeline({ reservation }: ReservationTimelineProps) {
         }
     ];
 
-    if (paidCents > 0) {
+    // Add payment events from actual payments array if available
+    if (payments.length > 0) {
+        payments.forEach((payment: any, index: number) => {
+            const paymentDate = payment.createdAt || payment.date;
+            const direction = payment.direction || "payment";
+            events.push({
+                title: direction === "refund"
+                    ? `Refund Issued ($${((payment.amountCents ?? 0) / 100).toFixed(2)})`
+                    : `Payment Received ($${((payment.amountCents ?? 0) / 100).toFixed(2)})`,
+                date: normalizeDate(paymentDate),
+                icon: CreditCard,
+                color: direction === "refund" ? "text-red-600" : "text-emerald-600",
+                bg: direction === "refund" ? "bg-red-100" : "bg-emerald-100"
+            });
+        });
+    } else if (paidCents > 0) {
+        // Fallback if no payments array but paidAmount exists
         events.push({
-            title: "Payment Received",
-            date: normalizeDate(reservation.createdAt), // Ideally would be payment date
+            title: `Payment Received ($${(paidCents / 100).toFixed(2)})`,
+            date: normalizeDate(reservation.updatedAt), // Use updatedAt as better approximation
             icon: CreditCard,
             color: "text-emerald-600",
             bg: "bg-emerald-100"
@@ -45,7 +67,7 @@ export function ReservationTimeline({ reservation }: ReservationTimelineProps) {
         events.push({
             title: "Guest Checked Out",
             date: normalizeDate(reservation.checkOutAt),
-            icon: CheckCircle2,
+            icon: DoorOpen,
             color: "text-slate-600",
             bg: "bg-slate-100"
         });
@@ -61,8 +83,8 @@ export function ReservationTimeline({ reservation }: ReservationTimelineProps) {
         });
     }
 
-    // Sort by date desc
-    events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Sort by date ascending (oldest first) for proper chronological timeline
+    events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return (
         <Card>
