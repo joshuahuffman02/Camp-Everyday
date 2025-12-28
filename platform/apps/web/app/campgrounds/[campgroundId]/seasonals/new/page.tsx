@@ -149,8 +149,9 @@ export default function NewSeasonalGuestPage() {
       return apiClient.createGuest({
         primaryFirstName: newGuestFirstName,
         primaryLastName: newGuestLastName,
-        email: newGuestEmail,
-        phone: newGuestPhone,
+        email: newGuestEmail || undefined,
+        phone: newGuestPhone || undefined,
+        campgroundId,
       });
     },
     onSuccess: (newGuest) => {
@@ -182,9 +183,12 @@ export default function NewSeasonalGuestPage() {
   const { data: rateCards = [], isLoading: loadingRateCards } = useQuery<RateCard[]>({
     queryKey: ["seasonal-rate-cards", campgroundId],
     queryFn: async () => {
-      const response = await fetch(`/api/campgrounds/${campgroundId}/seasonals/rate-cards`);
-      if (!response.ok) return [];
-      return response.json();
+      try {
+        const data = await apiClient.getSeasonalRateCards(campgroundId);
+        return data as RateCard[];
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -210,21 +214,17 @@ export default function NewSeasonalGuestPage() {
     ],
     queryFn: async () => {
       if (!selectedRateCardId) return null;
-      const response = await fetch(`/api/campgrounds/${campgroundId}/seasonals/pricing/preview`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      try {
+        const data = await apiClient.previewSeasonalPricing({
           rateCardId: selectedRateCardId,
-          context: {
-            isMetered,
-            paysInFull,
-            paymentMethod: preferredPaymentMethod,
-            billingFrequency,
-          },
-        }),
-      });
-      if (!response.ok) return null;
-      return response.json();
+          isMetered,
+          paysInFull,
+          paymentMethod: preferredPaymentMethod || undefined,
+        });
+        return data as PricingPreview;
+      } catch {
+        return null;
+      }
     },
     enabled: !!selectedRateCardId,
   });
@@ -247,38 +247,29 @@ export default function NewSeasonalGuestPage() {
   // Create seasonal mutation
   const createMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/campgrounds/${campgroundId}/seasonals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          guestId: selectedGuestId,
-          currentSiteId: selectedSiteId || undefined,
-          rateCardId: selectedRateCardId,
-          firstSeasonYear,
-          billingFrequency,
-          preferredPaymentMethod: preferredPaymentMethod || undefined,
-          paysInFull,
-          autoPayEnabled,
-          paymentDay,
-          isMetered,
-          meteredElectric,
-          meteredWater,
-          vehiclePlates: vehiclePlates
-            ? vehiclePlates.split(",").map((p) => p.trim())
-            : [],
-          petCount,
-          petNotes: petNotes || undefined,
-          emergencyContact: emergencyContact || undefined,
-          emergencyPhone: emergencyPhone || undefined,
-          coiExpiresAt: coiExpiresAt ? new Date(coiExpiresAt).toISOString() : undefined,
-          notes: notes || undefined,
-        }),
+      return apiClient.createSeasonalGuest({
+        guestId: selectedGuestId,
+        currentSiteId: selectedSiteId || undefined,
+        rateCardId: selectedRateCardId,
+        firstSeasonYear,
+        billingFrequency,
+        preferredPaymentMethod: preferredPaymentMethod || undefined,
+        paysInFull,
+        autoPayEnabled,
+        paymentDay,
+        isMetered,
+        meteredElectric,
+        meteredWater,
+        vehiclePlates: vehiclePlates
+          ? vehiclePlates.split(",").map((p) => p.trim())
+          : [],
+        petCount,
+        petNotes: petNotes || undefined,
+        emergencyContact: emergencyContact || undefined,
+        emergencyPhone: emergencyPhone || undefined,
+        coiExpiresAt: coiExpiresAt ? new Date(coiExpiresAt).toISOString() : undefined,
+        notes: notes || undefined,
       });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create seasonal guest");
-      }
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["seasonal-guests", campgroundId] });

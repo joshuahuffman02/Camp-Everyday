@@ -10868,6 +10868,91 @@ export const apiClient = {
     });
     return parseResponse<{ updated: number }>(res);
   },
+
+  // ==================== SEASONAL GUESTS ====================
+
+  async getSeasonalRateCards(campgroundId: string, seasonYear?: number) {
+    const params = new URLSearchParams();
+    if (seasonYear) params.set("seasonYear", String(seasonYear));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${API_BASE}/seasonals/campground/${campgroundId}/rate-cards${query}`, {
+      headers: scopedHeaders()
+    });
+    return parseResponse<unknown[]>(res);
+  },
+
+  async previewSeasonalPricing(dto: {
+    rateCardId: string;
+    isMetered?: boolean;
+    paymentMethod?: string;
+    paysInFull?: boolean;
+    tenureYears?: number;
+    commitDate?: string;
+    isReturning?: boolean;
+    siteClassId?: string;
+    isReferral?: boolean;
+    isMilitary?: boolean;
+    isSenior?: boolean;
+  }) {
+    const res = await fetch(`${API_BASE}/seasonals/pricing/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(dto)
+    });
+    return parseResponse<unknown>(res);
+  },
+
+  async createSeasonalGuest(dto: {
+    guestId: string;
+    currentSiteId?: string;
+    rateCardId: string;
+    firstSeasonYear: number;
+    billingFrequency: string;
+    preferredPaymentMethod?: string;
+    paysInFull?: boolean;
+    autoPayEnabled?: boolean;
+    paymentDay?: number;
+    isMetered?: boolean;
+    meteredElectric?: boolean;
+    meteredWater?: boolean;
+    vehiclePlates?: string[];
+    petCount?: number;
+    petNotes?: string;
+    emergencyContact?: string;
+    emergencyPhone?: string;
+    coiExpiresAt?: string;
+    notes?: string;
+  }) {
+    const res = await fetch(`${API_BASE}/seasonals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(dto)
+    });
+    return parseResponse<unknown>(res);
+  },
+
+  async createGuest(dto: {
+    primaryFirstName: string;
+    primaryLastName: string;
+    email?: string;
+    phone?: string;
+    campgroundId?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (dto.campgroundId) params.set("campgroundId", dto.campgroundId);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${API_BASE}/guests${query}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify({
+        primaryFirstName: dto.primaryFirstName,
+        primaryLastName: dto.primaryLastName,
+        email: dto.email,
+        phone: dto.phone
+      })
+    });
+    return parseResponse<{ id: string; primaryFirstName: string; primaryLastName: string; email?: string; phone?: string }>(res);
+  },
 };
 
 export type PublicCampgroundList = z.infer<typeof PublicCampgroundListSchema>;
