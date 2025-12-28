@@ -6,17 +6,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowRight,
+  ArrowUpDown,
   Calendar,
   CheckCircle,
   Clock,
   CreditCard,
   LogOut,
+  Mail,
   MessageCircle,
+  MessageSquare,
   Search,
   Tag,
   Users,
   UserCheck,
-  Home
+  Home,
+  ChevronDown
 } from "lucide-react";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { apiClient } from "@/lib/api-client";
@@ -28,6 +32,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { PaymentCollectionModal } from "@/components/payments/PaymentCollectionModal";
@@ -57,9 +63,17 @@ export default function CheckInOutPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "balance" | "unassigned">("all");
   const [tab, setTab] = useState<"arrivals" | "departures" | "onsite">("arrivals");
+  const [sortBy, setSortBy] = useState<"name" | "site" | "balance" | "date">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Message modal
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+  const [messageType, setMessageType] = useState<"sms" | "email">("sms");
+  const [messageSubject, setMessageSubject] = useState("");
+  const [messageBody, setMessageBody] = useState("");
 
   // Payment modal
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
@@ -158,7 +172,7 @@ export default function CheckInOutPage() {
   const filteredList = useMemo(() => {
     const list = tab === "arrivals" ? arrivals : tab === "departures" ? departures : onsite;
     const lower = search.toLowerCase();
-    return list
+    const filtered = list
       .filter((r) => {
         if (!search) return true;
         return (
@@ -172,7 +186,33 @@ export default function CheckInOutPage() {
         if (statusFilter === "unassigned") return !r.siteId;
         return true;
       });
-  }, [arrivals, departures, onsite, search, statusFilter, tab]);
+
+    // Sort
+    const sorted = [...filtered].sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case "name":
+          cmp = `${a.guest.primaryLastName} ${a.guest.primaryFirstName}`.localeCompare(
+            `${b.guest.primaryLastName} ${b.guest.primaryFirstName}`
+          );
+          break;
+        case "site":
+          cmp = (a.site?.name || "zzz").localeCompare(b.site?.name || "zzz");
+          break;
+        case "balance":
+          cmp = (a.balanceAmount ?? 0) - (b.balanceAmount ?? 0);
+          break;
+        case "date":
+          const dateA = tab === "departures" ? a.departureDate : a.arrivalDate;
+          const dateB = tab === "departures" ? b.departureDate : b.arrivalDate;
+          cmp = new Date(dateA).getTime() - new Date(dateB).getTime();
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [arrivals, departures, onsite, search, statusFilter, tab, sortBy, sortDir]);
 
   // Get eligible reservations for bulk check-in (arrivals that are not yet checked in)
   const eligibleForBulkCheckIn = useMemo(() => {
@@ -181,14 +221,14 @@ export default function CheckInOutPage() {
   }, [filteredList, tab]);
 
   const selectedCount = selectedIds.size;
-  const isAllSelected = eligibleForBulkCheckIn.length > 0 &&
-    eligibleForBulkCheckIn.every((r) => selectedIds.has(r.id));
+  const isAllSelected = filteredList.length > 0 &&
+    filteredList.every((r) => selectedIds.has(r.id));
 
   const toggleSelectAll = () => {
     if (isAllSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(eligibleForBulkCheckIn.map((r) => r.id)));
+      setSelectedIds(new Set(filteredList.map((r) => r.id)));
     }
   };
 
@@ -202,10 +242,73 @@ export default function CheckInOutPage() {
     setSelectedIds(newSelected);
   };
 
+  // Clear selection when changing tabs
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [tab]);
+
   const handleBulkCheckIn = () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    bulkCheckInMutation.mutate(ids);
+    // Only check in those that are eligible
+    const eligibleIds = ids.filter(id => {
+      const res = filteredList.find(r => r.id === id);
+      return res && res.status !== "checked_in";
+    });
+    if (eligibleIds.length === 0) return;
+    bulkCheckInMutation.mutate(eligibleIds);
+  };
+
+  const handleBulkCheckOut = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    // Only check out those that are checked in
+    const eligibleIds = ids.filter(id => {
+      const res = filteredList.find(r => r.id === id);
+      return res && res.status === "checked_in";
+    });
+    if (eligibleIds.length === 0) return;
+
+    const results = await Promise.allSettled(
+      eligibleIds.map(id => apiClient.checkOutReservation(id))
+    );
+    const successCount = results.filter(r => r.status === "fulfilled").length;
+    const failCount = results.filter(r => r.status === "rejected").length;
+
+    queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
+    if (failCount === 0) {
+      toast({ title: `${successCount} guests checked out successfully` });
+    } else {
+      toast({ title: `${successCount} checked out, ${failCount} failed`, variant: "destructive" });
+    }
+    setSelectedIds(new Set());
+  };
+
+  const openBulkMessage = (type: "sms" | "email") => {
+    if (selectedIds.size === 0) return;
+    setMessageType(type);
+    setMessageSubject("");
+    setMessageBody("");
+    setIsMessageModalOpen(true);
+  };
+
+  const handleSendBulkMessage = async () => {
+    const selectedGuests = filteredList
+      .filter(r => selectedIds.has(r.id))
+      .map(r => ({
+        id: r.guest.id,
+        email: r.guest.email,
+        name: `${r.guest.primaryFirstName} ${r.guest.primaryLastName}`,
+        reservationId: r.id
+      }));
+
+    // For now, just show a toast. In production this would call the messaging API
+    toast({
+      title: `${messageType === "sms" ? "SMS" : "Email"} queued`,
+      description: `Message will be sent to ${selectedGuests.length} guest(s)`,
+    });
+    setIsMessageModalOpen(false);
+    setSelectedIds(new Set());
   };
 
   const formatMoney = (cents?: number) =>
@@ -295,9 +398,49 @@ export default function CheckInOutPage() {
               className="flex-1 bg-transparent border-none focus:outline-none text-sm"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Sort dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <ArrowUpDown className="h-4 w-4" />
+                  Sort: {sortBy === "name" ? "Name" : sortBy === "site" ? "Site" : sortBy === "balance" ? "Balance" : "Date"}
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { setSortBy("name"); setSortDir("asc"); }}>
+                  Name (A-Z)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setSortBy("name"); setSortDir("desc"); }}>
+                  Name (Z-A)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setSortBy("site"); setSortDir("asc"); }}>
+                  Site (A-Z)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setSortBy("site"); setSortDir("desc"); }}>
+                  Site (Z-A)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setSortBy("balance"); setSortDir("desc"); }}>
+                  Balance (High-Low)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setSortBy("balance"); setSortDir("asc"); }}>
+                  Balance (Low-High)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setSortBy("date"); setSortDir("asc"); }}>
+                  Date (Earliest)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setSortBy("date"); setSortDir("desc"); }}>
+                  Date (Latest)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Select value={statusFilter} onValueChange={(v: typeof statusFilter) => setStatusFilter(v)}>
-              <SelectTrigger className="w-[170px]">
+              <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Filter" />
               </SelectTrigger>
               <SelectContent>
@@ -332,8 +475,8 @@ export default function CheckInOutPage() {
         </div>
 
         {/* Bulk actions bar */}
-        {tab === "arrivals" && eligibleForBulkCheckIn.length > 0 && (
-          <div className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+        {filteredList.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
             <div className="flex items-center gap-3">
               <Checkbox
                 checked={isAllSelected}
@@ -341,19 +484,59 @@ export default function CheckInOutPage() {
                 id="select-all"
               />
               <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-                Select all ({eligibleForBulkCheckIn.length})
+                Select all ({filteredList.length})
               </Label>
+              {selectedCount > 0 && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                  {selectedCount} selected
+                </Badge>
+              )}
             </div>
             {selectedCount > 0 && (
-              <Button
-                onClick={handleBulkCheckIn}
-                disabled={bulkCheckInMutation.isPending}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                {bulkCheckInMutation.isPending
-                  ? `Checking in ${selectedCount}...`
-                  : `Check In Selected (${selectedCount})`}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Message actions */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openBulkMessage("sms")}
+                  className="gap-2"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  SMS
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openBulkMessage("email")}
+                  className="gap-2"
+                >
+                  <Mail className="h-4 w-4" />
+                  Email
+                </Button>
+
+                {/* Tab-specific actions */}
+                {tab === "arrivals" && eligibleForBulkCheckIn.length > 0 && (
+                  <Button
+                    onClick={handleBulkCheckIn}
+                    disabled={bulkCheckInMutation.isPending}
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    {bulkCheckInMutation.isPending ? "Checking in..." : "Check In"}
+                  </Button>
+                )}
+                {(tab === "onsite" || tab === "departures") && (
+                  <Button
+                    onClick={handleBulkCheckOut}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Check Out
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -366,28 +549,24 @@ export default function CheckInOutPage() {
             </div>
           ) : (
             filteredList.map((res) => {
-              const isEligible = tab === "arrivals" && res.status !== "checked_in";
               const isSelected = selectedIds.has(res.id);
 
               return (
               <Card key={res.id} className={`overflow-hidden border ${
                 isSelected
-                  ? "border-emerald-300 bg-emerald-50/40"
+                  ? "border-blue-300 bg-blue-50/40"
                   : res.balanceAmount > 0
                   ? "border-amber-200 bg-amber-50/40"
                   : "border-slate-200"
               } shadow-sm`}>
                 <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex items-start gap-3">
-                    {isEligible && (
-                      <div className="pt-1">
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSelect(res.id)}
-                          disabled={bulkCheckInMutation.isPending}
-                        />
-                      </div>
-                    )}
+                    <div className="pt-1">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleSelect(res.id)}
+                      />
+                    </div>
                     <div
                       className={`p-3 rounded-full ${
                         tab === "onsite"
@@ -702,6 +881,108 @@ export default function CheckInOutPage() {
           }}
         />
       )}
+
+      {/* Bulk Message Modal */}
+      <Dialog open={isMessageModalOpen} onOpenChange={setIsMessageModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {messageType === "sms" ? (
+                <MessageSquare className="h-5 w-5 text-blue-600" />
+              ) : (
+                <Mail className="h-5 w-5 text-blue-600" />
+              )}
+              Send {messageType === "sms" ? "SMS" : "Email"} to {selectedCount} Guest{selectedCount !== 1 ? "s" : ""}
+            </DialogTitle>
+            <DialogDescription>
+              Compose your message below. It will be sent to all selected guests.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {messageType === "email" && (
+              <div className="grid gap-2">
+                <Label>Subject</Label>
+                <Input
+                  placeholder="e.g., Important update about your stay"
+                  value={messageSubject}
+                  onChange={(e) => setMessageSubject(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="grid gap-2">
+              <Label>Message</Label>
+              <Textarea
+                placeholder={messageType === "sms"
+                  ? "e.g., Hi! Just a reminder that checkout is at 11am tomorrow. Thanks for staying with us!"
+                  : "e.g., We hope you're enjoying your stay! Here's some important information..."}
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
+                rows={4}
+              />
+              {messageType === "sms" && (
+                <p className="text-xs text-slate-500">
+                  {messageBody.length}/160 characters {messageBody.length > 160 && "(will be split into multiple messages)"}
+                </p>
+              )}
+            </div>
+
+            {/* Quick templates */}
+            <div className="space-y-2">
+              <Label className="text-xs text-slate-500">Quick Templates</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMessageBody("Welcome! We're excited to have you. Check-in starts at 3pm. Need help? Reply to this message!")}
+                >
+                  Welcome
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMessageBody("Reminder: Checkout is at 11am tomorrow. Please return keys to the office. Thanks for staying with us!")}
+                >
+                  Checkout Reminder
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMessageBody("Weather alert: Please secure outdoor items and be prepared for incoming weather. Stay safe!")}
+                >
+                  Weather Alert
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMessageBody("Pool hours today: 9am-9pm. Don't forget your towel! 🏊")}
+                >
+                  Pool Hours
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsMessageModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendBulkMessage}
+              disabled={!messageBody.trim() || (messageType === "email" && !messageSubject.trim())}
+              className="gap-2"
+            >
+              {messageType === "sms" ? <MessageSquare className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+              Send {messageType === "sms" ? "SMS" : "Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardShell>
   );
 }

@@ -341,11 +341,11 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
     dispatch({ type: "SELECT_METHOD", payload: method });
   }, []);
 
-  const addTenderEntry = useCallback((entry: Omit<TenderEntry, "id" | "status">) => {
+  const addTenderEntry = useCallback((entry: Omit<TenderEntry, "id" | "status"> & { status?: TenderEntry["status"] }) => {
     const newEntry: TenderEntry = {
       ...entry,
       id: uuidv4(),
-      status: "pending",
+      status: entry.status ?? "completed", // Default to completed for manual payments
     };
     dispatch({ type: "ADD_TENDER", payload: newEntry });
   }, []);

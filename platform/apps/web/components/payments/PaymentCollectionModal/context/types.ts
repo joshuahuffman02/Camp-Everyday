@@ -318,8 +318,8 @@ export interface PaymentContextActions {
   // Method selection
   selectMethod: (method: PaymentMethodType | null) => void;
 
-  // Split tender
-  addTenderEntry: (entry: Omit<TenderEntry, "id" | "status">) => void;
+  // Split tender (status defaults to "completed" if not provided)
+  addTenderEntry: (entry: Omit<TenderEntry, "id" | "status"> & { status?: TenderEntry["status"] }) => void;
   removeTenderEntry: (id: string) => void;
   clearTenderEntries: () => void;
 
