@@ -11,14 +11,22 @@ interface SmsSendResult {
   success: boolean;
 }
 
+interface TwilioCredentials {
+  accountSid: string;
+  authToken: string;
+  fromNumber: string;
+  source: "campground" | "global";
+}
+
 @Injectable()
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
-  private readonly twilioSid = process.env.TWILIO_ACCOUNT_SID || "";
-  private readonly twilioToken = process.env.TWILIO_AUTH_TOKEN || "";
-  private readonly fromNumber = process.env.TWILIO_FROM_NUMBER || "";
+  // Global/fallback credentials from environment
+  private readonly globalTwilioSid = process.env.TWILIO_ACCOUNT_SID || "";
+  private readonly globalTwilioToken = process.env.TWILIO_AUTH_TOKEN || "";
+  private readonly globalFromNumber = process.env.TWILIO_FROM_NUMBER || "";
   private readonly smsEnabled = process.env.SMS_ENABLED !== "false"; // Feature flag
-  private readonly isConfigured: boolean;
+  private readonly globalIsConfigured: boolean;
   private readonly backoffScheduleMs = [0, 400, 1200];
 
   // Telemetry counters
@@ -34,26 +42,74 @@ export class SmsService {
     private readonly usageTracker: UsageTrackerService,
     private readonly prisma: PrismaService
   ) {
-    this.isConfigured = !!(this.twilioSid && this.twilioToken && this.fromNumber);
-    if (this.isConfigured) {
-      this.logger.log("SMS service initialized with Twilio credentials");
+    this.globalIsConfigured = !!(this.globalTwilioSid && this.globalTwilioToken && this.globalFromNumber);
+    if (this.globalIsConfigured) {
+      this.logger.log("SMS service initialized with global Twilio credentials");
     } else {
-      this.logger.warn("SMS service running in no-op mode (Twilio not configured)");
+      this.logger.warn("SMS service: no global Twilio credentials (per-campground config may still work)");
     }
   }
 
   /**
-   * Check if SMS is available
+   * Check if SMS is available globally (for backwards compatibility)
    */
   isAvailable(): boolean {
-    return this.smsEnabled && this.isConfigured;
+    return this.smsEnabled && this.globalIsConfigured;
+  }
+
+  /**
+   * Check if SMS is available for a specific campground
+   */
+  async isAvailableForCampground(campgroundId: string): Promise<boolean> {
+    if (!this.smsEnabled) return false;
+    const creds = await this.getCredentialsForCampground(campgroundId);
+    return !!creds;
+  }
+
+  /**
+   * Get Twilio credentials for a campground (per-campground first, then global fallback)
+   */
+  private async getCredentialsForCampground(campgroundId?: string): Promise<TwilioCredentials | null> {
+    // Try per-campground credentials first
+    if (campgroundId) {
+      const campground = await this.prisma.campground.findUnique({
+        where: { id: campgroundId },
+        select: {
+          smsEnabled: true,
+          twilioAccountSid: true,
+          twilioAuthToken: true,
+          twilioFromNumber: true,
+        },
+      });
+
+      if (campground?.smsEnabled && campground.twilioAccountSid && campground.twilioAuthToken && campground.twilioFromNumber) {
+        return {
+          accountSid: campground.twilioAccountSid,
+          authToken: campground.twilioAuthToken,
+          fromNumber: campground.twilioFromNumber,
+          source: "campground",
+        };
+      }
+    }
+
+    // Fall back to global credentials
+    if (this.globalIsConfigured) {
+      return {
+        accountSid: this.globalTwilioSid,
+        authToken: this.globalTwilioToken,
+        fromNumber: this.globalFromNumber,
+        source: "global",
+      };
+    }
+
+    return null;
   }
 
   /**
    * Get telemetry stats
    */
   getStats() {
-    return { ...this.telemetry, configured: this.isConfigured, enabled: this.smsEnabled };
+    return { ...this.telemetry, configured: this.globalIsConfigured, enabled: this.smsEnabled };
   }
 
   async sendSms(opts: { to: string; body: string; campgroundId?: string; reservationId?: string }): Promise<SmsSendResult> {
@@ -66,9 +122,11 @@ export class SmsService {
       return { provider: "disabled", fallback: "feature_flag_off", success: false };
     }
 
-    // Credentials check
-    if (!this.isConfigured) {
-      this.logger.warn(`SMS no-op: Twilio not configured. Would send to ${opts.to}: "${opts.body.substring(0, 50)}..."`);
+    // Get credentials (per-campground or global fallback)
+    const credentials = await this.getCredentialsForCampground(opts.campgroundId);
+
+    if (!credentials) {
+      this.logger.warn(`SMS no-op: No Twilio credentials available. Would send to ${opts.to}: "${opts.body.substring(0, 50)}..."`);
       this.telemetry.skipped++;
       this.dispatchAlert("SMS not configured", `Twilio credentials missing; SMS send skipped for ${opts.to}`, "warning", {
         to: opts.to,
@@ -78,17 +136,18 @@ export class SmsService {
       });
       return { provider: "noop", fallback: "not_configured", success: false };
     }
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${this.twilioSid}/Messages.json`;
+
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${credentials.accountSid}/Messages.json`;
     const params = new URLSearchParams();
     params.append("To", opts.to);
-    params.append("From", this.fromNumber);
+    params.append("From", credentials.fromNumber);
     params.append("Body", opts.body);
 
     const attemptSend = async (): Promise<SmsSendResult> => {
       const res = await fetch(url, {
         method: "POST",
         headers: {
-          Authorization: "Basic " + Buffer.from(`${this.twilioSid}:${this.twilioToken}`).toString("base64"),
+          Authorization: "Basic " + Buffer.from(`${credentials.accountSid}:${credentials.authToken}`).toString("base64"),
           "Content-Type": "application/x-www-form-urlencoded"
         },
         body: params.toString()
@@ -98,7 +157,7 @@ export class SmsService {
         throw new Error(`Twilio send failed: ${res.status} ${JSON.stringify(data)}`);
       }
       this.telemetry.sent++;
-      this.logger.log(`SMS sent to ${opts.to} via Twilio (sid: ${data.sid})`);
+      this.logger.log(`SMS sent to ${opts.to} via Twilio (${credentials.source}, sid: ${data.sid})`);
 
       // Track SMS usage for billing (non-blocking)
       this.trackSmsUsageForBilling(opts.campgroundId, data.sid);

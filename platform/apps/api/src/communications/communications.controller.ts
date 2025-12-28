@@ -1289,6 +1289,19 @@ export class CommunicationsController {
             primaryLastName: true,
             phone: true
           }
+        },
+        reservation: {
+          select: {
+            id: true,
+            arrivalDate: true,
+            departureDate: true,
+            status: true,
+            site: {
+              select: {
+                siteNumber: true
+              }
+            }
+          }
         }
       }
     });

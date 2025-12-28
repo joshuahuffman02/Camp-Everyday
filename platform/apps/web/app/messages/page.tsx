@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TableEmpty } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, MessageSquare, Users, Send, User, Clock, CheckCheck, Search, Plus, Hash, ClipboardList, ClipboardCheck, HeartPulse, Info, AlertCircle, Sparkles, Bell, Mail, Phone, Calendar, MapPin, DollarSign, PawPrint, ChevronRight, ExternalLink, X } from "lucide-react";
+import { Loader2, MessageSquare, Users, Send, User, Clock, CheckCheck, Search, Plus, Hash, ClipboardList, ClipboardCheck, HeartPulse, Info, AlertCircle, Sparkles, Bell, Mail, Phone, Calendar, MapPin, DollarSign, PawPrint, ChevronRight, ExternalLink, X, Tent, PenSquare } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -89,6 +91,15 @@ export default function MessagesPage() {
     const [sendSuccess, setSendSuccess] = useState(false);
     const [showGuestInfo, setShowGuestInfo] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Compose message state
+    const [isComposeOpen, setIsComposeOpen] = useState(false);
+    const [composeType, setComposeType] = useState<"email" | "sms">("email");
+    const [composeGuestSearch, setComposeGuestSearch] = useState("");
+    const [composeSelectedGuest, setComposeSelectedGuest] = useState<{ id: string; name: string; email?: string; phone?: string } | null>(null);
+    const [composeSubject, setComposeSubject] = useState("");
+    const [composeBody, setComposeBody] = useState("");
+    const [composeSending, setComposeSending] = useState(false);
     const prevUnreadCountRef = useRef<number>(0);
     const isInitialLoadRef = useRef(true);
     const activeFilterCount =
@@ -171,6 +182,14 @@ export default function MessagesPage() {
         queryKey: ["campground-members", campground?.id],
         queryFn: () => apiClient.getCampgroundMembers(campground!.id),
         enabled: !!campground?.id
+    });
+
+    // Get guests for compose search
+    const { data: searchedGuests = [] } = useQuery({
+        queryKey: ["guests-search", campground?.id, composeGuestSearch],
+        queryFn: () => apiClient.getGuests(campground!.id, { search: composeGuestSearch, limit: 10 }),
+        enabled: !!campground?.id && composeGuestSearch.length >= 2,
+        staleTime: 30000
     });
 
     // Fetch all conversations in a single API call (much faster than N sequential calls)
@@ -426,6 +445,72 @@ export default function MessagesPage() {
         }
     };
 
+    // Compose and send new message
+    const handleComposeSubmit = async () => {
+        if (!composeSelectedGuest || !composeBody.trim() || !campground?.id) return;
+
+        // Validate recipient address
+        const toAddress = composeType === "email" ? composeSelectedGuest.email : composeSelectedGuest.phone;
+        if (!toAddress) {
+            toast({
+                title: composeType === "email" ? "No email address" : "No phone number",
+                description: `This guest doesn't have a ${composeType === "email" ? "email address" : "phone number"} on file.`,
+                variant: "destructive"
+            });
+            return;
+        }
+
+        // Validate subject for email
+        if (composeType === "email" && !composeSubject.trim()) {
+            toast({
+                title: "Subject required",
+                description: "Please enter a subject for the email.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        setComposeSending(true);
+        try {
+            await apiClient.sendCommunication({
+                campgroundId: campground.id,
+                guestId: composeSelectedGuest.id,
+                type: composeType,
+                direction: "outbound",
+                subject: composeType === "email" ? composeSubject.trim() : undefined,
+                body: composeBody.trim(),
+                toAddress
+            });
+
+            toast({
+                title: composeType === "email" ? "Email sent" : "SMS sent",
+                description: `Your message was sent to ${composeSelectedGuest.name}.`,
+                variant: "default"
+            });
+
+            // Reset form and close dialog
+            setIsComposeOpen(false);
+            setComposeSelectedGuest(null);
+            setComposeGuestSearch("");
+            setComposeSubject("");
+            setComposeBody("");
+            setComposeType("email");
+
+            // Refresh conversations
+            queryClient.invalidateQueries({ queryKey: ["conversations"] });
+            queryClient.invalidateQueries({ queryKey: ["sms-conversations"] });
+        } catch (err) {
+            console.error("Failed to send message:", err);
+            toast({
+                title: "Failed to send message",
+                description: "Please try again.",
+                variant: "destructive"
+            });
+        } finally {
+            setComposeSending(false);
+        }
+    };
+
     const createConversationMutation = useMutation({
         mutationFn: (payload: { name?: string; type: "channel" | "dm"; participantIds: string[] }) =>
             apiClient.createInternalConversation(campground!.id, payload),
@@ -619,8 +704,17 @@ export default function MessagesPage() {
                         </div>
                         <h1 className="text-2xl font-bold text-foreground">Messages</h1>
                     </div>
-                    <div className="text-xs text-muted-foreground hidden md:block">
-                        Shortcuts: <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">⌘K</kbd> search • <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">GN</kbd> needs reply
+                    <div className="flex items-center gap-4">
+                        <div className="text-xs text-muted-foreground hidden md:block">
+                            Shortcuts: <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">⌘K</kbd> search • <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">GN</kbd> needs reply
+                        </div>
+                        <Button
+                            onClick={() => setIsComposeOpen(true)}
+                            className="flex items-center gap-2"
+                        >
+                            <PenSquare className="h-4 w-4" />
+                            <span className="hidden sm:inline">Compose</span>
+                        </Button>
                     </div>
                 </motion.div>
 
@@ -1366,6 +1460,21 @@ export default function MessagesPage() {
                                                                     : "bg-muted"
                                                                 }`}
                                                             >
+                                                                {/* Reservation badge if linked */}
+                                                                {msg.reservation && (
+                                                                    <Link
+                                                                        href={`/reservations/${msg.reservation.id}`}
+                                                                        className={cn(
+                                                                            "inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded mb-1.5",
+                                                                            isOutbound
+                                                                                ? "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30"
+                                                                                : "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300"
+                                                                        )}
+                                                                    >
+                                                                        <Tent className="h-3 w-3" />
+                                                                        Site {msg.reservation.site?.siteNumber || "—"} • {format(new Date(msg.reservation.arrivalDate), "MMM d")}
+                                                                    </Link>
+                                                                )}
                                                                 <div className="text-sm whitespace-pre-wrap">{msg.body}</div>
                                                                 <div
                                                                     className={`flex items-center gap-1 mt-1 text-xs ${isOutbound ? "text-primary-foreground/70" : "text-muted-foreground"}`}
@@ -1777,6 +1886,180 @@ export default function MessagesPage() {
                     )}
                 </Card>
             </div>
+            {/* Compose Message Dialog */}
+            <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <PenSquare className="h-5 w-5" />
+                            Compose Message
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        {/* Message Type Toggle */}
+                        <div className="space-y-2">
+                            <Label>Message Type</Label>
+                            <div className="flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant={composeType === "email" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setComposeType("email")}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Mail className="h-4 w-4" />
+                                    Email
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant={composeType === "sms" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setComposeType("sms")}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Phone className="h-4 w-4" />
+                                    SMS
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Guest Search/Selection */}
+                        <div className="space-y-2">
+                            <Label>To (Guest)</Label>
+                            {composeSelectedGuest ? (
+                                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                            <User className="h-4 w-4 text-primary" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-sm">{composeSelectedGuest.name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {composeType === "email"
+                                                    ? (composeSelectedGuest.email || "No email")
+                                                    : (composeSelectedGuest.phone || "No phone")}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => {
+                                            setComposeSelectedGuest(null);
+                                            setComposeGuestSearch("");
+                                        }}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search guests by name..."
+                                        value={composeGuestSearch}
+                                        onChange={(e) => setComposeGuestSearch(e.target.value)}
+                                        className="pl-9"
+                                    />
+                                    {composeGuestSearch.length >= 2 && searchedGuests.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-lg z-50 max-h-48 overflow-y-auto">
+                                            {searchedGuests.map((guest: any) => (
+                                                <button
+                                                    key={guest.id}
+                                                    type="button"
+                                                    className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-3 transition-colors"
+                                                    onClick={() => {
+                                                        setComposeSelectedGuest({
+                                                            id: guest.id,
+                                                            name: `${guest.primaryFirstName || ""} ${guest.primaryLastName || ""}`.trim() || "Unknown Guest",
+                                                            email: guest.email || undefined,
+                                                            phone: guest.phone || undefined
+                                                        });
+                                                        setComposeGuestSearch("");
+                                                    }}
+                                                >
+                                                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                                                        <User className="h-4 w-4 text-muted-foreground" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-medium text-sm truncate">
+                                                            {guest.primaryFirstName} {guest.primaryLastName}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground truncate">
+                                                            {guest.email || guest.phone || "No contact info"}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {composeGuestSearch.length >= 2 && searchedGuests.length === 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-lg z-50 p-4 text-center text-sm text-muted-foreground">
+                                            No guests found
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Subject (email only) */}
+                        {composeType === "email" && (
+                            <div className="space-y-2">
+                                <Label>Subject</Label>
+                                <Input
+                                    placeholder="Email subject..."
+                                    value={composeSubject}
+                                    onChange={(e) => setComposeSubject(e.target.value)}
+                                />
+                            </div>
+                        )}
+
+                        {/* Message Body */}
+                        <div className="space-y-2">
+                            <Label>Message</Label>
+                            <Textarea
+                                placeholder={composeType === "email" ? "Write your email..." : "Write your SMS (160 chars recommended)..."}
+                                value={composeBody}
+                                onChange={(e) => setComposeBody(e.target.value)}
+                                rows={composeType === "email" ? 6 : 3}
+                                className="resize-none"
+                            />
+                            {composeType === "sms" && (
+                                <p className="text-xs text-muted-foreground text-right">
+                                    {composeBody.length} / 160 characters
+                                    {composeBody.length > 160 && (
+                                        <span className="text-amber-600 ml-1">(will be split into multiple messages)</span>
+                                    )}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsComposeOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleComposeSubmit}
+                            disabled={composeSending || !composeSelectedGuest || !composeBody.trim() || (composeType === "email" && !composeSubject.trim())}
+                            className="flex items-center gap-2"
+                        >
+                            {composeSending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Send className="h-4 w-4" />
+                            )}
+                            {composeSending ? "Sending..." : "Send"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <MobileQuickActionsBar
               active="messages"
               items={[

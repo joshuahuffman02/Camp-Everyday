@@ -2395,6 +2395,42 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return CampgroundWithAnalyticsSchema.parse(data);
   },
+  async getSmsSettings(campgroundId: string) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/sms-settings`, {
+      headers: scopedHeaders()
+    });
+    return parseResponse<{
+      id: string;
+      smsEnabled: boolean;
+      twilioAccountSid: string | null;
+      twilioFromNumber: string | null;
+      smsWelcomeMessage: string | null;
+      twilioAuthTokenSet: boolean;
+    }>(res);
+  },
+  async updateSmsSettings(
+    campgroundId: string,
+    payload: {
+      smsEnabled?: boolean;
+      twilioAccountSid?: string | null;
+      twilioAuthToken?: string | null;
+      twilioFromNumber?: string | null;
+      smsWelcomeMessage?: string | null;
+    }
+  ) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/sms-settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return parseResponse<{
+      id: string;
+      smsEnabled: boolean;
+      twilioAccountSid: string | null;
+      twilioFromNumber: string | null;
+      smsWelcomeMessage: string | null;
+    }>(res);
+  },
   async updateCampgroundBranding(
     campgroundId: string,
     payload: {
@@ -10793,6 +10829,7 @@ export const apiClient = {
         id: z.string(),
         campgroundId: z.string(),
         guestId: z.string().nullable(),
+        reservationId: z.string().nullable(),
         direction: z.string(),
         body: z.string().nullable(),
         status: z.string(),
@@ -10804,6 +10841,15 @@ export const apiClient = {
           primaryFirstName: z.string().nullable(),
           primaryLastName: z.string().nullable(),
           phone: z.string().nullable()
+        }).nullable(),
+        reservation: z.object({
+          id: z.string(),
+          arrivalDate: z.string(),
+          departureDate: z.string(),
+          status: z.string(),
+          site: z.object({
+            siteNumber: z.string()
+          }).nullable()
         }).nullable()
       }))
     }).parse(data);

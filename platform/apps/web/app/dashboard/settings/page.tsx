@@ -89,6 +89,11 @@ const settingsCategories: SettingCategory[] = [
         description: "Customize email templates for confirmations, reminders, and more",
       },
       {
+        name: "SMS / Text Messages",
+        href: "/dashboard/settings/sms",
+        description: "Configure Twilio for sending and receiving text messages",
+      },
+      {
         name: "Notification Triggers",
         href: "/dashboard/settings/notification-triggers",
         description: "Set up automated notifications and triggers",

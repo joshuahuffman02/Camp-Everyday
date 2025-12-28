@@ -1101,6 +1101,13 @@ model Campground {
   quietHoursEnd         String? // HH:mm
   routingAssigneeId     String?
 
+  // SMS / Twilio settings (per-campground)
+  smsEnabled            Boolean  @default(false)
+  twilioAccountSid      String?
+  twilioAuthToken       String? // Encrypted in practice
+  twilioFromNumber      String? // The Twilio phone number
+  smsWelcomeMessage     String?  @db.Text // Optional custom welcome message
+
   // Long-term settings
   longTermEnabled   Boolean @default(false)
   longTermMinNights Int?    @default(28)

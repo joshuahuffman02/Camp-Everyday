@@ -649,6 +649,65 @@ export class CampgroundsService {
     });
   }
 
+  async updateSmsSettings(
+    id: string,
+    data: {
+      smsEnabled?: boolean;
+      twilioAccountSid?: string | null;
+      twilioAuthToken?: string | null;
+      twilioFromNumber?: string | null;
+      smsWelcomeMessage?: string | null;
+    },
+    orgId?: string
+  ) {
+    const cg = await this.findOne(id, orgId);
+    if (!cg) throw new NotFoundException("Campground not found");
+
+    return this.prisma.campground.update({
+      where: { id },
+      data: {
+        ...(data.smsEnabled !== undefined ? { smsEnabled: data.smsEnabled } : {}),
+        ...(data.twilioAccountSid !== undefined ? { twilioAccountSid: data.twilioAccountSid } : {}),
+        ...(data.twilioAuthToken !== undefined ? { twilioAuthToken: data.twilioAuthToken } : {}),
+        ...(data.twilioFromNumber !== undefined ? { twilioFromNumber: data.twilioFromNumber } : {}),
+        ...(data.smsWelcomeMessage !== undefined ? { smsWelcomeMessage: data.smsWelcomeMessage } : {}),
+      },
+      select: {
+        id: true,
+        smsEnabled: true,
+        twilioAccountSid: true,
+        // Don't return the auth token for security
+        twilioFromNumber: true,
+        smsWelcomeMessage: true,
+      }
+    });
+  }
+
+  async getSmsSettings(id: string, orgId?: string) {
+    const cg = await this.findOne(id, orgId);
+    if (!cg) throw new NotFoundException("Campground not found");
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        smsEnabled: true,
+        twilioAccountSid: true,
+        twilioFromNumber: true,
+        smsWelcomeMessage: true,
+        // Include whether auth token is set (but not the token itself)
+        twilioAuthToken: true,
+      }
+    });
+
+    return {
+      ...campground,
+      // Mask the auth token - just indicate if it's set
+      twilioAuthTokenSet: !!campground?.twilioAuthToken,
+      twilioAuthToken: undefined,
+    };
+  }
+
   // Find by slug with full public details including events and site classes
   async findBySlug(slug: string) {
     const campground = await this.prisma.campground.findUnique({

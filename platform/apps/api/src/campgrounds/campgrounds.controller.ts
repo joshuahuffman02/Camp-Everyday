@@ -182,6 +182,35 @@ export class CampgroundsController {
     return this.campgrounds.updateNpsSettings(id, body, org || undefined);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Get("campgrounds/:id/sms-settings")
+  getSmsSettings(
+    @Param("id") id: string,
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.getSmsSettings(id, org || undefined);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Patch("campgrounds/:id/sms-settings")
+  updateSmsSettings(
+    @Param("id") id: string,
+    @Body() body: {
+      smsEnabled?: boolean;
+      twilioAccountSid?: string | null;
+      twilioAuthToken?: string | null;
+      twilioFromNumber?: string | null;
+      smsWelcomeMessage?: string | null;
+    },
+    @Req() req: Request
+  ) {
+    const org = (req as any).organizationId || null;
+    return this.campgrounds.updateSmsSettings(id, body, org || undefined);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Patch("campgrounds/:id/branding")
   updateBranding(

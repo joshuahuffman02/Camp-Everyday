@@ -19,6 +19,7 @@ const routeLabels: Record<string, string> = {
   "templates": "Email Templates",
   "notification-triggers": "Notification Triggers",
   "communications": "Communications",
+  "sms": "SMS / Text Messages",
   "campaigns": "Campaigns",
   "users": "Users & Roles",
   "permissions": "Permissions",

@@ -16,7 +16,7 @@ import { MessagesPanel } from "@/components/reservations/MessagesPanel";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { GitBranch, Loader2, Mail, MessageSquare, PlusCircle, RotateCcw } from "lucide-react";
+import { GitBranch, Loader2, Mail, MessageSquare, Phone, PlusCircle, RotateCcw, StickyNote, PhoneCall } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -576,7 +576,16 @@ export default function ReservationDetailPage() {
                                     <div className="relative pl-3 border-l border-slate-200 space-y-4">
                                         {timelineItems.map((item: any) => {
                                             const createdDate = item.date ? new Date(item.date) : null;
-                                            const Icon = item.kind === "playbook" ? GitBranch : item.type === "sms" ? MessageSquare : Mail;
+                                            const getCommIcon = () => {
+                                                if (item.kind === "playbook") return GitBranch;
+                                                switch (item.type) {
+                                                    case "sms": return Phone;
+                                                    case "note": return StickyNote;
+                                                    case "call": return PhoneCall;
+                                                    default: return Mail;
+                                                }
+                                            };
+                                            const Icon = getCommIcon();
                                             return (
                                                 <div key={`${item.kind}-${item.id}`} className="relative pl-4">
                                                     <span className="absolute -left-[9px] top-2 h-4 w-4 rounded-full bg-white border border-slate-300 flex items-center justify-center">

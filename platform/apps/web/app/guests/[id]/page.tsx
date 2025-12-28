@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { Badge } from "../../../components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
-import { Trophy, Star, History, ArrowLeft, Trash2, Plus, Car, Truck, Mail, MessageSquare, GitBranch, RotateCcw, PlusCircle, Send, Wallet, DollarSign, ClipboardList, CreditCard, Calendar, ExternalLink } from "lucide-react";
+import { Trophy, Star, History, ArrowLeft, Trash2, Plus, Car, Truck, Mail, MessageSquare, GitBranch, RotateCcw, PlusCircle, Send, Wallet, DollarSign, ClipboardList, CreditCard, Calendar, ExternalLink, Phone, StickyNote, PhoneCall } from "lucide-react";
 import { GuestPaymentMethods } from "../../../components/guests/GuestPaymentMethods";
 import { AuditLogTimeline } from "../../../components/audit/AuditLogTimeline";
 import { cn } from "../../../lib/utils";
@@ -1055,7 +1055,16 @@ export default function GuestDetailPage() {
                                     <div className="relative pl-3 border-l border-slate-200 space-y-4">
                                         {timelineItems.map((item: any) => {
                                             const createdDate = item.date ? new Date(item.date) : null;
-                                            const Icon = item.kind === "playbook" ? GitBranch : item.type === "sms" ? MessageSquare : Mail;
+                                            const getCommIcon = () => {
+                                                if (item.kind === "playbook") return GitBranch;
+                                                switch (item.type) {
+                                                    case "sms": return Phone;
+                                                    case "note": return StickyNote;
+                                                    case "call": return PhoneCall;
+                                                    default: return Mail;
+                                                }
+                                            };
+                                            const Icon = getCommIcon();
                                             return (
                                                 <div key={`${item.kind}-${item.id}`} className="relative pl-4">
                                                     <span className="absolute -left-[9px] top-2 h-4 w-4 rounded-full bg-white border border-slate-300 flex items-center justify-center">
