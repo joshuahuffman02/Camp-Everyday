@@ -7,6 +7,7 @@ import { Label } from "../../../ui/label";
 import { Loader2, Banknote, Calculator } from "lucide-react";
 import { usePaymentContext } from "../context/PaymentContext";
 import { cn } from "../../../../lib/utils";
+import { apiClient } from "../../../../lib/api-client";
 
 interface CashMethodProps {
   onSuccess?: (paymentId: string) => void;
@@ -60,16 +61,26 @@ export function CashMethod({ onSuccess, onError, onCancel }: CashMethodProps) {
     setError(null);
 
     try {
-      // For cash, we just record the payment - no API call needed for processing
-      // The actual recording will happen when the parent handles the success
-
       // Generate a simple reference for cash payments
       const reference = `CASH-${Date.now()}`;
+      const amountCents = state.remainingCents;
 
-      // Add tender entry
+      // Get reservation ID from subject if available
+      const reservationId = props.subject?.type === "reservation" || props.subject?.type === "balance"
+        ? props.subject.reservationId
+        : undefined;
+
+      // Record the payment in the database
+      if (reservationId) {
+        await apiClient.recordReservationPayment(reservationId, amountCents, [
+          { method: "cash", amountCents, note: reference }
+        ]);
+      }
+
+      // Add tender entry for UI tracking
       actions.addTenderEntry({
         method: "cash",
-        amountCents: state.remainingCents,
+        amountCents,
         reference,
         metadata: {
           amountReceivedCents: Math.round(receivedAmount * 100),

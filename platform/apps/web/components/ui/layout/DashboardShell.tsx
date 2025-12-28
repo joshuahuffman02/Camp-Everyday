@@ -16,6 +16,7 @@ import { SyncDetailsDrawer } from "../../sync/SyncDetailsDrawer";
 import { useSyncStatus } from "@/contexts/SyncStatusContext";
 import { SupportChatWidget } from "../../support/SupportChatWidget";
 import { resolvePages, PAGE_REGISTRY, PageDefinition } from "@/lib/page-registry";
+import { useCampground } from "@/contexts/CampgroundContext";
 import {
   DndContext,
   closestCenter,
@@ -285,6 +286,7 @@ const Icon = ({ name, active }: { name: IconName; active?: boolean }) => {
 export function DashboardShell({ children, className, title, subtitle }: { children: ReactNode; className?: string; title?: string; subtitle?: string }) {
   const { data: session } = useSession();
   const { data: whoami } = useWhoami();
+  const { setSelectedCampground } = useCampground();
   const [campgrounds, setCampgrounds] = useState<{ id: string; name: string; organizationId?: string }[]>([]);
   const [campgroundsLoading, setCampgroundsLoading] = useState(true);
   const [campgroundsError, setCampgroundsError] = useState<string | null>(null);
@@ -477,7 +479,10 @@ export function DashboardShell({ children, className, title, subtitle }: { child
   useEffect(() => {
     if (!selected) return;
     localStorage.setItem("campreserv:selectedCampground", selected);
-  }, [selected]);
+    // Sync with CampgroundContext so other components can access it
+    const campground = campgrounds.find(c => c.id === selected);
+    setSelectedCampground(campground ? { id: campground.id, name: campground.name } : { id: selected });
+  }, [selected, campgrounds, setSelectedCampground]);
   useEffect(() => {
     if (!selectedOrg) return;
     localStorage.setItem("campreserv:selectedOrg", selectedOrg);

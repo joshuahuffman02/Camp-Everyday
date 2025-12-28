@@ -6,6 +6,7 @@ import { Input } from "../../../ui/input";
 import { Label } from "../../../ui/label";
 import { Loader2, Home, AlertCircle, Info } from "lucide-react";
 import { usePaymentContext } from "../context/PaymentContext";
+import { apiClient } from "../../../../lib/api-client";
 
 interface FolioMethodProps {
   onSuccess?: (paymentId: string) => void;
@@ -44,11 +45,24 @@ export function FolioMethod({ onSuccess, onError, onCancel }: FolioMethodProps) 
     try {
       // Generate reference for folio charge
       const reference = `FOLIO-${siteNumber.trim() || "RES"}-${Date.now()}`;
+      const amountCents = state.remainingCents;
 
-      // Add tender entry
+      // Get reservation ID from subject if available
+      const reservationId = props.subject?.type === "reservation" || props.subject?.type === "balance"
+        ? props.subject.reservationId
+        : undefined;
+
+      // Record the payment in the database
+      if (reservationId) {
+        await apiClient.recordReservationPayment(reservationId, amountCents, [
+          { method: "folio", amountCents, note: siteNumber.trim() ? `Site ${siteNumber.trim()}` : "Charged to reservation" }
+        ]);
+      }
+
+      // Add tender entry for UI tracking
       actions.addTenderEntry({
         method: "folio",
-        amountCents: state.remainingCents,
+        amountCents,
         reference,
         metadata: {
           siteNumber: siteNumber.trim() || undefined,
