@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { RoundUpForCharity } from "@/components/checkout/RoundUpForCharity";
 import { BookingFormsSection } from "@/components/booking/BookingFormsSection";
+import { NaturalLanguageSearch } from "@/components/booking/NaturalLanguageSearch";
 
 const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 if (!stripeKey) {
@@ -331,7 +332,9 @@ function DateStep({
     onArrivalChange,
     onDepartureChange,
     onSiteTypeChange,
-    onNext
+    onNext,
+    slug,
+    onApplyNLSearch
 }: {
     arrivalDate: string;
     departureDate: string;
@@ -340,6 +343,8 @@ function DateStep({
     onDepartureChange: (d: string) => void;
     onSiteTypeChange: (type: string) => void;
     onNext: () => void;
+    slug: string;
+    onApplyNLSearch?: (intent: any, results: any[]) => void;
 }) {
     const today = new Date().toISOString().split("T")[0];
     const isValid = arrivalDate && departureDate && arrivalDate < departureDate && arrivalDate >= today;
@@ -419,6 +424,31 @@ function DateStep({
     return (
         <div className="max-w-md mx-auto">
             <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">Select Your Dates</h2>
+
+            {/* Natural Language Search */}
+            {onApplyNLSearch && (
+                <div className="mb-8">
+                    <NaturalLanguageSearch
+                        slug={slug}
+                        onApplyIntent={(intent, results) => {
+                            // Apply dates from intent
+                            if (intent.arrivalDate) onArrivalChange(intent.arrivalDate);
+                            if (intent.departureDate) onDepartureChange(intent.departureDate);
+                            // Apply site type from intent
+                            if (intent.siteType) onSiteTypeChange(intent.siteType);
+                            // Call the parent handler with full intent and results
+                            onApplyNLSearch(intent, results);
+                        }}
+                        className="w-full"
+                    />
+
+                    <div className="flex items-center gap-3 my-6">
+                        <div className="flex-1 h-px bg-slate-200" />
+                        <span className="text-sm text-slate-500">or select manually</span>
+                        <div className="flex-1 h-px bg-slate-200" />
+                    </div>
+                </div>
+            )}
 
             {/* Quick Booking Buttons */}
             <div className="mb-6">
@@ -3246,6 +3276,14 @@ export default function BookingPage() {
                                 onDepartureChange={setDepartureDate}
                                 onSiteTypeChange={handleSiteTypeChange}
                                 onNext={() => setStep(2)}
+                                slug={slug}
+                                onApplyNLSearch={(intent, results) => {
+                                    // Store results for potential use, then move to site selection
+                                    if (intent.arrivalDate && intent.departureDate) {
+                                        // If we have dates, go to site selection
+                                        setStep(2);
+                                    }
+                                }}
                             />
                         )}
 

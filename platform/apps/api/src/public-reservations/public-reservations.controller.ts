@@ -4,6 +4,7 @@ import { CreatePublicReservationDto, PublicQuoteDto, CreatePublicWaitlistDto, Cr
 import { FormsService } from "../forms/forms.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
+import { AiNaturalSearchService } from "../ai/ai-natural-search.service";
 import { Throttle } from "@nestjs/throttler";
 
 @Controller("public")
@@ -16,6 +17,7 @@ export class PublicReservationsController {
         private readonly formsService: FormsService,
         private readonly prisma: PrismaService,
         private readonly emailService: EmailService,
+        private readonly nlSearch: AiNaturalSearchService,
     ) { }
 
     @Get("campgrounds/:slug/availability")
@@ -30,6 +32,41 @@ export class PublicReservationsController {
     ) {
         const needsAccessibleBool = needsAccessible === "true" || needsAccessible === "1";
         return this.service.getAvailability(slug, arrivalDate, departureDate, rigType, rigLength, needsAccessibleBool, token);
+    }
+
+    /**
+     * Natural Language Search for available sites
+     *
+     * Accepts plain English queries like:
+     * - "Pet-friendly RV site next weekend under $50/night"
+     * - "Cabin for 4 adults July 4th weekend"
+     * - "Waterfront tent site with hookups this Friday to Sunday"
+     *
+     * Uses AI to parse the query and return ranked, matching sites.
+     * Falls back to basic parsing if AI is not enabled for the campground.
+     */
+    @Post("campgrounds/:slug/search")
+    @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 per minute (AI calls are expensive)
+    async naturalLanguageSearch(
+        @Param("slug") slug: string,
+        @Body() body: { query: string; sessionId?: string }
+    ) {
+        if (!body.query || body.query.trim().length < 3) {
+            throw new BadRequestException("Search query must be at least 3 characters");
+        }
+
+        if (body.query.length > 500) {
+            throw new BadRequestException("Search query too long (max 500 characters)");
+        }
+
+        try {
+            return await this.nlSearch.search(slug, body.query.trim(), body.sessionId);
+        } catch (error) {
+            this.logger.error(`NL search failed for ${slug}:`, error);
+            throw new BadRequestException(
+                "Search failed. Please try again or use the standard availability search."
+            );
+        }
     }
 
     @Post("campgrounds/:slug/quote")

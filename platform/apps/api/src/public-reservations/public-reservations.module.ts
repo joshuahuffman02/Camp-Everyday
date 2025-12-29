@@ -14,6 +14,7 @@ import { DepositPoliciesModule } from "../deposit-policies/deposit-policies.modu
 import { FormsModule } from "../forms/forms.module";
 import { PaymentsModule } from "../payments/payments.module";
 import { EmailModule } from "../email/email.module";
+import { AiModule } from "../ai/ai.module";
 
 @Module({
     imports: [
@@ -30,6 +31,7 @@ import { EmailModule } from "../email/email.module";
         FormsModule,
         forwardRef(() => PaymentsModule),
         EmailModule,
+        forwardRef(() => AiModule),
     ],
     controllers: [PublicReservationsController],
     providers: [PublicReservationsService],

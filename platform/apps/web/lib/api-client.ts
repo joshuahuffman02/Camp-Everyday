@@ -4300,6 +4300,90 @@ export const apiClient = {
       }).nullable()
     })).parse(data);
   },
+
+  /**
+   * Natural Language Search for available sites
+   * Accepts plain English queries like:
+   * - "Pet-friendly RV site next weekend under $50/night"
+   * - "Cabin for 4 adults July 4th weekend"
+   * - "Waterfront tent site with hookups this Friday to Sunday"
+   */
+  async naturalLanguageSearch(
+    slug: string,
+    query: string,
+    sessionId?: string
+  ) {
+    const res = await fetch(`${API_BASE}/public/campgrounds/${slug}/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, sessionId })
+    });
+    const data = await parseResponse<unknown>(res);
+
+    const NLSearchResultSchema = z.object({
+      site: z.object({
+        id: z.string(),
+        name: z.string(),
+        siteNumber: z.string(),
+        siteType: z.string(),
+        maxOccupancy: numberish(z.number().int().nonnegative()),
+        rigMaxLength: numberish(z.number().int().nonnegative().nullable()).optional(),
+        accessible: z.boolean().optional().default(false),
+        siteClass: z.object({
+          id: z.string(),
+          name: z.string(),
+          defaultRate: numberish(z.number().int().nonnegative()),
+          siteType: z.string(),
+          maxOccupancy: numberish(z.number().int().nonnegative()),
+          hookupsPower: z.boolean(),
+          hookupsWater: z.boolean(),
+          hookupsSewer: z.boolean(),
+          petFriendly: z.boolean(),
+          description: z.string().nullable(),
+          accessible: z.boolean().optional().default(false)
+        }).nullable()
+      }),
+      matchScore: z.number(),
+      matchReasons: z.array(z.string()),
+      pricePerNight: numberish(z.number().int().nonnegative()).optional()
+    });
+
+    return z.object({
+      results: z.array(NLSearchResultSchema),
+      intent: z.object({
+        arrivalDate: z.string().optional(),
+        departureDate: z.string().optional(),
+        nights: z.number().optional(),
+        flexible: z.boolean().optional(),
+        siteType: z.enum(["rv", "tent", "cabin", "glamping", "lodging"]).nullable().optional(),
+        rigType: z.string().optional(),
+        rigLength: z.number().optional(),
+        amenities: z.array(z.string()).optional(),
+        petFriendly: z.boolean().optional(),
+        waterfront: z.boolean().optional(),
+        hookups: z.object({
+          power: z.boolean().optional(),
+          water: z.boolean().optional(),
+          sewer: z.boolean().optional()
+        }).optional(),
+        accessible: z.boolean().optional(),
+        adults: z.number().optional(),
+        children: z.number().optional(),
+        pets: z.number().optional(),
+        maxPricePerNight: z.number().optional(),
+        minPricePerNight: z.number().optional(),
+        quiet: z.boolean().optional(),
+        nearAmenities: z.boolean().optional(),
+        confidence: z.number(),
+        clarificationNeeded: z.string().optional(),
+        interpretedQuery: z.string().optional()
+      }),
+      sessionId: z.string().optional(),
+      searchDuration: z.number().optional(),
+      aiEnabled: z.boolean()
+    }).parse(data);
+  },
+
   async getPublicQuote(
     slug: string,
     payload: {
