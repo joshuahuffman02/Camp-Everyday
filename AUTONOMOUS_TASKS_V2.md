@@ -161,19 +161,21 @@ Before any V2 work, V1 must be solid.
 
 ---
 
-### 1.4 AI-Enhanced Reports
+### 1.4 AI-Enhanced Reports - DONE
 
 **Goal**: "Show me revenue by site type last quarter"
 
-#### 1.4.1 Natural Language Queries
-- [ ] **Parse report requests** - Convert to structured report params
-- [ ] **Map to report registry** - Use existing 100+ report templates
-- [ ] **Custom aggregations** - AI builds SQL for novel requests
+#### 1.4.1 Natural Language Queries - DONE
+- [x] **Parse report requests** - AiReportQueryService parses NL to ReportQueryInput
+- [x] **Map to report registry** - Uses existing 135+ report templates from registry
+- [x] **Fallback parser** - Rule-based fallback when AI fails
+- [ ] **Custom aggregations** - Would require SQL generation (deferred for safety)
 
-#### 1.4.2 Report Narratives
-- [ ] **Summarize reports** - Key takeaways in plain English
-- [ ] **Highlight outliers** - What's unusual in the data
-- [ ] **Trend explanations** - Why metrics moved
+#### 1.4.2 Report Narratives - DONE
+- [x] **Summarize reports** - generateNarrative() creates key takeaways
+- [x] **Key findings** - Extracts bullet point insights from data
+- [x] **Recommendations** - AI suggests actions when appropriate
+- [x] **Suggested queries** - getSuggestedQueries() by category
 
 ---
 
@@ -351,6 +353,7 @@ Before any V2 work, V1 must be solid.
 | 2024-12-29 | NL Search | Full implementation | High | AiNaturalSearchService with Claude API parsing, fallback regex, site scoring. Frontend component with animated results. |
 | 2024-12-29 | Sentiment Analysis | Full implementation | High | AiSentimentService with Claude API analysis, webhook integration, SentimentBadge components. Urgency/intent detection. |
 | 2024-12-29 | Dashboard Insights | Mostly existing | Medium | AiInsightsService, AiAnomalyDetectionService, AiDashboardService already comprehensive. Added AiMorningBriefingService for daily email. |
+| 2024-12-29 | AI Reports | Full implementation | High | AiReportQueryService parses NL queries to report params using 135+ template registry. Generates narratives with findings/recommendations. |
 
 ---
 
@@ -362,7 +365,7 @@ Before any V2 work, V1 must be solid.
 | Message Sentiment | Classification | Claude API | Per message | DONE |
 | Reply Drafts | Generation | Claude API | Per draft | EXISTING |
 | Dashboard Insights | Analysis | Claude API | Daily batch | DONE |
-| Report Queries | Parsing | Claude API | Per query | Phase 1.4 |
+| Report Queries | Parsing | Claude API | Per query | DONE |
 | Demand Forecasting | Time series | Custom ML | Training cost | Phase 2.2 |
 | Dynamic Pricing | Optimization | Custom ML | Training cost | Phase 2.3 |
 
@@ -375,6 +378,7 @@ Before any V2 work, V1 must be solid.
 | 2024-12-29 | 1.1 | Natural Language Search | Complete AI-powered search with Claude API parsing, fallback regex, site scoring algorithm, frontend component |
 | 2024-12-29 | 1.2 | AI-Enhanced Messaging | Sentiment analysis with urgency/intent detection, webhook integration, SentimentBadge components. Auto-reply already existed. |
 | 2024-12-29 | 1.3 | AI Dashboard Insights | Morning briefing service with cron email, opportunity detection, arrivals preview. Anomaly narratives already existed. |
+| 2024-12-29 | 1.4 | AI-Enhanced Reports | NL query parsing with 135+ report templates, narrative generation with findings/recommendations, suggested queries. |
 
 ---
 

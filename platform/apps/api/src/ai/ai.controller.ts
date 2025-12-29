@@ -9,6 +9,7 @@ import { AiSupportService } from './ai-support.service';
 import { AiPartnerService } from './ai-partner.service';
 import { AiSentimentService } from './ai-sentiment.service';
 import { AiMorningBriefingService } from './ai-morning-briefing.service';
+import { AiReportQueryService } from './ai-report-query.service';
 import type { Request } from 'express';
 
 interface UpdateAiSettingsDto {
@@ -67,6 +68,7 @@ export class AiController {
     private readonly partnerService: AiPartnerService,
     private readonly sentimentService: AiSentimentService,
     private readonly morningBriefingService: AiMorningBriefingService,
+    private readonly reportQueryService: AiReportQueryService,
   ) { }
 
   // ==================== PUBLIC ENDPOINTS ====================
@@ -468,5 +470,115 @@ export class AiController {
     }
 
     return this.morningBriefingService.sendBriefingEmail(campgroundId);
+  }
+
+  // ==================== AI REPORT QUERIES ====================
+
+  /**
+   * Parse a natural language report query
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post('campgrounds/:campgroundId/reports/parse')
+  async parseReportQuery(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: { query: string },
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+    const userId = (req as any).user?.id;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.reportQueryService.parseQuery(campgroundId, body.query, userId);
+  }
+
+  /**
+   * Generate narrative for report results
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @Post('campgrounds/:campgroundId/reports/narrative')
+  async generateReportNarrative(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: {
+      reportName: string;
+      rows: Record<string, any>[];
+      metrics: string[];
+      dimensions: string[];
+      timeRange?: { start?: string; end?: string; preset?: string };
+    },
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+    const userId = (req as any).user?.id;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.reportQueryService.generateNarrative(
+      campgroundId,
+      body.reportName,
+      {
+        rows: body.rows,
+        metrics: body.metrics,
+        dimensions: body.dimensions,
+        timeRange: body.timeRange,
+      },
+      userId
+    );
+  }
+
+  /**
+   * Get suggested report queries
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('campgrounds/:campgroundId/reports/suggestions')
+  async getReportSuggestions(
+    @Param('campgroundId') campgroundId: string,
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+    const query = (req as any).query || {};
+    const category = query.category as string | undefined;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return {
+      suggestions: this.reportQueryService.getSuggestedQueries(category),
+      categories: this.reportQueryService.getReportCategories(),
+    };
   }
 }
