@@ -2112,8 +2112,33 @@ export class ReservationsService {
         ]);
       }
 
-      return { updated: updatedReservation, reservation: fullReservation };
+      return {
+        updated: updatedReservation,
+        reservation: fullReservation,
+        previousPaidAmount: lockedReservation.paidAmount ?? 0
+      };
     });
+
+    // Audit payment recording
+    try {
+      await this.audit.record({
+        campgroundId: reservation.campgroundId,
+        actorId: null, // Payment recording doesn't always have actor context
+        action: "reservation.payment",
+        entity: "reservation",
+        entityId: id,
+        before: {
+          paidAmount: updated.paidAmount ? updated.paidAmount - totalTenderCents : 0
+        },
+        after: {
+          paidAmount: updated.paidAmount,
+          paymentMethod: tenderList.map(t => t.method).join(", "),
+          paymentAmount: totalTenderCents
+        }
+      });
+    } catch (auditError) {
+      this.logger.error("Failed to audit payment:", auditError instanceof Error ? auditError.stack : auditError);
+    }
 
     // Send payment receipt email
     try {
@@ -2268,6 +2293,28 @@ export class ReservationsService {
 
       return { updated: updatedReservation, reservation: fullReservation };
     });
+
+    // Audit refund
+    try {
+      await this.audit.record({
+        campgroundId: reservation.campgroundId,
+        actorId: null,
+        action: "reservation.refund",
+        entity: "reservation",
+        entityId: id,
+        before: {
+          paidAmount: updated.paidAmount + amountCents
+        },
+        after: {
+          paidAmount: updated.paidAmount,
+          refundAmount: amountCents,
+          destination,
+          reason: options?.reason
+        }
+      });
+    } catch (auditError) {
+      this.logger.error("Failed to audit refund:", auditError instanceof Error ? auditError.stack : auditError);
+    }
 
     // Send refund receipt
     try {

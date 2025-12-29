@@ -55,6 +55,8 @@ const actionIcons: Record<string, React.ReactNode> = {
   "reservation.checkin": <LogIn className="h-4 w-4" />,
   "reservation.checkout": <LogOut className="h-4 w-4" />,
   "reservation.confirm": <CheckCircle className="h-4 w-4" />,
+  "reservation.payment": <CheckCircle className="h-4 w-4" />,
+  "reservation.refund": <RefreshCw className="h-4 w-4" />,
   "reservation_override": <AlertCircle className="h-4 w-4" />,
   "checkin.override": <AlertCircle className="h-4 w-4" />
 };
@@ -70,6 +72,8 @@ const actionLabels: Record<string, string> = {
   "reservation.checkin": "Checked In",
   "reservation.checkout": "Checked Out",
   "reservation.confirm": "Reservation Confirmed",
+  "reservation.payment": "Payment Received",
+  "reservation.refund": "Refund Issued",
   "reservation_override": "Price Override",
   "checkin.override": "Check-in Override"
 };
@@ -85,6 +89,8 @@ const actionColors: Record<string, string> = {
   "reservation.checkin": "bg-emerald-100 text-emerald-700 border-emerald-200",
   "reservation.checkout": "bg-amber-100 text-amber-700 border-amber-200",
   "reservation.confirm": "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "reservation.payment": "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "reservation.refund": "bg-red-100 text-red-700 border-red-200",
   "reservation_override": "bg-amber-100 text-amber-700 border-amber-200",
   "checkin.override": "bg-amber-100 text-amber-700 border-amber-200"
 };
