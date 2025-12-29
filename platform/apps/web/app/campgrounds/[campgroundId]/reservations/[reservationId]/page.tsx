@@ -1718,7 +1718,11 @@ export default function ReservationDetailPage() {
       {/* Payment Collection Modal */}
       <PaymentCollectionModal
         isOpen={paymentModalOpen}
-        onClose={() => setPaymentModalOpen(false)}
+        onClose={() => {
+          setPaymentModalOpen(false);
+          // Always invalidate on close - payment may have been recorded before closing
+          queryClient.invalidateQueries({ queryKey: ["reservation", reservationId] });
+        }}
         campgroundId={reservation.campgroundId}
         amountDueCents={balanceCents}
         subject={{ type: "balance", reservationId: reservation.id }}
