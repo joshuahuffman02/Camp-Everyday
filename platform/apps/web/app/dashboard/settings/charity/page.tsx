@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +81,8 @@ export default function CharitySettingsPage() {
     queryKey: ["charities"],
     queryFn: () => apiClient.listCharities({ activeOnly: true }),
     enabled: !!campgroundId,
+    staleTime: 60000, // 1 minute
+    placeholderData: keepPreviousData,
   });
 
   // Fetch current campground charity settings
@@ -96,6 +98,8 @@ export default function CharitySettingsPage() {
     queryKey: ["campground-charity", campgroundId],
     queryFn: () => apiClient.getCampgroundCharity(campgroundId!),
     enabled: !!campgroundId,
+    staleTime: 30000,
+    placeholderData: keepPreviousData,
   });
 
   // Fetch donation stats
@@ -108,6 +112,8 @@ export default function CharitySettingsPage() {
     queryKey: ["campground-charity-stats", campgroundId],
     queryFn: () => apiClient.getCampgroundCharityStats(campgroundId!),
     enabled: !!campgroundId,
+    staleTime: 30000,
+    placeholderData: keepPreviousData,
   });
 
   // Load current settings into form - only run once after initial data load

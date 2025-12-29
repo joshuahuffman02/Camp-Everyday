@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import { Heart, TrendingUp, Users, Sparkles, Settings } from "lucide-react";
 import Link from "next/link";
@@ -75,6 +75,8 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
     queryKey: ["campground-charity", campgroundId],
     queryFn: () => apiClient.getCampgroundCharity(campgroundId),
     enabled: !!campgroundId,
+    staleTime: 30000, // 30 seconds - reduce refetch frequency
+    placeholderData: keepPreviousData, // Keep showing old data while refetching
   });
 
   // Get donation stats
@@ -82,6 +84,8 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
     queryKey: ["campground-charity-stats", campgroundId],
     queryFn: () => apiClient.getCampgroundCharityStats(campgroundId),
     enabled: !!campgroundId,
+    staleTime: 30000,
+    placeholderData: keepPreviousData,
   });
 
   const isLoading = loadingSettings || loadingStats;
