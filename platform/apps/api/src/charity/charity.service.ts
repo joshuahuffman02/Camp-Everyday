@@ -204,6 +204,7 @@ export class CharityService {
         roundUpType: data.roundUpType ?? "nearest_dollar",
         roundUpOptions: data.roundUpOptions as Prisma.InputJsonValue,
         defaultOptIn: data.defaultOptIn ?? false,
+        glCode: data.glCode ?? "2400",
       },
       update: {
         charityId,
@@ -212,6 +213,7 @@ export class CharityService {
         roundUpType: data.roundUpType,
         roundUpOptions: data.roundUpOptions as Prisma.InputJsonValue,
         defaultOptIn: data.defaultOptIn,
+        glCode: data.glCode,
       },
       include: {
         charity: true,

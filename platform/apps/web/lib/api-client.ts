@@ -8358,6 +8358,7 @@ export const apiClient = {
     roundUpType?: string;
     roundUpOptions?: { values: number[] };
     defaultOptIn?: boolean;
+    glCode?: string;
   }) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/charity`, {
       method: "PUT",

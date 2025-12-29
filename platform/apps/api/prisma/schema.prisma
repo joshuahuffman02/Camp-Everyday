@@ -7164,6 +7164,7 @@ model CampgroundCharity {
   roundUpType    String   @default("nearest_dollar") // nearest_dollar, nearest_5, fixed
   roundUpOptions Json? // { values: [1, 2, 5] } for fixed amounts
   defaultOptIn   Boolean  @default(false) // Pre-check the donation box?
+  glCode         String   @default("2400") // GL code for QuickBooks integration
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

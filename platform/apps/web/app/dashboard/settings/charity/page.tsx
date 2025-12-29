@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Heart, DollarSign, Users, TrendingUp, Plus, Building2, ExternalLink, CheckCircle, Loader2 } from "lucide-react";
+import {
+  Heart,
+  DollarSign,
+  Users,
+  TrendingUp,
+  Plus,
+  Building2,
+  CheckCircle,
+  Loader2,
+  Sparkles,
+  Gift,
+  BookOpen,
+  ArrowRight,
+  PartyPopper
+} from "lucide-react";
 
 const DEFAULT_CHARITY = {
   name: "Sybil's Kids",
@@ -21,9 +36,20 @@ const DEFAULT_CHARITY = {
   website: "https://sybilskids.com",
 };
 
+// Milestone messages based on donation totals
+function getMilestoneMessage(totalCents: number): { milestone: string; next: string; progress: number } | null {
+  const dollars = totalCents / 100;
+  if (dollars >= 1000) return { milestone: "🎉 Over $1,000 raised!", next: "Keep the momentum going!", progress: 100 };
+  if (dollars >= 500) return { milestone: "🌟 $500 milestone reached!", next: `$${(1000 - dollars).toFixed(0)} to reach $1,000`, progress: 50 };
+  if (dollars >= 100) return { milestone: "💫 First $100 raised!", next: `$${(500 - dollars).toFixed(0)} to reach $500`, progress: 20 };
+  if (dollars > 0) return { milestone: "🎊 First donations received!", next: `$${(100 - dollars).toFixed(0)} to reach $100`, progress: Math.min(dollars, 10) };
+  return null;
+}
+
 export default function CharitySettingsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const prefersReducedMotion = useReducedMotion();
 
   // Get campground ID from localStorage
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
@@ -41,6 +67,7 @@ export default function CharitySettingsPage() {
   const [customMessage, setCustomMessage] = useState("");
   const [roundUpType, setRoundUpType] = useState("nearest_dollar");
   const [defaultOptIn, setDefaultOptIn] = useState(false);
+  const [glCode, setGlCode] = useState("2400");
 
   // Fetch available charities
   const { data: charities = [], isLoading: loadingCharities } = useQuery({
@@ -71,6 +98,9 @@ export default function CharitySettingsPage() {
       setCustomMessage(currentSettings.customMessage || "");
       setRoundUpType(currentSettings.roundUpType);
       setDefaultOptIn(currentSettings.defaultOptIn);
+      if ((currentSettings as any).glCode) {
+        setGlCode((currentSettings as any).glCode);
+      }
       setCharityMode("existing");
     }
   }, [currentSettings]);
@@ -85,6 +115,7 @@ export default function CharitySettingsPage() {
         customMessage: customMessage || undefined,
         roundUpType,
         defaultOptIn,
+        glCode,
       };
 
       if (charityMode === "existing") {
@@ -102,10 +133,10 @@ export default function CharitySettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["campground-charity", campgroundId] });
-      toast({ title: "Charity settings saved", description: "Your round-up for charity settings have been updated." });
+      toast({ title: "Settings saved!", description: "Your charity round-up is ready to make a difference." });
     },
     onError: (err) => {
-      toast({ title: "Failed to save", description: String(err), variant: "destructive" });
+      toast({ title: "Couldn't save settings", description: String(err), variant: "destructive" });
     },
   });
 
@@ -118,7 +149,7 @@ export default function CharitySettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["campground-charity", campgroundId] });
       setIsEnabled(false);
-      toast({ title: "Charity round-up disabled", description: "Guests will no longer see the round-up option." });
+      toast({ title: "Round-up paused", description: "You can re-enable it anytime." });
     },
   });
 
@@ -149,124 +180,232 @@ export default function CharitySettingsPage() {
     );
   }
 
+  const milestone = stats ? getMilestoneMessage(stats.totalAmountCents) : null;
+  const hasRaisedMoney = stats && stats.totalAmountCents > 0;
+  const charityName = currentSettings?.charity?.name || customCharity.name || "your chosen charity";
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Heart className="h-6 w-6 text-rose-500" />
-          Charity Round-Up
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Let guests round up their payment to support a charity of your choice.
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      {stats && stats.totalDonations > 0 && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-emerald-100">
-                  <DollarSign className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">${(stats.totalAmountCents / 100).toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">Total Raised</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-blue-100">
-                  <Heart className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalDonations}</p>
-                  <p className="text-xs text-muted-foreground">Donations</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-purple-100">
-                  <Users className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.donorCount}</p>
-                  <p className="text-xs text-muted-foreground">Unique Donors</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-amber-100">
-                  <TrendingUp className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.optInRate.toFixed(1)}%</p>
-                  <p className="text-xs text-muted-foreground">Opt-in Rate</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+    <div className="space-y-6 max-w-4xl">
+      {/* Hero Section - Warm, Emotional Header */}
+      <motion.div
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-50 via-amber-50 to-orange-50 dark:from-rose-950/40 dark:via-amber-950/30 dark:to-orange-950/20 border border-rose-100 dark:border-rose-900/50 p-8"
+      >
+        {/* Decorative elements */}
+        <div className="absolute top-4 right-4 opacity-20">
+          <Heart className="h-24 w-24 text-rose-400" />
         </div>
-      )}
 
-      {/* Main Settings */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Round-Up Settings</CardTitle>
-              <CardDescription>Configure how guests can donate to charity</CardDescription>
+        <div className="relative">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 shadow-lg shadow-rose-500/25">
+              <Heart className="h-6 w-6 text-white" />
             </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="enabled" className="text-sm">Enable Round-Up</Label>
-              <Switch
-                id="enabled"
-                checked={isEnabled}
-                onCheckedChange={setIsEnabled}
-              />
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Charity Round-Up
+              </h1>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Turn spare change into real change
+              </p>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Charity Selection */}
-          <div className="space-y-4">
-            <Label className="text-base font-medium">Select Charity</Label>
+
+          <p className="text-slate-600 dark:text-slate-400 max-w-xl mt-4">
+            When guests check out, they can round up their total to support a cause you care about.
+            It's a small gesture that adds up to something meaningful.
+          </p>
+
+          {/* Milestone Banner */}
+          {milestone && (
+            <motion.div
+              initial={prefersReducedMotion ? {} : { opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-6 p-4 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur border border-amber-200 dark:border-amber-800"
+            >
+              <div className="flex items-center gap-3">
+                <PartyPopper className="h-5 w-5 text-amber-500" />
+                <div className="flex-1">
+                  <p className="font-medium text-slate-900 dark:text-white">{milestone.milestone}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{milestone.next}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Impact Stats - Always Visible */}
+      <motion.div
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+          <CardContent className="pt-6 relative">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/50">
+                <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                  ${((stats?.totalAmountCents || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground">Total Raised</p>
+              </div>
+            </div>
+            {!hasRaisedMoney && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" /> Ready to start!
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
+          <CardContent className="pt-6 relative">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/50">
+                <Heart className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {stats?.totalDonations || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Donations</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent" />
+          <CardContent className="pt-6 relative">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/50">
+                <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {stats?.donorCount || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Generous Guests</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
+          <CardContent className="pt-6 relative">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/50">
+                <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {(stats?.optInRate || 0).toFixed(0)}%
+                </p>
+                <p className="text-xs text-muted-foreground">Opt-in Rate</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Quick Enable Toggle */}
+      <motion.div
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+      >
+        <Card className={`transition-all duration-300 ${isEnabled ? 'ring-2 ring-emerald-500/20 border-emerald-200 dark:border-emerald-800' : ''}`}>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-full transition-colors ${isEnabled ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                  {isEnabled ? (
+                    <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <Heart className="h-5 w-5 text-slate-400" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">
+                    {isEnabled ? 'Round-Up is Active' : 'Round-Up is Paused'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {isEnabled
+                      ? `Guests can donate to ${charityName}`
+                      : 'Enable to let guests round up for charity'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={isEnabled}
+                onCheckedChange={setIsEnabled}
+                className="data-[state=checked]:bg-emerald-500"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Main Settings */}
+      <motion.div
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-rose-500" />
+              Choose Your Charity
+            </CardTitle>
+            <CardDescription>
+              Select an existing charity or add your own organization
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Charity Selection */}
             <Tabs value={charityMode} onValueChange={(v) => setCharityMode(v as "existing" | "custom")}>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="existing">Choose Existing</TabsTrigger>
-                <TabsTrigger value="custom">Add Your Own</TabsTrigger>
+                <TabsTrigger value="existing" className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Choose Existing
+                </TabsTrigger>
+                <TabsTrigger value="custom" className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Your Own
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="existing" className="space-y-4 mt-4">
                 {charities.length > 0 ? (
                   <div className="grid gap-3">
                     {charities.map((charity) => (
-                      <div
+                      <motion.div
                         key={charity.id}
+                        whileHover={prefersReducedMotion ? {} : { scale: 1.01 }}
+                        whileTap={prefersReducedMotion ? {} : { scale: 0.99 }}
                         onClick={() => setSelectedCharityId(charity.id)}
-                        className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
                           selectedCharityId === charity.id
-                            ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                            : "hover:border-primary/50"
+                            ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30 shadow-md"
+                            : "border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium">{charity.name}</span>
+                              <span className="font-medium text-slate-900 dark:text-white">{charity.name}</span>
                               {charity.isVerified && (
-                                <Badge variant="secondary" className="text-xs">
+                                <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
                                   <CheckCircle className="h-3 w-3 mr-1" />
                                   Verified
                                 </Badge>
@@ -277,38 +416,39 @@ export default function CharitySettingsPage() {
                             )}
                           </div>
                           {selectedCharityId === charity.id && (
-                            <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
+                            <CheckCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 border rounded-lg border-dashed">
+                  <div className="text-center py-8 border-2 border-dashed rounded-xl border-slate-200 dark:border-slate-700">
                     <Building2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground mb-4">No charities available yet.</p>
-                    <Button variant="outline" onClick={handleUseDefault}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Use Sybil's Kids (Default)
+                    <Button variant="outline" onClick={handleUseDefault} className="gap-2">
+                      <Heart className="h-4 w-4 text-rose-500" />
+                      Use Sybil's Kids (Recommended)
                     </Button>
                   </div>
                 )}
               </TabsContent>
 
               <TabsContent value="custom" className="space-y-4 mt-4">
-                <div className="p-4 rounded-lg border bg-muted/30">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="p-2 rounded-full bg-rose-100">
-                      <Heart className="h-4 w-4 text-rose-600" />
+                <div className="p-5 rounded-xl border-2 border-dashed border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/20">
+                  <div className="flex items-start gap-3 mb-5">
+                    <div className="p-2 rounded-full bg-rose-100 dark:bg-rose-900/50">
+                      <Heart className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium">Add Your Own Charity</p>
-                      <p className="text-xs text-muted-foreground">
-                        Create a charity entry for your preferred organization. Donations will show in your ledger under GL code 2400.
+                      <p className="font-medium text-slate-900 dark:text-white">Create Your Charity</p>
+                      <p className="text-sm text-muted-foreground">
+                        Add any 501(c)(3) organization. You'll manage the donations.
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={handleUseDefault}>
-                      Use Default
+                    <Button variant="outline" size="sm" onClick={handleUseDefault} className="gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Use Sybil's Kids
                     </Button>
                   </div>
 
@@ -320,6 +460,7 @@ export default function CharitySettingsPage() {
                         placeholder="e.g., Local Veterans Foundation"
                         value={customCharity.name}
                         onChange={(e) => setCustomCharity({ ...customCharity, name: e.target.value })}
+                        className="bg-white dark:bg-slate-900"
                       />
                     </div>
                     <div className="space-y-2">
@@ -330,6 +471,7 @@ export default function CharitySettingsPage() {
                         value={customCharity.description}
                         onChange={(e) => setCustomCharity({ ...customCharity, description: e.target.value })}
                         rows={2}
+                        className="bg-white dark:bg-slate-900"
                       />
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
@@ -340,6 +482,7 @@ export default function CharitySettingsPage() {
                           placeholder="XX-XXXXXXX"
                           value={customCharity.taxId}
                           onChange={(e) => setCustomCharity({ ...customCharity, taxId: e.target.value })}
+                          className="bg-white dark:bg-slate-900"
                         />
                       </div>
                       <div className="space-y-2">
@@ -349,6 +492,7 @@ export default function CharitySettingsPage() {
                           placeholder="https://..."
                           value={customCharity.website}
                           onChange={(e) => setCustomCharity({ ...customCharity, website: e.target.value })}
+                          className="bg-white dark:bg-slate-900"
                         />
                       </div>
                     </div>
@@ -356,117 +500,183 @@ export default function CharitySettingsPage() {
                 </div>
               </TabsContent>
             </Tabs>
-          </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
-          {/* Custom Message */}
-          <div className="space-y-2">
-            <Label htmlFor="custom-message">Custom Message (Optional)</Label>
-            <Textarea
-              id="custom-message"
-              placeholder="e.g., Help us support local veterans! Round up your total to donate."
-              value={customMessage}
-              onChange={(e) => setCustomMessage(e.target.value)}
-              rows={2}
-            />
-            <p className="text-xs text-muted-foreground">
-              This message is shown to guests when they have the option to round up.
-            </p>
-          </div>
-
-          {/* Round-Up Type */}
-          <div className="space-y-2">
-            <Label>Round-Up Style</Label>
-            <Select value={roundUpType} onValueChange={setRoundUpType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nearest_dollar">Round to nearest $1.00</SelectItem>
-                <SelectItem value="nearest_5">Round to nearest $5.00</SelectItem>
-                <SelectItem value="fixed">Fixed $1.00 donation</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {roundUpType === "nearest_dollar" && "Example: $47.25 rounds to $48.00 ($0.75 donation)"}
-              {roundUpType === "nearest_5" && "Example: $47.25 rounds to $50.00 ($2.75 donation)"}
-              {roundUpType === "fixed" && "Guest always donates $1.00 regardless of total"}
-            </p>
-          </div>
-
-          {/* Default Opt-In */}
-          <div className="flex items-center justify-between p-4 rounded-lg border">
-            <div>
-              <Label htmlFor="default-optin" className="font-medium">Default to Opted-In</Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                Pre-check the donation box (guest can uncheck if they don't want to donate)
+      {/* Configuration Options */}
+      <motion.div
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Configuration</CardTitle>
+            <CardDescription>Customize how round-up works for your guests</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Custom Message */}
+            <div className="space-y-2">
+              <Label htmlFor="custom-message">Message to Guests</Label>
+              <Textarea
+                id="custom-message"
+                placeholder="e.g., Help us support local veterans! Round up your total to donate."
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground">
+                This message appears when guests see the round-up option at checkout.
               </p>
             </div>
-            <Switch
-              id="default-optin"
-              checked={defaultOptIn}
-              onCheckedChange={setDefaultOptIn}
-            />
-          </div>
 
-          {/* Save Button */}
-          <div className="flex items-center justify-between pt-4 border-t">
-            {currentSettings?.isEnabled && (
-              <Button
-                variant="outline"
-                onClick={() => disableMutation.mutate()}
-                disabled={disableMutation.isPending}
-              >
-                {disableMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                Disable Round-Up
-              </Button>
-            )}
-            <div className="flex-1" />
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || (charityMode === "existing" && !selectedCharityId) || (charityMode === "custom" && !customCharity.name)}
-            >
-              {saveMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : null}
-              Save Settings
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            {/* Round-Up Type */}
+            <div className="space-y-2">
+              <Label>Round-Up Amount</Label>
+              <Select value={roundUpType} onValueChange={setRoundUpType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nearest_dollar">Round to nearest $1.00</SelectItem>
+                  <SelectItem value="nearest_5">Round to nearest $5.00</SelectItem>
+                  <SelectItem value="fixed">Fixed $1.00 donation</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {roundUpType === "nearest_dollar" && "Example: $47.25 → $48.00 (donates $0.75)"}
+                {roundUpType === "nearest_5" && "Example: $47.25 → $50.00 (donates $2.75)"}
+                {roundUpType === "fixed" && "Every guest can add exactly $1.00"}
+              </p>
+            </div>
+
+            {/* Default Opt-In */}
+            <div className="flex items-center justify-between p-4 rounded-xl border bg-slate-50 dark:bg-slate-800/50">
+              <div>
+                <Label htmlFor="default-optin" className="font-medium">Pre-check the donation box</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Guest can still uncheck if they prefer not to donate
+                </p>
+              </div>
+              <Switch
+                id="default-optin"
+                checked={defaultOptIn}
+                onCheckedChange={setDefaultOptIn}
+              />
+            </div>
+
+            {/* GL Code */}
+            <div className="p-4 rounded-xl border bg-slate-50 dark:bg-slate-800/50">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
+                  <BookOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <Label htmlFor="gl-code" className="font-medium">GL Code for Accounting</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Donations are recorded under this code in your ledger for QuickBooks export
+                    </p>
+                  </div>
+                  <Input
+                    id="gl-code"
+                    value={glCode}
+                    onChange={(e) => setGlCode(e.target.value)}
+                    placeholder="2400"
+                    className="max-w-[200px] bg-white dark:bg-slate-900"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Default: 2400 (Charity Donations Payable)
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* How It Works */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">How It Works</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">1</div>
-              <div>
-                <p className="font-medium text-sm">Guest Checks Out</p>
-                <p className="text-xs text-muted-foreground">During booking or payment, guest sees the round-up option</p>
+      <motion.div
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/50 dark:to-slate-900/50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ArrowRight className="h-5 w-5 text-blue-500" />
+              How It Works
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-3">
+              <div className="flex gap-4">
+                <div className="h-10 w-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  1
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">Guest Checks Out</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    During payment, they see the option to round up for {charityName}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="h-10 w-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  2
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">Donation Recorded</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Amount is added to their total and logged under GL {glCode}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="h-10 w-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  3
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">You Send the Funds</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Export from QuickBooks and write a check to the charity
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">2</div>
-              <div>
-                <p className="font-medium text-sm">Donation Collected</p>
-                <p className="text-xs text-muted-foreground">Round-up amount is added to their total and tracked in your ledger</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">3</div>
-              <div>
-                <p className="font-medium text-sm">You Write the Check</p>
-                <p className="text-xs text-muted-foreground">Export from QuickBooks (GL 2400) and send to charity</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Save Actions */}
+      <motion.div
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+        className="flex items-center justify-between pt-4 border-t"
+      >
+        {currentSettings?.isEnabled && (
+          <Button
+            variant="outline"
+            onClick={() => disableMutation.mutate()}
+            disabled={disableMutation.isPending}
+            className="text-slate-600"
+          >
+            {disableMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Pause Round-Up
+          </Button>
+        )}
+        <div className="flex-1" />
+        <Button
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending || (charityMode === "existing" && !selectedCharityId) || (charityMode === "custom" && !customCharity.name)}
+          className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white shadow-lg shadow-rose-500/25"
+        >
+          {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+          Save Settings
+        </Button>
+      </motion.div>
     </div>
   );
 }
