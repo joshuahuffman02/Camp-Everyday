@@ -422,41 +422,42 @@ export class CharityService {
       if (options.endDate) where.createdAt.lte = options.endDate;
     }
 
-    // Get donation stats
-    const donations = await this.prisma.charityDonation.aggregate({
-      where,
-      _count: true,
-      _sum: { amountCents: true },
-    });
+    // Run all queries in parallel for performance
+    const [donations, donors, byStatus, reservationCount] = await Promise.all([
+      // Get donation stats
+      this.prisma.charityDonation.aggregate({
+        where,
+        _count: true,
+        _sum: { amountCents: true },
+      }),
+      // Get unique donors
+      this.prisma.charityDonation.groupBy({
+        by: ["guestId"],
+        where: { ...where, guestId: { not: null } },
+      }),
+      // Get by status
+      this.prisma.charityDonation.groupBy({
+        by: ["status"],
+        where: options.campgroundId ? { campgroundId: options.campgroundId } : {},
+        _count: true,
+        _sum: { amountCents: true },
+      }),
+      // Get reservation count for opt-in rate (only if campgroundId provided)
+      options.campgroundId
+        ? this.prisma.reservation.count({
+            where: {
+              campgroundId: options.campgroundId,
+              status: { in: ["confirmed", "checked_in", "checked_out"] },
+              createdAt: where.createdAt,
+            },
+          })
+        : Promise.resolve(0),
+    ]);
 
-    // Get unique donors
-    const donors = await this.prisma.charityDonation.groupBy({
-      by: ["guestId"],
-      where: { ...where, guestId: { not: null } },
-    });
-
-    // Get by status
-    const byStatus = await this.prisma.charityDonation.groupBy({
-      by: ["status"],
-      where: options.campgroundId ? { campgroundId: options.campgroundId } : {},
-      _count: true,
-      _sum: { amountCents: true },
-    });
-
-    // Calculate opt-in rate (requires reservation count)
-    let optInRate = 0;
-    if (options.campgroundId) {
-      const reservationCount = await this.prisma.reservation.count({
-        where: {
-          campgroundId: options.campgroundId,
-          status: { in: ["confirmed", "checked_in", "checked_out"] },
-          createdAt: where.createdAt,
-        },
-      });
-      if (reservationCount > 0) {
-        optInRate = (donations._count / reservationCount) * 100;
-      }
-    }
+    // Calculate opt-in rate
+    const optInRate = reservationCount > 0
+      ? (donations._count / reservationCount) * 100
+      : 0;
 
     return {
       totalDonations: donations._count,

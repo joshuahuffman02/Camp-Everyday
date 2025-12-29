@@ -75,8 +75,11 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
     queryKey: ["campground-charity", campgroundId],
     queryFn: () => apiClient.getCampgroundCharity(campgroundId),
     enabled: !!campgroundId,
-    staleTime: 30000, // 30 seconds - reduce refetch frequency
-    placeholderData: keepPreviousData, // Keep showing old data while refetching
+    staleTime: 5 * 60 * 1000, // 5 minutes - charity settings rarely change
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false, // Don't refetch on mount if data exists
   });
 
   // Get donation stats
@@ -84,8 +87,11 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
     queryKey: ["campground-charity-stats", campgroundId],
     queryFn: () => apiClient.getCampgroundCharityStats(campgroundId),
     enabled: !!campgroundId,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Trigger animation after stats load (don't block on settings)
