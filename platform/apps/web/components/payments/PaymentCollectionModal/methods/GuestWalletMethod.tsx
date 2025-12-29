@@ -34,7 +34,22 @@ export default function GuestWalletMethod({
   };
 
   const handlePayWithWallet = async () => {
-    if (!props.guestId || !props.campgroundId || !props.reservationId) {
+    // Extract reservationId from subject if available
+    const referenceId = props.subject.type === "reservation" || props.subject.type === "balance"
+      ? props.subject.reservationId
+      : props.subject.type === "seasonal"
+        ? props.subject.contractId
+        : null;
+
+    const referenceType = props.subject.type === "reservation" || props.subject.type === "balance"
+      ? "reservation"
+      : props.subject.type === "seasonal"
+        ? "seasonal_contract"
+        : props.subject.type === "cart"
+          ? "pos_cart"
+          : "custom";
+
+    if (!props.guestId || !props.campgroundId || !referenceId) {
       onError("Missing required payment information");
       return;
     }
@@ -51,8 +66,8 @@ export default function GuestWalletMethod({
         props.campgroundId,
         props.guestId,
         paymentAmountCents,
-        "reservation",
-        props.reservationId
+        referenceType,
+        referenceId
       );
 
       // Add tender entry for tracking
