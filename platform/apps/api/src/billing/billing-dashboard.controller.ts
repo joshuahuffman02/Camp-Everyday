@@ -7,9 +7,10 @@ import {
 } from "@nestjs/common";
 import { BillingDashboardService } from "./billing-dashboard.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { ScopeGuard } from "../auth/guards/scope.guard";
 
 @Controller("campgrounds/:campgroundId/billing-dashboard")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 export class BillingDashboardController {
   constructor(private readonly dashboardService: BillingDashboardService) {}
 

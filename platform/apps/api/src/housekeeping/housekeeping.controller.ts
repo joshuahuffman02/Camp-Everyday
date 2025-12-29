@@ -12,10 +12,11 @@ import {
 import { HousekeepingService } from './housekeeping.service';
 import { InspectionService } from './inspection.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ScopeGuard } from '../auth/guards/scope.guard';
 import { TaskType, SiteType } from '@prisma/client';
 
 @Controller('housekeeping')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 export class HousekeepingController {
   constructor(
     private housekeepingService: HousekeepingService,

@@ -678,12 +678,25 @@ export class PaymentsController {
           }
         });
 
-        // Update reservation status to confirmed
+        // Update reservation status to confirmed AND update payment amounts
+        // CRITICAL FIX: Must update paidAmount/balanceAmount or reservation shows $0 paid
+        const currentReservation = await tx.reservation.findUnique({
+          where: { id: body.reservationId },
+          select: { paidAmount: true, balanceAmount: true, totalAmountCents: true }
+        });
+
+        const newPaidAmount = (currentReservation?.paidAmount ?? 0) + amountCents;
+        const newBalanceAmount = Math.max(0, (currentReservation?.balanceAmount ?? currentReservation?.totalAmountCents ?? 0) - amountCents);
+        const paymentStatus = newBalanceAmount === 0 ? "paid" : newPaidAmount > 0 ? "partial" : "unpaid";
+
         const updatedReservation = await tx.reservation.update({
           where: { id: body.reservationId },
           data: {
             status: "confirmed",
-            confirmedAt: new Date()
+            confirmedAt: new Date(),
+            paidAmount: newPaidAmount,
+            balanceAmount: newBalanceAmount,
+            paymentStatus
           }
         });
 

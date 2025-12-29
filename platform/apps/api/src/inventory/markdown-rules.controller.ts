@@ -11,11 +11,12 @@ import {
     Request,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { ScopeGuard } from "../auth/guards/scope.guard";
 import { MarkdownRulesService } from "./markdown-rules.service";
 import { CreateMarkdownRuleDto, UpdateMarkdownRuleDto } from "./dto/markdown.dto";
 
 @Controller("campgrounds/:campgroundId/inventory/markdown-rules")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 export class MarkdownRulesController {
     constructor(private readonly markdownService: MarkdownRulesService) {}
 

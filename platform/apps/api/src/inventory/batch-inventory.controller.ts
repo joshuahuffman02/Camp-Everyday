@@ -11,6 +11,7 @@ import {
     Request,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { ScopeGuard } from "../auth/guards/scope.guard";
 import { BatchInventoryService } from "./batch-inventory.service";
 import { ExpirationAlertService } from "./expiration-alert.service";
 import { SlowMovingInventoryService } from "./slow-moving.service";
@@ -22,7 +23,7 @@ import {
 } from "./dto/batch.dto";
 
 @Controller("campgrounds/:campgroundId/inventory")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 export class BatchInventoryController {
     constructor(
         private readonly batchService: BatchInventoryService,

@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
+import { ScopeGuard } from "../auth/guards/scope.guard";
 import { UserRole } from "@prisma/client";
 import { PrivacyService } from "./privacy.service";
 import type { Response } from "express";
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller("campgrounds/:campgroundId/privacy")
 export class PrivacyController {
   constructor(private readonly privacy: PrivacyService) {}

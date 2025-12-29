@@ -39,13 +39,15 @@ export class LockCodesService {
         });
     }
 
-    async findOne(id: string) {
-        const lockCode = await this.prisma.lockCode.findUnique({ where: { id } });
+    async findOne(id: string, campgroundId: string) {
+        const lockCode = await this.prisma.lockCode.findUnique({
+            where: { id, campgroundId }
+        });
         if (!lockCode) throw new NotFoundException('Lock code not found');
         return lockCode;
     }
 
-    async update(id: string, data: Partial<{
+    async update(id: string, campgroundId: string, data: Partial<{
         name: string;
         code: string;
         type: LockCodeType;
@@ -56,17 +58,35 @@ export class LockCodesService {
         isActive: boolean;
         notes: string;
     }>) {
+        // Verify lock code belongs to this campground before updating
+        const existing = await this.prisma.lockCode.findUnique({
+            where: { id, campgroundId }
+        });
+        if (!existing) throw new NotFoundException('Lock code not found');
+
         return this.prisma.lockCode.update({
             where: { id },
             data,
         });
     }
 
-    async remove(id: string) {
+    async remove(id: string, campgroundId: string) {
+        // Verify lock code belongs to this campground before deleting
+        const existing = await this.prisma.lockCode.findUnique({
+            where: { id, campgroundId }
+        });
+        if (!existing) throw new NotFoundException('Lock code not found');
+
         return this.prisma.lockCode.delete({ where: { id } });
     }
 
-    async rotate(id: string) {
+    async rotate(id: string, campgroundId: string) {
+        // Verify lock code belongs to this campground before rotating
+        const existing = await this.prisma.lockCode.findUnique({
+            where: { id, campgroundId }
+        });
+        if (!existing) throw new NotFoundException('Lock code not found');
+
         // Generate a new random 4-digit code
         const newCode = Math.floor(1000 + Math.random() * 9000).toString();
 

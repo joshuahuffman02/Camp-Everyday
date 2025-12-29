@@ -13,22 +13,22 @@ import {
 } from '@nestjs/common';
 import { ValueStackService } from './value-stack.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ScopeGuard } from '../auth/guards/scope.guard';
 import { GuaranteeType } from '@prisma/client';
 
 @Controller('campgrounds/:campgroundId/value-stack')
+@UseGuards(JwtAuthGuard, ScopeGuard)
 export class ValueStackController {
   constructor(private readonly valueStackService: ValueStackService) {}
 
   // ==================== GUARANTEES ====================
 
   @Get('guarantees')
-  @UseGuards(JwtAuthGuard)
   async getGuarantees(@Param('campgroundId') campgroundId: string) {
     return this.valueStackService.getGuarantees(campgroundId);
   }
 
   @Post('guarantees')
-  @UseGuards(JwtAuthGuard)
   async createGuarantee(
     @Param('campgroundId') campgroundId: string,
     @Body()
@@ -44,7 +44,6 @@ export class ValueStackController {
   }
 
   @Put('guarantees/:id')
-  @UseGuards(JwtAuthGuard)
   async updateGuarantee(
     @Param('id') id: string,
     @Body()
@@ -61,7 +60,6 @@ export class ValueStackController {
   }
 
   @Delete('guarantees/:id')
-  @UseGuards(JwtAuthGuard)
   async deleteGuarantee(@Param('id') id: string) {
     return this.valueStackService.deleteGuarantee(id);
   }
@@ -69,13 +67,11 @@ export class ValueStackController {
   // ==================== BONUSES ====================
 
   @Get('bonuses')
-  @UseGuards(JwtAuthGuard)
   async getBonuses(@Param('campgroundId') campgroundId: string) {
     return this.valueStackService.getBonuses(campgroundId);
   }
 
   @Post('bonuses')
-  @UseGuards(JwtAuthGuard)
   async createBonus(
     @Param('campgroundId') campgroundId: string,
     @Body()
@@ -93,7 +89,6 @@ export class ValueStackController {
   }
 
   @Put('bonuses/:id')
-  @UseGuards(JwtAuthGuard)
   async updateBonus(
     @Param('id') id: string,
     @Body()
@@ -112,7 +107,6 @@ export class ValueStackController {
   }
 
   @Delete('bonuses/:id')
-  @UseGuards(JwtAuthGuard)
   async deleteBonus(@Param('id') id: string) {
     return this.valueStackService.deleteBonus(id);
   }
@@ -120,13 +114,11 @@ export class ValueStackController {
   // ==================== LEAD CAPTURE CONFIG ====================
 
   @Get('lead-capture')
-  @UseGuards(JwtAuthGuard)
   async getLeadCaptureConfig(@Param('campgroundId') campgroundId: string) {
     return this.valueStackService.getLeadCaptureConfig(campgroundId);
   }
 
   @Put('lead-capture')
-  @UseGuards(JwtAuthGuard)
   async updateLeadCaptureConfig(
     @Param('campgroundId') campgroundId: string,
     @Body()
@@ -150,13 +142,11 @@ export class ValueStackController {
   // ==================== BOOKING PAGE CONFIG ====================
 
   @Get('booking-page')
-  @UseGuards(JwtAuthGuard)
   async getBookingPageConfig(@Param('campgroundId') campgroundId: string) {
     return this.valueStackService.getBookingPageConfig(campgroundId);
   }
 
   @Put('booking-page')
-  @UseGuards(JwtAuthGuard)
   async updateBookingPageConfig(
     @Param('campgroundId') campgroundId: string,
     @Body()
@@ -179,7 +169,6 @@ export class ValueStackController {
   // ==================== LEADS ====================
 
   @Get('leads')
-  @UseGuards(JwtAuthGuard)
   async getLeads(
     @Param('campgroundId') campgroundId: string,
     @Query('source') source?: string,

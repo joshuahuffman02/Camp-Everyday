@@ -4543,6 +4543,28 @@ export const apiClient = {
     return data;
   },
 
+  async debitWallet(
+    campgroundId: string,
+    guestId: string,
+    amountCents: number,
+    referenceType: string,
+    referenceId: string,
+    walletId?: string,
+    currency?: string
+  ) {
+    const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/wallet/debit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify({ guestId, amountCents, referenceType, referenceId, walletId, currency })
+    });
+    const data = await parseResponse<{
+      walletId: string;
+      balanceCents: number;
+      transactionId: string;
+    }>(res);
+    return data;
+  },
+
   // Guest Portal - Wallet (uses guest token)
   async getPortalWallets(token: string) {
     const res = await fetch(`${API_BASE}/portal/wallet`, {

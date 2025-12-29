@@ -2,8 +2,9 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@n
 import { LockCodesService } from './lock-codes.service';
 import { LockCodeType, LockCodeRotationSchedule } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards';
+import { ScopeGuard } from '../auth/guards/scope.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 @Controller('campgrounds/:campgroundId/lock-codes')
 export class LockCodesController {
     constructor(private readonly lockCodesService: LockCodesService) { }
@@ -34,12 +35,16 @@ export class LockCodesController {
     }
 
     @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.lockCodesService.findOne(id);
+    findOne(
+        @Param('campgroundId') campgroundId: string,
+        @Param('id') id: string
+    ) {
+        return this.lockCodesService.findOne(id, campgroundId);
     }
 
     @Patch(':id')
     update(
+        @Param('campgroundId') campgroundId: string,
         @Param('id') id: string,
         @Body() body: Partial<{
             name: string;
@@ -53,17 +58,23 @@ export class LockCodesController {
             notes: string;
         }>
     ) {
-        return this.lockCodesService.update(id, body);
+        return this.lockCodesService.update(id, campgroundId, body);
     }
 
     @Delete(':id')
-    remove(@Param('id') id: string) {
-        return this.lockCodesService.remove(id);
+    remove(
+        @Param('campgroundId') campgroundId: string,
+        @Param('id') id: string
+    ) {
+        return this.lockCodesService.remove(id, campgroundId);
     }
 
     @Post(':id/rotate')
-    rotate(@Param('id') id: string) {
-        return this.lockCodesService.rotate(id);
+    rotate(
+        @Param('campgroundId') campgroundId: string,
+        @Param('id') id: string
+    ) {
+        return this.lockCodesService.rotate(id, campgroundId);
     }
 
     @Get('guest/confirmation')

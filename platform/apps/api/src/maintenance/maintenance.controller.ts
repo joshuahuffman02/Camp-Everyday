@@ -2,8 +2,9 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } f
 import { MaintenanceService } from './maintenance.service';
 import { MaintenancePriority, MaintenanceStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards';
+import { ScopeGuard } from '../auth/guards/scope.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 @Controller('maintenance')
 export class MaintenanceController {
   constructor(private readonly maintenanceService: MaintenanceService) { }

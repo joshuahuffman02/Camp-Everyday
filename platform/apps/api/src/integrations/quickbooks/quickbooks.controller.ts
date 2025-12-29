@@ -12,9 +12,10 @@ import {
 import { Response } from "express";
 import { QuickBooksService } from "./quickbooks.service";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { ScopeGuard } from "../../auth/guards/scope.guard";
 
 @Controller("campgrounds/:campgroundId/integrations/quickbooks")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 export class QuickBooksController {
   constructor(private readonly qbService: QuickBooksService) {}
 

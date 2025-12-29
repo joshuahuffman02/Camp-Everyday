@@ -1,10 +1,11 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
+import { ScopeGuard } from "../auth/guards/scope.guard";
 import { ReferralsService } from "./referrals.service";
 import { CreateReferralProgramDto } from "./dto/create-referral-program.dto";
 import { UpdateReferralProgramDto } from "./dto/update-referral-program.dto";
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 @Controller("campgrounds/:campgroundId/referral-programs")
 export class ReferralsController {
   constructor(private readonly referrals: ReferralsService) { }

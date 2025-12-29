@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "../../../ui/button";
-import { Wallet, Info } from "lucide-react";
+import { Wallet, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { usePaymentContext } from "../context/PaymentContext";
+import { apiClient } from "../../../../lib/api-client";
 
 interface GuestWalletMethodProps {
   onSuccess: (paymentId: string) => void;
@@ -13,18 +14,71 @@ interface GuestWalletMethodProps {
 
 /**
  * Guest Wallet Method
- * Note: Wallet debit API is not yet implemented.
- * This component shows the balance but cannot process debits.
+ * Allows guests to pay using their stored credit balance.
  */
 export default function GuestWalletMethod({
+  onSuccess,
+  onError,
   onCancel,
 }: GuestWalletMethodProps) {
-  const { state, actions } = usePaymentContext();
-  const { walletBalanceCents } = state;
+  const { state, actions, props } = usePaymentContext();
+  const { walletBalanceCents, remainingCents } = state;
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const canPayFull = walletBalanceCents >= remainingCents;
+  const paymentAmountCents = canPayFull ? remainingCents : walletBalanceCents;
 
   const handleCancel = () => {
     actions.selectMethod(null);
     onCancel?.();
+  };
+
+  const handlePayWithWallet = async () => {
+    if (!props.guestId || !props.campgroundId || !props.reservationId) {
+      onError("Missing required payment information");
+      return;
+    }
+
+    if (paymentAmountCents <= 0) {
+      onError("No wallet balance available");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const result = await apiClient.debitWallet(
+        props.campgroundId,
+        props.guestId,
+        paymentAmountCents,
+        "reservation",
+        props.reservationId
+      );
+
+      // Add tender entry for tracking
+      actions.addTenderEntry({
+        method: "wallet",
+        amountCents: paymentAmountCents,
+        status: "completed",
+        referenceId: result.transactionId,
+        metadata: {
+          walletId: result.walletId,
+          newBalance: result.balanceCents,
+        },
+      });
+
+      // If this covers the full amount, complete the payment
+      if (canPayFull) {
+        actions.completePayment();
+      }
+
+      onSuccess(result.transactionId);
+    } catch (err: any) {
+      const errorMessage = err.message || "Failed to process wallet payment";
+      onError(errorMessage);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -43,30 +97,61 @@ export default function GuestWalletMethod({
       </div>
 
       {/* Balance Display */}
-      {walletBalanceCents > 0 && (
-        <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-purple-800">Available Balance</span>
-            <span className="text-xl font-bold text-purple-900">
-              ${(walletBalanceCents / 100).toFixed(2)}
-            </span>
+      <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+        <div className="flex items-center justify-between">
+          <span className="text-purple-800">Available Balance</span>
+          <span className="text-xl font-bold text-purple-900">
+            ${(walletBalanceCents / 100).toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Payment Amount */}
+      <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-700">Amount Due</span>
+          <span className="font-medium text-slate-900">
+            ${(remainingCents / 100).toFixed(2)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between border-t pt-3">
+          <span className="text-slate-700 font-medium">Pay with Wallet</span>
+          <span className="text-lg font-bold text-purple-900">
+            ${(paymentAmountCents / 100).toFixed(2)}
+          </span>
+        </div>
+        {!canPayFull && (
+          <div className="flex items-start gap-2 mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
+            <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-800">
+              Wallet balance is less than amount due. The remaining ${((remainingCents - walletBalanceCents) / 100).toFixed(2)} will need to be paid with another method.
+            </p>
+          </div>
+        )}
+        {canPayFull && (
+          <div className="flex items-start gap-2 mt-2 p-2 bg-green-50 border border-green-200 rounded">
+            <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-green-800">
+              Wallet balance covers the full amount due.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* No balance warning */}
+      {walletBalanceCents <= 0 && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-red-800">No Wallet Balance</p>
+              <p className="text-sm text-red-700 mt-1">
+                This guest does not have any credit in their wallet. Please choose another payment method.
+              </p>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Coming Soon Message */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <div className="flex items-start gap-3">
-          <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-          <div>
-            <p className="font-medium text-blue-800">Coming Soon</p>
-            <p className="text-sm text-blue-700 mt-1">
-              Wallet payments are not yet available.
-              This feature will allow guests to pay using their stored credit balance.
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Info about wallet */}
       <div className="text-sm text-slate-600 space-y-2">
@@ -80,8 +165,25 @@ export default function GuestWalletMethod({
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button variant="outline" onClick={handleCancel}>
+        <Button variant="outline" onClick={handleCancel} disabled={isProcessing}>
           Go Back
+        </Button>
+        <Button
+          onClick={handlePayWithWallet}
+          disabled={isProcessing || walletBalanceCents <= 0}
+          className="bg-purple-600 hover:bg-purple-700"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <Wallet className="h-4 w-4 mr-2" />
+              Pay ${(paymentAmountCents / 100).toFixed(2)}
+            </>
+          )}
         </Button>
       </div>
     </div>

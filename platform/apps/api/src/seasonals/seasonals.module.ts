@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { SeasonalsController } from "./seasonals.controller";
 import { SeasonalsService } from "./seasonals.service";
 import { SeasonalPricingService } from "./seasonal-pricing.service";
+import { SeasonalsScheduler } from "./seasonals.scheduler";
 import { PrismaModule } from "../prisma/prisma.module";
 import { PermissionsModule } from "../permissions/permissions.module";
 import { EmailModule } from "../email/email.module";
@@ -9,7 +10,7 @@ import { EmailModule } from "../email/email.module";
 @Module({
   imports: [PrismaModule, PermissionsModule, EmailModule],
   controllers: [SeasonalsController],
-  providers: [SeasonalsService, SeasonalPricingService],
+  providers: [SeasonalsService, SeasonalPricingService, SeasonalsScheduler],
   exports: [SeasonalsService, SeasonalPricingService],
 })
 export class SeasonalsModule {}

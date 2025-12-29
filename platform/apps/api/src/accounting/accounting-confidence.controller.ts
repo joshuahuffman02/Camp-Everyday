@@ -9,9 +9,10 @@ import {
 } from "@nestjs/common";
 import { AccountingConfidenceService } from "./accounting-confidence.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { ScopeGuard } from "../auth/guards/scope.guard";
 
 @Controller("campgrounds/:campgroundId/accounting")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ScopeGuard)
 export class AccountingConfidenceController {
   constructor(private readonly confidenceService: AccountingConfidenceService) {}
 

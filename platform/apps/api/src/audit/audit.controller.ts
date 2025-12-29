@@ -2,12 +2,13 @@ import { Controller, Get, Query, UseGuards, Param, Res, Req } from "@nestjs/comm
 import { JwtAuthGuard } from "../auth/guards";
 import { AuditService } from "./audit.service";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
+import { ScopeGuard } from "../auth/guards/scope.guard";
 import { UserRole } from "@prisma/client";
 import type { Response } from "express";
 import { PermissionGuard } from "../permissions/permission.guard";
 import { RequirePermission } from "../permissions/permission.decorator";
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard, PermissionGuard)
 @Controller("campgrounds/:campgroundId/audit")
 export class AuditController {
   constructor(private readonly audit: AuditService) { }

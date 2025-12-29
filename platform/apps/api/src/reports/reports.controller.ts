@@ -2,23 +2,12 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } f
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
+import { ScopeGuard } from '../auth/guards/scope.guard';
 import { UserRole } from '@prisma/client';
 import { CreateReportExportDto } from './dto/create-report-export.dto';
-// Assuming JwtAuthGuard exists in ../auth/jwt-auth.guard or similar
-// If not certain, I will check, but standard pattern suggests it.
-// Checking app.module or other controllers would confirm. 
-// For now I'll assume standard AuthGuard or just leave it open if I can't find it - but wait, 
-// I should check another controller to see how auth is handled.
-// I'll skip the import for now and check in the next step to be safe, 
-// then I will rewrite this file with correct imports.
-// Actually, looking at repeat-charges.controller.ts (from user metadata), it likely has imports.
-// Ah, I don't see the content of repeat-charges...
-// I'll take a safe guess based on common NestJS patterns in this repo (which I've seen in other files).
-// Wait, I saw `app.module` and it imports `AuthModule`.
-// I will write a basic controller and then fix imports if needed.
 
 @Controller('campgrounds/:campgroundId/reports')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 export class ReportsController {
     constructor(private readonly reportsService: ReportsService) { }
 
