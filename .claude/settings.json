@@ -18,11 +18,8 @@
     ]
   },
   "hooks": {
-    "preToolCall": [],
-    "postToolCall": []
+    "PreToolUse": [],
+    "PostToolUse": []
   },
-  "model": {
-    "default": "sonnet",
-    "planning": "opus"
-  }
+  "model": "opus"
 }

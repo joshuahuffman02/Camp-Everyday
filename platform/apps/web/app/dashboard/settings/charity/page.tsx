@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
@@ -30,10 +30,14 @@ import {
   PartyPopper
 } from "lucide-react";
 
-const DEFAULT_CHARITY = {
+// Sybil's Kids as a virtual "suggested" charity when no charities exist
+const SYBILS_KIDS = {
+  id: "__sybils_kids__",
   name: "Sybil's Kids",
   description: "Supporting children in need through education and enrichment programs.",
   website: "https://sybilskids.com",
+  isVerified: true,
+  isSuggested: true,
 };
 
 // Milestone messages based on donation totals
@@ -69,6 +73,9 @@ export default function CharitySettingsPage() {
   const [defaultOptIn, setDefaultOptIn] = useState(false);
   const [glCode, setGlCode] = useState("2400");
 
+  // Track if we've loaded initial settings to prevent re-running
+  const hasLoadedSettings = useRef(false);
+
   // Fetch available charities
   const { data: charities = [], isLoading: loadingCharities } = useQuery({
     queryKey: ["charities"],
@@ -90,9 +97,10 @@ export default function CharitySettingsPage() {
     enabled: !!campgroundId,
   });
 
-  // Load current settings into form
+  // Load current settings into form - only run once after initial data load
   useEffect(() => {
-    if (currentSettings) {
+    if (currentSettings && !hasLoadedSettings.current) {
+      hasLoadedSettings.current = true;
       setIsEnabled(currentSettings.isEnabled);
       setSelectedCharityId(currentSettings.charityId);
       setCustomMessage(currentSettings.customMessage || "");
@@ -119,7 +127,16 @@ export default function CharitySettingsPage() {
       };
 
       if (charityMode === "existing") {
-        payload.charityId = selectedCharityId;
+        // Check if it's the virtual Sybil's Kids selection
+        if (selectedCharityId === SYBILS_KIDS.id) {
+          payload.newCharity = {
+            name: SYBILS_KIDS.name,
+            description: SYBILS_KIDS.description,
+            website: SYBILS_KIDS.website,
+          };
+        } else {
+          payload.charityId = selectedCharityId;
+        }
       } else {
         payload.newCharity = {
           name: customCharity.name,
@@ -153,15 +170,10 @@ export default function CharitySettingsPage() {
     },
   });
 
-  // Use Sybil's Kids as default
-  const handleUseDefault = () => {
-    setCharityMode("custom");
-    setCustomCharity({
-      name: DEFAULT_CHARITY.name,
-      description: DEFAULT_CHARITY.description,
-      taxId: "",
-      website: DEFAULT_CHARITY.website,
-    });
+  // Use Sybil's Kids as default - select in existing tab
+  const handleUseSybilsKids = () => {
+    setCharityMode("existing");
+    setSelectedCharityId(SYBILS_KIDS.id);
   };
 
   if (!campgroundId) {
@@ -386,52 +398,74 @@ export default function CharitySettingsPage() {
               </TabsList>
 
               <TabsContent value="existing" className="space-y-4 mt-4">
-                {charities.length > 0 ? (
-                  <div className="grid gap-3">
-                    {charities.map((charity) => (
-                      <motion.div
-                        key={charity.id}
-                        whileHover={prefersReducedMotion ? {} : { scale: 1.01 }}
-                        whileTap={prefersReducedMotion ? {} : { scale: 0.99 }}
-                        onClick={() => setSelectedCharityId(charity.id)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                          selectedCharityId === charity.id
-                            ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30 shadow-md"
-                            : "border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-slate-900 dark:text-white">{charity.name}</span>
-                              {charity.isVerified && (
-                                <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Verified
-                                </Badge>
-                              )}
-                            </div>
-                            {charity.description && (
-                              <p className="text-sm text-muted-foreground mt-1">{charity.description}</p>
+                <div className="grid gap-3">
+                  {/* Always show Sybil's Kids as the recommended first option */}
+                  <motion.div
+                    whileHover={prefersReducedMotion ? {} : { scale: 1.01 }}
+                    whileTap={prefersReducedMotion ? {} : { scale: 0.99 }}
+                    onClick={() => setSelectedCharityId(SYBILS_KIDS.id)}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      selectedCharityId === SYBILS_KIDS.id
+                        ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30 shadow-md"
+                        : "border-rose-200 dark:border-rose-800 hover:border-rose-400 dark:hover:border-rose-600 bg-gradient-to-r from-rose-50/50 to-amber-50/50 dark:from-rose-950/20 dark:to-amber-950/20"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-slate-900 dark:text-white">{SYBILS_KIDS.name}</span>
+                          <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Recommended
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Verified
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{SYBILS_KIDS.description}</p>
+                      </div>
+                      {selectedCharityId === SYBILS_KIDS.id && (
+                        <CheckCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
+                      )}
+                    </div>
+                  </motion.div>
+
+                  {/* Show other existing charities from the database */}
+                  {charities.map((charity) => (
+                    <motion.div
+                      key={charity.id}
+                      whileHover={prefersReducedMotion ? {} : { scale: 1.01 }}
+                      whileTap={prefersReducedMotion ? {} : { scale: 0.99 }}
+                      onClick={() => setSelectedCharityId(charity.id)}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        selectedCharityId === charity.id
+                          ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30 shadow-md"
+                          : "border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-slate-900 dark:text-white">{charity.name}</span>
+                            {charity.isVerified && (
+                              <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Verified
+                              </Badge>
                             )}
                           </div>
-                          {selectedCharityId === charity.id && (
-                            <CheckCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
+                          {charity.description && (
+                            <p className="text-sm text-muted-foreground mt-1">{charity.description}</p>
                           )}
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 border-2 border-dashed rounded-xl border-slate-200 dark:border-slate-700">
-                    <Building2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground mb-4">No charities available yet.</p>
-                    <Button variant="outline" onClick={handleUseDefault} className="gap-2">
-                      <Heart className="h-4 w-4 text-rose-500" />
-                      Use Sybil's Kids (Recommended)
-                    </Button>
-                  </div>
-                )}
+                        {selectedCharityId === charity.id && (
+                          <CheckCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               </TabsContent>
 
               <TabsContent value="custom" className="space-y-4 mt-4">
@@ -446,7 +480,7 @@ export default function CharitySettingsPage() {
                         Add any 501(c)(3) organization. You'll manage the donations.
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={handleUseDefault} className="gap-1.5">
+                    <Button variant="outline" size="sm" onClick={handleUseSybilsKids} className="gap-1.5">
                       <Sparkles className="h-3.5 w-3.5" />
                       Use Sybil's Kids
                     </Button>
