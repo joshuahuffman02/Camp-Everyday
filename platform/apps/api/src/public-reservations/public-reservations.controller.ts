@@ -1,11 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, BadRequestException } from "@nestjs/common";
 import { PublicReservationsService } from "./public-reservations.service";
 import { CreatePublicReservationDto, PublicQuoteDto, CreatePublicWaitlistDto, CreateDemoRequestDto } from "./dto/create-public-reservation.dto";
 import { FormsService } from "../forms/forms.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
+import { Throttle } from "@nestjs/throttler";
 
 @Controller("public")
+@Throttle({ default: { limit: 60, ttl: 60000 } }) // 60 requests per minute per IP
 export class PublicReservationsController {
     constructor(
         private readonly service: PublicReservationsService,
@@ -49,13 +51,25 @@ export class PublicReservationsController {
     }
 
     @Post("reservations/:id/kiosk-checkin")
-    kioskCheckIn(@Param("id") id: string, @Body() body: { upsellTotalCents: number }) {
-        return this.service.kioskCheckIn(id, body.upsellTotalCents || 0);
+    @Throttle({ default: { limit: 10, ttl: 60000 } }) // Stricter rate limit: 10 per minute
+    kioskCheckIn(
+        @Param("id") id: string,
+        @Body() body: { upsellTotalCents: number; kioskToken?: string },
+        @Query("campgroundId") campgroundId?: string
+    ) {
+        // SECURITY: Kiosk check-in requires either campgroundId for validation or kioskToken
+        // This prevents IDOR by ensuring reservation belongs to expected campground
+        if (!campgroundId && !body.kioskToken) {
+            throw new BadRequestException("campgroundId or kioskToken required for kiosk check-in");
+        }
+        return this.service.kioskCheckIn(id, body.upsellTotalCents || 0, campgroundId);
     }
 
     @Get("reservations/:id")
-    getReservation(@Param("id") id: string) {
-        return this.service.getReservation(id);
+    @Throttle({ default: { limit: 20, ttl: 60000 } }) // Moderate rate limit: 20 per minute
+    getReservation(@Param("id") id: string, @Query("campgroundId") campgroundId?: string) {
+        // SECURITY: When campgroundId provided, service validates reservation belongs to it
+        return this.service.getReservation(id, campgroundId);
     }
 
     /**

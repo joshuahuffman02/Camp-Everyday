@@ -76,6 +76,12 @@ export class HousekeepingService {
   }
 
   async deleteTemplate(id: string) {
+    const existing = await this.prisma.cleaningTaskTemplate.findUnique({ where: { id } });
+
+    if (!existing) {
+      throw new NotFoundException('Template not found');
+    }
+
     return this.prisma.cleaningTaskTemplate.delete({ where: { id } });
   }
 
@@ -135,6 +141,12 @@ export class HousekeepingService {
   }
 
   async deleteZone(id: string) {
+    const existing = await this.prisma.cleaningZone.findUnique({ where: { id } });
+
+    if (!existing) {
+      throw new NotFoundException('Zone not found');
+    }
+
     return this.prisma.cleaningZone.delete({ where: { id } });
   }
 

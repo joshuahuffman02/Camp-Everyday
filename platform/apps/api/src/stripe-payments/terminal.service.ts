@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Injectable, BadRequestException, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
 
@@ -26,6 +26,8 @@ export interface TerminalReaderInfo {
 
 @Injectable()
 export class TerminalService {
+    private readonly logger = new Logger(TerminalService.name);
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly stripe: StripeService,
@@ -145,7 +147,7 @@ export class TerminalService {
                     location.stripeLocationId,
                 );
             } catch (error) {
-                console.warn("Failed to delete location from Stripe:", error);
+                this.logger.warn("Failed to delete location from Stripe:", error);
             }
         }
 
@@ -356,7 +358,7 @@ export class TerminalService {
                     reader.stripeReaderId,
                 );
             } catch (error) {
-                console.warn("Failed to delete reader from Stripe:", error);
+                this.logger.warn("Failed to delete reader from Stripe:", error);
             }
         }
 

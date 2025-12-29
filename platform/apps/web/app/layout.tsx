@@ -4,6 +4,7 @@ import { Providers } from "./providers";
 import ClientRoot from "./client-root";
 import { RootJsonLd } from "@/components/seo";
 import { SEO_CONFIG } from "@/lib/seo";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import { Metadata, Viewport } from "next";
 
@@ -16,6 +17,14 @@ export const metadata: Metadata = {
   description: SEO_CONFIG.defaultDescription,
   keywords: [...SEO_CONFIG.keywords],
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/icons/icon-192.png",
+  },
   applicationName: SEO_CONFIG.siteName,
   authors: [{ name: "Camp Everyday Team" }],
   creator: "Camp Everyday",
@@ -80,7 +89,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body suppressHydrationWarning>
         <Providers>
-          <ClientRoot>{children}</ClientRoot>
+          <ErrorBoundary>
+            <ClientRoot>{children}</ClientRoot>
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>

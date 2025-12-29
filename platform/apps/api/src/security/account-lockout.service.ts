@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, UnauthorizedException, Logger } from "@nestjs/common";
 
 /**
  * Account Lockout Service
@@ -22,6 +22,8 @@ interface LockoutRecord {
 
 @Injectable()
 export class AccountLockoutService {
+    private readonly logger = new Logger(AccountLockoutService.name);
+
     // In-memory store - should migrate to Redis for production
     private readonly attempts = new Map<string, LockoutRecord>();
 
@@ -36,7 +38,7 @@ export class AccountLockoutService {
     constructor() {
         // Start cleanup interval to prevent memory leaks
         this.cleanupInterval = setInterval(() => this.cleanup(), 5 * 60 * 1000);
-        console.log(`[SECURITY] Account lockout enabled: ${this.maxAttempts} attempts, ${this.lockDurationMs / 1000}s lock`);
+        this.logger.log(`Account lockout enabled: ${this.maxAttempts} attempts, ${this.lockDurationMs / 1000}s lock`);
     }
 
     /**
@@ -116,7 +118,7 @@ export class AccountLockoutService {
             record.lockedUntil = now + this.lockDurationMs;
             this.attempts.set(key, record);
 
-            console.log(`[SECURITY] Account locked: ${this.maskIdentifier(identifier)} for ${this.lockDurationMs / 1000}s after ${record.attempts} failed attempts`);
+            this.logger.log(`Account locked: ${this.maskIdentifier(identifier)} for ${this.lockDurationMs / 1000}s after ${record.attempts} failed attempts`);
 
             return {
                 locked: true,
@@ -225,7 +227,7 @@ export class AccountLockoutService {
 
         if (record) {
             this.attempts.delete(key);
-            console.log(`[SECURITY] Account manually unlocked: ${this.maskIdentifier(identifier)}`);
+            this.logger.log(`Account manually unlocked: ${this.maskIdentifier(identifier)}`);
             return true;
         }
 
@@ -270,7 +272,7 @@ export class AccountLockoutService {
         }
 
         if (cleaned > 0) {
-            console.log(`[SECURITY] Cleaned up ${cleaned} expired lockout records`);
+            this.logger.log(`Cleaned up ${cleaned} expired lockout records`);
         }
     }
 

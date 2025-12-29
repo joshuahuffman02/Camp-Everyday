@@ -42,6 +42,10 @@ export class StoredValueService {
           ? await tx.storedValueAccount.findUnique({ where: { id: dto.reloadAccountId } })
           : null;
         if (existingAccount) {
+          // SECURITY: Verify account belongs to the issuing campground to prevent cross-tenant access
+          if (issuerCampgroundId && existingAccount.campgroundId !== issuerCampgroundId) {
+            throw new ForbiddenException("Cannot reload account from different campground");
+          }
           this.ensureActive(existingAccount);
           this.ensureCurrency(existingAccount, dto.currency);
           this.ensureTaxableFlag(existingAccount.metadata, dto.taxableLoad);

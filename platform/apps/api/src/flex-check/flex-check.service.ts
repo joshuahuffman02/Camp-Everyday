@@ -138,6 +138,14 @@ export class FlexCheckService {
   }
 
   async denyEarlyCheckIn(reservationId: string) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: reservationId },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+
     return this.prisma.reservation.update({
       where: { id: reservationId },
       data: {
@@ -248,6 +256,14 @@ export class FlexCheckService {
   }
 
   async denyLateCheckout(reservationId: string) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: reservationId },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+
     return this.prisma.reservation.update({
       where: { id: reservationId },
       data: {

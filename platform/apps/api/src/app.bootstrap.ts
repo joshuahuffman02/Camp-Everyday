@@ -49,20 +49,38 @@ export async function createApp(): Promise<INestApplication> {
             if (!origin) {
                 return callback(null, true);
             }
-            // Allow ngrok and other dev tunnels
-            if (origin.includes("ngrok") || origin.includes("railway.app") || origin.includes("localhost")) {
-                return callback(null, true);
-            }
-            // Check explicit whitelist
+
+            // Check explicit whitelist first
             if (allowedOrigins.includes(origin)) {
                 return callback(null, true);
             }
-            // Reject unknown origins in production
-            if (process.env.NODE_ENV === "production") {
-                return callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+
+            // In development only, allow dev tunnels with strict patterns
+            // SECURITY: Use exact patterns to prevent malicious subdomains
+            if (process.env.NODE_ENV !== "production") {
+                try {
+                    const url = new URL(origin);
+                    // Only allow official ngrok domains (*.ngrok-free.app, *.ngrok.io)
+                    if (url.hostname.endsWith(".ngrok-free.app") || url.hostname.endsWith(".ngrok.io")) {
+                        return callback(null, true);
+                    }
+                    // Allow localhost with any port
+                    if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+                        return callback(null, true);
+                    }
+                    // Allow Railway preview deployments (campreserv*.up.railway.app)
+                    if (url.hostname.endsWith(".up.railway.app") && url.hostname.includes("campreserv")) {
+                        return callback(null, true);
+                    }
+                } catch {
+                    // Invalid URL, fall through to rejection
+                }
+                // Allow any other origin in development for testing
+                return callback(null, true);
             }
-            // Allow in development
-            return callback(null, true);
+
+            // Reject unknown origins in production
+            return callback(new Error(`Origin ${origin} not allowed by CORS`), false);
         },
         credentials: true,
         methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",

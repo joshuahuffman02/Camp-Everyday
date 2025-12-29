@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from "@nestjs/common";
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
 import { CustomerService } from "./customer.service";
@@ -20,6 +20,8 @@ export interface PaymentMethodInfo {
 
 @Injectable()
 export class PaymentMethodService {
+    private readonly logger = new Logger(PaymentMethodService.name);
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly stripe: StripeService,
@@ -196,7 +198,7 @@ export class PaymentMethodService {
             );
         } catch (error) {
             // If already exists or other error, don't fail the payment
-            console.warn("Failed to auto-store payment method:", error);
+            this.logger.warn("Failed to auto-store payment method:", error);
             return null;
         }
     }
@@ -292,7 +294,7 @@ export class PaymentMethodService {
                 );
             } catch (error) {
                 // Log but don't fail if Stripe detach fails
-                console.warn("Failed to detach payment method from Stripe:", error);
+                this.logger.warn("Failed to detach payment method from Stripe:", error);
             }
         }
 

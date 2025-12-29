@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException } from "@nestjs/common";
+import { Injectable, BadRequestException, UnauthorizedException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import * as OTPAuth from "otpauth";
 import * as QRCode from "qrcode";
@@ -18,6 +18,7 @@ import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
  */
 @Injectable()
 export class TotpService {
+    private readonly logger = new Logger(TotpService.name);
     private readonly issuer = "CampReserv";
     private readonly encryptionKey: Buffer;
     private readonly algorithm = "aes-256-gcm";
@@ -28,7 +29,7 @@ export class TotpService {
         const keyString = process.env.TOTP_ENCRYPTION_KEY || process.env.JWT_SECRET || "";
 
         if (keyString.length < 32) {
-            console.warn("[SECURITY] TOTP_ENCRYPTION_KEY should be at least 32 characters");
+            this.logger.warn("TOTP_ENCRYPTION_KEY should be at least 32 characters");
         }
 
         // Derive a 32-byte key using padding/truncating
@@ -176,7 +177,7 @@ export class TotpService {
                     data: { totpBackupCodes: backupCodes },
                 });
 
-                console.log(`[SECURITY] Backup code used for user ${userId}. ${backupCodes.length} remaining.`);
+                this.logger.log(`Backup code used for user ${userId}. ${backupCodes.length} remaining.`);
                 return true;
             }
         }
@@ -221,7 +222,7 @@ export class TotpService {
             },
         });
 
-        console.log(`[SECURITY] 2FA disabled for user ${userId}`);
+        this.logger.log(`2FA disabled for user ${userId}`);
         return true;
     }
 

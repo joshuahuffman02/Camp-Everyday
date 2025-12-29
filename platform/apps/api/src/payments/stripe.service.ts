@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import Stripe from "stripe";
 
 @Injectable()
 export class StripeService {
+    private readonly logger = new Logger(StripeService.name);
     private stripe: Stripe | null = null;
     private readonly configured: boolean;
     private readonly apiVersion = "2025-11-17.clover" as any;
@@ -23,16 +24,16 @@ export class StripeService {
             const message = "STRIPE_SECRET_KEY is not configured or invalid. Payment processing is disabled.";
 
             if (isProduction) {
-                console.error(`[STRIPE] ${message} Set a valid Stripe secret key to enable payments.`);
+                this.logger.error(`${message} Set a valid Stripe secret key to enable payments.`);
             } else {
-                console.warn(`[STRIPE] ${message}`);
+                this.logger.warn(message);
             }
         } else {
             // Only create Stripe instance if we have a valid key
             this.stripe = new Stripe(secretKey!, {
                 apiVersion: this.apiVersion,
             });
-            console.log("[STRIPE] Initialized with valid API key");
+            this.logger.log("Initialized with valid API key");
         }
     }
 

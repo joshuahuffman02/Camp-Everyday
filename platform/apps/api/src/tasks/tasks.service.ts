@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskType, TaskState, SlaStatus } from '@prisma/client';
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger(TasksService.name);
+
   constructor(private prisma: PrismaService) {}
 
   /**
@@ -109,7 +111,7 @@ export class TasksService {
     },
   ) {
     const existing = await this.prisma.task.findUnique({ where: { id } });
-    if (!existing) throw new Error('Task not found');
+    if (!existing) throw new NotFoundException('Task not found');
 
     const slaDueAt = data.slaDueAt ? new Date(data.slaDueAt) : existing.slaDueAt;
     const state = data.state ?? existing.state;
@@ -171,11 +173,17 @@ export class TasksService {
         },
       });
     } catch (err) {
-      console.error('Failed to create site-ready communication:', err);
+      this.logger.error('Failed to create site-ready communication:', err);
     }
   }
 
   async remove(id: string) {
+    const existing = await this.prisma.task.findUnique({ where: { id } });
+
+    if (!existing) {
+      throw new NotFoundException('Task not found');
+    }
+
     return this.prisma.task.delete({ where: { id } });
   }
 

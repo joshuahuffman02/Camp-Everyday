@@ -17,6 +17,7 @@ import { useSyncStatus } from "@/contexts/SyncStatusContext";
 import { SupportChatWidget } from "../../support/SupportChatWidget";
 import { resolvePages, PAGE_REGISTRY, PageDefinition } from "@/lib/page-registry";
 import { useCampground } from "@/contexts/CampgroundContext";
+import { ErrorBoundary } from "../../ErrorBoundary";
 import {
   DndContext,
   closestCenter,
@@ -1043,15 +1044,17 @@ export function DashboardShell({ children, className, title, subtitle }: { child
           </nav>
         </aside>
         <main className={cn("flex-1", className)}>
-          <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">
-            {(title || subtitle) && (
-              <div className="mb-6">
-                {title && <h1 className="text-2xl font-bold text-slate-900">{title}</h1>}
-                {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
-              </div>
-            )}
-            {children}
-          </div>
+          <ErrorBoundary>
+            <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">
+              {(title || subtitle) && (
+                <div className="mb-6">
+                  {title && <h1 className="text-2xl font-bold text-slate-900">{title}</h1>}
+                  {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+                </div>
+              )}
+              {children}
+            </div>
+          </ErrorBoundary>
         </main>
       </div>
 

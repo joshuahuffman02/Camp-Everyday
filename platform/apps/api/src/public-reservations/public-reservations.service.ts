@@ -1425,8 +1425,7 @@ export class PublicReservationsService {
         return null;
     }
 
-    async kioskCheckIn(id: string, upsellTotalCents: number) {
-        console.log(`[Kiosk] Check -in request for ${id}, upsell: ${upsellTotalCents} `);
+    async kioskCheckIn(id: string, upsellTotalCents: number, campgroundId?: string) {
         const reservation = await this.prisma.reservation.findUnique({
             where: { id },
             include: {
@@ -1436,7 +1435,11 @@ export class PublicReservationsService {
             }
         });
         if (!reservation) {
-            console.error(`[Kiosk] Reservation ${id} not found`);
+            throw new NotFoundException("Reservation not found");
+        }
+
+        // SECURITY: Verify reservation belongs to the expected campground (prevents IDOR)
+        if (campgroundId && reservation.campgroundId !== campgroundId) {
             throw new NotFoundException("Reservation not found");
         }
 
@@ -1619,7 +1622,7 @@ export class PublicReservationsService {
             throw e;
         }
     }
-    async getReservation(id: string) {
+    async getReservation(id: string, campgroundId?: string) {
         const reservation = await this.prisma.reservation.findUnique({
             where: { id },
             include: {
@@ -1640,6 +1643,11 @@ export class PublicReservationsService {
         });
 
         if (!reservation) {
+            throw new NotFoundException("Reservation not found");
+        }
+
+        // SECURITY: Verify reservation belongs to the expected campground (prevents IDOR)
+        if (campgroundId && reservation.campgroundId !== campgroundId) {
             throw new NotFoundException("Reservation not found");
         }
 

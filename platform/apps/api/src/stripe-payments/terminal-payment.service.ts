@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Injectable, BadRequestException, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
 import { CustomerService } from "./customer.service";
@@ -14,6 +14,8 @@ export interface TerminalPaymentResult {
 
 @Injectable()
 export class TerminalPaymentService {
+    private readonly logger = new Logger(TerminalPaymentService.name);
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly stripe: StripeService,
@@ -248,7 +250,7 @@ export class TerminalPaymentService {
                 reader.stripeReaderId,
             );
         } catch (error) {
-            console.warn("Failed to cancel reader action:", error);
+            this.logger.warn("Failed to cancel reader action:", error);
         }
 
         // Update reader status

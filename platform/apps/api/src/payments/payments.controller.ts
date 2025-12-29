@@ -21,12 +21,28 @@ import { Type } from "class-transformer";
 import { IdempotencyService } from "./idempotency.service";
 import { GatewayConfigService } from "./gateway-config.service";
 
+import { IsNotEmpty, IsString } from "class-validator";
+
 // DTO for public payment intent creation
 class CreatePublicPaymentIntentDto {
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
   amountCents!: number;
+
+  @IsOptional()
+  @IsString()
   currency?: string;
+
+  @IsNotEmpty()
+  @IsString()
   reservationId!: string;
+
+  @IsOptional()
+  @IsString()
   guestEmail?: string;
+
+  @IsOptional()
   captureMethod?: 'automatic' | 'manual';
 }
 
@@ -591,6 +607,11 @@ export class PaymentsController {
 
       const stripeAccountId = (reservation.campground as any)?.stripeAccountId;
 
+      // SECURITY: Validate Stripe account is configured before proceeding
+      if (!stripeAccountId) {
+        throw new BadRequestException("Campground is not connected to Stripe. Cannot process payment.");
+      }
+
       // Retrieve payment intent from Stripe to verify status
       const intent = await this.stripeService.retrievePaymentIntent(paymentIntentId, stripeAccountId);
 
@@ -1051,7 +1072,7 @@ export class PaymentsController {
         });
 
         if (existingPayment) {
-          console.log(`[Webhook] Payment already recorded for intent ${paymentIntent.id}, skipping`);
+          this.logger.log(`[Webhook] Payment already recorded for intent ${paymentIntent.id}, skipping`);
         } else {
           const toNumber = (v: any) => (v === undefined || v === null || Number.isNaN(Number(v)) ? 0 : Number(v));
           const lineItems = [
@@ -1087,7 +1108,7 @@ export class PaymentsController {
       const pi = event.data.object as any;
       const pmType = pi.payment_method_types?.[0];
       if (pmType === "us_bank_account") {
-        console.warn(`[ACH] Payment failed for PI ${pi.id}: ${pi.last_payment_error?.message ?? "unknown"}`);
+        this.logger.warn(`[ACH] Payment failed for PI ${pi.id}: ${pi.last_payment_error?.message ?? "unknown"}`);
         await this.handleAchReturn(pi);
       }
     }
@@ -1106,7 +1127,7 @@ export class PaymentsController {
         } as any);
         await this.recon.sendAlert(`Stripe capabilities updated for ${acctId}: ${JSON.stringify(capabilities)}`);
       } catch (err) {
-        console.warn(`Failed to update capabilities for account ${acctId}: ${err instanceof Error ? err.message : err}`);
+        this.logger.warn(`Failed to update capabilities for account ${acctId}: ${err instanceof Error ? err.message : err}`);
       }
     }
 
@@ -1145,7 +1166,7 @@ export class PaymentsController {
           }
         } catch {
           // Log but don't fail - the refund still happened in Stripe
-          console.error('Failed to update reservation after refund webhook');
+          this.logger.error('Failed to update reservation after refund webhook');
         }
       }
     }
@@ -1417,7 +1438,7 @@ export class PaymentsController {
         }
       });
     } catch (err) {
-      console.warn(`[ACH] Failed to record ACH return for PI ${paymentIntent.id}: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(`[ACH] Failed to record ACH return for PI ${paymentIntent.id}: ${err instanceof Error ? err.message : err}`);
     await this.recon.sendAlert(`[ACH] Failed to record ACH return for PI ${paymentIntent.id}: ${err instanceof Error ? err.message : err}`);
     }
   }

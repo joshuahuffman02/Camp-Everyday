@@ -2300,6 +2300,8 @@ model Reservation {
   @@index([campgroundId, status, arrivalDate])
   @@index([status, arrivalDate])
   @@index([deletedAt])
+  @@index([campgroundId, status, arrivalDate, departureDate])
+  @@index([campgroundId, guestId, status])
 }
 
 // Split booking segment - represents a portion of a reservation on a specific site
@@ -2355,6 +2357,8 @@ model MaintenanceTicket {
   @@index([status])
   @@index([dueDate])
   @@index([assignedTo])
+  @@index([campgroundId, status, siteId])
+  @@index([campgroundId, status, dueDate])
 }
 
 model Incident {
@@ -2562,6 +2566,9 @@ model Payment {
   @@index([stripePayoutId])
   @@index([stripePaymentMethodId])
   @@index([stripeCustomerId])
+  @@index([campgroundId, createdAt])
+  @@index([campgroundId, capturedAt])
+  @@index([reservationId, direction])
 }
 
 model RepeatCharge {
@@ -2581,6 +2588,8 @@ model RepeatCharge {
   @@index([reservationId])
   @@index([status])
   @@index([dueDate])
+  @@index([status, dueDate])
+  @@index([reservationId, status])
 }
 
 // ---------------------------------------------------------------------------
@@ -2812,6 +2821,9 @@ model LedgerEntry {
   @@index([glCode])
   @@index([periodId])
   @@index([dedupeKey])
+  @@index([campgroundId, createdAt])
+  @@index([campgroundId, glCode, createdAt])
+  @@index([reservationId, createdAt])
 }
 
 enum GlPeriodStatus {

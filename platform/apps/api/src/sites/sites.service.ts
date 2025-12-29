@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateSiteDto } from "./dto/create-site.dto";
 import { SiteType } from "@prisma/client";
@@ -7,14 +7,20 @@ import { SiteType } from "@prisma/client";
 export class SitesService {
   constructor(private readonly prisma: PrismaService) { }
 
-  findOne(id: string) {
-    return this.prisma.site.findUnique({
+  async findOne(id: string) {
+    const site = await this.prisma.site.findUnique({
       where: { id },
       include: {
         siteClass: true,
         campground: true
       }
     });
+
+    if (!site) {
+      throw new NotFoundException('Site not found');
+    }
+
+    return site;
   }
 
   listByCampground(
@@ -40,7 +46,13 @@ export class SitesService {
     return this.prisma.site.create({ data: { ...data, siteType: data.siteType as SiteType } });
   }
 
-  update(id: string, data: Partial<CreateSiteDto>) {
+  async update(id: string, data: Partial<CreateSiteDto>) {
+    const existing = await this.prisma.site.findUnique({ where: { id } });
+
+    if (!existing) {
+      throw new NotFoundException('Site not found');
+    }
+
     const { campgroundId, siteType, ...rest } = data;
     return this.prisma.site.update({
       where: { id },
@@ -52,7 +64,13 @@ export class SitesService {
     });
   }
 
-  remove(id: string) {
+  async remove(id: string) {
+    const existing = await this.prisma.site.findUnique({ where: { id } });
+
+    if (!existing) {
+      throw new NotFoundException('Site not found');
+    }
+
     return this.prisma.site.delete({ where: { id } });
   }
 

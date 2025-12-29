@@ -60,6 +60,12 @@ export class TaxRulesService {
     }
 
     async remove(id: string) {
+        const existing = await this.prisma.taxRule.findUnique({ where: { id } });
+
+        if (!existing) {
+            throw new NotFoundException('Tax rule not found');
+        }
+
         return this.prisma.taxRule.delete({ where: { id } });
     }
 

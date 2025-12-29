@@ -46,18 +46,26 @@ export class GuestsController {
   update(
     @Param("id") id: string,
     @Body() body: Partial<CreateGuestDto>,
-    @Query("campgroundId") campgroundId?: string,
+    @Query("campgroundId") campgroundId: string,
     @CurrentUser() user?: any
   ) {
+    // SECURITY: Require campgroundId to prevent cross-tenant guest modification
+    if (!campgroundId) {
+      throw new ForbiddenException("campgroundId is required to update a guest");
+    }
     return this.guests.update(id, body, { actorId: user?.id, campgroundId });
   }
 
   @Delete(":id")
   remove(
     @Param("id") id: string,
-    @Query("campgroundId") campgroundId?: string,
+    @Query("campgroundId") campgroundId: string,
     @CurrentUser() user?: any
   ) {
+    // SECURITY: Require campgroundId to prevent cross-tenant guest deletion
+    if (!campgroundId) {
+      throw new ForbiddenException("campgroundId is required to delete a guest");
+    }
     return this.guests.remove(id, { actorId: user?.id, campgroundId });
   }
 }

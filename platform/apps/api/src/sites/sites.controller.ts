@@ -1,9 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { SitesService } from "./sites.service";
 import { CreateSiteDto } from "./dto/create-site.dto";
-import { JwtAuthGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, ScopeGuard } from "../auth/guards";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { UserRole } from "@prisma/client";
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class SitesController {
   constructor(private readonly sites: SitesService) { }
@@ -22,6 +25,7 @@ export class SitesController {
     });
   }
 
+  @Get("sites/:id")
   getById(@Param("id") id: string) {
     return this.sites.findOne(id);
   }
@@ -32,17 +36,45 @@ export class SitesController {
   }
 
   @Post("campgrounds/:campgroundId/sites")
+  @Roles(UserRole.owner, UserRole.manager)
   create(@Param("campgroundId") campgroundId: string, @Body() body: Omit<CreateSiteDto, "campgroundId">) {
     return this.sites.create({ campgroundId, ...body });
   }
 
-  @Patch("sites/:id")
-  update(@Param("id") id: string, @Body() body: Partial<CreateSiteDto>) {
+  @Patch("campgrounds/:campgroundId/sites/:id")
+  @Roles(UserRole.owner, UserRole.manager)
+  async update(
+    @Param("campgroundId") campgroundId: string,
+    @Param("id") id: string,
+    @Body() body: Partial<CreateSiteDto>,
+    @CurrentUser() user: any
+  ) {
+    // SECURITY: Verify site belongs to campground before update
+    const site = await this.sites.findOne(id);
+    if (!site) {
+      throw new NotFoundException(`Site ${id} not found`);
+    }
+    if (site.campgroundId !== campgroundId) {
+      throw new ForbiddenException("Site does not belong to this campground");
+    }
     return this.sites.update(id, body);
   }
 
-  @Delete("sites/:id")
-  remove(@Param("id") id: string) {
+  @Delete("campgrounds/:campgroundId/sites/:id")
+  @Roles(UserRole.owner, UserRole.manager)
+  async remove(
+    @Param("campgroundId") campgroundId: string,
+    @Param("id") id: string,
+    @CurrentUser() user: any
+  ) {
+    // SECURITY: Verify site belongs to campground before delete
+    const site = await this.sites.findOne(id);
+    if (!site) {
+      throw new NotFoundException(`Site ${id} not found`);
+    }
+    if (site.campgroundId !== campgroundId) {
+      throw new ForbiddenException("Site does not belong to this campground");
+    }
     return this.sites.remove(id);
   }
 }

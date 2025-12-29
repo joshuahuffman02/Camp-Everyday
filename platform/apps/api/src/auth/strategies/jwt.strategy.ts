@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -11,11 +11,31 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+    private readonly logger = new Logger(JwtStrategy.name);
+
     constructor(
         private readonly config: ConfigService,
         private readonly prisma: PrismaService
     ) {
-        const jwtSecret = config?.get<string>('JWT_SECRET') || process.env.JWT_SECRET || 'dev-secret-change-me';
+        const jwtSecret = config?.get<string>('JWT_SECRET') || process.env.JWT_SECRET;
+
+        // SECURITY: Never use a default secret - require explicit configuration
+        if (!jwtSecret) {
+            const isProduction = process.env.NODE_ENV === 'production';
+            if (isProduction) {
+                throw new Error('CRITICAL: JWT_SECRET environment variable is required in production');
+            }
+            // In development, use a random secret (tokens won't persist across restarts)
+            const devSecret = `dev-${Date.now()}-${Math.random().toString(36)}`;
+            console.warn('[SECURITY] JWT_SECRET not set. Using random secret - tokens will not persist across restarts.');
+            super({
+                jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+                ignoreExpiration: false,
+                secretOrKey: devSecret,
+            });
+            return;
+        }
+
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,

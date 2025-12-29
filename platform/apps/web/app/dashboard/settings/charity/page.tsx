@@ -400,11 +400,10 @@ export default function CharitySettingsPage() {
               <TabsContent value="existing" className="space-y-4 mt-4">
                 <div className="grid gap-3">
                   {/* Always show Sybil's Kids as the recommended first option */}
-                  <motion.div
-                    whileHover={prefersReducedMotion ? {} : { scale: 1.01 }}
-                    whileTap={prefersReducedMotion ? {} : { scale: 0.99 }}
+                  <button
+                    type="button"
                     onClick={() => setSelectedCharityId(SYBILS_KIDS.id)}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all text-left w-full ${
                       selectedCharityId === SYBILS_KIDS.id
                         ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30 shadow-md"
                         : "border-rose-200 dark:border-rose-800 hover:border-rose-400 dark:hover:border-rose-600 bg-gradient-to-r from-rose-50/50 to-amber-50/50 dark:from-rose-950/20 dark:to-amber-950/20"
@@ -429,16 +428,15 @@ export default function CharitySettingsPage() {
                         <CheckCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
                       )}
                     </div>
-                  </motion.div>
+                  </button>
 
                   {/* Show other existing charities from the database */}
                   {charities.map((charity) => (
-                    <motion.div
+                    <button
                       key={charity.id}
-                      whileHover={prefersReducedMotion ? {} : { scale: 1.01 }}
-                      whileTap={prefersReducedMotion ? {} : { scale: 0.99 }}
+                      type="button"
                       onClick={() => setSelectedCharityId(charity.id)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all text-left w-full ${
                         selectedCharityId === charity.id
                           ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30 shadow-md"
                           : "border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700"
@@ -463,7 +461,7 @@ export default function CharitySettingsPage() {
                           <CheckCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
                         )}
                       </div>
-                    </motion.div>
+                    </button>
                   ))}
                 </div>
               </TabsContent>
