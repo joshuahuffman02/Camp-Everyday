@@ -9,8 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { apiClient } from "@/lib/api-client";
-import { Plus, Pencil, Trash2, Loader2, Percent, DollarSign, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Percent, DollarSign, Tag, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 
 type Promotion = {
@@ -148,7 +150,6 @@ export default function PromotionsSettingsPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this promotion?")) return;
         try {
             await apiClient.deletePromotion(id);
             if (campgroundId) loadPromotions(campgroundId);
@@ -198,8 +199,31 @@ export default function PromotionsSettingsPage() {
                 </div>
 
                 {loading ? (
-                    <div className="flex justify-center py-12">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <div className="space-y-4">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <Card key={i}>
+                                <CardContent className="p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <Skeleton className="h-12 w-12 rounded-lg" />
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <Skeleton className="h-5 w-24" />
+                                                    <Skeleton className="h-5 w-16 rounded-full" />
+                                                </div>
+                                                <Skeleton className="h-4 w-32" />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <Skeleton className="h-4 w-20" />
+                                            <Skeleton className="h-6 w-10" />
+                                            <Skeleton className="h-8 w-8" />
+                                            <Skeleton className="h-8 w-8" />
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
                     </div>
                 ) : promotions.length === 0 ? (
                     <Card>
@@ -270,9 +294,18 @@ export default function PromotionsSettingsPage() {
                                                 <Button variant="ghost" size="icon" onClick={() => openEditModal(promo)}>
                                                     <Pencil className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => handleDelete(promo.id)}>
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                </Button>
+                                                <ConfirmDialog
+                                                    trigger={
+                                                        <Button variant="ghost" size="icon">
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
+                                                    }
+                                                    title="Delete promotion?"
+                                                    description={`This will permanently remove the "${promo.code}" promotion code.`}
+                                                    confirmLabel="Delete"
+                                                    variant="destructive"
+                                                    onConfirm={() => handleDelete(promo.id)}
+                                                />
                                             </div>
                                         </div>
                                     </div>

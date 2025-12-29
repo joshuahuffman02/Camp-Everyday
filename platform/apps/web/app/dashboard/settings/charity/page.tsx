@@ -170,6 +170,9 @@ export default function CharitySettingsPage() {
           };
         } else if (charityIdToUse) {
           payload.charityId = charityIdToUse;
+        } else {
+          // No charity selected - throw a helpful error
+          throw new Error("Please select a charity first");
         }
       } else {
         payload.newCharity = {
