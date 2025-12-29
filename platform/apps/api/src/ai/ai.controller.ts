@@ -10,6 +10,7 @@ import { AiPartnerService } from './ai-partner.service';
 import { AiSentimentService } from './ai-sentiment.service';
 import { AiMorningBriefingService } from './ai-morning-briefing.service';
 import { AiReportQueryService } from './ai-report-query.service';
+import { AiCampaignService } from './ai-campaign.service';
 import type { Request } from 'express';
 
 interface UpdateAiSettingsDto {
@@ -69,6 +70,7 @@ export class AiController {
     private readonly sentimentService: AiSentimentService,
     private readonly morningBriefingService: AiMorningBriefingService,
     private readonly reportQueryService: AiReportQueryService,
+    private readonly campaignService: AiCampaignService,
   ) { }
 
   // ==================== PUBLIC ENDPOINTS ====================
@@ -580,5 +582,206 @@ export class AiController {
       suggestions: this.reportQueryService.getSuggestedQueries(category),
       categories: this.reportQueryService.getReportCategories(),
     };
+  }
+
+  // ==================== AI CAMPAIGN CONTENT ====================
+
+  /**
+   * Generate email subject line options
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Post('campgrounds/:campgroundId/campaigns/subject-lines')
+  async generateSubjectLines(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: {
+      campaignType: string;
+      targetAudience?: string;
+      promotion?: string;
+      seasonOrEvent?: string;
+      previousSubject?: string;
+      count?: number;
+    },
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true, name: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.campaignService.generateSubjectLines(
+      campgroundId,
+      {
+        campaignType: body.campaignType,
+        targetAudience: body.targetAudience,
+        promotion: body.promotion,
+        seasonOrEvent: body.seasonOrEvent,
+        campgroundName: campground.name,
+        previousSubject: body.previousSubject,
+      },
+      body.count
+    );
+  }
+
+  /**
+   * Generate email body content
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Post('campgrounds/:campgroundId/campaigns/content')
+  async generateCampaignContent(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: {
+      campaignType: string;
+      subject: string;
+      targetAudience?: string;
+      promotion?: string;
+      seasonOrEvent?: string;
+    },
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true, name: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.campaignService.generateContent(campgroundId, {
+      campaignType: body.campaignType,
+      subject: body.subject,
+      targetAudience: body.targetAudience,
+      promotion: body.promotion,
+      seasonOrEvent: body.seasonOrEvent,
+      campgroundName: campground.name,
+    });
+  }
+
+  /**
+   * Get optimal send time suggestions
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Post('campgrounds/:campgroundId/campaigns/send-times')
+  async suggestSendTimes(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: {
+      campaignType: string;
+      targetAudience?: string;
+    },
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.campaignService.suggestSendTimes(
+      campgroundId,
+      body.campaignType,
+      body.targetAudience
+    );
+  }
+
+  /**
+   * Improve existing email content
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Post('campgrounds/:campgroundId/campaigns/improve')
+  async improveContent(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: {
+      subject?: string;
+      body?: string;
+      goal: 'clarity' | 'urgency' | 'warmth' | 'brevity' | 'persuasion';
+    },
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.campaignService.improveContent(
+      campgroundId,
+      { subject: body.subject, body: body.body },
+      body.goal
+    );
+  }
+
+  /**
+   * Generate A/B test variation
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.owner, UserRole.manager)
+  @Post('campgrounds/:campgroundId/campaigns/ab-test')
+  async generateAbTest(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: {
+      subject: string;
+      body?: string;
+      testElement: 'subject' | 'cta' | 'opening';
+    },
+    @Req() req: Request,
+  ) {
+    const org = (req as any).organizationId || null;
+
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { organizationId: true },
+    });
+
+    if (!campground) {
+      throw new ForbiddenException('Campground not found');
+    }
+
+    if (org && campground.organizationId !== org) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.campaignService.generateAbTest(
+      campgroundId,
+      { subject: body.subject, body: body.body },
+      body.testElement
+    );
   }
 }

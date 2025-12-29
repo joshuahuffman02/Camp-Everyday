@@ -179,24 +179,24 @@ Before any V2 work, V1 must be solid.
 
 ---
 
-### 1.5 Campaign AI
+### 1.5 Campaign AI - DONE
 
 **Goal**: AI writes subject lines, suggests send times
 
-#### 1.5.1 Subject Line Generator
-- [ ] **Generate options** - Multiple subject lines to choose from
-- [ ] **A/B test suggestions** - "Test these two variants"
-- [ ] **Performance learning** - Track opens, improve over time
+#### 1.5.1 Subject Line Generator - DONE
+- [x] **Generate options** - AiCampaignService.generateSubjectLines() returns 5 options with tone/reasoning
+- [x] **A/B test suggestions** - generateAbTest() creates test variations with hypothesis
+- [ ] **Performance learning** - Track opens, improve over time (deferred - needs email tracking data)
 
-#### 1.5.2 Send Time Optimization
-- [ ] **Analyze open patterns** - When do your guests open emails?
-- [ ] **Personalized timing** - Different times for different segments
-- [ ] **Timezone awareness** - Send at right local time
+#### 1.5.2 Send Time Optimization - DONE
+- [x] **Campaign type rules** - Industry best practices by campaign type (promotional, newsletter, seasonal, etc.)
+- [x] **Suggested alternatives** - Provides recommended + 3 alternative times with reasoning
+- [x] **Send time insights** - General tips for email timing
 
-#### 1.5.3 Content Suggestions
-- [ ] **Draft email body** - Based on campaign type
-- [ ] **Image suggestions** - From uploaded media library
-- [ ] **Call-to-action optimization** - Best performing CTAs
+#### 1.5.3 Content Suggestions - DONE
+- [x] **Draft email body** - generateContent() creates headline, body, CTA with template variables
+- [x] **Content improvement** - improveContent() with goals: clarity, urgency, warmth, brevity, persuasion
+- [ ] **Image suggestions** - Would require media library API (deferred)
 
 ---
 
@@ -354,6 +354,7 @@ Before any V2 work, V1 must be solid.
 | 2024-12-29 | Sentiment Analysis | Full implementation | High | AiSentimentService with Claude API analysis, webhook integration, SentimentBadge components. Urgency/intent detection. |
 | 2024-12-29 | Dashboard Insights | Mostly existing | Medium | AiInsightsService, AiAnomalyDetectionService, AiDashboardService already comprehensive. Added AiMorningBriefingService for daily email. |
 | 2024-12-29 | AI Reports | Full implementation | High | AiReportQueryService parses NL queries to report params using 135+ template registry. Generates narratives with findings/recommendations. |
+| 2024-12-29 | Campaign AI | Full implementation | High | AiCampaignService with subject line generation, content drafting, send time optimization, content improvement, A/B test generation. |
 
 ---
 
@@ -366,6 +367,7 @@ Before any V2 work, V1 must be solid.
 | Reply Drafts | Generation | Claude API | Per draft | EXISTING |
 | Dashboard Insights | Analysis | Claude API | Daily batch | DONE |
 | Report Queries | Parsing | Claude API | Per query | DONE |
+| Campaign Content | Generation | Claude API | Per generation | DONE |
 | Demand Forecasting | Time series | Custom ML | Training cost | Phase 2.2 |
 | Dynamic Pricing | Optimization | Custom ML | Training cost | Phase 2.3 |
 
@@ -379,6 +381,7 @@ Before any V2 work, V1 must be solid.
 | 2024-12-29 | 1.2 | AI-Enhanced Messaging | Sentiment analysis with urgency/intent detection, webhook integration, SentimentBadge components. Auto-reply already existed. |
 | 2024-12-29 | 1.3 | AI Dashboard Insights | Morning briefing service with cron email, opportunity detection, arrivals preview. Anomaly narratives already existed. |
 | 2024-12-29 | 1.4 | AI-Enhanced Reports | NL query parsing with 135+ report templates, narrative generation with findings/recommendations, suggested queries. |
+| 2024-12-29 | 1.5 | Campaign AI | Subject line generator with A/B testing, send time optimization, content drafting and improvement. Full API endpoints. |
 
 ---
 

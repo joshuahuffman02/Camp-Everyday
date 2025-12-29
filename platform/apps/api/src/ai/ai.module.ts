@@ -24,6 +24,7 @@ import { AiNaturalSearchService } from './ai-natural-search.service';
 import { AiSentimentService } from './ai-sentiment.service';
 import { AiMorningBriefingService } from './ai-morning-briefing.service';
 import { AiReportQueryService } from './ai-report-query.service';
+import { AiCampaignService } from './ai-campaign.service';
 import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
 import { AiAutopilotController } from './ai-autopilot.controller';
@@ -85,6 +86,7 @@ import { AnomaliesModule } from '../anomalies/anomalies.module';
     AiSentimentService,
     AiMorningBriefingService,
     AiReportQueryService,
+    AiCampaignService,
     AiService,
   ],
   exports: [
@@ -114,6 +116,7 @@ import { AnomaliesModule } from '../anomalies/anomalies.module';
     AiSentimentService,
     AiMorningBriefingService,
     AiReportQueryService,
+    AiCampaignService,
     AiService,
   ],
 })
