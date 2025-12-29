@@ -26,6 +26,9 @@ import { randomId } from "@/lib/random-id";
 import { SyncStatus } from "../../components/sync/SyncStatus";
 import { SyncDetailsDrawer } from "../../components/sync/SyncDetailsDrawer";
 import { useSyncStatus } from "@/contexts/SyncStatusContext";
+import { VoiceCommandIndicator } from "../../components/pos/VoiceCommandIndicator";
+import { useVoiceCommands } from "../../hooks/use-voice-commands";
+import { haptic } from "../../hooks/use-haptic";
 
 const posApi = {
     getProducts: (campgroundId: string, locationId?: string) =>
@@ -299,6 +302,30 @@ export default function POSPage() {
     const searchInputRef = useRef<HTMLInputElement>(null);
     const { status: syncStatus } = useSyncStatus();
 
+    // Voice commands for POS
+    const voiceCommands = useVoiceCommands({
+        commands: [
+            {
+                phrases: ["checkout", "pay now", "process payment"],
+                action: () => {
+                    if (cart.length > 0) {
+                        haptic.success();
+                        setIsCheckoutOpen(true);
+                    }
+                },
+                description: "Checkout",
+            },
+            {
+                phrases: ["clear cart", "empty cart", "start over"],
+                action: () => {
+                    haptic.medium();
+                    clearCart();
+                },
+                description: "Clear Cart",
+            },
+        ],
+    });
+
     const queueKey = "campreserv:pos:orderQueue";
 
     const loadQueue = () => loadQueueGeneric<any>(queueKey);
@@ -488,6 +515,7 @@ export default function POSPage() {
     };
 
     const addToCart = (product: Product) => {
+        haptic.light();
         setCart(prev => {
             const existing = prev.find(item => item.id === product.id);
             if (existing) {
@@ -526,6 +554,9 @@ export default function POSPage() {
     const clearCart = () => setCart([]);
 
     const handleCheckoutSuccess = (order: any) => {
+        // Haptic success feedback
+        haptic.success();
+
         // Calculate total for celebration
         const orderTotal = order?.totalCents ?? cart.reduce((sum, item) => sum + item.priceCents * item.qty, 0);
         setSuccessOrderTotal(orderTotal);
@@ -647,6 +678,13 @@ export default function POSPage() {
                             >
                                 Refund / Exchange
                             </Button>
+                            {/* Voice Command Indicator */}
+                            <VoiceCommandIndicator
+                                isListening={voiceCommands.isListening}
+                                isSupported={voiceCommands.isSupported}
+                                lastCommand={voiceCommands.lastCommand}
+                                onToggle={voiceCommands.toggleListening}
+                            />
                         </div>
                     </div>
 

@@ -37,6 +37,8 @@ import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { apiClient } from "@/lib/api-client";
 import { HelpTooltip, HelpTooltipContent, HelpTooltipSection } from "@/components/help/HelpTooltip";
 import { PageOnboardingHint } from "@/components/help/OnboardingHint";
+import { useTour, DASHBOARD_TOUR } from "@/hooks/use-onboarding-tour";
+import { TourOverlay } from "@/components/onboarding/TourOverlay";
 import {
   SPRING_CONFIG,
   SPRING_FAST,
@@ -299,6 +301,14 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const prefersReducedMotion = useReducedMotion();
 
+  // Onboarding tour for new users
+  const tour = useTour({
+    tour: DASHBOARD_TOUR,
+    onComplete: () => {
+      console.log("Dashboard tour completed!");
+    },
+  });
+
   const { data: campgrounds = [] } = useQuery({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds(),
@@ -318,6 +328,16 @@ export default function Dashboard() {
     }
     setHasMounted(true);
   }, []);
+
+  // Auto-start tour for new users after a short delay
+  useEffect(() => {
+    if (hasMounted && !tour.hasCompleted && selectedId) {
+      const timer = setTimeout(() => {
+        tour.start();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasMounted, tour.hasCompleted, selectedId]);
 
   // Get time-of-day greeting only after mount to prevent hydration mismatch
   // (server time may differ from client time)
@@ -524,11 +544,25 @@ export default function Dashboard() {
 
   return (
     <DashboardShell>
+      {/* Onboarding Tour Overlay */}
+      <TourOverlay
+        isActive={tour.isActive}
+        currentStep={tour.currentStep}
+        currentStepIndex={tour.currentStepIndex}
+        totalSteps={tour.totalSteps}
+        isFirstStep={tour.isFirstStep}
+        isLastStep={tour.isLastStep}
+        onNext={tour.next}
+        onPrev={tour.prev}
+        onSkip={tour.skip}
+      />
+
       <motion.div
         className="space-y-6"
         initial="initial"
         animate="animate"
         variants={staggerContainer}
+        data-tour="dashboard-header"
       >
         {!selectedCampground ? (
           <motion.div
@@ -694,6 +728,7 @@ export default function Dashboard() {
           )}
           {...motionProps}
           transition={{ ...SPRING_CONFIG, delay: 0.1 }}
+          data-tour="quick-stats"
         >
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <Calendar className="h-4 w-4" />

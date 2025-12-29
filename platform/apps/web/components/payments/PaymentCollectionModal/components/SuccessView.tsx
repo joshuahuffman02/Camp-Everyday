@@ -27,6 +27,9 @@ import {
 import { usePaymentContext } from "../context/PaymentContext";
 import { PaymentMethodType, PAYMENT_METHOD_INFO, TenderEntry, PaymentResult } from "../context/types";
 import { cn } from "../../../../lib/utils";
+import { useAchievement } from "../../../../hooks/use-achievement";
+import { AchievementCelebration } from "../../../ui/achievement-celebration";
+import { haptic } from "../../../../hooks/use-haptic";
 
 const SPRING_CONFIG = { type: "spring" as const, stiffness: 200, damping: 15 };
 // import { apiClient } from "../../../../lib/api-client"; // TODO: Enable when email API is implemented
@@ -56,6 +59,7 @@ export function SuccessView({
 
   const [emailSent, setEmailSent] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
+  const achievement = useAchievement();
 
   // Build the payment result for callbacks
   const buildPaymentResult = (): PaymentResult => ({
@@ -72,6 +76,30 @@ export function SuccessView({
 
   const completedEntries = tenderEntries.filter((e) => e.status === "completed");
   const totalPaid = completedEntries.reduce((sum, e) => sum + e.amountCents, 0);
+
+  // Trigger achievement celebration on mount
+  useEffect(() => {
+    // Haptic feedback for successful payment
+    haptic.success();
+
+    // Check for first payment achievement
+    const firstPaymentKey = "first_payment_collected";
+    if (!achievement.isUnlocked(firstPaymentKey)) {
+      achievement.unlockOnce(firstPaymentKey, {
+        type: "first_payment",
+        title: "First Payment Collected!",
+        subtitle: "You're on your way to a great day",
+      });
+    }
+    // Check for large payment ($500+)
+    else if (totalPaid >= 50000 && !achievement.isUnlocked("large_payment")) {
+      achievement.unlockOnce("large_payment", {
+        type: "revenue_goal",
+        title: "Big Payment!",
+        subtitle: `You just collected $${(totalPaid / 100).toFixed(0)}`,
+      });
+    }
+  }, []);
 
   // Auto-send email receipt when component mounts (if guest email available)
   // Note: Email functionality will be enabled once the API endpoint is implemented
@@ -129,6 +157,18 @@ export function SuccessView({
 
   return (
     <div className="flex flex-col items-center py-6 space-y-6">
+      {/* Achievement Celebration */}
+      {achievement.isShowing && achievement.currentAchievement && (
+        <AchievementCelebration
+          show={achievement.isShowing}
+          type={achievement.currentAchievement.type}
+          title={achievement.currentAchievement.title}
+          subtitle={achievement.currentAchievement.subtitle}
+          onComplete={achievement.dismiss}
+          variant="toast"
+        />
+      )}
+
       {/* Success Icon with Animation */}
       <motion.div
         className="relative"

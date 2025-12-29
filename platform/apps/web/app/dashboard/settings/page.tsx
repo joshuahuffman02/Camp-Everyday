@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import {
   DollarSign,
@@ -12,7 +14,14 @@ import {
   Search,
   ChevronRight,
   Star,
+  Palette,
+  Moon,
+  Sun,
+  Monitor,
+  Check,
 } from "lucide-react";
+import { useThemePreferences, ACCENT_COLORS, type AccentColor, type ColorMode } from "@/hooks/use-theme-preferences";
+import { cn } from "@/lib/utils";
 
 type SettingLink = {
   name: string;
@@ -245,9 +254,26 @@ const iconColorMap: Record<string, string> = {
   violet: "bg-violet-100 text-violet-700",
 };
 
+const colorModeOptions: { value: ColorMode; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+];
+
+const accentColorOptions: { value: AccentColor; label: string; color: string }[] = [
+  { value: "emerald", label: "Emerald", color: "bg-emerald-500" },
+  { value: "blue", label: "Blue", color: "bg-blue-500" },
+  { value: "violet", label: "Violet", color: "bg-violet-500" },
+  { value: "rose", label: "Rose", color: "bg-rose-500" },
+  { value: "amber", label: "Amber", color: "bg-amber-500" },
+  { value: "cyan", label: "Cyan", color: "bg-cyan-500" },
+  { value: "indigo", label: "Indigo", color: "bg-indigo-500" },
+];
+
 export default function SettingsLandingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
+  const theme = useThemePreferences();
 
   // Load favorites from localStorage
   useEffect(() => {
@@ -292,11 +318,111 @@ export default function SettingsLandingPage() {
     <div className="max-w-[1400px] mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
-          <p className="text-slate-500 mt-2">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Settings</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-2">
             Manage your campground configuration, pricing, communications, and security
           </p>
         </div>
+
+        {/* Theme Preferences Card */}
+        <Card className="mb-8 border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+                <Palette className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Appearance</CardTitle>
+                <CardDescription>Customize your theme and visual preferences</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Color Mode */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Color Mode</Label>
+              <div className="flex gap-2">
+                {colorModeOptions.map((option) => {
+                  const Icon = option.icon;
+                  const isSelected = theme.colorMode === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => theme.setColorMode(option.value)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
+                        isSelected
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {option.label}
+                      {isSelected && <Check className="h-4 w-4 ml-1" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Accent Color */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Accent Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {accentColorOptions.map((option) => {
+                  const isSelected = theme.accentColor === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => theme.setAccentColor(option.value)}
+                      title={option.label}
+                      className={cn(
+                        "relative h-10 w-10 rounded-full transition-all",
+                        option.color,
+                        isSelected
+                          ? "ring-2 ring-offset-2 ring-slate-900 dark:ring-white scale-110"
+                          : "hover:scale-105"
+                      )}
+                    >
+                      {isSelected && (
+                        <Check className="absolute inset-0 m-auto h-5 w-5 text-white" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Accessibility Options */}
+            <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+              <Label className="text-sm font-medium">Accessibility</Label>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Reduced Motion</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Minimize animations for motion sensitivity
+                  </p>
+                </div>
+                <Switch
+                  checked={theme.reducedMotion}
+                  onCheckedChange={theme.toggleReducedMotion}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">High Contrast</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Increase contrast for better visibility
+                  </p>
+                </div>
+                <Switch
+                  checked={theme.highContrast}
+                  onCheckedChange={theme.toggleHighContrast}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Search Bar */}
         <div className="mb-8">
