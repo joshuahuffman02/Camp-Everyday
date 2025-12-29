@@ -738,13 +738,7 @@ export default function CharitySettingsPage() {
         <div className="flex-1" />
         <Button
           onClick={() => saveMutation.mutate()}
-          disabled={
-            saveMutation.isPending ||
-            // For existing charity mode: need either a charity selected OR existing settings
-            (charityMode === "existing" && !selectedCharityId && !currentSettings) ||
-            // For custom charity mode: need a name entered
-            (charityMode === "custom" && !customCharity.name)
-          }
+          disabled={saveMutation.isPending}
           className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white shadow-lg shadow-rose-500/25"
         >
           {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
