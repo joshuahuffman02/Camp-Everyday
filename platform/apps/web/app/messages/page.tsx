@@ -185,14 +185,14 @@ export default function MessagesPage() {
         enabled: !!campground?.id
     });
 
-    // Get guests for compose search - always fetch when campground exists, filter by search if provided
+    // Get guests for compose search - only when user starts typing
     const { data: searchedGuests = [] } = useQuery({
         queryKey: ["guests-search", campground?.id, composeGuestSearch],
         queryFn: () => apiClient.getGuests(campground!.id, {
-            search: composeGuestSearch.length >= 2 ? composeGuestSearch : undefined,
+            search: composeGuestSearch,
             limit: 20
         }),
-        enabled: !!campground?.id,
+        enabled: !!campground?.id && composeGuestSearch.length >= 2,
         staleTime: 30000
     });
 

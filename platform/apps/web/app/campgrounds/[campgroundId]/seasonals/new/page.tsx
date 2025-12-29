@@ -131,16 +131,16 @@ export default function NewSeasonalGuestPage() {
   const [newGuestEmail, setNewGuestEmail] = useState("");
   const [newGuestPhone, setNewGuestPhone] = useState("");
 
-  // Fetch guests with backend search - always load some guests by default
+  // Fetch guests with backend search - only when user starts typing
   const { data: guests = [], isLoading: loadingGuests, refetch: refetchGuests } = useQuery({
     queryKey: ["guests-search", campgroundId, guestSearch],
     queryFn: async () => {
       return apiClient.getGuests(campgroundId, {
-        search: guestSearch.length >= 2 ? guestSearch : undefined,
+        search: guestSearch,
         limit: 50
       });
     },
-    enabled: !!campgroundId, // Always fetch when we have a campgroundId
+    enabled: !!campgroundId && guestSearch.length >= 2,
   });
 
   // Create guest mutation
