@@ -10930,29 +10930,6 @@ export const apiClient = {
     });
     return parseResponse<unknown>(res);
   },
-
-  async createGuest(dto: {
-    primaryFirstName: string;
-    primaryLastName: string;
-    email?: string;
-    phone?: string;
-    campgroundId?: string;
-  }) {
-    const params = new URLSearchParams();
-    if (dto.campgroundId) params.set("campgroundId", dto.campgroundId);
-    const query = params.toString() ? `?${params.toString()}` : "";
-    const res = await fetch(`${API_BASE}/guests${query}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...scopedHeaders() },
-      body: JSON.stringify({
-        primaryFirstName: dto.primaryFirstName,
-        primaryLastName: dto.primaryLastName,
-        email: dto.email,
-        phone: dto.phone
-      })
-    });
-    return parseResponse<{ id: string; primaryFirstName: string; primaryLastName: string; email?: string; phone?: string }>(res);
-  },
 };
 
 export type PublicCampgroundList = z.infer<typeof PublicCampgroundListSchema>;

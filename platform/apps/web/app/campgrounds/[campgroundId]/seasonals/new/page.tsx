@@ -147,11 +147,11 @@ export default function NewSeasonalGuestPage() {
   const createGuestMutation = useMutation({
     mutationFn: async () => {
       return apiClient.createGuest({
+        campgroundId,
         primaryFirstName: newGuestFirstName,
         primaryLastName: newGuestLastName,
-        email: newGuestEmail || undefined,
-        phone: newGuestPhone || undefined,
-        campgroundId,
+        email: newGuestEmail || null,
+        phone: newGuestPhone || null,
       });
     },
     onSuccess: (newGuest) => {
