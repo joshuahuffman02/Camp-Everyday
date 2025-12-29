@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
 
 type FxRate = {
   base: string;
@@ -37,7 +38,10 @@ type ConversionResult = {
 };
 
 @Injectable()
-export class CurrencyTaxService {
+export class CurrencyTaxService implements OnModuleInit {
+  private readonly logger = new Logger(CurrencyTaxService.name);
+  private lastRefreshError: string | null = null;
+
   private config: CurrencyTaxConfig = {
     baseCurrency: "USD",
     reportingCurrency: "USD",
@@ -80,25 +84,108 @@ export class CurrencyTaxService {
   }
 
   /**
-   * Fetch latest FX rates from configured provider
-   * TODO: Implement provider integrations:
-   * - OpenExchangeRates: requires OPEN_EXCHANGE_RATES_API_KEY
-   * - XE.com: requires XE_API_KEY and XE_ACCOUNT_ID
-   * - ECB (European Central Bank): free but EUR-based only
-   *
-   * Example implementation:
-   * async refreshRates(): Promise<void> {
-   *   const provider = process.env.FX_PROVIDER;
-   *   if (provider === 'openexchangerates') {
-   *     const apiKey = process.env.OPEN_EXCHANGE_RATES_API_KEY;
-   *     const response = await fetch(`https://openexchangerates.org/api/latest.json?app_id=${apiKey}`);
-   *     const data = await response.json();
-   *     // Update this.config.fxRates with data.rates
-   *   }
-   * }
+   * Initialize FX rates on module startup
    */
+  async onModuleInit(): Promise<void> {
+    const apiKey = process.env.OPEN_EXCHANGE_RATES_API_KEY;
+    if (apiKey) {
+      this.logger.log("OpenExchangeRates API key found, fetching initial rates...");
+      await this.refreshRates();
+    } else {
+      this.logger.warn("No OPEN_EXCHANGE_RATES_API_KEY set - using manual FX rates. Set this env var for live rates.");
+    }
+  }
+
+  /**
+   * Fetch latest FX rates from OpenExchangeRates API
+   * Runs hourly via cron job when API key is configured.
+   *
+   * Free tier: 1000 requests/month (hourly = ~720/month, well under limit)
+   * Docs: https://docs.openexchangerates.org/reference/latest-json
+   */
+  @Cron(CronExpression.EVERY_HOUR)
   async refreshRates(): Promise<void> {
-    throw new BadRequestException('FX rate refresh not implemented. Configure FX_PROVIDER and implement provider-specific logic.');
+    const apiKey = process.env.OPEN_EXCHANGE_RATES_API_KEY;
+
+    if (!apiKey) {
+      // Graceful degradation - use manual rates if no API key
+      return;
+    }
+
+    const baseCurrency = this.config.baseCurrency;
+    const currencies = ["USD", "CAD", "EUR", "GBP", "AUD", "MXN", "NZD", "JPY", "CHF"];
+    const symbols = currencies.join(",");
+
+    try {
+      const url = `https://openexchangerates.org/api/latest.json?app_id=${apiKey}&base=${baseCurrency}&symbols=${symbols}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenExchangeRates API error: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.rates) {
+        throw new Error("Invalid response from OpenExchangeRates - no rates object");
+      }
+
+      // Convert API response to our FxRate format
+      const asOf = data.timestamp
+        ? new Date(data.timestamp * 1000).toISOString()
+        : new Date().toISOString();
+
+      const newRates: FxRate[] = [];
+
+      // Create rates for each currency pair
+      for (const [quote, rate] of Object.entries(data.rates)) {
+        if (quote !== baseCurrency && typeof rate === "number") {
+          newRates.push({
+            base: baseCurrency,
+            quote,
+            rate,
+            asOf,
+          });
+        }
+      }
+
+      // Also add cross-rates for major pairs (CAD/EUR, etc.)
+      const cad = data.rates.CAD as number;
+      const eur = data.rates.EUR as number;
+      const gbp = data.rates.GBP as number;
+
+      if (cad && eur) {
+        newRates.push({ base: "CAD", quote: "EUR", rate: eur / cad, asOf });
+        newRates.push({ base: "EUR", quote: "CAD", rate: cad / eur, asOf });
+      }
+      if (cad && gbp) {
+        newRates.push({ base: "CAD", quote: "GBP", rate: gbp / cad, asOf });
+      }
+
+      // Update config with new rates
+      this.config.fxRates = newRates;
+      this.config.updatedAt = new Date().toISOString();
+      this.lastRefreshError = null;
+
+      this.logger.log(`FX rates refreshed: ${newRates.length} rates updated from OpenExchangeRates`);
+    } catch (error: any) {
+      this.lastRefreshError = error.message || "Unknown error";
+      this.logger.error(`Failed to refresh FX rates: ${this.lastRefreshError}`);
+      // Don't throw - keep using stale rates rather than breaking the service
+    }
+  }
+
+  /**
+   * Get FX refresh status for health checks
+   */
+  getRefreshStatus(): { lastUpdated: string; error: string | null; provider: string; rateCount: number } {
+    return {
+      lastUpdated: this.config.updatedAt,
+      error: this.lastRefreshError,
+      provider: process.env.OPEN_EXCHANGE_RATES_API_KEY ? "openexchangerates" : "manual",
+      rateCount: this.config.fxRates.length,
+    };
   }
 
   convert(amount: number, from: string, to: string): ConversionResult {

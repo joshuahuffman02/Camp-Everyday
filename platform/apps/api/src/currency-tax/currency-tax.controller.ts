@@ -43,5 +43,16 @@ export class CurrencyTaxController {
   summary() {
     return this.currencyTax.summary();
   }
+
+  @Get("status")
+  getRefreshStatus() {
+    return this.currencyTax.getRefreshStatus();
+  }
+
+  @Post("refresh")
+  async triggerRefresh() {
+    await this.currencyTax.refreshRates();
+    return this.currencyTax.getRefreshStatus();
+  }
 }
 
