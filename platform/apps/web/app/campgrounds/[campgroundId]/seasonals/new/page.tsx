@@ -202,7 +202,7 @@ export default function NewSeasonalGuestPage() {
   }, [rateCards, selectedRateCardId]);
 
   // Fetch pricing preview
-  const { data: pricingPreview, isLoading: loadingPricing } = useQuery<PricingPreview>({
+  const { data: pricingPreview, isLoading: loadingPricing } = useQuery<PricingPreview | null>({
     queryKey: [
       "seasonal-pricing-preview",
       campgroundId,
@@ -212,7 +212,7 @@ export default function NewSeasonalGuestPage() {
       preferredPaymentMethod,
       billingFrequency,
     ],
-    queryFn: async () => {
+    queryFn: async (): Promise<PricingPreview | null> => {
       if (!selectedRateCardId) return null;
       try {
         const data = await apiClient.previewSeasonalPricing({
