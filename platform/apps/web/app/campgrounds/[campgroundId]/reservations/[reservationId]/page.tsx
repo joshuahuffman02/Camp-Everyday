@@ -434,10 +434,13 @@ export default function ReservationDetailPage() {
   const comms = commsQuery.data?.items || [];
   const signatureRequests = Array.isArray(signaturesQuery.data) ? signaturesQuery.data : [];
 
-  const total = (reservation.totalAmount ?? 0) / 100;
-  const paid = (reservation.paidAmount ?? 0) / 100;
-  const balance = Math.max(0, total - paid);
-  const balanceCents = balance * 100;
+  // Calculate in cents first to avoid floating-point precision issues
+  const totalCents = Math.round(Number(reservation.totalAmount) || 0);
+  const paidCents = Math.round(Number(reservation.paidAmount) || 0);
+  const balanceCents = Math.max(0, totalCents - paidCents);
+  const total = totalCents / 100;
+  const paid = paidCents / 100;
+  const balance = balanceCents / 100;
   const nights = quote?.nights ?? Math.ceil(
     (new Date(reservation.departureDate).getTime() - new Date(reservation.arrivalDate).getTime()) / (1000 * 60 * 60 * 24)
   );
