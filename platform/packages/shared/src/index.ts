@@ -373,9 +373,23 @@ export const ReservationSchema = z.object({
       id: z.string(),
       name: z.string().optional().nullable(),
       siteNumber: z.string().optional().nullable(),
-      siteType: z.string().optional().nullable()
+      siteType: z.string().optional().nullable(),
+      siteClass: z.object({
+        id: z.string(),
+        name: z.string()
+      }).optional().nullable()
     })
-    .optional()
+    .optional(),
+  payments: z.array(z.object({
+    id: z.string(),
+    campgroundId: z.string(),
+    reservationId: z.string(),
+    amountCents: z.number().int(),
+    method: z.string(),
+    direction: z.enum(["charge", "refund"]),
+    note: z.string().nullish(),
+    createdAt: z.string()
+  })).optional()
 });
 export type Reservation = z.infer<typeof ReservationSchema>;
 

@@ -7,26 +7,14 @@ interface ReservationTimelineProps {
     reservation: Reservation;
 }
 
-interface PaymentRecord {
-    createdAt?: string | Date;
-    date?: string | Date;
-    amountCents?: number;
-    direction?: "payment" | "refund";
-}
-
-interface ReservationWithPayments extends Reservation {
-    payments?: PaymentRecord[];
-}
-
 export function ReservationTimeline({ reservation }: ReservationTimelineProps) {
     const normalizeDate = (d?: string | Date | null) => (d ? new Date(d) : new Date());
     const paidCents = reservation.paidAmount ?? 0;
 
-    // Get payments from reservation if available
-    const reservationWithPayments = reservation as ReservationWithPayments;
-    const payments = reservationWithPayments.payments || [];
+    // Get payments from reservation (now included in Reservation type)
+    const payments = reservation.payments || [];
     const firstPaymentDate = payments.length > 0
-        ? normalizeDate(payments[0].createdAt || payments[0].date)
+        ? normalizeDate(payments[0].createdAt)
         : null;
 
     const events = [
@@ -42,16 +30,15 @@ export function ReservationTimeline({ reservation }: ReservationTimelineProps) {
     // Add payment events from actual payments array if available
     if (payments.length > 0) {
         payments.forEach((payment) => {
-            const paymentDate = payment.createdAt || payment.date;
-            const direction = payment.direction || "payment";
+            const isRefund = payment.direction === "refund";
             events.push({
-                title: direction === "refund"
+                title: isRefund
                     ? `Refund Issued ($${((payment.amountCents ?? 0) / 100).toFixed(2)})`
                     : `Payment Received ($${((payment.amountCents ?? 0) / 100).toFixed(2)})`,
-                date: normalizeDate(paymentDate),
+                date: normalizeDate(payment.createdAt),
                 icon: CreditCard,
-                color: direction === "refund" ? "text-red-600" : "text-emerald-600",
-                bg: direction === "refund" ? "bg-red-100" : "bg-emerald-100"
+                color: isRefund ? "text-red-600" : "text-emerald-600",
+                bg: isRefund ? "bg-red-100" : "bg-emerald-100"
             });
         });
     } else if (paidCents > 0) {
