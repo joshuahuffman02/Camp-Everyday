@@ -158,15 +158,18 @@ export default function CharitySettingsPage() {
       };
 
       if (charityMode === "existing") {
+        // Use selectedCharityId or fall back to currentSettings if not explicitly changed
+        const charityIdToUse = selectedCharityId || currentSettings?.charityId;
+
         // Check if it's the virtual Sybil's Kids selection
-        if (selectedCharityId === SYBILS_KIDS.id) {
+        if (charityIdToUse === SYBILS_KIDS.id) {
           payload.newCharity = {
             name: SYBILS_KIDS.name,
             description: SYBILS_KIDS.description,
             website: SYBILS_KIDS.website,
           };
-        } else {
-          payload.charityId = selectedCharityId;
+        } else if (charityIdToUse) {
+          payload.charityId = charityIdToUse;
         }
       } else {
         payload.newCharity = {
@@ -735,7 +738,13 @@ export default function CharitySettingsPage() {
         <div className="flex-1" />
         <Button
           onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending || (charityMode === "existing" && !selectedCharityId) || (charityMode === "custom" && !customCharity.name)}
+          disabled={
+            saveMutation.isPending ||
+            // For existing charity mode: need a charity selected OR already have settings saved
+            (charityMode === "existing" && !selectedCharityId && !currentSettings?.charityId) ||
+            // For custom charity mode: need a name entered
+            (charityMode === "custom" && !customCharity.name)
+          }
           className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white shadow-lg shadow-rose-500/25"
         >
           {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
