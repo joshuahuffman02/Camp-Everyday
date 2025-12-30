@@ -2040,6 +2040,7 @@ export class ReservationsService {
       totalCents?: number;
       receiptKind?: "payment" | "refund" | "pos";
       tenders?: { method: string; amountCents: number; note?: string }[];
+      recordedBy?: string; // User ID of staff who recorded the payment (for gamification)
     }
   ) {
     const tenderList =
@@ -2211,6 +2212,34 @@ export class ReservationsService {
     } catch (emailError) {
       // Log but don't fail the payment if email fails
       this.logger.error('Failed to send payment receipt email:', emailError instanceof Error ? emailError.stack : emailError);
+    }
+
+    // Gamification: Award XP for collecting payment (only if staff member is known)
+    if (options?.recordedBy) {
+      try {
+        const membership = await this.prisma.campgroundMembership.findFirst({
+          where: { userId: options.recordedBy, campgroundId: reservation.campgroundId }
+        });
+        if (membership) {
+          const isFullPayment = (updated.paidAmount ?? 0) >= updated.totalAmount;
+          await this.gamification.recordEvent({
+            campgroundId: reservation.campgroundId,
+            userId: options.recordedBy,
+            membershipId: membership.id,
+            category: GamificationEventCategory.payment_collection,
+            reason: isFullPayment
+              ? `Collected full balance ($${(totalTenderCents / 100).toFixed(2)})`
+              : `Collected payment ($${(totalTenderCents / 100).toFixed(2)})`,
+            sourceType: "reservation",
+            sourceId: reservation.id,
+            eventKey: `reservation:${id}:payment:${Date.now()}`,
+            // Award bonus XP for collecting full balance
+            xpOverride: isFullPayment ? 20 : undefined
+          });
+        }
+      } catch (gamificationError) {
+        this.logger.error('Failed to record gamification event:', gamificationError instanceof Error ? gamificationError.stack : gamificationError);
+      }
     }
 
     return updated;

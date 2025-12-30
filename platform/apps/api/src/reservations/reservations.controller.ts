@@ -203,7 +203,10 @@ export class ReservationsController {
   @Post("reservations/:id/payments")
   async pay(@Param("id") id: string, @Body() body: RecordPaymentDto, @Req() req: any) {
     await this.assertReservationAccess(id, req.user);
-    return this.reservations.recordPayment(id, body.amountCents, { tenders: body.tenders });
+    return this.reservations.recordPayment(id, body.amountCents, {
+      tenders: body.tenders,
+      recordedBy: req.user?.id // For gamification XP tracking
+    });
   }
 
   @Post("reservations/:id/refunds")

@@ -29,6 +29,7 @@ export class GamificationService {
     { category: "assist" as GamificationEventCategory, minXp: 5, maxXp: 20, defaultXp: 10 },
     { category: "manual" as GamificationEventCategory, minXp: 5, maxXp: 100, defaultXp: 25 },
     { category: "other" as GamificationEventCategory, minXp: 1, maxXp: 10, defaultXp: 5 },
+    { category: "payment_collection" as GamificationEventCategory, minXp: 10, maxXp: 30, defaultXp: 15 },
   ];
 
   async getSettings(campgroundId: string) {

@@ -968,6 +968,7 @@ enum GamificationEventCategory {
   assist
   manual
   other
+  payment_collection // Staff collected a balance from a reservation
 }
 
 model Organization {
