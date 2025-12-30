@@ -984,6 +984,146 @@ export default function GamificationDashboardPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* How to Earn XP Section */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              How to Earn XP
+            </CardTitle>
+            <CardDescription>Complete these activities to level up and climb the leaderboard</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-emerald-50 border border-emerald-100">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Check-ins</div>
+                  <div className="text-sm text-slate-600">Check guests in smoothly</div>
+                  <div className="text-xs text-emerald-600 font-medium mt-1">+5 to +25 XP</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-100">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <Target className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Tasks</div>
+                  <div className="text-sm text-slate-600">Complete assigned tasks</div>
+                  <div className="text-xs text-blue-600 font-medium mt-1">+5 to +25 XP</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-100">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Maintenance</div>
+                  <div className="text-sm text-slate-600">Complete maintenance work orders</div>
+                  <div className="text-xs text-amber-600 font-medium mt-1">+10 to +40 XP</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-purple-50 border border-purple-100">
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                  <Star className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Quality Reservations</div>
+                  <div className="text-sm text-slate-600">Complete reservations with all details</div>
+                  <div className="text-xs text-purple-600 font-medium mt-1">+5 to +20 XP</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-pink-50 border border-pink-100">
+                <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-5 h-5 text-pink-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Checklists</div>
+                  <div className="text-sm text-slate-600">Complete daily checklists</div>
+                  <div className="text-xs text-pink-600 font-medium mt-1">+2 to +10 XP</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-cyan-50 border border-cyan-100">
+                <div className="w-10 h-10 rounded-full bg-cyan-100 flex items-center justify-center flex-shrink-0">
+                  <Award className="w-5 h-5 text-cyan-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Review Mentions</div>
+                  <div className="text-sm text-slate-600">Get mentioned positively in guest reviews</div>
+                  <div className="text-xs text-cyan-600 font-medium mt-1">+15 to +50 XP</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-orange-50 border border-orange-100">
+                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">On-time Assignments</div>
+                  <div className="text-sm text-slate-600">Complete assignments before deadline</div>
+                  <div className="text-xs text-orange-600 font-medium mt-1">+5 to +20 XP</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-teal-50 border border-teal-100">
+                <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0">
+                  <Users className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Team Assists</div>
+                  <div className="text-sm text-slate-600">Help teammates with their tasks</div>
+                  <div className="text-xs text-teal-600 font-medium mt-1">+5 to +20 XP</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-indigo-50 border border-indigo-100">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                  <Gift className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Merit Awards</div>
+                  <div className="text-sm text-slate-600">Receive recognition from managers</div>
+                  <div className="text-xs text-indigo-600 font-medium mt-1">+5 to +100 XP</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Level Guide */}
+            <div className="mt-8 pt-6 border-t border-slate-200">
+              <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-emerald-600" />
+                Level Progression
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(LEVEL_TITLES).map(([level, title]) => (
+                  <div
+                    key={level}
+                    className={`px-3 py-2 rounded-lg border text-sm ${
+                      parseInt(level) === currentLevel
+                        ? "bg-emerald-100 border-emerald-300 text-emerald-800 font-semibold"
+                        : parseInt(level) < currentLevel
+                        ? "bg-slate-100 border-slate-200 text-slate-500"
+                        : "bg-white border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    <span className="font-medium">Lvl {level}:</span> {title}
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-slate-500 mt-4">
+                Each level requires progressively more XP. Keep earning to unlock new titles and climb the leaderboard!
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardShell>
   );
