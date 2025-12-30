@@ -1904,7 +1904,7 @@ export class ReservationsService {
           balanceCents: updatedReservation.balanceAmount
         };
 
-        const statusChanged = data.status && data.status !== existing.status;
+        // Reuse statusChanged from earlier in this transaction
         if (statusChanged) {
           if (data.status === ReservationStatus.cancelled) {
             this.realtime.emitReservationCancelled(existing.campgroundId, eventData);
