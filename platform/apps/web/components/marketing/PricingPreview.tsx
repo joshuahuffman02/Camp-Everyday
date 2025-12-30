@@ -80,13 +80,14 @@ const competitors = [
   {
     name: "Camp Everyday",
     isUs: true,
-    monthlyBase: "$69",
-    perBooking: "$2.50",
+    monthlyBase: "$100",
+    perBooking: "$2.30",
     marketplaceCommission: "0%",
     setupFee: "$0",
     paymentProcessing: "2.9% + $0.30",
     freeTrialDays: "30",
     support: "Priority",
+    aiIncluded: "$5/mo",
     features: {
       onlineBooking: true,
       dynamicPricing: true,
@@ -342,7 +343,10 @@ export function PricingPreview() {
         {/* After Early Access Note */}
         <div className="text-center mb-16">
           <p className="text-slate-400">
-            After early access fills: <span className="text-white font-semibold">$69/month + $2.50/booking</span>
+            After early access fills: <span className="text-white font-semibold">$100/month + $2.30/booking</span>
+          </p>
+          <p className="text-slate-500 text-sm mt-2">
+            Includes $5/month AI credits. SMS at cost + small markup.
           </p>
         </div>
 
