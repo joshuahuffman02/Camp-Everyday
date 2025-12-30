@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ChevronDown, ChevronUp, Tag, TrendingUp, Clock, Percent, Info, Heart } from "lucide-react";
+import { ChevronDown, ChevronUp, Tag, TrendingUp, Clock, Percent, Info, Heart, CreditCard, Building2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../../ui/tooltip";
 import { usePaymentContext } from "../context/PaymentContext";
@@ -19,8 +19,9 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Get charity donation from context
+  // Get charity donation and config from context
   const charityDonation = state.charityDonation;
+  const config = state.config;
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -119,10 +120,27 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
   // Grand total including donation
   const grandTotalCents = totalCents + donationCents;
 
-  // CC fee estimate (2.9% + $0.30) - calculated on grand total
-  const ccFeePercent = 2.9;
-  const ccFeeFlatCents = 30;
+  // Fee calculations from config
+  const ccFeePercent = config ? config.feePercentBasisPoints / 100 : 2.9;
+  const ccFeeFlatCents = config?.feeFlatCents ?? 30;
+  const ccFeeMode = config?.feeMode ?? "absorb";
+
+  // Platform fee (Campreserv's per-booking fee)
+  // Default based on billing plan: Enterprise=$1, Standard=$2, OTA=$3
+  const billingPlan = config?.billingPlan ?? "ota_only";
+  const defaultPlatformFee = billingPlan === "enterprise" ? 100 : billingPlan === "standard" ? 200 : 300;
+  const platformFeeCents = config?.perBookingFeeCents ?? defaultPlatformFee;
+  const platformFeeMode = config?.platformFeeMode ?? "pass_through";
+  const billingPlanLabel = billingPlan === "enterprise" ? "Enterprise"
+    : billingPlan === "standard" ? "Standard" : "OTA";
+
+  // CC fee estimate - calculated on grand total for pass_through mode
   const estimatedCCFeeCents = Math.round((grandTotalCents * ccFeePercent / 100) + ccFeeFlatCents);
+
+  // CC fee on charity donation specifically (for accounting info)
+  const charityDonationCCFeeCents = donationCents > 0
+    ? Math.round((donationCents * ccFeePercent / 100) + (donationCents > 0 ? ccFeeFlatCents * (donationCents / grandTotalCents) : 0))
+    : 0;
 
   if (compact) {
     return (
@@ -250,17 +268,74 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
             </div>
           )}
 
-          {/* Fees */}
-          {feesCents > 0 && (
-            <div className="space-y-0.5 pt-1 border-t border-slate-100">
-              <div className="flex justify-between">
-                <span className="text-slate-600">Booking Fees</span>
-                <span className="text-slate-900">+{formatCurrency(feesCents)}</span>
+          {/* Fees Section - Platform Fee + CC Processing Fee */}
+          {(feesCents > 0 || platformFeeCents > 0) && (
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                Fees & Processing
               </div>
-              <div className="flex justify-between text-xs text-slate-400 pl-3">
-                <span>Includes CC processing ({ccFeePercent}% + ${(ccFeeFlatCents / 100).toFixed(2)})</span>
-                <span>~{formatCurrency(estimatedCCFeeCents)}</span>
+
+              {/* Platform Fee (goes to Campreserv) */}
+              {platformFeeCents > 0 && (
+                <div className="flex justify-between pl-2">
+                  <span className="flex items-center gap-1.5 text-slate-600">
+                    <Building2 className="w-3 h-3" />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help text-xs">Platform Fee</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Per-booking fee ({billingPlanLabel} plan)</p>
+                          <p className="text-xs text-slate-400">Goes to Campreserv</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
+                  <span className="flex items-center gap-1 text-xs">
+                    <span className={platformFeeMode === "absorb" ? "line-through text-slate-400" : "text-slate-900"}>
+                      {formatCurrency(platformFeeCents)}
+                    </span>
+                    {platformFeeMode === "absorb" && (
+                      <span className="text-emerald-600 text-xs">(absorbed)</span>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {/* CC Processing Fee (goes to Stripe) */}
+              <div className="flex justify-between pl-2">
+                <span className="flex items-center gap-1.5 text-slate-600">
+                  <CreditCard className="w-3 h-3" />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help text-xs">CC Processing</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">{ccFeePercent}% + ${(ccFeeFlatCents / 100).toFixed(2)} per transaction</p>
+                        <p className="text-xs text-slate-400">Goes to Stripe</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </span>
+                <span className="flex items-center gap-1 text-xs">
+                  <span className={ccFeeMode === "absorb" ? "line-through text-slate-400" : "text-slate-900"}>
+                    ~{formatCurrency(estimatedCCFeeCents)}
+                  </span>
+                  {ccFeeMode === "absorb" && (
+                    <span className="text-emerald-600 text-xs">(absorbed)</span>
+                  )}
+                </span>
               </div>
+
+              {/* Total fees if guest pays any */}
+              {feesCents > 0 && (
+                <div className="flex justify-between text-xs text-slate-500 pl-4 pt-1 border-t border-slate-50">
+                  <span>Fees charged to guest</span>
+                  <span className="text-slate-900">+{formatCurrency(feesCents)}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -291,15 +366,27 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
 
           {/* Charity Round-Up (from context - shows when opted in) */}
           {donationCents > 0 && (
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1.5 text-pink-600">
-                <Heart className="w-3 h-3" />
-                Charity Round-Up
-                {charityDonation.charityName && (
-                  <span className="text-xs text-pink-400">({charityDonation.charityName})</span>
-                )}
-              </span>
-              <span className="text-pink-600">+{formatCurrency(donationCents)}</span>
+            <div className="space-y-1">
+              <div className="flex justify-between">
+                <span className="flex items-center gap-1.5 text-pink-600">
+                  <Heart className="w-3 h-3" />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">Charity Round-Up</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">100% goes to charity</p>
+                        <p className="text-xs text-slate-400">CC fee (~{formatCurrency(charityDonationCCFeeCents)}) absorbed by campground</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  {charityDonation.charityName && (
+                    <span className="text-xs text-pink-400">({charityDonation.charityName})</span>
+                  )}
+                </span>
+                <span className="text-pink-600">+{formatCurrency(donationCents)}</span>
+              </div>
             </div>
           )}
 

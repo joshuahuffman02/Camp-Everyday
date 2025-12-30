@@ -271,6 +271,10 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
     apiClient
       .getCampground(modalProps.campgroundId)
       .then((campground: any) => {
+        // Determine default platform fee based on billing plan
+        const billingPlan = campground.billingPlan || "ota_only";
+        const defaultPlatformFee = billingPlan === "enterprise" ? 100 : billingPlan === "standard" ? 200 : 300;
+
         const config: PaymentConfig = {
           stripeCapabilities: campground.stripeCapabilities || {},
           enableApplePay: campground.enableApplePay ?? true,
@@ -283,10 +287,15 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
           enableGiftCards: campground.enableGiftCards ?? true,
           enableExternalPOS: campground.enableExternalPOS ?? false,
           allowedCardBrands: campground.allowedCardBrands || ["visa", "mastercard", "amex", "discover"],
+          // CC processing fee (goes to Stripe)
           feeMode: campground.feeMode || "absorb",
           feePercentBasisPoints: campground.feePercentBasisPoints ?? 290,
           feeFlatCents: campground.feeFlatCents ?? 30,
           showFeeBreakdown: campground.showFeeBreakdown ?? false,
+          // Platform fee (goes to Campreserv)
+          billingPlan: billingPlan,
+          perBookingFeeCents: campground.perBookingFeeCents ?? defaultPlatformFee,
+          platformFeeMode: campground.platformFeeMode || "pass_through", // Default: guest pays platform fee
         };
         dispatch({ type: "SET_CONFIG", payload: config });
       })

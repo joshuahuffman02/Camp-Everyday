@@ -98,11 +98,16 @@ export interface PaymentConfig {
   // Card brand restrictions
   allowedCardBrands: CardBrand[];
 
-  // Fee handling
+  // Fee handling (CC processing fees)
   feeMode: "absorb" | "pass_through";
   feePercentBasisPoints: number; // e.g., 290 = 2.9%
   feeFlatCents: number;          // e.g., 30 = $0.30
   showFeeBreakdown: boolean;
+
+  // Platform fee (Campreserv's per-booking fee based on billing plan)
+  billingPlan: "ota_only" | "standard" | "enterprise";
+  perBookingFeeCents: number;    // Platform fee per reservation (e.g., 300 = $3.00)
+  platformFeeMode: "absorb" | "pass_through"; // Who pays the platform fee
 }
 
 // ============================================================================

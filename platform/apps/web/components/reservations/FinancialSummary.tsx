@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Reservation, Quote } from "@campreserv/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DollarSign, CreditCard, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Tag, Clock, Percent, Info } from "lucide-react";
+import { DollarSign, CreditCard, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Tag, Clock, Percent, Info, Building2 } from "lucide-react";
 import { PaymentCollectionModal } from "../payments/PaymentCollectionModal";
 import { apiClient } from "@/lib/api-client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -12,11 +12,21 @@ interface FinancialSummaryProps {
     reservation: Reservation;
 }
 
+// Fee config type
+interface FeeConfig {
+    perBookingFeeCents: number;
+    billingPlan: "ota_only" | "standard" | "enterprise";
+    feeMode: "absorb" | "pass_through";
+    feePercentBasisPoints?: number;
+    feeFlatCents?: number;
+}
+
 export function FinancialSummary({ reservation }: FinancialSummaryProps) {
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isBreakdownOpen, setIsBreakdownOpen] = useState(true);
     const [quote, setQuote] = useState<Quote | null>(null);
     const [quoteLoading, setQuoteLoading] = useState(false);
+    const [feeConfig, setFeeConfig] = useState<FeeConfig | null>(null);
 
     const formatCurrency = (cents: number) => {
         return new Intl.NumberFormat("en-US", {
@@ -76,10 +86,39 @@ export function FinancialSummary({ reservation }: FinancialSummaryProps) {
         fetchQuote();
     }, [reservation.campgroundId, reservation.siteId, reservation.arrivalDate, reservation.departureDate]);
 
-    // Calculate credit card processing fee estimate (standard 2.9% + $0.30)
-    const estimatedCCFeePercent = 2.9;
-    const estimatedCCFeeFlatCents = 30;
+    // Fetch campground fee settings
+    useEffect(() => {
+        const fetchFeeConfig = async () => {
+            if (!reservation.campgroundId) return;
+            try {
+                const settings = await apiClient.getCampgroundPaymentSettings(reservation.campgroundId);
+                const billingPlan = settings.billingPlan || "ota_only";
+                const defaultPlatformFee = billingPlan === "enterprise" ? 100 : billingPlan === "standard" ? 200 : 300;
+                setFeeConfig({
+                    perBookingFeeCents: settings.perBookingFeeCents ?? defaultPlatformFee,
+                    billingPlan: billingPlan as "ota_only" | "standard" | "enterprise",
+                    feeMode: (settings.feeMode || "absorb") as "absorb" | "pass_through",
+                });
+            } catch (err) {
+                console.error("Failed to fetch fee config:", err);
+            }
+        };
+        fetchFeeConfig();
+    }, [reservation.campgroundId]);
+
+    // Calculate credit card processing fee estimate
+    const estimatedCCFeePercent = feeConfig?.feePercentBasisPoints ? feeConfig.feePercentBasisPoints / 100 : 2.9;
+    const estimatedCCFeeFlatCents = feeConfig?.feeFlatCents ?? 30;
     const estimatedCCFeeCents = Math.round((totalCents * estimatedCCFeePercent / 100) + estimatedCCFeeFlatCents);
+
+    // Platform fee info
+    // Default based on billing plan: Enterprise=$1, Standard=$2, OTA=$3
+    const billingPlan = feeConfig?.billingPlan ?? "ota_only";
+    const defaultPlatformFee = billingPlan === "enterprise" ? 100 : billingPlan === "standard" ? 200 : 300;
+    const platformFeeCents = feeConfig?.perBookingFeeCents ?? defaultPlatformFee;
+    const ccFeeMode = feeConfig?.feeMode ?? "absorb";
+    const billingPlanLabel = billingPlan === "enterprise" ? "Enterprise"
+        : billingPlan === "standard" ? "Standard" : "OTA";
 
     // Get rule type icon
     const getRuleIcon = (type: string) => {
@@ -251,20 +290,69 @@ export function FinancialSummary({ reservation }: FinancialSummaryProps) {
                                     <span className="text-slate-900">{formatCurrency(quote?.totalCents ?? baseCents)}</span>
                                 </div>
 
-                                {/* Booking/Service Fees */}
-                                {feesCents > 0 && (
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-slate-600">Booking Fees</span>
-                                            <span className="text-slate-900">+{formatCurrency(feesCents)}</span>
+                                {/* Fees Section - Platform Fee + CC Processing Fee */}
+                                {(feesCents > 0 || platformFeeCents > 0) && (
+                                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                                            Fees & Processing
                                         </div>
-                                        <div className="text-xs text-slate-400 pl-4">
-                                            {feeMode === "pass_through"
-                                                ? "Guest paid service fees on this booking"
-                                                : feeMode === "absorb"
-                                                    ? "Service fees absorbed by property"
-                                                    : "Service/processing fees"}
+
+                                        {/* Platform Fee (goes to Campreserv) */}
+                                        {platformFeeCents > 0 && (
+                                            <div className="flex justify-between text-sm pl-2">
+                                                <span className="flex items-center gap-2 text-slate-600">
+                                                    <Building2 className="w-3 h-3" />
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <span className="cursor-help">Platform Fee</span>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p className="text-xs">Per-booking fee ({billingPlanLabel} plan)</p>
+                                                                <p className="text-xs text-slate-400">Goes to Campreserv</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                </span>
+                                                <span className="text-slate-900">
+                                                    {formatCurrency(platformFeeCents)}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* CC Processing Fee (goes to Stripe) */}
+                                        <div className="flex justify-between text-sm pl-2">
+                                            <span className="flex items-center gap-2 text-slate-600">
+                                                <CreditCard className="w-3 h-3" />
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <span className="cursor-help">CC Processing</span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p className="text-xs">{estimatedCCFeePercent}% + ${(estimatedCCFeeFlatCents / 100).toFixed(2)} per transaction</p>
+                                                            <p className="text-xs text-slate-400">Goes to Stripe</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <span className={ccFeeMode === "absorb" ? "line-through text-slate-400" : "text-slate-900"}>
+                                                    ~{formatCurrency(estimatedCCFeeCents)}
+                                                </span>
+                                                {ccFeeMode === "absorb" && (
+                                                    <span className="text-emerald-600 text-xs">(absorbed)</span>
+                                                )}
+                                            </span>
                                         </div>
+
+                                        {/* Total fees if guest pays any */}
+                                        {feesCents > 0 && (
+                                            <div className="flex justify-between text-xs text-slate-500 pl-4 pt-1 border-t border-slate-50">
+                                                <span>Fees charged to guest</span>
+                                                <span className="text-slate-900">+{formatCurrency(feesCents)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -293,28 +381,6 @@ export function FinancialSummary({ reservation }: FinancialSummaryProps) {
                                         )}
                                     </div>
                                 )}
-
-                                {/* Credit Card Fee Info */}
-                                <div className="pt-2 mt-2 border-t border-slate-200 space-y-1">
-                                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                                        Payment Processing
-                                    </div>
-                                    <div className="flex justify-between text-xs text-slate-500">
-                                        <span>
-                                            CC Fee ({estimatedCCFeePercent}% + ${(estimatedCCFeeFlatCents / 100).toFixed(2)})
-                                        </span>
-                                        <span className={feeMode === "absorb" ? "line-through text-slate-400" : ""}>
-                                            ~{formatCurrency(estimatedCCFeeCents)}
-                                        </span>
-                                    </div>
-                                    <div className="text-xs text-slate-400">
-                                        {feeMode === "pass_through"
-                                            ? "Included in booking fees above"
-                                            : feeMode === "absorb"
-                                                ? "Absorbed by property (not charged to guest)"
-                                                : "Standard credit card processing fee"}
-                                    </div>
-                                </div>
 
                                 {/* Pricing Rule Version */}
                                 {(quote?.pricingRuleVersion || reservation.pricingRuleVersion) && (
