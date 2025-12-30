@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -320,7 +320,7 @@ interface QueueItem {
   skippedAt: string | null;
 }
 
-export default function FeaturesPage() {
+function FeaturesPageContent() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as TabType) || "all";
   const prefersReducedMotion = useReducedMotion();
@@ -819,5 +819,19 @@ export default function FeaturesPage() {
         )}
       </div>
     </DashboardShell>
+  );
+}
+
+export default function FeaturesPage() {
+  return (
+    <Suspense fallback={
+      <DashboardShell>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-pulse text-muted-foreground">Loading features...</div>
+        </div>
+      </DashboardShell>
+    }>
+      <FeaturesPageContent />
+    </Suspense>
   );
 }
