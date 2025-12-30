@@ -6,6 +6,7 @@ import { Label } from "../../../ui/label";
 import { Heart } from "lucide-react";
 import { usePaymentContext } from "../context/PaymentContext";
 import { cn } from "../../../../lib/utils";
+import { apiClient } from "../../../../lib/api-client";
 
 interface CharityRoundUpProps {
   disabled?: boolean;
@@ -13,18 +14,44 @@ interface CharityRoundUpProps {
 
 export function CharityRoundUp({ disabled = false }: CharityRoundUpProps) {
   const { state, actions, props } = usePaymentContext();
-  const { charityDonation, originalAmountCents, discountCents } = state;
+  const { charityDonation, discountCents, donationCents } = state;
+  const [reservationTotal, setReservationTotal] = useState<number | null>(null);
 
-  // Calculate round-up amount
+  // Get reservationId from subject
+  const reservationId = props.subject.type === "reservation"
+    ? props.subject.reservationId
+    : props.subject.type === "balance"
+      ? props.subject.reservationId
+      : null;
+
+  // Fetch reservation total to ensure we're rounding up the correct amount
+  useEffect(() => {
+    if (!reservationId) return;
+
+    apiClient.getReservation(reservationId)
+      .then((res) => {
+        setReservationTotal(res.totalAmount ?? 0);
+      })
+      .catch(() => {
+        // Fall back to state if fetch fails
+        setReservationTotal(null);
+      });
+  }, [reservationId]);
+
+  // Calculate round-up amount based on actual reservation total
   const roundUpAmount = useMemo(() => {
-    const currentTotal = originalAmountCents - discountCents;
-    const dollars = currentTotal / 100;
+    // Use the fetched reservation total, or fall back to state calculation
+    const baseTotal = reservationTotal !== null
+      ? reservationTotal - discountCents  // Reservation total minus any promo discounts applied in modal
+      : state.originalAmountCents - discountCents;
+
+    const dollars = baseTotal / 100;
     const roundedUp = Math.ceil(dollars);
     const roundUpCents = Math.round((roundedUp - dollars) * 100);
 
     // If already a round number, round up to next dollar
     return roundUpCents === 0 ? 100 : roundUpCents;
-  }, [originalAmountCents, discountCents]);
+  }, [reservationTotal, state.originalAmountCents, discountCents]);
 
   const handleToggle = (checked: boolean) => {
     actions.setCharityDonation({
@@ -79,16 +106,37 @@ export function CharityRoundUp({ disabled = false }: CharityRoundUpProps) {
  * Inline charity round-up for compact display
  */
 export function CharityRoundUpInline({ disabled = false }: CharityRoundUpProps) {
-  const { state, actions } = usePaymentContext();
-  const { charityDonation, originalAmountCents, discountCents } = state;
+  const { state, actions, props } = usePaymentContext();
+  const { charityDonation, discountCents } = state;
+  const [reservationTotal, setReservationTotal] = useState<number | null>(null);
+
+  // Get reservationId from subject
+  const reservationId = props.subject.type === "reservation"
+    ? props.subject.reservationId
+    : props.subject.type === "balance"
+      ? props.subject.reservationId
+      : null;
+
+  // Fetch reservation total
+  useEffect(() => {
+    if (!reservationId) return;
+
+    apiClient.getReservation(reservationId)
+      .then((res) => {
+        setReservationTotal(res.totalAmount ?? 0);
+      })
+      .catch(() => setReservationTotal(null));
+  }, [reservationId]);
 
   const roundUpAmount = useMemo(() => {
-    const currentTotal = originalAmountCents - discountCents;
-    const dollars = currentTotal / 100;
+    const baseTotal = reservationTotal !== null
+      ? reservationTotal - discountCents
+      : state.originalAmountCents - discountCents;
+    const dollars = baseTotal / 100;
     const roundedUp = Math.ceil(dollars);
     const roundUpCents = Math.round((roundedUp - dollars) * 100);
     return roundUpCents === 0 ? 100 : roundUpCents;
-  }, [originalAmountCents, discountCents]);
+  }, [reservationTotal, state.originalAmountCents, discountCents]);
 
   const handleToggle = () => {
     actions.setCharityDonation({
