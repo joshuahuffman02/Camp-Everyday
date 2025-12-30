@@ -723,6 +723,29 @@ export function SupportChatWidget() {
                 {msg.actionDrafts?.length ? (
                   <div className="mt-3 space-y-3">
                     {msg.actionDrafts.map((draft) => {
+                      // For read-only executed actions, just show evidence links (no technical card)
+                      const isReadOnlyExecuted = draft.action === "read" && draft.status === "executed";
+
+                      if (isReadOnlyExecuted) {
+                        // Simple display: just evidence links
+                        if (!draft.evidenceLinks?.length) return null;
+                        return (
+                          <div key={draft.id} className="flex flex-wrap gap-2">
+                            {draft.evidenceLinks.map((link) => (
+                              <Link
+                                key={`${link.label}-${link.url}`}
+                                href={link.url}
+                                className="inline-flex items-center gap-1.5 rounded-full border border-status-success/30 bg-status-success/10 px-3 py-1.5 text-xs font-medium text-status-success hover:bg-status-success/20 transition-colors"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                {link.label}
+                              </Link>
+                            ))}
+                          </div>
+                        );
+                      }
+
+                      // Full display for write actions or pending/denied actions
                       const statusClass =
                         draft.status === "executed"
                           ? "bg-status-success/15 text-status-success"
@@ -800,29 +823,18 @@ export function SupportChatWidget() {
                             </div>
                           )}
 
-                          {draft.result && (
-                            <div className="mt-2 rounded-lg border border-status-success/30 bg-status-success/15 px-3 py-2 text-[11px] text-status-success">
-                              <div className="font-semibold">Result</div>
-                              <div className="mt-1 text-status-success">{formatValue(draft.result)}</div>
-                            </div>
-                          )}
-
                           {draft.evidenceLinks?.length ? (
-                            <div className="mt-2 space-y-2 text-[11px]">
-                              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                Evidence
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {draft.evidenceLinks.map((link) => (
-                                  <Link
-                                    key={`${link.label}-${link.url}`}
-                                    href={link.url}
-                                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600 hover:border-status-success hover:text-status-success"
-                                  >
-                                    {link.label}
-                                  </Link>
-                                ))}
-                              </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {draft.evidenceLinks.map((link) => (
+                                <Link
+                                  key={`${link.label}-${link.url}`}
+                                  href={link.url}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-status-success/30 bg-status-success/10 px-3 py-1 text-[11px] text-status-success hover:bg-status-success/20"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  {link.label}
+                                </Link>
+                              ))}
                             </div>
                           ) : null}
 
