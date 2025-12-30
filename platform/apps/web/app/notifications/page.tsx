@@ -70,43 +70,43 @@ type Notification = {
 const typeConfig: Record<NotificationType, { icon: React.ReactNode; color: string; label: string; href?: (data: Record<string, unknown> | null) => string }> = {
   arrival: {
     icon: <LogIn className="h-4 w-4" />,
-    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400",
+    color: "bg-status-success-bg text-status-success-text",
     label: "Arrival",
     href: () => "/check-in-out"
   },
   departure: {
     icon: <LogOut className="h-4 w-4" />,
-    color: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
+    color: "bg-status-warning-bg text-status-warning-text",
     label: "Departure",
     href: () => "/check-in-out"
   },
   task_assigned: {
     icon: <UserPlus className="h-4 w-4" />,
-    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
+    color: "bg-status-info-bg text-status-info-text",
     label: "Task",
     href: () => "/operations"
   },
   task_sla_warning: {
     icon: <AlertTriangle className="h-4 w-4" />,
-    color: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400",
+    color: "bg-status-warning-bg text-status-warning-text",
     label: "SLA Warning",
     href: () => "/operations"
   },
   maintenance_urgent: {
     icon: <Wrench className="h-4 w-4" />,
-    color: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400",
+    color: "bg-status-error-bg text-status-error-text",
     label: "Maintenance",
     href: () => "/maintenance"
   },
   payment_received: {
     icon: <CreditCard className="h-4 w-4" />,
-    color: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
+    color: "bg-status-success-bg text-status-success-text",
     label: "Payment",
     href: () => "/finance/payouts"
   },
   payment_failed: {
     icon: <CreditCard className="h-4 w-4" />,
-    color: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400",
+    color: "bg-status-error-bg text-status-error-text",
     label: "Payment Failed",
     href: () => "/billing/repeat-charges"
   },
@@ -118,7 +118,7 @@ const typeConfig: Record<NotificationType, { icon: React.ReactNode; color: strin
   },
   general: {
     icon: <Bell className="h-4 w-4" />,
-    color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400",
+    color: "bg-muted text-muted-foreground",
     label: "General",
     href: () => "/dashboard"
   }

@@ -143,11 +143,11 @@ export default function ReferralsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "converted":
-        return "bg-emerald-100 text-emerald-700";
+        return "bg-status-success-bg text-status-success-text";
       case "signed_up":
-        return "bg-blue-100 text-blue-700";
+        return "bg-status-info-bg text-status-info-text";
       default:
-        return "bg-slate-100 text-slate-700";
+        return "bg-muted text-muted-foreground";
     }
   };
 

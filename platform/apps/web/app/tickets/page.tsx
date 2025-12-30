@@ -531,8 +531,8 @@ export default function TicketsPage() {
                       <td className="px-4 py-4 align-top text-xs font-semibold">
                         <span
                           className={`inline-flex rounded-full px-2 py-1 ${ticket.status === "completed"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800"
+                            ? "bg-status-success-bg text-status-success-text"
+                            : "bg-status-warning-bg text-status-warning-text"
                             }`}
                         >
                           {ticket.status === "completed" ? "Completed" : "Open"}

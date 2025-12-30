@@ -126,17 +126,17 @@ export function SavedReportsDropdown({ campgroundId, onLoadReport }: SavedReport
                               {report.filters && (
                                 <div className="flex items-center gap-1 flex-wrap">
                                   {report.filters.status !== "all" && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-status-info-bg text-status-info-text">
                                       {report.filters.status}
                                     </span>
                                   )}
                                   {report.filters.siteType !== "all" && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-status-success-bg text-status-success-text">
                                       {report.filters.siteType}
                                     </span>
                                   )}
                                   {report.filters.groupBy !== "none" && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-status-warning-bg text-status-warning-text">
                                       {report.filters.groupBy}
                                     </span>
                                   )}
