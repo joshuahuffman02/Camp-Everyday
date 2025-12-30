@@ -44,20 +44,20 @@ export default function MaintenancePage() {
 
   const getPriorityColor = (priority: MaintenancePriority) => {
     switch (priority) {
-      case "critical": return "bg-red-100 text-red-800 border-red-200";
-      case "high": return "bg-orange-100 text-orange-800 border-orange-200";
-      case "medium": return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "low": return "bg-blue-100 text-blue-800 border-blue-200";
-      default: return "bg-slate-100 text-slate-800 border-slate-200";
+      case "critical": return "bg-status-error-bg text-status-error-text border-status-error-border";
+      case "high": return "bg-status-warning-bg text-status-warning-text border-status-warning-border";
+      case "medium": return "bg-status-warning-bg text-status-warning-text border-status-warning-border";
+      case "low": return "bg-status-info-bg text-status-info-text border-status-info-border";
+      default: return "bg-muted text-muted-foreground border-border";
     }
   };
 
   const getStatusColor = (status: MaintenanceStatus) => {
     switch (status) {
-      case "open": return "bg-blue-100 text-blue-800";
-      case "in_progress": return "bg-purple-100 text-purple-800";
-      case "closed": return "bg-green-100 text-green-800";
-      default: return "bg-slate-100 text-slate-800";
+      case "open": return "bg-status-info-bg text-status-info-text";
+      case "in_progress": return "bg-status-warning-bg text-status-warning-text";
+      case "closed": return "bg-status-success-bg text-status-success-text";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 

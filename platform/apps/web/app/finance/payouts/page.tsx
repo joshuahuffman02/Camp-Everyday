@@ -13,11 +13,11 @@ import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 
 const statusColors: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-800",
-  in_transit: "bg-blue-100 text-blue-800",
-  paid: "bg-emerald-100 text-emerald-800",
-  failed: "bg-rose-100 text-rose-800",
-  canceled: "bg-slate-100 text-slate-700"
+  pending: "bg-status-warning-bg text-status-warning-text",
+  in_transit: "bg-status-info-bg text-status-info-text",
+  paid: "bg-status-success-bg text-status-success-text",
+  failed: "bg-status-error-bg text-status-error-text",
+  canceled: "bg-muted text-muted-foreground"
 };
 
 function formatMoney(cents: number | null | undefined, currency = "USD") {
@@ -140,7 +140,7 @@ export default function PayoutsPage() {
                     <TableCell className="text-xs text-slate-600 flex flex-col gap-1">
                       <span>{payout.lines?.length ?? 0}</span>
                       {reconMap[payout.id] && Math.abs(reconMap[payout.id].driftVsLedgerCents) > DRIFT_THRESHOLD_CENTS && (
-                        <Badge className="bg-amber-100 text-amber-800 w-fit">Drift: {formatMoney(reconMap[payout.id].driftVsLedgerCents)}</Badge>
+                        <Badge className="bg-status-warning-bg text-status-warning-text w-fit">Drift: {formatMoney(reconMap[payout.id].driftVsLedgerCents)}</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">

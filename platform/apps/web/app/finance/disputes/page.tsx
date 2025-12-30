@@ -13,13 +13,13 @@ import Link from "next/link";
 import { useToast } from "@/components/ui/use-toast";
 
 const statusColors: Record<string, string> = {
-  needs_response: "bg-amber-100 text-amber-800",
-  warning_needs_response: "bg-amber-100 text-amber-800",
-  warning_under_review: "bg-blue-100 text-blue-800",
-  under_review: "bg-blue-100 text-blue-800",
-  charge_refunded: "bg-rose-100 text-rose-800",
-  won: "bg-emerald-100 text-emerald-800",
-  lost: "bg-rose-100 text-rose-800"
+  needs_response: "bg-status-warning-bg text-status-warning-text",
+  warning_needs_response: "bg-status-warning-bg text-status-warning-text",
+  warning_under_review: "bg-status-info-bg text-status-info-text",
+  under_review: "bg-status-info-bg text-status-info-text",
+  charge_refunded: "bg-status-error-bg text-status-error-text",
+  won: "bg-status-success-bg text-status-success-text",
+  lost: "bg-status-error-bg text-status-error-text"
 };
 
 const DUE_SOON_HOURS = 48;
