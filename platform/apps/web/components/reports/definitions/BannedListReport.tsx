@@ -100,7 +100,7 @@ export function BannedListReport({ campgroundId }: BannedListReportProps) {
                                         <div className="text-slate-500">{guest.phone || '-'}</div>
                                         <div>
                                             {guest.tags?.filter(t => ['banned', 'dnr', 'restricted'].includes(t.toLowerCase())).map(tag => (
-                                                <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 uppercase">
+                                                <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-status-error-bg text-status-error-text uppercase">
                                                     {tag}
                                                 </span>
                                             ))}

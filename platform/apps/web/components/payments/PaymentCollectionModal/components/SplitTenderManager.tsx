@@ -124,10 +124,10 @@ function TenderEntryRow({ entry, onRemove, disabled }: TenderEntryRowProps) {
           className={cn(
             "h-8 w-8 rounded-full flex items-center justify-center",
             entry.status === "completed"
-              ? "bg-emerald-100 text-emerald-600"
+              ? "bg-status-success-bg text-status-success"
               : entry.status === "failed"
-              ? "bg-red-100 text-red-600"
-              : "bg-slate-100 text-slate-600"
+              ? "bg-status-error-bg text-status-error"
+              : "bg-muted text-muted-foreground"
           )}
         >
           <Icon className="h-4 w-4" />

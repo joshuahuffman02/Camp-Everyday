@@ -164,7 +164,7 @@ export function RoundUpForCharity({ campgroundId, totalCents, onChange }: RoundU
             <h4 className="font-semibold text-slate-900 flex items-center gap-2">
               Support {charityConfig.charity.name}
               {charityConfig.charity.isVerified && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-status-success-bg text-status-success-text">
                   <Check className="h-3 w-3 mr-0.5" />
                   Verified
                 </span>

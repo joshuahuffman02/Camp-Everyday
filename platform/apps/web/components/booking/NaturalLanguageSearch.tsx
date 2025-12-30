@@ -227,7 +227,7 @@ export function NaturalLanguageSearch({
                       I understood your search
                     </span>
                     {searchMutation.data.aiEnabled && (
-                      <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded">
+                      <span className="px-1.5 py-0.5 bg-status-success-bg text-status-success-text text-xs rounded">
                         AI
                       </span>
                     )}
@@ -253,7 +253,7 @@ export function NaturalLanguageSearch({
                   {getAmenityBadges(searchMutation.data.intent).length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {getAmenityBadges(searchMutation.data.intent).map((badge, i) => (
-                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full">
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-status-success-bg text-status-success-text text-xs rounded-full">
                           {badge.icon}
                           {badge.label}
                         </span>

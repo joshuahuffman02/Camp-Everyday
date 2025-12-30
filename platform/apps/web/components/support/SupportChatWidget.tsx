@@ -566,7 +566,7 @@ export function SupportChatWidget() {
           type="button"
           onClick={() => setMode("support")}
           className={`rounded-full px-3 py-1 transition-colors ${
-            isSupportMode ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+            isSupportMode ? "bg-status-info-bg text-status-info-text" : "bg-muted text-muted-foreground hover:bg-muted/80"
           }`}
         >
           Support
@@ -575,7 +575,7 @@ export function SupportChatWidget() {
           type="button"
           onClick={() => setMode("partner")}
           className={`rounded-full px-3 py-1 transition-colors ${
-            isSupportMode ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-emerald-100 text-emerald-700"
+            isSupportMode ? "bg-muted text-muted-foreground hover:bg-muted/80" : "bg-status-success-bg text-status-success-text"
           }`}
         >
           Staff
@@ -725,16 +725,16 @@ export function SupportChatWidget() {
                     {msg.actionDrafts.map((draft) => {
                       const statusClass =
                         draft.status === "executed"
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "bg-status-success-bg text-status-success-text"
                           : draft.status === "denied"
-                            ? "bg-rose-100 text-rose-700"
-                            : "bg-amber-100 text-amber-700";
+                            ? "bg-status-error-bg text-status-error-text"
+                            : "bg-status-warning-bg text-status-warning-text";
                       const impactClass =
                         draft.impact?.level === "high"
-                          ? "bg-rose-100 text-rose-700"
+                          ? "bg-status-error-bg text-status-error-text"
                           : draft.impact?.level === "medium"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-emerald-100 text-emerald-700";
+                            ? "bg-status-warning-bg text-status-warning-text"
+                            : "bg-status-success-bg text-status-success-text";
                       const summary = buildActionSummary(draft);
                       const { items: highlights, usedKeys } = buildActionHighlights(draft);
                       const detailParams = Object.entries(draft.parameters ?? {}).filter(([key]) => !usedKeys.has(key));

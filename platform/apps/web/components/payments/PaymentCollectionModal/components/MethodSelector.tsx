@@ -113,7 +113,7 @@ export function MethodSelector({ onSelect, disabled = false }: MethodSelectorPro
 
             {/* Wallet balance badge */}
             {hasWallet && (
-              <span className="absolute top-1 right-1 text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
+              <span className="absolute top-1 right-1 text-xs bg-status-success-bg text-status-success-text px-1.5 py-0.5 rounded-full">
                 ${(state.walletBalanceCents / 100).toFixed(2)}
               </span>
             )}
@@ -124,8 +124,8 @@ export function MethodSelector({ onSelect, disabled = false }: MethodSelectorPro
                 className={cn(
                   "absolute top-1 right-1 text-xs px-1.5 py-0.5 rounded-full",
                   hasTerminal
-                    ? "bg-green-100 text-green-700"
-                    : "bg-slate-100 text-slate-500"
+                    ? "bg-status-success-bg text-status-success-text"
+                    : "bg-muted text-muted-foreground"
                 )}
               >
                 {hasTerminal ? "Ready" : "Offline"}
@@ -134,7 +134,7 @@ export function MethodSelector({ onSelect, disabled = false }: MethodSelectorPro
 
             {/* Saved cards count badge */}
             {hasSavedCards && (
-              <span className="absolute top-1 right-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+              <span className="absolute top-1 right-1 text-xs bg-status-info-bg text-status-info-text px-1.5 py-0.5 rounded-full">
                 {state.savedCards.length} card{state.savedCards.length > 1 ? "s" : ""}
               </span>
             )}
