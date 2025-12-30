@@ -62,7 +62,7 @@ Before any V2 work, V1 must be solid.
   - [x] Rate limiting state - RedisRateLimitService already complete
   - [x] Distributed locks - LockService already uses Redis
   - [x] Account lockout state - MIGRATED to Redis with memory fallback
-  - [ ] Job queues (BullMQ) - Not critical, deferred
+  - [x] Job queues (BullMQ) - DONE: Queue infrastructure with email, webhook, report, sync processors
 - [x] **WebSockets (Socket.io)** - DONE: Full implementation with JWT auth
   - [x] RealtimeGateway with JWT authentication and room-based subscriptions
   - [x] RealtimeService for emitting events from services
@@ -132,9 +132,10 @@ Before any V2 work, V1 must be solid.
 - [x] **Tone matching** - AI-powered via AiProviderService
 - [x] **Template library** - AutopilotConfig manages templates
 
-#### 1.2.3 Smart Compose - DEFERRED
-- [ ] **Inline suggestions** - As staff types, offer completions (low priority)
-- [ ] **Grammar/tone check** - Flag potentially problematic phrasing
+#### 1.2.3 Smart Compose - DONE
+- [x] **Inline suggestions** - AiSmartComposeService with local phrase matching + AI completion
+- [x] **Grammar/tone check** - checkGrammarAndTone() with AI-powered analysis
+- [x] **Quick replies** - getQuickReplies() with context-aware templates
 
 ---
 
@@ -224,7 +225,7 @@ Before any V2 work, V1 must be solid.
 
 #### 2.1.3 Enhancements
 - [x] **Real-time WebSocket updates** - DONE: Yield events integrated with RealtimeGateway
-- [ ] **Price elasticity display** - Needs historical price/booking correlation (deferred)
+- [x] **Price elasticity display** - DONE: Price sensitivity API + Yield dashboard integration
 - [x] **Competitor comparison** - DONE: Full Competitive Intelligence system implemented
 
 ---
@@ -305,8 +306,8 @@ Before any V2 work, V1 must be solid.
 - [ ] **Query complexity limits** - Deferred
 - [ ] **Subscriptions** - Real-time already available via WebSocket gateway
 
-#### 3.1.3 Developer Portal
-- [ ] **Documentation site** - Deferred: API reference via Swagger for now
+#### 3.1.3 Developer Portal - DONE
+- [x] **Documentation site** - DONE: /developers page with tabs (Overview, Quickstart, Auth, Webhooks, SDKs)
 - [ ] **Sandbox environment** - Deferred: Test data seeding available
 - [x] **API key management** - DONE: OAuthClient model with client_id/secret
 - [x] **Usage dashboard** - DONE: Rate limit tracking per client
@@ -375,6 +376,10 @@ Before any V2 work, V1 must be solid.
 | 2024-12-29 | Developer Platform | Full implementation | High | OAuth2Service (auth code, client creds, PKCE), ApiVersionMiddleware, RateLimitTiersService, SwaggerConfig. |
 | 2024-12-29 | Webhook 2.0 | Full implementation | High | WebhookSecurityService (HMAC), WebhookDeliveryService (retry), WebhookLogsService, event-catalog.ts. |
 | 2024-12-29 | Integration Marketplace | Full implementation | High | IntegrationFrameworkService (OAuth), CredentialEncryptionService (AES-256-GCM), IntegrationRegistry. |
+| 2024-12-29 | Job Queues | Full implementation | High | BullQueueService with Redis persistence and memory fallback. Email, webhook, report, sync processors. /admin/queues endpoints. |
+| 2024-12-29 | Price Elasticity | Full implementation | Medium | getPriceSensitivity() API client. Integrated into Yield dashboard with elasticity score, optimal price range, booking distribution. |
+| 2024-12-29 | Smart Compose | Full implementation | Medium | AiSmartComposeService with local phrase matching (20+ common phrases) and AI completion fallback. Grammar/tone check, quick replies. |
+| 2024-12-29 | Developer Portal | Full implementation | High | Enhanced /developers page with 5 tabbed sections, code examples, copy functionality. Links to API key management and OpenAPI spec. |
 
 ---
 
@@ -395,6 +400,9 @@ Before any V2 work, V1 must be solid.
 | Developer Platform | OAuth2/OpenAPI | None | Free | DONE |
 | Webhook 2.0 | Event delivery | None | Free | DONE |
 | Integration Marketplace | OAuth framework | None | Free | DONE |
+| Job Queues | Background processing | None | Free | DONE |
+| Price Elasticity | Statistical analysis | None | Free | DONE |
+| Smart Compose | Local + AI completion | Claude API | Per completion | DONE |
 
 ---
 
@@ -415,6 +423,10 @@ Before any V2 work, V1 must be solid.
 | 2024-12-29 | 3.1 | Developer Platform | OAuth2Service with authorization_code, client_credentials, PKCE. ApiVersionMiddleware, RateLimitTiersService (free/standard/enterprise), SwaggerConfig. |
 | 2024-12-29 | 3.2 | Webhook 2.0 | WebhookSecurityService (HMAC-SHA256, replay prevention), WebhookDeliveryService (retry with backoff), WebhookLogsService (30-day retention), event-catalog.ts. |
 | 2024-12-29 | 3.3 | Integration Marketplace | IntegrationFrameworkService (OAuth flows), CredentialEncryptionService (AES-256-GCM), IntegrationRegistryService. QuickBooks stub provider, seed data for 7 integrations. |
+| 2024-12-29 | 0.3 | Job Queues (BullMQ) | QueueModule with BullQueueService (Redis persistence, memory fallback). Processors for email, webhook, report, sync. Admin endpoints at /admin/queues. |
+| 2024-12-29 | 2.1 | Price Elasticity | getPriceSensitivity() API client method. Integrated into Yield dashboard with elasticity score, optimal price range, and booking distribution chart. |
+| 2024-12-29 | 1.2 | Smart Compose | AiSmartComposeService with getInlineCompletion(), checkGrammarAndTone(), getQuickReplies(). Local phrase matching for fast completions + AI fallback. |
+| 2024-12-29 | 3.1 | Developer Portal | Enhanced /developers page with tabbed interface (Overview, Quickstart, Auth, Webhooks, SDKs). Code examples with copy functionality. |
 
 ---
 
