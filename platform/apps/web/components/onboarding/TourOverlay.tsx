@@ -60,6 +60,10 @@ export function TourOverlay({
       return;
     }
 
+    let retryCount = 0;
+    const maxRetries = 3;
+    let retryTimeout: NodeJS.Timeout | null = null;
+
     const updateTarget = () => {
       const element = document.querySelector(currentStep.target);
       if (element) {
@@ -70,21 +74,33 @@ export function TourOverlay({
         element.scrollIntoView({ behavior: "smooth", block: "center" });
       } else {
         setTargetRect(null);
+
+        // If element not found, retry a few times then auto-skip
+        retryCount++;
+        if (retryCount <= maxRetries) {
+          retryTimeout = setTimeout(updateTarget, 200);
+        } else {
+          // Element not found after retries - skip to next step
+          console.warn(`Tour target not found: ${currentStep.target}, skipping step`);
+          onNext();
+        }
       }
     };
 
-    // Initial update
-    updateTarget();
+    // Initial update with small delay to let DOM settle
+    const initialTimeout = setTimeout(updateTarget, 100);
 
     // Update on resize/scroll
     window.addEventListener("resize", updateTarget);
     window.addEventListener("scroll", updateTarget);
 
     return () => {
+      clearTimeout(initialTimeout);
+      if (retryTimeout) clearTimeout(retryTimeout);
       window.removeEventListener("resize", updateTarget);
       window.removeEventListener("scroll", updateTarget);
     };
-  }, [isActive, currentStep]);
+  }, [isActive, currentStep, onNext]);
 
   // Calculate tooltip position
   useEffect(() => {
