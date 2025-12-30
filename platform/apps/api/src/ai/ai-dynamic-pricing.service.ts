@@ -297,7 +297,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
       select: {
         arrivalDate: true,
         departureDate: true,
-        totalAmountCents: true,
+        totalAmount: true,
       },
     });
 
@@ -314,7 +314,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
         (res.departureDate.getTime() - res.arrivalDate.getTime()) / (1000 * 60 * 60 * 24)
       );
       if (nights > 0) {
-        dayOfWeekOccupancy[dayOfWeek].avgPrice += (res.totalAmountCents || 0) / nights;
+        dayOfWeekOccupancy[dayOfWeek].avgPrice += (res.totalAmount || 0) / nights;
       }
     }
 
@@ -614,8 +614,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
       campgroundId,
       status: { in: ["confirmed", "checked_in", "checked_out"] },
       createdAt: { gte: sixMonthsAgo },
-      totalAmountCents: { gt: 0 },
-      nights: { gt: 0 },
+      totalAmount: { gt: 0 },
     };
 
     if (siteClassId) {
@@ -625,13 +624,20 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     const reservations = await this.prisma.reservation.findMany({
       where: whereClause,
       select: {
-        totalAmountCents: true,
-        nights: true,
+        totalAmount: true,
+        arrivalDate: true,
+        departureDate: true,
         createdAt: true,
       },
     });
 
-    if (reservations.length < 20) {
+    // Filter out reservations with invalid dates
+    const validReservations = reservations.filter((r) => {
+      const nights = Math.ceil((r.departureDate.getTime() - r.arrivalDate.getTime()) / (1000 * 60 * 60 * 24));
+      return nights > 0;
+    });
+
+    if (validReservations.length < 20) {
       return {
         elasticity: 0,
         optimalPriceRange: { min: 0, max: 0 },
@@ -642,8 +648,9 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
 
     // Group by price per night
     const priceGroups = new Map<number, number>();
-    for (const res of reservations) {
-      const pricePerNight = Math.round(res.totalAmountCents / res.nights / 500) * 500; // Round to $5 increments
+    for (const res of validReservations) {
+      const nights = Math.ceil((res.departureDate.getTime() - res.arrivalDate.getTime()) / (1000 * 60 * 60 * 24));
+      const pricePerNight = Math.round(res.totalAmount / nights / 500) * 500; // Round to $5 increments
       priceGroups.set(pricePerNight, (priceGroups.get(pricePerNight) || 0) + 1);
     }
 
@@ -658,8 +665,11 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
 
     // Calculate simple price elasticity
     // Using midpoint method between highest and lowest booking prices
-    const totalBookings = reservations.length;
-    const avgPrice = reservations.reduce((sum, r) => sum + r.totalAmountCents / r.nights, 0) / totalBookings;
+    const totalBookings = validReservations.length;
+    const avgPrice = validReservations.reduce((sum, r) => {
+      const nights = Math.ceil((r.departureDate.getTime() - r.arrivalDate.getTime()) / (1000 * 60 * 60 * 24));
+      return sum + r.totalAmount / nights;
+    }, 0) / totalBookings;
 
     // Find price range with most bookings (optimal zone)
     let maxBookingsPrice = pricePoints[0]?.price || 0;

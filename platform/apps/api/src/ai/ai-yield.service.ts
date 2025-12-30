@@ -104,7 +104,7 @@ export class AiYieldService {
         arrivalDate: { lte: targetDate },
         departureDate: { gt: targetDate },
       },
-      select: { siteId: true, totalAmountCents: true, nights: true },
+      select: { siteId: true, totalAmount: true, arrivalDate: true, departureDate: true },
     });
 
     // Get blocked sites (from blackout dates)
@@ -124,7 +124,8 @@ export class AiYieldService {
 
     // Calculate revenue for this date (pro-rata from reservations)
     const revenueCents = reservations.reduce((sum, r) => {
-      const perNight = r.nights > 0 ? Math.round(r.totalAmountCents / r.nights) : 0;
+      const nights = Math.max(1, Math.ceil((r.departureDate.getTime() - r.arrivalDate.getTime()) / (24 * 60 * 60 * 1000)));
+      const perNight = nights > 0 ? Math.round(r.totalAmount / nights) : 0;
       return sum + perNight;
     }, 0);
 
@@ -309,13 +310,14 @@ export class AiYieldService {
         arrivalDate: { lte: targetDate },
         departureDate: { gt: targetDate },
       },
-      select: { siteId: true, totalAmountCents: true, nights: true },
+      select: { siteId: true, totalAmount: true, arrivalDate: true, departureDate: true },
     });
 
     const occupied = new Set(reservations.map((r) => r.siteId)).size;
     const occupancyPct = sites > 0 ? (occupied / sites) * 100 : 0;
     const revenueCents = reservations.reduce((sum, r) => {
-      const perNight = r.nights > 0 ? Math.round(r.totalAmountCents / r.nights) : 0;
+      const nights = Math.max(1, Math.ceil((r.departureDate.getTime() - r.arrivalDate.getTime()) / (24 * 60 * 60 * 1000)));
+      const perNight = nights > 0 ? Math.round(r.totalAmount / nights) : 0;
       return sum + perNight;
     }, 0);
     const adr = occupied > 0 ? Math.round(revenueCents / occupied) : 0;
@@ -444,13 +446,14 @@ export class AiYieldService {
           arrivalDate: { lte: date },
           departureDate: { gt: date },
         },
-        select: { siteId: true, totalAmountCents: true, nights: true },
+        select: { siteId: true, totalAmount: true, arrivalDate: true, departureDate: true },
       });
 
       const occupiedSites = new Set(reservations.map((r) => r.siteId)).size;
       const occupancyPct = (occupiedSites / sites) * 100;
       const projectedRevenue = reservations.reduce((sum, r) => {
-        const perNight = r.nights > 0 ? Math.round(r.totalAmountCents / r.nights) : 0;
+        const nights = Math.max(1, Math.ceil((r.departureDate.getTime() - r.arrivalDate.getTime()) / (24 * 60 * 60 * 1000)));
+        const perNight = nights > 0 ? Math.round(r.totalAmount / nights) : 0;
         return sum + perNight;
       }, 0);
 
