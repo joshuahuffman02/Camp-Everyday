@@ -144,13 +144,15 @@ export default function DevelopersClient() {
               Get API Keys
               <ChevronRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/docs/api/openapi.json"
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_BASE || "https://camp-everydayapi-production.up.railway.app"}/api-docs`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg border border-white/20 transition-colors"
             >
               <BookOpen className="h-4 w-4" />
-              View OpenAPI Spec
-            </Link>
+              View API Docs
+            </a>
           </div>
         </div>
       </div>

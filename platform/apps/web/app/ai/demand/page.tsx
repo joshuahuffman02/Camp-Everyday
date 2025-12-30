@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { useCampground } from "@/contexts/CampgroundContext";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -629,28 +630,30 @@ function SummaryCards({
 
 export default function DemandForecastPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const { selectedCampground, isHydrated } = useCampground();
+  const campgroundId = selectedCampground?.id;
 
   // Fetch demand forecast
   const { data: forecastData, isLoading: forecastLoading } = useQuery({
-    queryKey: ["demand-forecast"],
-    queryFn: () => apiClient.getDemandForecast("current", 90),
-    enabled: typeof window !== "undefined",
+    queryKey: ["demand-forecast", campgroundId],
+    queryFn: () => apiClient.getDemandForecast(campgroundId!, 90),
+    enabled: isHydrated && !!campgroundId,
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch heatmap
   const { data: heatmap, isLoading: heatmapLoading } = useQuery({
-    queryKey: ["demand-heatmap"],
-    queryFn: () => apiClient.getDemandHeatmap("current"),
-    enabled: typeof window !== "undefined",
+    queryKey: ["demand-heatmap", campgroundId],
+    queryFn: () => apiClient.getDemandHeatmap(campgroundId!),
+    enabled: isHydrated && !!campgroundId,
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch insights
   const { data: insights, isLoading: insightsLoading } = useQuery({
-    queryKey: ["demand-insights"],
-    queryFn: () => apiClient.getDemandInsights("current"),
-    enabled: typeof window !== "undefined",
+    queryKey: ["demand-insights", campgroundId],
+    queryFn: () => apiClient.getDemandInsights(campgroundId!),
+    enabled: isHydrated && !!campgroundId,
     staleTime: 5 * 60 * 1000,
   });
 

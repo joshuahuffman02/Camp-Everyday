@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
+import { useCampground } from "@/contexts/CampgroundContext";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,19 +78,21 @@ export default function YieldDashboardPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isConnected } = useRealtime();
+  const { selectedCampground, isHydrated } = useCampground();
+  const campgroundId = selectedCampground?.id;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["yield-dashboard"],
-    queryFn: () => apiClient.getYieldDashboard("current"),
-    enabled: typeof window !== "undefined",
+    queryKey: ["yield-dashboard", campgroundId],
+    queryFn: () => apiClient.getYieldDashboard(campgroundId!),
+    enabled: isHydrated && !!campgroundId,
     refetchInterval: 60000, // Refresh every minute (fallback for when WebSocket is disconnected)
   });
 
   // Price elasticity query
   const { data: elasticityData } = useQuery({
-    queryKey: ["price-sensitivity"],
-    queryFn: () => apiClient.getPriceSensitivity("current"),
-    enabled: typeof window !== "undefined",
+    queryKey: ["price-sensitivity", campgroundId],
+    queryFn: () => apiClient.getPriceSensitivity(campgroundId!),
+    enabled: isHydrated && !!campgroundId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -172,6 +175,21 @@ export default function YieldDashboardPage() {
     onRecommendationGenerated: handleRecommendationGenerated,
     onForecastUpdated: handleForecastUpdated,
   });
+
+  if (!isHydrated || !campgroundId) {
+    return (
+      <DashboardShell>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-emerald-500" />
+            <p className="text-slate-500">
+              {!isHydrated ? "Loading..." : "Please select a campground"}
+            </p>
+          </div>
+        </div>
+      </DashboardShell>
+    );
+  }
 
   if (isLoading) {
     return (
