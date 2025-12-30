@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ChevronDown, ChevronUp, Tag, TrendingUp, Clock, Percent, Info, CreditCard } from "lucide-react";
+import { ChevronDown, ChevronUp, Tag, TrendingUp, Clock, Percent, Info, CreditCard, Heart } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../../ui/tooltip";
 import { usePaymentContext } from "../context/PaymentContext";
@@ -13,11 +13,14 @@ interface ReservationBreakdownProps {
 }
 
 export function ReservationBreakdown({ compact = false }: ReservationBreakdownProps) {
-  const { props } = usePaymentContext();
+  const { props, state } = usePaymentContext();
   const [isOpen, setIsOpen] = useState(true);
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Get charity donation from context
+  const charityDonation = state.charityDonation;
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -110,10 +113,16 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
   const earlyCheckInCharge = reservation.earlyCheckInCharge ?? 0;
   const lateCheckoutCharge = reservation.lateCheckoutCharge ?? 0;
 
-  // CC fee estimate (2.9% + $0.30)
+  // Charity donation from context
+  const donationCents = charityDonation.optedIn ? charityDonation.amountCents : 0;
+
+  // Grand total including donation
+  const grandTotalCents = totalCents + donationCents;
+
+  // CC fee estimate (2.9% + $0.30) - calculated on grand total
   const ccFeePercent = 2.9;
   const ccFeeFlatCents = 30;
-  const estimatedCCFeeCents = Math.round((totalCents * ccFeePercent / 100) + ccFeeFlatCents);
+  const estimatedCCFeeCents = Math.round((grandTotalCents * ccFeePercent / 100) + ccFeeFlatCents);
 
   if (compact) {
     return (
@@ -140,6 +149,12 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
           <div className="flex justify-between">
             <span>Taxes</span>
             <span>+{formatCurrency(taxCents)}</span>
+          </div>
+        )}
+        {donationCents > 0 && (
+          <div className="flex justify-between">
+            <span className="text-pink-600">Charity</span>
+            <span className="text-pink-600">+{formatCurrency(donationCents)}</span>
           </div>
         )}
       </div>
@@ -262,6 +277,26 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
             </div>
           )}
 
+          {/* Subtotal before extras */}
+          <div className="flex justify-between pt-2 border-t border-slate-200">
+            <span className="text-slate-600">Reservation Subtotal</span>
+            <span className="text-slate-900">{formatCurrency(totalCents)}</span>
+          </div>
+
+          {/* Charity Round-Up (from context - shows when opted in) */}
+          {donationCents > 0 && (
+            <div className="flex justify-between">
+              <span className="flex items-center gap-1.5 text-pink-600">
+                <Heart className="w-3 h-3" />
+                Charity Round-Up
+                {charityDonation.charityName && (
+                  <span className="text-xs text-pink-400">({charityDonation.charityName})</span>
+                )}
+              </span>
+              <span className="text-pink-600">+{formatCurrency(donationCents)}</span>
+            </div>
+          )}
+
           {/* CC Fee Info */}
           <div className="pt-2 mt-1 border-t border-slate-200">
             <div className="flex justify-between text-xs text-slate-400">
@@ -273,10 +308,10 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
             </div>
           </div>
 
-          {/* Total */}
+          {/* Grand Total */}
           <div className="flex justify-between pt-2 border-t border-slate-200 font-medium">
-            <span className="text-slate-900">Reservation Total</span>
-            <span className="text-slate-900">{formatCurrency(totalCents)}</span>
+            <span className="text-slate-900">Total Due</span>
+            <span className="text-lg text-slate-900">{formatCurrency(grandTotalCents)}</span>
           </div>
         </div>
       </CollapsibleContent>
