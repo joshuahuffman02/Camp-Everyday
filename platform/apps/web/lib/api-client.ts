@@ -7355,15 +7355,15 @@ export const apiClient = {
       priority: z.number(),
       stackMode: z.enum(["additive", "max", "override"]),
       adjustmentType: z.enum(["percent", "flat"]),
-      adjustmentValue: z.number(),
+      adjustmentValue: z.coerce.number(), // Prisma Decimal comes as string
       siteClassId: z.string().nullable(),
       calendarRefId: z.string().nullable(),
       demandBandId: z.string().nullable(),
       dowMask: z.array(z.number()).nullable(),
       startDate: z.string().nullable(),
       endDate: z.string().nullable(),
-      minRateCap: z.number().nullable(),
-      maxRateCap: z.number().nullable(),
+      minRateCap: z.coerce.number().nullable(), // Prisma Decimal comes as string
+      maxRateCap: z.coerce.number().nullable(), // Prisma Decimal comes as string
       active: z.boolean(),
       createdAt: z.string(),
       updatedAt: z.string(),
