@@ -523,14 +523,14 @@ export function DashboardShell({ children, className, title, subtitle }: { child
   const navSections = useMemo(() => {
     // PRIMARY - Core daily operations (no accordion, always visible)
     const primaryItems: NavItem[] = [
-      { label: "Dashboard", href: "/dashboard", icon: "dashboard", dataTour: "nav-dashboard" },
-      { label: "Calendar", href: "/calendar", icon: "calendar", dataTour: "nav-calendar" },
+      { label: "Dashboard", href: "/dashboard", icon: "dashboard", dataTour: "dashboard-link" },
+      { label: "Calendar", href: "/calendar", icon: "calendar", dataTour: "calendar-link" },
       { label: "Site Map", href: cgMapPath, icon: "camp", tooltip: "View and manage the campground map" },
-      { label: "Reservations", href: cgReservationsPath, icon: "reservation", dataTour: "nav-reservations" },
-      { label: "Guests", href: "/guests", icon: "guest", dataTour: "nav-guests" },
-      { label: "Messages", href: "/messages", icon: "message", badge: unreadMessages, dataTour: "nav-messages" },
-      { label: "Reports", href: "/reports", icon: "reports", dataTour: "nav-reports" },
-      { label: "Gamification", href: "/gamification", icon: "trophy", tooltip: "Staff leaderboards and rewards", dataTour: "nav-gamification" }
+      { label: "Reservations", href: cgReservationsPath, icon: "reservation", dataTour: "reservations-link" },
+      { label: "Guests", href: "/guests", icon: "guest", dataTour: "guests-link" },
+      { label: "Messages", href: "/messages", icon: "message", badge: unreadMessages, dataTour: "messages-link" },
+      { label: "Reports", href: "/reports", icon: "reports", dataTour: "reports-link" },
+      { label: "Gamification", href: "/gamification", icon: "trophy", tooltip: "Staff leaderboards and rewards", dataTour: "gamification-link" }
     ];
 
     // Add Management link for managers (simplified - links to hub page)
@@ -540,7 +540,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
 
     // Add Settings link for admins (simplified - links to hub page)
     if (isAdmin) {
-      primaryItems.push({ label: "Settings", href: "/dashboard/settings", icon: "policy", tooltip: "All settings and configuration" });
+      primaryItems.push({ label: "Settings", href: "/dashboard/settings", icon: "policy", tooltip: "All settings and configuration", dataTour: "settings-link" });
     }
 
     // NOTE: Operations items moved to top bar
@@ -721,6 +721,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
           href={item.href}
           aria-current={isActive ? "page" : undefined}
           title={item.tooltip ?? item.label}
+          data-tour={item.dataTour}
         >
           <span className={cn("flex items-center gap-2", isCollapsed && "justify-center w-full")}>
             {/* Drag handle - only show in edit mode */}
