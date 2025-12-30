@@ -31,6 +31,7 @@ import { AiSmartComposeService } from './ai-smart-compose.service';
 // AI Monitoring & Edge Cases
 import { AiCostTrackingService } from './ai-cost-tracking.service';
 import { AiEdgeCasesService } from './ai-edge-cases.service';
+import { AiExecutorService } from './ai-executor.service';
 import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
 import { AiAutopilotController } from './ai-autopilot.controller';
@@ -100,6 +101,8 @@ import { AnomaliesModule } from '../anomalies/anomalies.module';
     // AI Monitoring & Edge Cases
     AiCostTrackingService,
     AiEdgeCasesService,
+    // AI Executor (vibe-kanban pattern)
+    AiExecutorService,
     AiService,
   ],
   exports: [
@@ -136,6 +139,8 @@ import { AnomaliesModule } from '../anomalies/anomalies.module';
     // AI Monitoring & Edge Cases
     AiCostTrackingService,
     AiEdgeCasesService,
+    // AI Executor (vibe-kanban pattern)
+    AiExecutorService,
     AiService,
   ],
 })

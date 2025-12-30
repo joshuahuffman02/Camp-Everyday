@@ -20,7 +20,8 @@ import {
     TrendingUp,
     Heart,
     Menu,
-    X
+    X,
+    Bug
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -110,6 +111,7 @@ const adminNavItems = [
             { title: "Feature Flags", href: "/admin/system/flags" },
             { title: "Announcements", href: "/admin/system/announcements" },
             { title: "Sync Summary", href: "/admin/sync-summary" },
+            { title: "Issues", href: "/admin/system/issues" },
         ],
     },
     {

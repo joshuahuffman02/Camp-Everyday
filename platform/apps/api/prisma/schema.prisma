@@ -10407,3 +10407,73 @@ model MarketplaceSyncLog {
   @@index([connectionId, startedAt])
   @@index([status])
 }
+
+// =============================================================================
+// INTERNAL ISSUE TRACKING
+// =============================================================================
+
+enum IssueStatus {
+  backlog
+  todo
+  in_progress
+  review
+  done
+}
+
+enum IssuePriority {
+  low
+  medium
+  high
+  critical
+}
+
+enum IssueCategory {
+  database
+  frontend
+  performance
+  security
+  api
+  infrastructure
+  documentation
+  other
+}
+
+enum AttemptOutcome {
+  success
+  failed
+  partial
+}
+
+// Platform-level issue tracking for internal tech debt and bugs
+model Issue {
+  id          String        @id @default(cuid())
+  title       String
+  description String?       @db.Text
+  category    IssueCategory
+  priority    IssuePriority @default(medium)
+  status      IssueStatus   @default(backlog)
+  assignedTo  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  resolvedAt  DateTime?
+
+  attempts IssueAttempt[]
+
+  @@index([status])
+  @@index([category])
+  @@index([priority])
+  @@index([status, priority])
+}
+
+// Track fix attempts for issues
+model IssueAttempt {
+  id        String         @id @default(cuid())
+  issueId   String
+  notes     String         @db.Text
+  outcome   AttemptOutcome
+  createdAt DateTime       @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+}
