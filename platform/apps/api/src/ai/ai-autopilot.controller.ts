@@ -27,6 +27,7 @@ import { AiWeatherService } from "./ai-weather.service";
 import { AiPhoneAgentService } from "./ai-phone-agent.service";
 import { AiDashboardService } from "./ai-dashboard.service";
 import { AiYieldService } from "./ai-yield.service";
+import { AiDemandForecastService } from "./ai-demand-forecast.service";
 import {
   UpdateAutopilotConfigDto,
   CreateContextItemDto,
@@ -54,7 +55,8 @@ export class AiAutopilotController {
     private readonly weatherService: AiWeatherService,
     private readonly phoneAgentService: AiPhoneAgentService,
     private readonly dashboardService: AiDashboardService,
-    private readonly yieldService: AiYieldService
+    private readonly yieldService: AiYieldService,
+    private readonly demandForecastService: AiDemandForecastService
   ) {}
 
   // ==================== CONFIG ENDPOINTS ====================
@@ -671,5 +673,46 @@ export class AiAutopilotController {
       days || 90
     );
     return { success: true, recordedDays: recorded };
+  }
+
+  // ==================== DEMAND FORECAST ENDPOINTS ====================
+
+  @Get("campgrounds/:campgroundId/demand/forecast")
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  async getDemandForecast(
+    @Param("campgroundId") campgroundId: string,
+    @Query("days") days?: string
+  ) {
+    return this.demandForecastService.generateForecast(
+      campgroundId,
+      days ? parseInt(days, 10) : 90
+    );
+  }
+
+  @Get("campgrounds/:campgroundId/demand/heatmap")
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  async getDemandHeatmap(
+    @Param("campgroundId") campgroundId: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string
+  ) {
+    const start = startDate ? new Date(startDate) : new Date();
+    const end = endDate
+      ? new Date(endDate)
+      : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+    return this.demandForecastService.getDemandHeatmap(campgroundId, start, end);
+  }
+
+  @Get("campgrounds/:campgroundId/demand/insights")
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  async getDemandInsights(@Param("campgroundId") campgroundId: string) {
+    return this.demandForecastService.getDemandInsights(campgroundId);
+  }
+
+  @Get("campgrounds/:campgroundId/demand/analysis")
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  async getHistoricalAnalysis(@Param("campgroundId") campgroundId: string) {
+    return this.demandForecastService.analyzeHistoricalPatterns(campgroundId);
   }
 }

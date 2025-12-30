@@ -10676,6 +10676,66 @@ export const apiClient = {
     return parseResponse<{ success: boolean; recordedDays: number }>(res);
   },
 
+  // Demand Forecasting
+  async getDemandForecast(campgroundId: string, days?: number) {
+    const query = days ? `?days=${days}` : "";
+    return fetchJSON<{
+      forecasts: Array<{
+        date: string;
+        predictedOccupancy: number;
+        predictedRevenue: number;
+        confidenceLow: number;
+        confidenceHigh: number;
+        demandLevel: "very_low" | "low" | "moderate" | "high" | "very_high";
+        factors: Array<{ name: string; impact: number; description: string }>;
+        existingBookings: number;
+      }>;
+      summary: {
+        avgPredictedOccupancy: number;
+        totalPredictedRevenue: number;
+        highDemandDays: number;
+        lowDemandDays: number;
+        confidenceScore: number;
+      };
+    }>(`/ai/autopilot/campgrounds/${campgroundId}/demand/forecast${query}`);
+  },
+
+  async getDemandHeatmap(campgroundId: string, startDate?: string, endDate?: string) {
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return fetchJSON<Array<{
+      date: string;
+      demandScore: number;
+      demandLevel: "very_low" | "low" | "moderate" | "high" | "very_high";
+      predictedOccupancy: number;
+      existingOccupancy: number;
+      isWeekend: boolean;
+      isHoliday: boolean;
+      holidayName?: string;
+    }>>(`/ai/autopilot/campgrounds/${campgroundId}/demand/heatmap${query}`);
+  },
+
+  async getDemandInsights(campgroundId: string) {
+    return fetchJSON<{
+      peakDemandPeriods: Array<{ startDate: string; endDate: string; avgDemand: number; reason: string }>;
+      lowDemandPeriods: Array<{ startDate: string; endDate: string; avgDemand: number; suggestion: string }>;
+      upcomingOpportunities: Array<{ date: string; type: string; description: string }>;
+    }>(`/ai/autopilot/campgrounds/${campgroundId}/demand/insights`);
+  },
+
+  async getDemandAnalysis(campgroundId: string) {
+    return fetchJSON<{
+      baselineOccupancy: number;
+      seasonality: Array<{ month: number; factor: number; isHighSeason: boolean }>;
+      dayOfWeek: Array<{ dayOfWeek: number; factor: number; avgOccupancy: number }>;
+      recentTrend: number;
+      variance: number;
+      dataPoints: number;
+    }>(`/ai/autopilot/campgrounds/${campgroundId}/demand/analysis`);
+  },
+
   // Predictive Maintenance
   async getMaintenanceAlerts(campgroundId: string, status?: string) {
     const params = status ? `?status=${status}` : "";
