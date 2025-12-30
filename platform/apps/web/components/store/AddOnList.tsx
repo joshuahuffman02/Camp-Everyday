@@ -14,6 +14,8 @@ import {
 } from "../ui/alert-dialog";
 import { AddOnModal } from "./AddOnModal";
 import { AddOn } from "@campreserv/shared";
+import { CardEmpty } from "../ui/empty-state";
+import { Gift } from "lucide-react";
 
 interface AddOnListProps {
     campgroundId: string;
@@ -114,9 +116,12 @@ export function AddOnList({ campgroundId }: AddOnListProps) {
                     </div>
                 ))}
                 {addOns.length === 0 && (
-                    <div className="text-center py-8 text-slate-500 border border-dashed border-slate-200 rounded-lg">
-                        No add-ons found. Create services like firewood, rentals, etc.
-                    </div>
+                    <CardEmpty
+                        icon={Gift}
+                        title="No add-ons yet"
+                        description="Create services like firewood, rentals, or equipment."
+                        action={{ label: "Add Add-on", onClick: handleCreate }}
+                    />
                 )}
             </div>
 

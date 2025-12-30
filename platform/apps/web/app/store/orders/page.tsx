@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle, Eye, RefreshCw, Check, Truck, List } from "lucide-react";
 import { TableSkeleton } from "@/components/ui/skeletons";
+import { InlineEmpty } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -172,7 +173,7 @@ export default function StoreOrdersPage() {
           {loading ? (
             <TableSkeleton columns={7} rows={5} />
           ) : orders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No orders.</p>
+            <InlineEmpty>No orders yet.</InlineEmpty>
           ) : (
             <Table>
               <TableHeader>
