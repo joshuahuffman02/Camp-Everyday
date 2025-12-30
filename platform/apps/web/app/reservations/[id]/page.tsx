@@ -17,7 +17,7 @@ import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { GitBranch, Loader2, Mail, MessageSquare, Phone, PlusCircle, RotateCcw, StickyNote, PhoneCall } from "lucide-react";
-import { DetailPageSkeleton } from "@/components/ui/skeletons";
+import { PageSkeleton } from "@/components/ui/skeletons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -280,7 +280,7 @@ export default function ReservationDetailPage() {
     if (loading) {
         return (
             <DashboardShell>
-                <DetailPageSkeleton />
+                <PageSkeleton />
             </DashboardShell>
         );
     }
