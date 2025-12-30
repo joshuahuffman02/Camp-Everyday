@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { format } from "date-fns";
 import Link from "next/link";
-import { Pencil } from "lucide-react";
+import { Pencil, Copy, Check } from "lucide-react";
+import { useState } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ReservationHeaderProps {
     reservation: Reservation;
@@ -16,6 +18,14 @@ interface ReservationHeaderProps {
 }
 
 export function ReservationHeader({ reservation, onCheckIn, onCheckOut, onCancel, isProcessing, onEdit }: ReservationHeaderProps) {
+    const [copied, setCopied] = useState(false);
+
+    const copyReservationId = async () => {
+        await navigator.clipboard.writeText(reservation.id);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
     const isToday = (date: Date | string) => {
         const d = new Date(date);
         const today = new Date();
@@ -40,7 +50,30 @@ export function ReservationHeader({ reservation, onCheckIn, onCheckOut, onCancel
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white border-b border-slate-200">
             <div>
                 <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-2xl font-bold text-slate-900">Reservation #{reservation.id.slice(0, 8)}</h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-2xl font-bold text-slate-900">Reservation #{reservation.id.slice(0, 8)}</h1>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={copyReservationId}
+                                        className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                                        aria-label="Copy full reservation ID"
+                                    >
+                                        {copied ? (
+                                            <Check className="h-4 w-4 text-green-600" />
+                                        ) : (
+                                            <Copy className="h-4 w-4" />
+                                        )}
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p className="font-mono text-xs">{reservation.id}</p>
+                                    <p className="text-xs text-slate-400 mt-1">{copied ? "Copied!" : "Click to copy"}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                     <Badge className={getStatusColor(reservation.status)}>
                         {reservation.status.replace("_", " ").toUpperCase()}
                     </Badge>

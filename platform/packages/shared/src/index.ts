@@ -365,6 +365,9 @@ export const ReservationSchema = z.object({
   referralChannel: z.string().nullish(),
   referralIncentiveType: z.string().nullish(),
   referralIncentiveValue: z.number().int().nonnegative().nullable().optional(),
+  pricingRuleVersion: z.string().nullish(),
+  earlyCheckInCharge: z.number().int().nonnegative().nullable().optional(),
+  lateCheckoutCharge: z.number().int().nonnegative().nullable().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   guest: GuestSchema.optional(),
@@ -559,6 +562,15 @@ export type PricingRule = z.infer<typeof PricingRuleSchema>;
 export const CreatePricingRuleSchema = PricingRuleSchema.omit({ id: true });
 export type CreatePricingRuleDto = z.infer<typeof CreatePricingRuleSchema>;
 
+// Applied pricing rule schema
+export const AppliedPricingRuleSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  adjustmentCents: z.number().int()
+});
+export type AppliedPricingRule = z.infer<typeof AppliedPricingRuleSchema>;
+
 // Pricing quote
 export const QuoteSchema = z.object({
   nights: z.number().int().nonnegative(),
@@ -566,6 +578,8 @@ export const QuoteSchema = z.object({
   rulesDeltaCents: z.number().int(),
   totalCents: z.number().int().nonnegative(),
   perNightCents: z.number().int().nonnegative(),
+  appliedRules: z.array(AppliedPricingRuleSchema).optional(),
+  pricingRuleVersion: z.string().optional(),
   taxExemptionEligible: z.boolean().optional(),
   requiresWaiver: z.boolean().optional(),
   waiverText: z.string().optional().nullable()
