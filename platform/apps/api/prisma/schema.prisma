@@ -1216,6 +1216,8 @@ model Campground {
   paymentGatewayConfig      CampgroundPaymentGatewayConfig?
   ledgerEntries             LedgerEntry[]
   glPeriods                 GlPeriod[]
+  glAccounts                GlAccount[]
+  payoutRecons              PayoutRecon[]
   memberships               CampgroundMembership[]
   events                    Event[]
   productCategories         ProductCategory[]
@@ -2822,11 +2824,17 @@ model LedgerEntry {
   createdAt     DateTime @default(now())
   externalRef   String?
   dedupeKey     String?
+  sourceType    String?
+  sourceTxId    String?
+  sourceTs      DateTime?
+  hash          String?
+  adjustment    Boolean  @default(false)
 
   reservation   Reservation?   @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   campground    Campground     @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
   arLedgerEntry ArLedgerEntry?
   glPeriod      GlPeriod?      @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  ledgerLines   LedgerLine[]
 
   @@index([campgroundId])
   @@index([reservationId])
@@ -2836,6 +2844,7 @@ model LedgerEntry {
   @@index([campgroundId, createdAt])
   @@index([campgroundId, glCode, createdAt])
   @@index([reservationId, createdAt])
+  @@index([sourceTxId])
 }
 
 enum GlPeriodStatus {
@@ -2863,6 +2872,56 @@ model GlPeriod {
 
   @@index([campgroundId, startDate, endDate])
   @@index([campgroundId, status])
+}
+
+enum GlAccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+}
+
+model GlAccount {
+  id           String        @id @default(cuid())
+  campgroundId String
+  code         String
+  name         String
+  type         GlAccountType
+  description  String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+
+  campground  Campground   @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  ledgerLines LedgerLine[]
+
+  @@unique([campgroundId, code])
+  @@index([campgroundId])
+  @@index([campgroundId, type])
+}
+
+model LedgerLine {
+  id                String   @id @default(cuid())
+  ledgerEntryId     String
+  glAccountId       String
+  side              String // debit or credit
+  amountCents       Int
+  memo              String?
+  productCode       String?
+  channelCode       String?
+  taxJurisdiction   String?
+  taxRateBps        Int?
+  taxableBaseCents  Int?
+  reconciliationKey String?
+  createdAt         DateTime @default(now())
+
+  ledgerEntry LedgerEntry @relation(fields: [ledgerEntryId], references: [id], onDelete: Cascade)
+  glAccount   GlAccount   @relation(fields: [glAccountId], references: [id], onDelete: Cascade)
+
+  @@index([ledgerEntryId])
+  @@index([glAccountId])
+  @@index([reconciliationKey])
 }
 
 enum PayoutStatus {
@@ -2919,6 +2978,54 @@ model PayoutLine {
   @@index([paymentIntentId])
   @@index([chargeId])
   @@index([balanceTransactionId])
+}
+
+enum PayoutReconStatus {
+  pending
+  matched
+  drift
+  failed
+}
+
+model PayoutRecon {
+  id                  String            @id @default(cuid())
+  campgroundId        String
+  provider            String            @default("stripe")
+  status              PayoutReconStatus @default(pending)
+  expectedAmountCents Int?
+  actualAmountCents   Int?
+  varianceCents       Int?
+  currency            String            @default("usd")
+  payoutDate          DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now()) @updatedAt
+
+  campground Campground        @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  lines      PayoutReconLine[]
+
+  @@index([campgroundId])
+  @@index([status])
+  @@index([payoutDate])
+}
+
+model PayoutReconLine {
+  id            String   @id @default(cuid())
+  payoutReconId String
+  type          String // payout, fee, chargeback, reserve, adjustment, other
+  status        String   @default("matched")
+  sourceTxId    String?
+  sourceTs      DateTime?
+  amountCents   Int
+  currency      String   @default("usd")
+  glEntryId     String?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  payoutRecon PayoutRecon @relation(fields: [payoutReconId], references: [id], onDelete: Cascade)
+
+  @@index([payoutReconId])
+  @@index([sourceTxId])
+  @@index([glEntryId])
 }
 
 enum DisputeStatus {
