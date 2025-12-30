@@ -6,8 +6,6 @@ export class StripeService {
     private readonly logger = new Logger(StripeService.name);
     private stripe: Stripe | null = null;
     private readonly configured: boolean;
-    // Use a stable API version - let SDK handle version negotiation
-    private readonly apiVersion = "2024-12-18.acacia" as Stripe.LatestApiVersion;
 
     constructor() {
         const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -31,9 +29,8 @@ export class StripeService {
             }
         } else {
             // Only create Stripe instance if we have a valid key
-            this.stripe = new Stripe(secretKey!, {
-                apiVersion: this.apiVersion,
-            });
+            // SDK v20+ requires options object even if empty
+            this.stripe = new Stripe(secretKey!, {});
             this.logger.log("Initialized with valid API key");
         }
     }
