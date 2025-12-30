@@ -34,6 +34,7 @@ export function usePaymentIntent(options: UsePaymentIntentOptions = {}): UsePaym
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoCreateAttempted, setAutoCreateAttempted] = useState(false);
 
   const getReservationId = useCallback((): string | undefined => {
     if (props.subject.type === "reservation") return props.subject.reservationId;
@@ -98,14 +99,17 @@ export function usePaymentIntent(options: UsePaymentIntentOptions = {}): UsePaym
     setPaymentIntentId(null);
     setError(null);
     setLoading(false);
+    setAutoCreateAttempted(false);
   }, []);
 
   // Auto-create intent when hook mounts if requested
+  // Only auto-create once - don't retry on error (user can click "Try Again")
   useEffect(() => {
-    if (autoCreate && state.remainingCents > 0 && !clientSecret && !loading) {
+    if (autoCreate && state.remainingCents > 0 && !clientSecret && !loading && !autoCreateAttempted) {
+      setAutoCreateAttempted(true);
       createIntent();
     }
-  }, [autoCreate, state.remainingCents, clientSecret, loading, createIntent]);
+  }, [autoCreate, state.remainingCents, clientSecret, loading, autoCreateAttempted, createIntent]);
 
   return {
     clientSecret,
