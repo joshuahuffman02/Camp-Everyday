@@ -30,6 +30,16 @@ export class UpdateAutopilotConfigDto {
   @IsString({ each: true })
   autoReplyExcludeCategories?: string[];
 
+  @IsOptional()
+  @IsBoolean()
+  autoReplyAutoSendEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(500)
+  autoReplyMaxDailyAutoSends?: number;
+
   // Smart Waitlist
   @IsOptional()
   @IsBoolean()
@@ -58,6 +68,22 @@ export class UpdateAutopilotConfigDto {
   @Max(1)
   waitlistSeasonalWeight?: number;
 
+  @IsOptional()
+  @IsBoolean()
+  waitlistAutoOfferEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  waitlistAutoOfferMinScore?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(5)
+  @Max(1440)
+  waitlistAutoOfferHoldMinutes?: number;
+
   // Anomaly Detection
   @IsOptional()
   @IsBoolean()
@@ -83,6 +109,15 @@ export class UpdateAutopilotConfigDto {
   @IsEnum(["low", "medium", "high"])
   anomalySensitivity?: string;
 
+  @IsOptional()
+  @IsBoolean()
+  anomalyAutoFixEnabled?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  anomalyAutoFixCategories?: string[];
+
   // No-Show Prediction
   @IsOptional()
   @IsBoolean()
@@ -103,6 +138,86 @@ export class UpdateAutopilotConfigDto {
   @Min(1)
   @Max(14)
   noShowReminderDaysBefore?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  noShowAutoReleaseEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(168)
+  noShowAutoConfirmHours?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(48)
+  noShowAutoReleaseHours?: number;
+
+  // Dynamic Pricing
+  @IsOptional()
+  @IsBoolean()
+  dynamicPricingAiEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  dynamicPricingMode?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(5)
+  @Max(100)
+  dynamicPricingMaxAdjust?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  dynamicPricingAutopilot?: boolean;
+
+  // Predictive Maintenance
+  @IsOptional()
+  @IsBoolean()
+  predictiveMaintenanceEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  maintenanceAlertThreshold?: number;
+
+  // Weather Alerts
+  @IsOptional()
+  @IsBoolean()
+  weatherAlertsEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  weatherApiKey?: string;
+
+  // Phone Agent
+  @IsOptional()
+  @IsBoolean()
+  phoneAgentEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  phoneAgentNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  phoneAgentTransferNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  phoneAgentHoursStart?: string;
+
+  @IsOptional()
+  @IsString()
+  phoneAgentHoursEnd?: string;
+
+  @IsOptional()
+  @IsString()
+  phoneAgentVoice?: string;
 }
 
 // ==================== CONTEXT DTOs ====================
