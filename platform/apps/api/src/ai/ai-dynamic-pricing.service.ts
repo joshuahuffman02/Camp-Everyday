@@ -591,4 +591,544 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
       averageAdjustmentPercent: Math.round(avgAdjustment * 10) / 10,
     };
   }
+
+  // ==================== PRICE SENSITIVITY ANALYSIS ====================
+
+  /**
+   * Analyze price elasticity - how bookings change with price
+   */
+  async analyzePriceSensitivity(
+    campgroundId: string,
+    siteClassId?: string
+  ): Promise<{
+    elasticity: number; // negative = elastic (price sensitive), positive = inelastic
+    optimalPriceRange: { min: number; max: number };
+    pricePoints: Array<{ price: number; conversionRate: number; bookings: number }>;
+    insight: string;
+  }> {
+    // Get historical reservations with pricing data
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const whereClause: any = {
+      campgroundId,
+      status: { in: ["confirmed", "checked_in", "checked_out"] },
+      createdAt: { gte: sixMonthsAgo },
+      totalAmountCents: { gt: 0 },
+      nights: { gt: 0 },
+    };
+
+    if (siteClassId) {
+      whereClause.site = { siteClassId };
+    }
+
+    const reservations = await this.prisma.reservation.findMany({
+      where: whereClause,
+      select: {
+        totalAmountCents: true,
+        nights: true,
+        createdAt: true,
+      },
+    });
+
+    if (reservations.length < 20) {
+      return {
+        elasticity: 0,
+        optimalPriceRange: { min: 0, max: 0 },
+        pricePoints: [],
+        insight: "Not enough data for price sensitivity analysis (need 20+ bookings)",
+      };
+    }
+
+    // Group by price per night
+    const priceGroups = new Map<number, number>();
+    for (const res of reservations) {
+      const pricePerNight = Math.round(res.totalAmountCents / res.nights / 500) * 500; // Round to $5 increments
+      priceGroups.set(pricePerNight, (priceGroups.get(pricePerNight) || 0) + 1);
+    }
+
+    // Convert to sorted array
+    const pricePoints = Array.from(priceGroups.entries())
+      .map(([price, bookings]) => ({
+        price,
+        bookings,
+        conversionRate: 0, // Would need view data to calculate
+      }))
+      .sort((a, b) => a.price - b.price);
+
+    // Calculate simple price elasticity
+    // Using midpoint method between highest and lowest booking prices
+    const totalBookings = reservations.length;
+    const avgPrice = reservations.reduce((sum, r) => sum + r.totalAmountCents / r.nights, 0) / totalBookings;
+
+    // Find price range with most bookings (optimal zone)
+    let maxBookingsPrice = pricePoints[0]?.price || 0;
+    let maxBookings = 0;
+    for (const point of pricePoints) {
+      if (point.bookings > maxBookings) {
+        maxBookings = point.bookings;
+        maxBookingsPrice = point.price;
+      }
+    }
+
+    // Calculate elasticity estimate
+    // Negative elasticity = demand drops as price increases (normal goods)
+    let elasticity = -1; // Default assumption
+    if (pricePoints.length >= 3) {
+      const lowPriceBookings = pricePoints.slice(0, Math.ceil(pricePoints.length / 3)).reduce((s, p) => s + p.bookings, 0);
+      const highPriceBookings = pricePoints.slice(-Math.ceil(pricePoints.length / 3)).reduce((s, p) => s + p.bookings, 0);
+      if (lowPriceBookings > 0 && highPriceBookings > 0) {
+        const avgLowPrice = pricePoints.slice(0, Math.ceil(pricePoints.length / 3)).reduce((s, p) => s + p.price, 0) / Math.ceil(pricePoints.length / 3);
+        const avgHighPrice = pricePoints.slice(-Math.ceil(pricePoints.length / 3)).reduce((s, p) => s + p.price, 0) / Math.ceil(pricePoints.length / 3);
+        const pctChangeQuantity = (highPriceBookings - lowPriceBookings) / lowPriceBookings;
+        const pctChangePrice = (avgHighPrice - avgLowPrice) / avgLowPrice;
+        if (pctChangePrice !== 0) {
+          elasticity = pctChangeQuantity / pctChangePrice;
+        }
+      }
+    }
+
+    // Determine optimal price range
+    const optimalMin = Math.max(maxBookingsPrice - 1000, pricePoints[0]?.price || 0);
+    const optimalMax = Math.min(maxBookingsPrice + 1500, pricePoints[pricePoints.length - 1]?.price || avgPrice * 1.2);
+
+    // Generate insight
+    let insight = "";
+    if (elasticity < -1.5) {
+      insight = "Demand is highly price-sensitive. Consider competitive pricing and promotions for off-peak periods.";
+    } else if (elasticity < -0.5) {
+      insight = "Demand shows moderate price sensitivity. Small price increases during peak times may be well-accepted.";
+    } else if (elasticity < 0) {
+      insight = "Demand is relatively price-inelastic. There's room to increase prices without significantly impacting bookings.";
+    } else {
+      insight = "Unusual pricing pattern detected. Higher prices seem to correlate with more bookings (prestige effect or data anomaly).";
+    }
+
+    return {
+      elasticity: Math.round(elasticity * 100) / 100,
+      optimalPriceRange: { min: optimalMin, max: optimalMax },
+      pricePoints,
+      insight,
+    };
+  }
+
+  // ==================== AUTOPILOT MODE ====================
+
+  /**
+   * Run autopilot pricing - automatically apply safe recommendations
+   * This runs after the daily analysis if autopilot is enabled
+   */
+  async runAutopilot(campgroundId: string): Promise<{
+    applied: number;
+    skipped: number;
+    reasons: string[];
+  }> {
+    const config = await this.configService.getConfig(campgroundId);
+
+    if (!config.dynamicPricingAutopilot) {
+      return { applied: 0, skipped: 0, reasons: ["Autopilot not enabled"] };
+    }
+
+    const reasons: string[] = [];
+    let applied = 0;
+    let skipped = 0;
+
+    // Get pending recommendations
+    const recommendations = await this.prisma.aiPricingRecommendation.findMany({
+      where: {
+        campgroundId,
+        status: "pending",
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { estimatedRevenueDelta: "desc" },
+    });
+
+    for (const rec of recommendations) {
+      // Check guardrails
+      const guardrailCheck = this.checkGuardrails(rec, config);
+
+      if (!guardrailCheck.pass) {
+        reasons.push(`${rec.id}: ${guardrailCheck.reason}`);
+        skipped++;
+        continue;
+      }
+
+      try {
+        // Auto-apply the recommendation
+        await this.prisma.aiPricingRecommendation.update({
+          where: { id: rec.id },
+          data: {
+            status: "applied",
+            appliedAt: new Date(),
+            appliedById: "autopilot",
+          },
+        });
+
+        // Log the autonomous action
+        await this.autonomousAction.logAction({
+          campgroundId,
+          actionType: "price_adjusted",
+          entityType: "pricing_recommendation",
+          entityId: rec.id,
+          description: `[Autopilot] Applied ${rec.adjustmentPercent.toFixed(1)}% price adjustment`,
+          details: {
+            siteClassId: rec.siteClassId,
+            dateStart: rec.dateStart,
+            dateEnd: rec.dateEnd,
+            currentPrice: rec.currentPriceCents,
+            suggestedPrice: rec.suggestedPriceCents,
+            adjustmentPercent: rec.adjustmentPercent,
+          },
+          confidence: rec.confidence,
+          reasoning: rec.reasoning,
+          reversible: true,
+        });
+
+        applied++;
+        this.logger.log(`[Autopilot] Applied pricing recommendation ${rec.id}`);
+      } catch (error) {
+        reasons.push(`${rec.id}: Failed to apply - ${error}`);
+        skipped++;
+      }
+    }
+
+    return { applied, skipped, reasons };
+  }
+
+  /**
+   * Check if recommendation passes guardrails
+   */
+  private checkGuardrails(
+    rec: { adjustmentPercent: number; confidence: number; recommendationType: string },
+    config: { dynamicPricingMaxAdjust: number }
+  ): { pass: boolean; reason?: string } {
+    // Max adjustment limit
+    if (Math.abs(rec.adjustmentPercent) > config.dynamicPricingMaxAdjust) {
+      return { pass: false, reason: `Exceeds max adjustment (${config.dynamicPricingMaxAdjust}%)` };
+    }
+
+    // Minimum confidence threshold
+    if (rec.confidence < 0.7) {
+      return { pass: false, reason: `Low confidence (${(rec.confidence * 100).toFixed(0)}%)` };
+    }
+
+    // Don't auto-apply price decreases > 15% (might indicate error)
+    if (rec.adjustmentPercent < -15) {
+      return { pass: false, reason: "Large price decrease requires manual review" };
+    }
+
+    // Don't auto-apply overpriced recommendations (price decreases)
+    if (rec.recommendationType === "overpriced") {
+      return { pass: false, reason: "Price decrease recommendations require manual review" };
+    }
+
+    return { pass: true };
+  }
+
+  // ==================== A/B TESTING ====================
+
+  /**
+   * Create a new price experiment
+   */
+  async createExperiment(
+    campgroundId: string,
+    data: {
+      siteClassId: string;
+      name: string;
+      description?: string;
+      hypothesis: string;
+      testPrice: number;
+      startDate: Date;
+      endDate: Date;
+      autoApplyWinner?: boolean;
+      createdById?: string;
+    }
+  ) {
+    // Get site class base price
+    const siteClass = await this.prisma.siteClass.findUnique({
+      where: { id: data.siteClassId },
+      select: { basePrice: true },
+    });
+
+    if (!siteClass) {
+      throw new NotFoundException("Site class not found");
+    }
+
+    // Get sites in this class
+    const sites = await this.prisma.site.findMany({
+      where: { siteClassId: data.siteClassId, status: "available" },
+      select: { id: true },
+    });
+
+    if (sites.length < 2) {
+      throw new BadRequestException("Need at least 2 sites for A/B testing");
+    }
+
+    // Randomly assign sites to control and test groups
+    const shuffled = sites.sort(() => Math.random() - 0.5);
+    const midpoint = Math.ceil(shuffled.length / 2);
+    const controlSites = shuffled.slice(0, midpoint).map((s) => s.id);
+    const testSites = shuffled.slice(midpoint).map((s) => s.id);
+
+    const adjustmentPct = ((data.testPrice - siteClass.basePrice) / siteClass.basePrice) * 100;
+
+    return this.prisma.aiPriceExperiment.create({
+      data: {
+        campgroundId,
+        siteClassId: data.siteClassId,
+        name: data.name,
+        description: data.description,
+        hypothesis: data.hypothesis,
+        controlPrice: siteClass.basePrice,
+        testPrice: data.testPrice,
+        adjustmentPct,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        controlSiteIds: controlSites,
+        testSiteIds: testSites,
+        autoApplyWinner: data.autoApplyWinner || false,
+        createdById: data.createdById,
+        status: "draft",
+      },
+    });
+  }
+
+  /**
+   * Start an experiment
+   */
+  async startExperiment(id: string) {
+    const experiment = await this.prisma.aiPriceExperiment.findUnique({ where: { id } });
+    if (!experiment) throw new NotFoundException("Experiment not found");
+    if (experiment.status !== "draft") {
+      throw new BadRequestException("Can only start experiments in draft status");
+    }
+
+    return this.prisma.aiPriceExperiment.update({
+      where: { id },
+      data: { status: "running" },
+    });
+  }
+
+  /**
+   * Pause an experiment
+   */
+  async pauseExperiment(id: string) {
+    return this.prisma.aiPriceExperiment.update({
+      where: { id },
+      data: { status: "paused" },
+    });
+  }
+
+  /**
+   * Record a booking for an experiment
+   */
+  async recordExperimentBooking(
+    experimentId: string,
+    siteId: string,
+    revenueCents: number
+  ) {
+    const experiment = await this.prisma.aiPriceExperiment.findUnique({
+      where: { id: experimentId },
+    });
+
+    if (!experiment || experiment.status !== "running") return;
+
+    const isControl = experiment.controlSiteIds.includes(siteId);
+    const isTest = experiment.testSiteIds.includes(siteId);
+
+    if (!isControl && !isTest) return;
+
+    await this.prisma.aiPriceExperiment.update({
+      where: { id: experimentId },
+      data: isControl
+        ? {
+            controlBookings: { increment: 1 },
+            controlRevenue: { increment: revenueCents },
+          }
+        : {
+            testBookings: { increment: 1 },
+            testRevenue: { increment: revenueCents },
+          },
+    });
+
+    // Re-calculate statistical significance
+    await this.calculateExperimentSignificance(experimentId);
+  }
+
+  /**
+   * Calculate statistical significance of experiment results
+   * Uses a simplified chi-square test approximation
+   */
+  private async calculateExperimentSignificance(id: string) {
+    const exp = await this.prisma.aiPriceExperiment.findUnique({ where: { id } });
+    if (!exp) return;
+
+    const totalBookings = exp.controlBookings + exp.testBookings;
+    if (totalBookings < 10) return; // Not enough data
+
+    // Calculate conversion rates (bookings per site)
+    const controlRate = exp.controlBookings / exp.controlSiteIds.length;
+    const testRate = exp.testBookings / exp.testSiteIds.length;
+
+    // Calculate revenue per booking
+    const controlAvgRevenue = exp.controlBookings > 0 ? exp.controlRevenue / exp.controlBookings : 0;
+    const testAvgRevenue = exp.testBookings > 0 ? exp.testRevenue / exp.testBookings : 0;
+
+    // Revenue lift percentage
+    const liftPercent = controlAvgRevenue > 0
+      ? ((testAvgRevenue - controlAvgRevenue) / controlAvgRevenue) * 100
+      : 0;
+
+    // Simplified p-value approximation using z-test for proportions
+    const pooledRate = (exp.controlBookings + exp.testBookings) /
+      (exp.controlSiteIds.length + exp.testSiteIds.length);
+    const se = Math.sqrt(pooledRate * (1 - pooledRate) *
+      (1 / exp.controlSiteIds.length + 1 / exp.testSiteIds.length));
+
+    let pValue = 1;
+    let winner: string | null = null;
+
+    if (se > 0) {
+      const z = Math.abs(testRate - controlRate) / se;
+      // Approximate p-value from z-score
+      pValue = Math.exp(-0.5 * z * z);
+
+      if (pValue < 0.05 && totalBookings >= 20) {
+        // Statistically significant
+        winner = testRate > controlRate ? "test" : "control";
+      }
+    }
+
+    const confidenceLevel = 1 - pValue;
+
+    await this.prisma.aiPriceExperiment.update({
+      where: { id },
+      data: {
+        pValue,
+        confidenceLevel,
+        winner,
+        liftPercent,
+      },
+    });
+
+    // Check if we should complete and auto-apply
+    if (winner && exp.autoApplyWinner && !exp.winnerApplied) {
+      await this.completeExperiment(id, true);
+    }
+  }
+
+  /**
+   * Complete an experiment
+   */
+  async completeExperiment(id: string, applyWinner: boolean = false) {
+    const exp = await this.prisma.aiPriceExperiment.findUnique({ where: { id } });
+    if (!exp) throw new NotFoundException("Experiment not found");
+
+    const updateData: any = {
+      status: "completed",
+    };
+
+    if (applyWinner && exp.winner) {
+      updateData.winnerApplied = true;
+      updateData.winnerAppliedAt = new Date();
+
+      // Log the action
+      await this.autonomousAction.logAction({
+        campgroundId: exp.campgroundId,
+        actionType: "price_adjusted",
+        entityType: "price_experiment",
+        entityId: id,
+        description: `Experiment "${exp.name}" completed. Winner: ${exp.winner} price (${exp.winner === "test" ? "+" + exp.adjustmentPct.toFixed(1) : "control"}%)`,
+        details: {
+          controlBookings: exp.controlBookings,
+          testBookings: exp.testBookings,
+          controlRevenue: exp.controlRevenue,
+          testRevenue: exp.testRevenue,
+          liftPercent: exp.liftPercent,
+          pValue: exp.pValue,
+        },
+        confidence: exp.confidenceLevel || 0,
+        reasoning: exp.hypothesis,
+        reversible: true,
+      });
+
+      this.logger.log(`Experiment ${id} completed. Winner: ${exp.winner}`);
+    }
+
+    return this.prisma.aiPriceExperiment.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
+  /**
+   * Get experiments for a campground
+   */
+  async getExperiments(campgroundId: string, status?: string) {
+    const where: any = { campgroundId };
+    if (status) where.status = status;
+
+    return this.prisma.aiPriceExperiment.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  /**
+   * Get experiment by ID
+   */
+  async getExperiment(id: string) {
+    const exp = await this.prisma.aiPriceExperiment.findUnique({ where: { id } });
+    if (!exp) throw new NotFoundException("Experiment not found");
+    return exp;
+  }
+
+  // ==================== EXTENDED CRON JOBS ====================
+
+  /**
+   * Run autopilot after daily analysis (6:30 AM)
+   */
+  @Cron("30 6 * * *")
+  async runDailyAutopilot() {
+    this.logger.log("Starting daily autopilot pricing...");
+
+    const configs = await this.prisma.aiAutopilotConfig.findMany({
+      where: { dynamicPricingAutopilot: true },
+      select: { campgroundId: true },
+    });
+
+    for (const config of configs) {
+      try {
+        const result = await this.runAutopilot(config.campgroundId);
+        this.logger.log(
+          `Autopilot for ${config.campgroundId}: ${result.applied} applied, ${result.skipped} skipped`
+        );
+      } catch (error) {
+        this.logger.error(`Autopilot failed for ${config.campgroundId}: ${error}`);
+      }
+    }
+  }
+
+  /**
+   * Update experiment statistics daily (7 AM)
+   */
+  @Cron("0 7 * * *")
+  async updateExperimentStats() {
+    const runningExperiments = await this.prisma.aiPriceExperiment.findMany({
+      where: { status: "running" },
+    });
+
+    for (const exp of runningExperiments) {
+      // Check if experiment should end
+      if (new Date() > exp.endDate) {
+        await this.completeExperiment(exp.id, exp.autoApplyWinner);
+        continue;
+      }
+
+      // Recalculate significance
+      await this.calculateExperimentSignificance(exp.id);
+    }
+
+    this.logger.log(`Updated stats for ${runningExperiments.length} experiments`);
+  }
 }

@@ -1350,6 +1350,7 @@ model Campground {
   aiAnomalyAlerts        AiAnomalyAlert[]
   // AI Autonomous features
   aiPricingRecommendations AiPricingRecommendation[]
+  aiPriceExperiments       AiPriceExperiment[]
   aiRevenueInsights        AiRevenueInsight[]
   aiMaintenanceAlerts      AiMaintenanceAlert[]
   aiWeatherAlerts          AiWeatherAlert[]
@@ -9574,6 +9575,59 @@ model AiPricingRecommendation {
   @@index([campgroundId])
   @@index([campgroundId, status])
   @@index([campgroundId, dateStart])
+  @@index([siteClassId])
+}
+
+// AI price experiments for A/B testing
+model AiPriceExperiment {
+  id              String     @id @default(cuid())
+  campgroundId    String
+  campground      Campground @relation(fields: [campgroundId], references: [id], onDelete: Cascade)
+  siteClassId     String
+
+  name            String
+  description     String?    @db.Text
+  hypothesis      String     @db.Text
+
+  // Experiment config
+  controlPrice    Int        // cents - base price
+  testPrice       Int        // cents - experimental price
+  adjustmentPct   Float      // percentage difference
+
+  // Duration
+  startDate       DateTime
+  endDate         DateTime
+
+  // Assignment - which sites get which price
+  controlSiteIds  String[]   // sites with control price
+  testSiteIds     String[]   // sites with test price
+
+  // Results
+  controlBookings Int        @default(0)
+  testBookings    Int        @default(0)
+  controlRevenue  Int        @default(0) // cents
+  testRevenue     Int        @default(0) // cents
+  controlViews    Int        @default(0) // availability checks
+  testViews       Int        @default(0)
+
+  // Statistical analysis
+  pValue          Float?     // statistical significance
+  confidenceLevel Float?     // 0-1
+  winner          String?    // "control" | "test" | null (not enough data)
+  liftPercent     Float?     // revenue lift percentage
+
+  // Status
+  status          String     @default("draft") // "draft" | "running" | "paused" | "completed" | "cancelled"
+  autoApplyWinner Boolean    @default(false)
+  winnerApplied   Boolean    @default(false)
+  winnerAppliedAt DateTime?
+
+  createdAt       DateTime   @default(now())
+  createdById     String?
+  updatedAt       DateTime   @updatedAt
+
+  @@index([campgroundId])
+  @@index([campgroundId, status])
   @@index([siteClassId])
 }
 

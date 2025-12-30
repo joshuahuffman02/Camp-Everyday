@@ -360,6 +360,85 @@ export class AiAutopilotController {
     return this.dynamicPricingService.getPricingSummary(campgroundId);
   }
 
+  @Get("campgrounds/:campgroundId/pricing/sensitivity")
+  @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  async getPriceSensitivity(
+    @Param("campgroundId") campgroundId: string,
+    @Query("siteClassId") siteClassId?: string
+  ) {
+    return this.dynamicPricingService.analyzePriceSensitivity(campgroundId, siteClassId);
+  }
+
+  @Post("campgrounds/:campgroundId/pricing/autopilot/run")
+  @Roles(UserRole.owner)
+  async runAutopilot(@Param("campgroundId") campgroundId: string) {
+    return this.dynamicPricingService.runAutopilot(campgroundId);
+  }
+
+  // ==================== A/B TESTING / EXPERIMENTS ====================
+
+  @Get("campgrounds/:campgroundId/pricing/experiments")
+  @Roles(UserRole.owner, UserRole.manager)
+  async getExperiments(
+    @Param("campgroundId") campgroundId: string,
+    @Query("status") status?: string
+  ) {
+    return this.dynamicPricingService.getExperiments(campgroundId, status);
+  }
+
+  @Get("pricing/experiments/:id")
+  @Roles(UserRole.owner, UserRole.manager)
+  async getExperiment(@Param("id") id: string) {
+    return this.dynamicPricingService.getExperiment(id);
+  }
+
+  @Post("campgrounds/:campgroundId/pricing/experiments")
+  @Roles(UserRole.owner)
+  async createExperiment(
+    @Param("campgroundId") campgroundId: string,
+    @Body()
+    data: {
+      siteClassId: string;
+      name: string;
+      description?: string;
+      hypothesis: string;
+      testPrice: number;
+      startDate: string;
+      endDate: string;
+      autoApplyWinner?: boolean;
+    },
+    @Req() req: Request
+  ) {
+    const user = (req as any).user;
+    return this.dynamicPricingService.createExperiment(campgroundId, {
+      ...data,
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      createdById: user?.id,
+    });
+  }
+
+  @Post("pricing/experiments/:id/start")
+  @Roles(UserRole.owner)
+  async startExperiment(@Param("id") id: string) {
+    return this.dynamicPricingService.startExperiment(id);
+  }
+
+  @Post("pricing/experiments/:id/pause")
+  @Roles(UserRole.owner)
+  async pauseExperiment(@Param("id") id: string) {
+    return this.dynamicPricingService.pauseExperiment(id);
+  }
+
+  @Post("pricing/experiments/:id/complete")
+  @Roles(UserRole.owner)
+  async completeExperiment(
+    @Param("id") id: string,
+    @Body("applyWinner") applyWinner?: boolean
+  ) {
+    return this.dynamicPricingService.completeExperiment(id, applyWinner);
+  }
+
   // ==================== REVENUE MANAGER ENDPOINTS ====================
 
   @Get("campgrounds/:campgroundId/revenue/insights")
