@@ -231,10 +231,10 @@ export class AiYieldService {
         campgroundId,
         status: { in: ["new", "in_progress"] },
       },
-      select: { estimatedValueCents: true },
+      select: { impactCents: true },
     });
     const potentialRevenue = insights.reduce(
-      (sum, i) => sum + (i.estimatedValueCents || 0),
+      (sum, i) => sum + (i.impactCents || 0),
       0
     );
 

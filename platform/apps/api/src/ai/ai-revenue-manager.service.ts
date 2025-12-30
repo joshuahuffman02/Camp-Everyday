@@ -162,7 +162,7 @@ export class AiRevenueManagerService {
 
         // 1-2 night gaps are opportunities
         if (gap >= 1 && gap <= 2) {
-          const pricePerNight = current.site?.siteClass?.basePrice || 5000;
+          const pricePerNight = current.site?.siteClass?.defaultRate || 5000;
           const impact = pricePerNight * gap;
 
           insights.push({
@@ -249,7 +249,7 @@ export class AiRevenueManagerService {
     for (const stat of siteStats) {
       if (stat.occupancyPercent < 30 && avgOccupancy > 50) {
         const missedNights = Math.round(90 * (avgOccupancy / 100) - stat.nights);
-        const pricePerNight = stat.site.siteClass?.basePrice || 5000;
+        const pricePerNight = stat.site.siteClass?.defaultRate || 5000;
         const impact = missedNights * pricePerNight;
 
         insights.push({
@@ -329,7 +329,7 @@ export class AiRevenueManagerService {
 
       // High demand sites might be underpriced
       if (bookingsPerSitePerMonth > 3) {
-        const potentialIncrease = Math.round(siteClass.basePrice * 0.15);
+        const potentialIncrease = Math.round(siteClass.defaultRate * 0.15);
         const impact = potentialIncrease * totalBookings;
 
         insights.push({
@@ -356,7 +356,7 @@ export class AiRevenueManagerService {
           metadata: {
             siteClassId: siteClass.id,
             siteClassName: siteClass.name,
-            currentPrice: siteClass.basePrice,
+            currentPrice: siteClass.defaultRate,
             suggestedIncrease: potentialIncrease,
             bookingsPerSitePerMonth,
           },

@@ -293,16 +293,25 @@ export class AiDemandForecastService {
         campgroundId,
         createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
         status: { in: ["confirmed", "checked_in", "checked_out"] },
-        nights: { gt: 0 },
+        totalAmount: { gt: 0 },
       },
-      select: { totalAmountCents: true, nights: true },
+      select: { totalAmount: true, arrivalDate: true, departureDate: true },
       take: 100,
     });
 
+    // Filter reservations with valid dates and calculate average nightly rate
+    const validRes = recentRes.filter((r) => {
+      const nights = Math.ceil((r.departureDate.getTime() - r.arrivalDate.getTime()) / (1000 * 60 * 60 * 24));
+      return nights > 0;
+    });
+
     const avgNightlyRate =
-      recentRes.length > 0
+      validRes.length > 0
         ? Math.round(
-            recentRes.reduce((sum, r) => sum + r.totalAmountCents / r.nights, 0) / recentRes.length
+            validRes.reduce((sum, r) => {
+              const nights = Math.ceil((r.departureDate.getTime() - r.arrivalDate.getTime()) / (1000 * 60 * 60 * 24));
+              return sum + r.totalAmount / nights;
+            }, 0) / validRes.length
           )
         : 5000; // Default $50/night
 

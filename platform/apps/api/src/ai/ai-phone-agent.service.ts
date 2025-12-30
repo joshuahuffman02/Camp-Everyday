@@ -493,7 +493,7 @@ export class AiPhoneAgentService {
           available.push({
             siteName: site.name,
             siteType: site.siteClass?.name,
-            basePrice: site.siteClass?.basePrice,
+            defaultRate: site.siteClass?.defaultRate,
           });
         }
       }
@@ -511,8 +511,8 @@ export class AiPhoneAgentService {
         count: available.length,
         siteTypes: [...new Set(available.map((s) => s.siteType))],
         priceRange: {
-          min: Math.min(...available.map((s) => s.basePrice || 0)),
-          max: Math.max(...available.map((s) => s.basePrice || 0)),
+          min: Math.min(...available.map((s) => s.defaultRate || 0)),
+          max: Math.max(...available.map((s) => s.defaultRate || 0)),
         },
         message: `We have ${available.length} sites available for those dates.`,
       };
@@ -534,7 +534,7 @@ export class AiPhoneAgentService {
             ? { contains: args.siteType, mode: "insensitive" }
             : undefined,
         },
-        select: { name: true, basePrice: true, maxOccupancy: true },
+        select: { name: true, defaultRate: true, maxOccupancy: true },
       });
 
       if (siteClasses.length === 0) {
@@ -550,10 +550,10 @@ export class AiPhoneAgentService {
       return {
         rates: siteClasses.map((sc) => ({
           siteType: sc.name,
-          pricePerNight: sc.basePrice,
-          pricePerNightFormatted: `$${((sc.basePrice || 0) / 100).toFixed(2)}`,
-          totalEstimate: (sc.basePrice || 0) * nights,
-          totalFormatted: `$${(((sc.basePrice || 0) * nights) / 100).toFixed(2)}`,
+          pricePerNight: sc.defaultRate,
+          pricePerNightFormatted: `$${((sc.defaultRate || 0) / 100).toFixed(2)}`,
+          totalEstimate: (sc.defaultRate || 0) * nights,
+          totalFormatted: `$${(((sc.defaultRate || 0) * nights) / 100).toFixed(2)}`,
           maxOccupancy: sc.maxOccupancy,
         })),
         nights,

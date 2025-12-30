@@ -97,7 +97,7 @@ export class AiDynamicPricingService {
     // Get site classes
     const siteClasses = await this.prisma.siteClass.findMany({
       where: { campgroundId },
-      select: { id: true, name: true, basePrice: true },
+      select: { id: true, name: true, defaultRate: true },
     });
 
     if (siteClasses.length === 0) {
@@ -176,7 +176,7 @@ export class AiDynamicPricingService {
    */
   private async analyzeClassPricing(
     campgroundId: string,
-    siteClass: { id: string; name: string; basePrice: number },
+    siteClass: { id: string; name: string; defaultRate: number },
     startDate: Date,
     endDate: Date
   ): Promise<any[]> {
@@ -237,7 +237,7 @@ Respond in JSON format with an array of recommendations:
 Only include recommendations where adjustment is > 10% or there's a clear opportunity.
 Maximum 5 recommendations per analysis.`;
 
-    const userPrompt = `Analyze pricing for site class "${siteClass.name}" (base price: $${(siteClass.basePrice / 100).toFixed(2)}/night)
+    const userPrompt = `Analyze pricing for site class "${siteClass.name}" (base price: $${(siteClass.defaultRate / 100).toFixed(2)}/night)
 
 Historical occupancy by day of week:
 ${JSON.stringify(historicalData.dayOfWeekOccupancy, null, 2)}
@@ -857,7 +857,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     // Get site class base price
     const siteClass = await this.prisma.siteClass.findUnique({
       where: { id: data.siteClassId },
-      select: { basePrice: true },
+      select: { defaultRate: true },
     });
 
     if (!siteClass) {
@@ -880,7 +880,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     const controlSites = shuffled.slice(0, midpoint).map((s) => s.id);
     const testSites = shuffled.slice(midpoint).map((s) => s.id);
 
-    const adjustmentPct = ((data.testPrice - siteClass.basePrice) / siteClass.basePrice) * 100;
+    const adjustmentPct = ((data.testPrice - siteClass.defaultRate) / siteClass.defaultRate) * 100;
 
     return this.prisma.aiPriceExperiment.create({
       data: {
@@ -889,7 +889,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
         name: data.name,
         description: data.description,
         hypothesis: data.hypothesis,
-        controlPrice: siteClass.basePrice,
+        controlPrice: siteClass.defaultRate,
         testPrice: data.testPrice,
         adjustmentPct,
         startDate: data.startDate,

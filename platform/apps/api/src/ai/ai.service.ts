@@ -284,15 +284,15 @@ Return:
     const next14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
     // Get current base rate from site class if provided
-    let baseRateCents = 12000;
+    let defaultRate = 12000;
     let siteClassName = "Standard Site";
     if (dto.siteClassId) {
       const siteClass = await this.prisma.siteClass.findUnique({
         where: { id: dto.siteClassId },
-        select: { name: true, baseRateCents: true },
+        select: { name: true, defaultRate: true },
       });
       if (siteClass) {
-        baseRateCents = siteClass.baseRateCents ?? 12000;
+        defaultRate = siteClass.defaultRate ?? 12000;
         siteClassName = siteClass.name;
       }
     }
@@ -326,12 +326,12 @@ Return:
     if (useMock) {
       // Return formula-based result without AI
       const upliftPercent = Math.round(demandIndex * 20);
-      const suggestedRateCents = Math.round(baseRateCents * (1 + upliftPercent / 100));
+      const suggestedRateCents = Math.round(defaultRate * (1 + upliftPercent / 100));
       return {
         campgroundId: cgId,
         siteClassId: dto.siteClassId ?? null,
         window: { arrivalDate: dto.arrivalDate ?? null, departureDate: dto.departureDate ?? null },
-        baseRateCents,
+        defaultRate,
         suggestedRateCents,
         currency: "USD",
         demandIndex,
@@ -358,7 +358,7 @@ Return:
 
 Current Data:
 - Site Class: ${siteClassName}
-- Base Rate: $${(baseRateCents / 100).toFixed(2)}/night
+- Base Rate: $${(defaultRate / 100).toFixed(2)}/night
 - Occupancy (next 14 days): ${occupancyPercent}%
 - Booking velocity change (7d vs prior): ${velocityChange >= 0 ? "+" : ""}${velocityChange}%
 - Target dates: ${dto.arrivalDate || "flexible"} to ${dto.departureDate || "flexible"}
@@ -402,8 +402,8 @@ Respond with JSON only (no markdown):
         campgroundId: cgId,
         siteClassId: dto.siteClassId ?? null,
         window: { arrivalDate: dto.arrivalDate ?? null, departureDate: dto.departureDate ?? null },
-        baseRateCents,
-        suggestedRateCents: parsed.suggestedRateCents || baseRateCents,
+        defaultRate,
+        suggestedRateCents: parsed.suggestedRateCents || defaultRate,
         currency: "USD",
         demandIndex,
         factors: parsed.factors || [],
@@ -416,12 +416,12 @@ Respond with JSON only (no markdown):
     } catch (error) {
       this.logger.error("AI pricing suggestion failed, falling back to formula", error);
       const upliftPercent = Math.round(demandIndex * 20);
-      const suggestedRateCents = Math.round(baseRateCents * (1 + upliftPercent / 100));
+      const suggestedRateCents = Math.round(defaultRate * (1 + upliftPercent / 100));
       return {
         campgroundId: cgId,
         siteClassId: dto.siteClassId ?? null,
         window: { arrivalDate: dto.arrivalDate ?? null, departureDate: dto.departureDate ?? null },
-        baseRateCents,
+        defaultRate,
         suggestedRateCents,
         currency: "USD",
         demandIndex,
