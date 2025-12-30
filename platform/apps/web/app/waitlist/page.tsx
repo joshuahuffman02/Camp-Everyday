@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { apiClient } from "@/lib/api-client";
 import { PageSettingsLink } from "@/components/ui/PageSettingsLink";
+import { TableSkeleton } from "@/components/ui/skeletons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -210,8 +211,8 @@ export default function WaitlistPage() {
               <tbody className="divide-y divide-slate-100">
                 {entriesQuery.isLoading ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600 mx-auto" />
+                    <td colSpan={8} className="p-0">
+                      <TableSkeleton columns={8} rows={5} />
                     </td>
                   </tr>
                 ) : entries.length === 0 ? (

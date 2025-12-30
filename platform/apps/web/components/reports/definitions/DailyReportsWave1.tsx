@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardSkeleton } from "@/components/ui/skeletons";
 
 interface DailyReportProps {
     campgroundId: string;
@@ -28,7 +29,7 @@ export function EarlyCheckInsReport({ campgroundId, dateRange }: DailyReportProp
         });
     }, [reservations]);
 
-    if (isLoading) return <div className="text-sm text-slate-500">Loading...</div>;
+    if (isLoading) return <CardSkeleton />;
 
     return (
         <div className="space-y-4">
@@ -78,7 +79,7 @@ export function LateCheckOutsReport({ campgroundId, dateRange }: DailyReportProp
         });
     }, [reservations]);
 
-    if (isLoading) return <div className="text-sm text-slate-500">Loading...</div>;
+    if (isLoading) return <CardSkeleton />;
 
     return (
         <div className="space-y-4">
@@ -137,7 +138,7 @@ export function NoShowReport({ campgroundId, dateRange }: DailyReportProps) {
         };
     }, [reservations]);
 
-    if (isLoading) return <div className="text-sm text-slate-500">Loading...</div>;
+    if (isLoading) return <CardSkeleton />;
 
     return (
         <div className="space-y-4">
@@ -211,7 +212,7 @@ export function DueOutsReport({ campgroundId, dateRange }: DailyReportProps) {
         });
     }, [reservations]);
 
-    if (isLoading) return <div className="text-sm text-slate-500">Loading...</div>;
+    if (isLoading) return <CardSkeleton />;
 
     return (
         <div className="space-y-4">
@@ -288,7 +289,7 @@ export function ExpectedOccupancyReport({ campgroundId, dateRange }: DailyReport
         return { forecast, totalSites };
     }, [reservations, sites]);
 
-    if (isLoading) return <div className="text-sm text-slate-500">Loading...</div>;
+    if (isLoading) return <CardSkeleton />;
     if (!reportData) return <div className="text-slate-400">No data</div>;
 
     return (

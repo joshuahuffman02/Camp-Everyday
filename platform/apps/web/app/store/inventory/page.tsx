@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiClient } from "@/lib/api-client";
 import { Product, ProductCategory } from "@campreserv/shared";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, AlertTriangle, Package } from "lucide-react";
+import { AlertTriangle, Package } from "lucide-react";
+import { TableSkeleton } from "@/components/ui/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { useCampground } from "@/contexts/CampgroundContext";
 
@@ -121,9 +122,7 @@ export default function InventoryPage() {
                     </div>
 
                     {loading ? (
-                        <div className="flex h-32 items-center justify-center">
-                            <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
-                        </div>
+                        <TableSkeleton columns={5} rows={5} />
                     ) : (
                         <Table>
                             <TableHeader>

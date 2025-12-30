@@ -6,7 +6,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, CheckCircle, Eye, RefreshCw, Check, Truck, List } from "lucide-react";
+import { CheckCircle, Eye, RefreshCw, Check, Truck, List } from "lucide-react";
+import { TableSkeleton } from "@/components/ui/skeletons";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -169,10 +170,7 @@ export default function StoreOrdersPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading...</span>
-            </div>
+            <TableSkeleton columns={7} rows={5} />
           ) : orders.length === 0 ? (
             <p className="text-sm text-muted-foreground">No orders.</p>
           ) : (
