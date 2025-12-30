@@ -58,10 +58,7 @@ export class StripeService {
         threeDsPolicy: 'automatic' | 'any' = 'automatic'
     ) {
         const stripe = this.assertConfigured("create payment intents");
-        const requestOptions: Stripe.RequestOptions = {};
-        if (idempotencyKey) {
-            requestOptions.idempotencyKey = idempotencyKey;
-        }
+
         // Build payment intent params - don't mix automatic_payment_methods with payment_method_types
         const params: Stripe.PaymentIntentCreateParams = {
             amount: amountCents,
@@ -93,7 +90,11 @@ export class StripeService {
             };
         }
 
-        return stripe.paymentIntents.create(params, requestOptions);
+        // Only pass options if we have an idempotency key
+        if (idempotencyKey) {
+            return stripe.paymentIntents.create(params, { idempotencyKey });
+        }
+        return stripe.paymentIntents.create(params);
     }
 
     async listBalanceTransactionsForPayout(payoutId: string, stripeAccountId: string) {
