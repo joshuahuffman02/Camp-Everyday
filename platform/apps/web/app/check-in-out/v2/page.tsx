@@ -140,8 +140,19 @@ export default function CheckInOutV2() {
 
   const reservations = (reservationsQuery.data as Reservation[]) || [];
 
-  const arrivals = reservations.filter((r) => r.status !== "cancelled" && r.arrivalDate.split("T")[0] === date);
-  const departures = reservations.filter((r) => r.status !== "cancelled" && r.departureDate.split("T")[0] === date);
+  // Arrivals: exclude cancelled, checked_in, and checked_out (only show pending arrivals)
+  const arrivals = reservations.filter((r) =>
+    r.status !== "cancelled" &&
+    r.status !== "checked_in" &&
+    r.status !== "checked_out" &&
+    r.arrivalDate.split("T")[0] === date
+  );
+  // Departures: exclude cancelled and checked_out (only show pending departures)
+  const departures = reservations.filter((r) =>
+    r.status !== "cancelled" &&
+    r.status !== "checked_out" &&
+    r.departureDate.split("T")[0] === date
+  );
 
   const filteredList = useMemo(() => {
     const list = tab === "arrivals" ? arrivals : departures;

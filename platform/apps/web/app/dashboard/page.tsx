@@ -433,13 +433,13 @@ export default function Dashboard() {
         const arrivalTime = arrival.getTime();
         const departureTime = departure.getTime();
 
-        // Today's arrivals
-        if (arrivalTime === todayTime) {
+        // Today's arrivals (exclude already checked in)
+        if (arrivalTime === todayTime && r.status !== "checked_in" && r.status !== "checked_out") {
           todayArrivals.push(r);
         }
 
-        // Today's departures
-        if (departureTime === todayTime) {
+        // Today's departures (exclude already checked out)
+        if (departureTime === todayTime && r.status !== "checked_out") {
           todayDepartures.push(r);
         }
 

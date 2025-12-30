@@ -826,12 +826,23 @@ export default function ReservationsPage() {
   }, []);
 
   const today = useMemo(() => new Date(), []);
+  // Arrivals: exclude already checked in/out (only pending arrivals)
   const arrivalsToday = useMemo(
-    () => (reservationsQuery.data || []).filter((res) => isSameDay(res.arrivalDate, today)),
+    () => (reservationsQuery.data || []).filter((res) =>
+      res.status !== "cancelled" &&
+      res.status !== "checked_in" &&
+      res.status !== "checked_out" &&
+      isSameDay(res.arrivalDate, today)
+    ),
     [reservationsQuery.data, isSameDay, today]
   );
+  // Departures: exclude already checked out (only pending departures)
   const departuresToday = useMemo(
-    () => (reservationsQuery.data || []).filter((res) => isSameDay(res.departureDate, today)),
+    () => (reservationsQuery.data || []).filter((res) =>
+      res.status !== "cancelled" &&
+      res.status !== "checked_out" &&
+      isSameDay(res.departureDate, today)
+    ),
     [reservationsQuery.data, isSameDay, today]
   );
   const inHouse = useMemo(

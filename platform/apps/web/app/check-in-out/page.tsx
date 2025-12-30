@@ -172,8 +172,19 @@ export default function CheckInOutPage() {
     return localDate === targetDate;
   };
 
-  const arrivals = reservations.filter((r) => r.status !== "cancelled" && isSameLocalDate(r.arrivalDate, date));
-  const departures = reservations.filter((r) => r.status !== "cancelled" && isSameLocalDate(r.departureDate, date));
+  // Arrivals: exclude cancelled, checked_in, and checked_out (only show pending arrivals)
+  const arrivals = reservations.filter((r) =>
+    r.status !== "cancelled" &&
+    r.status !== "checked_in" &&
+    r.status !== "checked_out" &&
+    isSameLocalDate(r.arrivalDate, date)
+  );
+  // Departures: exclude cancelled and checked_out (only show pending departures)
+  const departures = reservations.filter((r) =>
+    r.status !== "cancelled" &&
+    r.status !== "checked_out" &&
+    isSameLocalDate(r.departureDate, date)
+  );
   const onsite = reservations.filter((r) => r.status === "checked_in");
 
   const filteredList = useMemo(() => {
