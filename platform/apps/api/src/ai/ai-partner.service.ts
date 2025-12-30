@@ -14,6 +14,11 @@ import { OperationsService } from "../operations/operations.service";
 import { RepeatChargesService } from "../repeat-charges/repeat-charges.service";
 import { ReservationsService } from "../reservations/reservations.service";
 import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
+// Analytical services for enhanced insights
+import { AiYieldService } from "./ai-yield.service";
+import { AiDynamicPricingService } from "./ai-dynamic-pricing.service";
+import { AiDashboardService } from "./ai-dashboard.service";
+import { AiInsightsService } from "./ai-insights.service";
 type PartnerMode = "staff" | "admin";
 type PersonaKey = "revenue" | "operations" | "marketing" | "accounting" | "hospitality" | "compliance" | "general";
 
@@ -29,6 +34,12 @@ type ActionType =
   | "send_guest_message"
   | "move_reservation"
   | "adjust_rate"
+  // Analysis actions (read-only insights)
+  | "get_yield_metrics"
+  | "get_occupancy_forecast"
+  | "get_pricing_recommendations"
+  | "get_revenue_insights"
+  | "get_dashboard_summary"
   | "none";
 
 type ImpactArea = "availability" | "pricing" | "policy" | "revenue" | "operations" | "none";
@@ -165,6 +176,37 @@ const ACTION_REGISTRY: Record<
     impactArea: "pricing",
     sensitivity: "high",
     confirmByDefault: true
+  },
+  // Analysis actions (read-only)
+  get_yield_metrics: {
+    resource: "analytics",
+    action: "read",
+    impactArea: "revenue",
+    sensitivity: "low"
+  },
+  get_occupancy_forecast: {
+    resource: "analytics",
+    action: "read",
+    impactArea: "availability",
+    sensitivity: "low"
+  },
+  get_pricing_recommendations: {
+    resource: "pricing",
+    action: "read",
+    impactArea: "pricing",
+    sensitivity: "low"
+  },
+  get_revenue_insights: {
+    resource: "analytics",
+    action: "read",
+    impactArea: "revenue",
+    sensitivity: "low"
+  },
+  get_dashboard_summary: {
+    resource: "analytics",
+    action: "read",
+    impactArea: "none",
+    sensitivity: "low"
   }
 };
 
@@ -185,7 +227,12 @@ export class AiPartnerService {
     private readonly operations: OperationsService,
     private readonly repeatCharges: RepeatChargesService,
     private readonly reservations: ReservationsService,
-    private readonly pricingV2: PricingV2Service
+    private readonly pricingV2: PricingV2Service,
+    // Analytical services
+    private readonly yieldService: AiYieldService,
+    private readonly pricingService: AiDynamicPricingService,
+    private readonly dashboardService: AiDashboardService,
+    private readonly insightsService: AiInsightsService
   ) {}
 
   async chat(request: PartnerChatRequest): Promise<AiPartnerResponse> {
@@ -327,6 +374,8 @@ export class AiPartnerService {
     let executed: { action: ActionDraft; message: string } | null = null;
     if (actionType === "lookup_availability") {
       executed = await this.executeReadAction(campground, draft);
+    } else if (this.isAnalysisAction(actionType)) {
+      executed = await this.executeAnalysisAction(campground, draft);
     } else {
       executed = await this.executeWriteAction(campground, draft, user);
     }
@@ -557,6 +606,13 @@ Request: "${params.anonymizedText}"${historyBlock}`;
             finalMessage = executed.message;
             finalDraft = executed.action;
           }
+        } else if (this.isAnalysisAction(actionType)) {
+          // Analysis actions are always executed immediately (read-only)
+          const executed = await this.executeAnalysisAction(params.campground, actionDraft);
+          if (executed) {
+            finalMessage = executed.message;
+            finalDraft = executed.action;
+          }
         } else {
           const executed = await this.executeWriteAction(params.campground, actionDraft, params.user);
           if (executed) {
@@ -615,6 +671,11 @@ Request: "${params.anonymizedText}"${historyBlock}`;
                       "send_guest_message",
                       "move_reservation",
                       "adjust_rate",
+                      "get_yield_metrics",
+                      "get_occupancy_forecast",
+                      "get_pricing_recommendations",
+                      "get_revenue_insights",
+                      "get_dashboard_summary",
                       "none"
                     ]
                   },
@@ -690,6 +751,8 @@ Date handling:
 - If a relative date is unambiguous, include explicit arrivalDate/departureDate and avoid asking for dates.
 
 Allowed actions (choose one; use none when you can only guide):
+
+OPERATIONS ACTIONS:
 - lookup_availability (arrivalDate, departureDate, optional rigType/rigLength)
 - create_hold (siteId or siteNumber, arrivalDate, departureDate, optional holdMinutes)
 - block_site (siteId or siteNumber, arrivalDate, departureDate, reason)
@@ -701,7 +764,15 @@ Allowed actions (choose one; use none when you can only guide):
 - send_guest_message (guestId or reservationId, message, optional subject; logs a guest note)
 - move_reservation (reservationId, newArrivalDate/newDepartureDate, newSiteId/newSiteNumber)
 - adjust_rate (siteClassId or siteClassName, adjustmentType: flat|percent, adjustmentValue, optional startDate/endDate/reason)
-- none
+
+ANALYSIS ACTIONS (use when user asks about metrics, performance, insights, trends, revenue, occupancy, pricing):
+- get_yield_metrics (returns occupancy, ADR, RevPAN for current period)
+- get_occupancy_forecast (days: number, returns occupancy predictions)
+- get_pricing_recommendations (returns AI pricing suggestions)
+- get_revenue_insights (returns revenue opportunities and analysis)
+- get_dashboard_summary (returns overall AI dashboard with all key metrics)
+
+- none (use when you can only provide guidance without data)
 
 For pricing/availability/policy/revenue-impacting actions:
 - Mark sensitivity as medium/high.
@@ -1642,6 +1713,78 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     return null;
   }
 
+  private async executeAnalysisAction(campground: { id: string; slug: string; name: string }, draft: ActionDraft): Promise<{ action: ActionDraft; message: string } | null> {
+    const campgroundId = campground.id;
+
+    try {
+      if (draft.actionType === "get_yield_metrics") {
+        const metrics = await this.yieldService.getYieldMetrics(campgroundId);
+        const message = `Current yield metrics: Occupancy ${metrics.occupancy}%, ADR $${(metrics.adr / 100).toFixed(2)}, RevPAN $${(metrics.revPan / 100).toFixed(2)}. ${metrics.occupancy > 80 ? "Strong performance!" : metrics.occupancy < 50 ? "Opportunity to boost bookings." : "Steady occupancy."}`;
+        return {
+          action: { ...draft, status: "executed", result: metrics },
+          message
+        };
+      }
+
+      if (draft.actionType === "get_occupancy_forecast") {
+        const days = draft.parameters?.days || 30;
+        const forecast = await this.yieldService.forecastOccupancy(campgroundId, days);
+        const avgOccupancy = forecast.length > 0
+          ? Math.round(forecast.reduce((sum, d) => sum + d.occupancyPercent, 0) / forecast.length)
+          : 0;
+        const message = `${days}-day forecast: Average projected occupancy is ${avgOccupancy}%. ${forecast.length > 0 ? `Peak day: ${forecast.reduce((max, d) => d.occupancyPercent > max.occupancyPercent ? d : max).date} at ${forecast.reduce((max, d) => d.occupancyPercent > max.occupancyPercent ? d : max).occupancyPercent}%.` : ""}`;
+        return {
+          action: { ...draft, status: "executed", result: { forecast, avgOccupancy } },
+          message
+        };
+      }
+
+      if (draft.actionType === "get_pricing_recommendations") {
+        const recommendations = await this.pricingService.getRecommendations(campgroundId, { status: "pending", limit: 5 });
+        const count = recommendations.length;
+        const message = count > 0
+          ? `Found ${count} pricing recommendations. ${recommendations[0] ? `Top suggestion: ${recommendations[0].reason || "Adjust rates based on demand"}` : ""}`
+          : "No pending pricing recommendations. Your rates look optimized!";
+        return {
+          action: { ...draft, status: "executed", result: { recommendations, count } },
+          message
+        };
+      }
+
+      if (draft.actionType === "get_revenue_insights") {
+        const insights = await this.insightsService.getRecentInsights(campgroundId, 5);
+        const message = insights.length > 0
+          ? `${insights.length} revenue insights found. ${insights[0]?.summary || "Check your dashboard for details."}`
+          : "No new revenue insights. Performance is tracking as expected.";
+        return {
+          action: { ...draft, status: "executed", result: { insights } },
+          message
+        };
+      }
+
+      if (draft.actionType === "get_dashboard_summary") {
+        const dashboard = await this.dashboardService.getDashboard(campgroundId);
+        const message = `Dashboard summary: ${dashboard.metrics?.todayArrivals || 0} arrivals today, ${dashboard.metrics?.todayDepartures || 0} departures. ${dashboard.alerts?.length || 0} alerts pending. AI has ${dashboard.activity?.length || 0} recent actions.`;
+        return {
+          action: { ...draft, status: "executed", result: dashboard },
+          message
+        };
+      }
+
+      return null;
+    } catch (err) {
+      this.logger.error(`Analysis action ${draft.actionType} failed:`, err);
+      return {
+        action: { ...draft, status: "executed", result: { error: "Failed to fetch data" } },
+        message: "I couldn't retrieve that data right now. Please try again or check the dashboard directly."
+      };
+    }
+  }
+
+  private isAnalysisAction(actionType: ActionType): boolean {
+    return ["get_yield_metrics", "get_occupancy_forecast", "get_pricing_recommendations", "get_revenue_insights", "get_dashboard_summary"].includes(actionType);
+  }
+
   private buildEvidenceLinks(actionType: ActionType, parameters: Record<string, any>): EvidenceLink[] {
     if (actionType === "lookup_availability") {
       const params = new URLSearchParams();
@@ -1692,6 +1835,16 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
     if (actionType === "adjust_rate") {
       return [{ label: "Pricing rules", url: "/pricing" }];
+    }
+    // Analysis actions - link to relevant dashboards
+    if (actionType === "get_yield_metrics" || actionType === "get_occupancy_forecast") {
+      return [{ label: "Yield Dashboard", url: "/ai/yield" }];
+    }
+    if (actionType === "get_pricing_recommendations") {
+      return [{ label: "AI Pricing", url: "/ai/yield" }, { label: "Pricing Rules", url: "/pricing" }];
+    }
+    if (actionType === "get_revenue_insights" || actionType === "get_dashboard_summary") {
+      return [{ label: "AI Command Center", url: "/ai" }];
     }
     return [];
   }
