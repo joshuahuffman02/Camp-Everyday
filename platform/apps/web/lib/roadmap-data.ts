@@ -1361,9 +1361,9 @@ export const categoryColors: Record<UpdateCategory, { bg: string; text: string; 
 };
 
 export const statusColors: Record<PhaseStatus, { bg: string; text: string }> = {
-    completed: { bg: 'bg-emerald-100', text: 'text-emerald-800' },
-    in_progress: { bg: 'bg-blue-100', text: 'text-blue-800' },
-    planned: { bg: 'bg-slate-100', text: 'text-slate-600' },
+    completed: { bg: 'bg-status-success-bg', text: 'text-status-success-text' },
+    in_progress: { bg: 'bg-status-info-bg', text: 'text-status-info-text' },
+    planned: { bg: 'bg-muted', text: 'text-muted-foreground' },
 };
 
 export const statusLabels: Record<PhaseStatus, string> = {

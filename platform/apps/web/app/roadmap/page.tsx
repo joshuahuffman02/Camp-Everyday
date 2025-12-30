@@ -88,7 +88,7 @@ function StatusBadge({ status }: { status: RoadmapPhase["status"] }) {
 function MilestoneIcon({ status }: { status: Milestone["status"] }) {
     if (status === "completed") {
         return (
-            <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-status-success-bg text-status-success">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
@@ -97,7 +97,7 @@ function MilestoneIcon({ status }: { status: Milestone["status"] }) {
     }
     if (status === "in_progress") {
         return (
-            <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
+            <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-status-info-bg text-status-info">
                 <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -106,7 +106,7 @@ function MilestoneIcon({ status }: { status: Milestone["status"] }) {
         );
     }
     return (
-        <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-slate-100 text-slate-400">
+        <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-muted text-muted-foreground">
             <span className="w-2 h-2 rounded-full bg-current" />
         </span>
     );

@@ -20,18 +20,18 @@ function getAuthHeaders(): Record<string, string> {
 const StatusIcon = ({ status }: { status: HealthCheck["status"] }) => {
     switch (status) {
         case "healthy":
-            return <CheckCircle className="h-5 w-5 text-emerald-400" />;
+            return <CheckCircle className="h-5 w-5 text-status-success" />;
         case "degraded":
-            return <AlertTriangle className="h-5 w-5 text-amber-400" />;
+            return <AlertTriangle className="h-5 w-5 text-status-warning" />;
         case "down":
-            return <XCircle className="h-5 w-5 text-red-400" />;
+            return <XCircle className="h-5 w-5 text-status-error" />;
     }
 };
 
 const statusColors: Record<string, string> = {
-    healthy: "bg-emerald-500/20 border-emerald-500/30",
-    degraded: "bg-amber-500/20 border-amber-500/30",
-    down: "bg-red-500/20 border-red-500/30",
+    healthy: "bg-status-success/20 border-status-success/30",
+    degraded: "bg-status-warning/20 border-status-warning/30",
+    down: "bg-status-error/20 border-status-error/30",
 };
 
 export default function SystemHealthPage() {
