@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ChevronDown, ChevronUp, Tag, TrendingUp, Clock, Percent, Info, CreditCard, Heart } from "lucide-react";
+import { ChevronDown, ChevronUp, Tag, TrendingUp, Clock, Percent, Info, Heart } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../../ui/tooltip";
 import { usePaymentContext } from "../context/PaymentContext";
@@ -252,9 +252,15 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
 
           {/* Fees */}
           {feesCents > 0 && (
-            <div className="flex justify-between pt-1 border-t border-slate-100">
-              <span className="text-slate-600">Booking Fees</span>
-              <span className="text-slate-900">+{formatCurrency(feesCents)}</span>
+            <div className="space-y-0.5 pt-1 border-t border-slate-100">
+              <div className="flex justify-between">
+                <span className="text-slate-600">Booking Fees</span>
+                <span className="text-slate-900">+{formatCurrency(feesCents)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-slate-400 pl-3">
+                <span>Includes CC processing ({ccFeePercent}% + ${(ccFeeFlatCents / 100).toFixed(2)})</span>
+                <span>~{formatCurrency(estimatedCCFeeCents)}</span>
+              </div>
             </div>
           )}
 
@@ -297,20 +303,9 @@ export function ReservationBreakdown({ compact = false }: ReservationBreakdownPr
             </div>
           )}
 
-          {/* CC Fee Info */}
-          <div className="pt-2 mt-1 border-t border-slate-200">
-            <div className="flex justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1">
-                <CreditCard className="w-3 h-3" />
-                CC Fee ({ccFeePercent}% + ${(ccFeeFlatCents / 100).toFixed(2)})
-              </span>
-              <span>~{formatCurrency(estimatedCCFeeCents)}</span>
-            </div>
-          </div>
-
-          {/* Grand Total */}
+          {/* Grand Total - should be a nice round number when charity is opted in */}
           <div className="flex justify-between pt-2 border-t border-slate-200 font-medium">
-            <span className="text-slate-900">Total Due</span>
+            <span className="text-slate-900">You Pay</span>
             <span className="text-lg text-slate-900">{formatCurrency(grandTotalCents)}</span>
           </div>
         </div>
