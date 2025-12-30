@@ -1098,7 +1098,7 @@ export default function ReservationsPage() {
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
               <div className="text-2xl font-semibold text-slate-900" data-testid="balance-due-value">
-                ${(balanceDueCents / 100).toFixed(2)}
+                {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(balanceDueCents / 100)}
               </div>
               <div className="text-xs text-slate-600">Open receivables</div>
             </CardContent>
@@ -1800,7 +1800,7 @@ export default function ReservationsPage() {
                       </span>
                       {balance > 0 && (
                         <span className="inline-flex items-center gap-2 rounded-full border border-status-warning/30 bg-status-warning/15 px-3 py-1 text-xs text-status-warning">
-                          Balance due ${balance.toFixed(2)}
+                          Balance due {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(balance)}
                         </span>
                       )}
                       <span className="text-slate-700">

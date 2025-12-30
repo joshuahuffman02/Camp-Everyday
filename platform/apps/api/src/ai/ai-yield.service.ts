@@ -107,12 +107,13 @@ export class AiYieldService {
       select: { siteId: true, totalAmountCents: true, nights: true },
     });
 
-    // Get blocked sites
-    const blockedSites = await this.prisma.siteBlock.count({
+    // Get blocked sites (from blackout dates)
+    const blockedSites = await this.prisma.blackoutDate.count({
       where: {
-        site: { campgroundId },
+        campgroundId,
+        siteId: { not: null }, // Only count site-specific blackouts
         startDate: { lte: targetDate },
-        endDate: { gt: targetDate },
+        endDate: { gte: targetDate },
       },
     });
 
