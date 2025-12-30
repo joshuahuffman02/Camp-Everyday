@@ -1104,6 +1104,21 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     return siteClass ?? null;
   }
 
+  private formatFriendlyDateRange(arrivalDate: string, departureDate: string): string {
+    const arrival = new Date(arrivalDate + "T12:00:00");
+    const departure = new Date(departureDate + "T12:00:00");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const arrMonth = months[arrival.getMonth()];
+    const depMonth = months[departure.getMonth()];
+    const arrDay = arrival.getDate();
+    const depDay = departure.getDate();
+
+    if (arrMonth === depMonth) {
+      return `${arrMonth} ${arrDay}-${depDay}`;
+    }
+    return `${arrMonth} ${arrDay} - ${depMonth} ${depDay}`;
+  }
+
   private async executeReadAction(campground: { id: string; slug: string; name: string }, draft: ActionDraft) {
     if (draft.actionType !== "lookup_availability") return null;
     const { arrivalDate, departureDate, rigType, rigLength } = draft.parameters;
@@ -1120,6 +1135,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         rigLength ? String(rigLength) : undefined,
         false
       );
+      const totalSites = availability.length;
       const availableCount = availability.filter((site: any) => site.status === "available").length;
       const byClass = new Map<string, number>();
       availability.forEach((site: any) => {
@@ -1127,18 +1143,37 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         byClass.set(site.siteClass.name, (byClass.get(site.siteClass.name) || 0) + 1);
       });
 
-      const summary = byClass.size
-        ? Array.from(byClass.entries())
-          .map(([name, count]) => `${name}: ${count}`)
-          .join(", ")
-        : "No available sites";
+      const dateRange = this.formatFriendlyDateRange(arrivalDate, departureDate);
+      const occupancyPct = totalSites > 0 ? Math.round(((totalSites - availableCount) / totalSites) * 100) : 0;
+
+      // Build a natural language breakdown
+      const breakdown = Array.from(byClass.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4)
+        .map(([name, count]) => `${count} ${name}`)
+        .join(", ");
+
+      // Craft a helpful message
+      let message: string;
+      if (availableCount === 0) {
+        message = `Fully booked ${dateRange}. All ${totalSites} sites are reserved.`;
+      } else if (occupancyPct >= 80) {
+        message = `${dateRange} is filling up - only ${availableCount} of ${totalSites} sites left (${occupancyPct}% booked). ${breakdown}.`;
+      } else if (occupancyPct >= 50) {
+        message = `${dateRange} has decent availability - ${availableCount} of ${totalSites} sites open. ${breakdown}.`;
+      } else {
+        message = `${dateRange} is wide open - ${availableCount} of ${totalSites} sites available. ${breakdown}.`;
+      }
 
       const action: ActionDraft = {
         ...draft,
         status: "executed",
+        impact: undefined, // No impact assessment needed for read-only
         result: {
           availableCount,
-          classSummary: summary
+          totalSites,
+          occupancyPct,
+          byClass: Object.fromEntries(byClass)
         }
       };
 
@@ -1151,10 +1186,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         after: action.result ?? {}
       });
 
-      return {
-        action,
-        message: `Availability from ${arrivalDate} to ${departureDate}: ${availableCount} sites open. ${summary}.`
-      };
+      return { action, message };
     } catch (err) {
       this.logger.warn("Availability lookup failed", err instanceof Error ? err.message : `${err}`);
       return null;
@@ -1722,9 +1754,17 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         const occ = metrics.todayOccupancy ?? 0;
         const adr = metrics.todayADR ?? 0;
         const revPan = metrics.todayRevPAN ?? 0;
-        const message = `Current yield metrics: Occupancy ${occ.toFixed(1)}%, ADR $${(adr / 100).toFixed(2)}, RevPAN $${(revPan / 100).toFixed(2)}. ${occ > 80 ? "Strong performance!" : occ < 50 ? "Opportunity to boost bookings." : "Steady occupancy."}`;
+        const next7 = metrics.next7DaysOccupancy ?? 0;
+
+        let status: string;
+        if (occ >= 80) status = "You're running hot today";
+        else if (occ >= 50) status = "Solid occupancy today";
+        else if (occ >= 20) status = "Quiet day";
+        else status = "Very light today";
+
+        const message = `${status} - ${occ.toFixed(0)}% occupied, earning $${(adr / 100).toFixed(0)} avg/site. Next 7 days tracking at ${next7.toFixed(0)}% occupancy.`;
         return {
-          action: { ...draft, status: "executed", result: metrics },
+          action: { ...draft, status: "executed", impact: undefined, result: metrics },
           message
         };
       }
@@ -1734,14 +1774,25 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         const forecastResult = await this.yieldService.forecastOccupancy(campgroundId, days);
         const forecasts = forecastResult.forecasts || [];
         const avgOccupancy = forecastResult.avgOccupancy ?? 0;
+
         let peakInfo = "";
         if (forecasts.length > 0) {
           const peak = forecasts.reduce((max, d) => (d.occupancyPct ?? 0) > (max.occupancyPct ?? 0) ? d : max);
-          peakInfo = ` Peak day: ${peak.date} at ${(peak.occupancyPct ?? 0).toFixed(1)}%.`;
+          if (peak.occupancyPct > avgOccupancy + 10) {
+            const peakDate = new Date(peak.date + "T12:00:00");
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            peakInfo = ` Busiest day looks like ${months[peakDate.getMonth()]} ${peakDate.getDate()} at ${(peak.occupancyPct ?? 0).toFixed(0)}%.`;
+          }
         }
-        const message = `${days}-day forecast: Average projected occupancy is ${avgOccupancy.toFixed(1)}%.${peakInfo}`;
+
+        let outlook: string;
+        if (avgOccupancy >= 70) outlook = "Looking strong";
+        else if (avgOccupancy >= 40) outlook = "Moderate demand";
+        else outlook = "Slower period ahead";
+
+        const message = `${outlook} - averaging ${avgOccupancy.toFixed(0)}% occupancy over the next ${days} days.${peakInfo}`;
         return {
-          action: { ...draft, status: "executed", result: forecastResult },
+          action: { ...draft, status: "executed", impact: undefined, result: forecastResult },
           message
         };
       }
@@ -1749,11 +1800,17 @@ User request: "${params.anonymizedText}"${historyBlock}`;
       if (draft.actionType === "get_pricing_recommendations") {
         const recommendations = await this.pricingService.getRecommendations(campgroundId, { status: "pending", limit: 5 });
         const count = recommendations.length;
-        const message = count > 0
-          ? `Found ${count} pricing recommendations. ${recommendations[0] ? `Top suggestion: ${recommendations[0].reason || "Adjust rates based on demand"}` : ""}`
-          : "No pending pricing recommendations. Your rates look optimized!";
+        let message: string;
+        if (count === 0) {
+          message = "No pricing adjustments recommended right now. Your rates are aligned with demand.";
+        } else if (count === 1) {
+          const rec = recommendations[0];
+          message = `1 pricing suggestion: ${rec.reason || "Consider adjusting rates based on current demand patterns."}`;
+        } else {
+          message = `${count} pricing opportunities. Top suggestion: ${recommendations[0]?.reason || "Adjust rates for upcoming high-demand dates."}`;
+        }
         return {
-          action: { ...draft, status: "executed", result: { recommendations, count } },
+          action: { ...draft, status: "executed", impact: undefined, result: { recommendations, count } },
           message
         };
       }
@@ -1761,27 +1818,39 @@ User request: "${params.anonymizedText}"${historyBlock}`;
       if (draft.actionType === "get_revenue_insights") {
         const summary = await this.revenueManager.getRevenueSummary(campgroundId);
         const insights = await this.revenueManager.getInsights(campgroundId, { status: "new", limit: 5 });
-        const totalFormatted = summary.totalOpportunityFormatted || "$0.00";
-        const message = insights.length > 0
-          ? `${insights.length} revenue opportunities found totaling ${totalFormatted}. ${insights[0]?.title || "Check your dashboard for details."}`
-          : "No new revenue insights. Performance is tracking as expected.";
+        const totalCents = summary.totalOpportunityCents || 0;
+
+        let message: string;
+        if (insights.length === 0) {
+          message = "No new revenue opportunities flagged. Keep doing what you're doing!";
+        } else if (totalCents >= 50000) {
+          message = `Found $${(totalCents / 100).toFixed(0)} in potential revenue across ${insights.length} opportunities. ${insights[0]?.title || ""}`;
+        } else {
+          message = `${insights.length} small opportunities identified. ${insights[0]?.title || "Check the AI dashboard for details."}`;
+        }
         return {
-          action: { ...draft, status: "executed", result: { summary, insights } },
+          action: { ...draft, status: "executed", impact: undefined, result: { summary, insights } },
           message
         };
       }
 
       if (draft.actionType === "get_dashboard_summary") {
-        const [quickStats, metrics, activity] = await Promise.all([
+        const [quickStats, activity] = await Promise.all([
           this.dashboardService.getQuickStats(campgroundId),
-          this.dashboardService.getMetrics(campgroundId, 30),
-          this.dashboardService.getActivityFeed(campgroundId, 10)
+          this.dashboardService.getActivityFeed(campgroundId, 5)
         ]);
         const arrivals = quickStats?.todayArrivals ?? 0;
         const departures = quickStats?.todayDepartures ?? 0;
-        const message = `Dashboard summary: ${arrivals} arrivals today, ${departures} departures. AI processed ${activity?.length || 0} recent actions.`;
+        const inHouse = quickStats?.currentOccupancy ?? 0;
+
+        let message = `Today: ${arrivals} arriving, ${departures} departing`;
+        if (inHouse > 0) message += `, ${inHouse} guests in-house`;
+        message += ".";
+        if (activity && activity.length > 0) {
+          message += ` AI recently handled ${activity.length} actions.`;
+        }
         return {
-          action: { ...draft, status: "executed", result: { quickStats, metrics, activity } },
+          action: { ...draft, status: "executed", impact: undefined, result: { quickStats, activity } },
           message
         };
       }
