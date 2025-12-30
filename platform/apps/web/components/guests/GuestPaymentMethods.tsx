@@ -222,7 +222,7 @@ export function GuestPaymentMethods({ guestId, campgroundId, additionalCampgroun
                           •••• •••• •••• {pm.last4 || "****"}
                         </span>
                         {pm.isDefault && (
-                          <Badge className="bg-emerald-100 text-emerald-800 text-xs">
+                          <Badge className="bg-status-success-bg text-status-success-text text-xs">
                             <Star className="w-3 h-3 mr-1" />
                             Default
                           </Badge>

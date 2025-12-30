@@ -120,7 +120,7 @@ export function CustomFieldRow({
         <div className="flex items-center gap-2">
           <p className="font-medium text-slate-900 truncate">{field.question}</p>
           {field.isRequired && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800">
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-status-warning-bg text-status-warning-text">
               Required
             </Badge>
           )}

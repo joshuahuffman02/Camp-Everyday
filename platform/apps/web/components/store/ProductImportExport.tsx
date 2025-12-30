@@ -287,10 +287,10 @@ export function ProductImportExport({ campgroundId }: ProductImportExportProps) 
                     <div className="flex items-center gap-2 py-4 border-b">
                         {["upload", "mapping", "preview", "complete"].map((step, idx) => (
                             <div key={step} className="flex items-center gap-2">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${importStep === step ? "bg-emerald-500 text-white" :
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${importStep === step ? "bg-primary text-primary-foreground" :
                                         ["upload", "mapping", "preview", "importing", "complete"].indexOf(importStep) > idx
-                                            ? "bg-emerald-100 text-emerald-700"
-                                            : "bg-slate-100 text-slate-500"
+                                            ? "bg-status-success-bg text-status-success-text"
+                                            : "bg-muted text-muted-foreground"
                                     }`}>
                                     {idx + 1}
                                 </div>

@@ -134,8 +134,8 @@ export function RateGroupRow({
         variant={group.isActive ? "default" : "secondary"}
         className={cn(
           group.isActive
-            ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-            : "bg-slate-100 text-slate-600"
+            ? "bg-status-success-bg text-status-success-text hover:bg-status-success-bg"
+            : "bg-muted text-muted-foreground"
         )}
       >
         {group.isActive ? "Active" : "Inactive"}

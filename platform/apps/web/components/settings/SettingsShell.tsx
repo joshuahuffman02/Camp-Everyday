@@ -49,7 +49,7 @@ export function SettingsShell({ children, className }: SettingsShellProps) {
                   <AlertTriangle className="h-4 w-4" />
                   <Badge
                     variant="secondary"
-                    className="bg-amber-100 text-amber-800 hover:bg-amber-100"
+                    className="bg-status-warning-bg text-status-warning-text hover:bg-status-warning-bg"
                   >
                     {systemCheckCount}
                   </Badge>

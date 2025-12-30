@@ -32,10 +32,10 @@ export function StatusFilter({ value, onChange, className }: StatusFilterProps) 
           onClick={() => onChange(option.value)}
           className={cn(
             "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
             value === option.value
-              ? "bg-emerald-100 text-emerald-700"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              ? "bg-status-success-bg text-status-success-text"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
           )}
         >
           {option.label}

@@ -29,7 +29,7 @@ export function CartSidebar({ cart, onUpdateQty, onClear, onCheckout }: CartSide
                 <div className="flex items-center gap-2">
                     <h2 className="font-semibold text-slate-900">Current Order</h2>
                     {itemCount > 0 && (
-                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">
+                        <span className="px-2 py-0.5 bg-status-success-bg text-status-success-text text-xs font-bold rounded-full">
                             {itemCount}
                         </span>
                     )}

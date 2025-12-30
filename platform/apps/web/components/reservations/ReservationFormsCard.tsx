@@ -183,7 +183,7 @@ export function ReservationFormsCard({
 
     if (status === "completed") {
       return (
-        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+        <Badge className="bg-status-success-bg text-status-success-text border-status-success-border">
           <CheckCircle2 className="h-3 w-3 mr-1" />
           Completed
         </Badge>
@@ -191,7 +191,7 @@ export function ReservationFormsCard({
     }
     if (isSkipped) {
       return (
-        <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+        <Badge className="bg-muted text-muted-foreground border-border">
           <SkipForward className="h-3 w-3 mr-1" />
           Skipped
         </Badge>
@@ -199,21 +199,21 @@ export function ReservationFormsCard({
     }
     if (status === "void") {
       return (
-        <Badge className="bg-slate-100 text-slate-500 border-slate-200">
+        <Badge className="bg-muted text-muted-foreground border-border">
           Voided
         </Badge>
       );
     }
     if (status === "pending" && isRequired) {
       return (
-        <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+        <Badge className="bg-status-warning-bg text-status-warning-text border-status-warning-border">
           <AlertCircle className="h-3 w-3 mr-1" />
           Required
         </Badge>
       );
     }
     return (
-      <Badge className="bg-blue-100 text-blue-600 border-blue-200">
+      <Badge className="bg-status-info-bg text-status-info-text border-status-info-border">
         <Clock className="h-3 w-3 mr-1" />
         Pending
       </Badge>

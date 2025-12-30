@@ -223,8 +223,8 @@ export function TerminalManagement({ campgroundId }: TerminalManagementProps) {
                           <Badge
                             className={
                               reader.status === "online"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-slate-100 text-slate-600"
+                                ? "bg-status-success-bg text-status-success-text"
+                                : "bg-muted text-muted-foreground"
                             }
                           >
                             {reader.status}

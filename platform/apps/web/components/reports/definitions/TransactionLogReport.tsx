@@ -85,7 +85,7 @@ export function TransactionLogReport({ campgroundId, dateRange }: TransactionLog
                                             {e.description || "N/A"}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <Badge variant={e.direction === 'credit' ? 'default' : 'secondary'} className={e.direction === 'credit' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : ''}>
+                                            <Badge variant={e.direction === 'credit' ? 'default' : 'secondary'} className={e.direction === 'credit' ? 'bg-status-success-bg text-status-success-text hover:bg-status-success-bg/80' : ''}>
                                                 {e.direction.toUpperCase()}
                                             </Badge>
                                         </td>

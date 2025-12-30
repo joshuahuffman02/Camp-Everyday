@@ -72,7 +72,7 @@ export function StripeConnectCard({
             <CardTitle className="flex items-center gap-2">
               Stripe Connect
               {isConnected && (
-                <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 motion-safe:animate-in motion-safe:fade-in">
+                <Badge className="bg-status-success-bg text-status-success-text border border-status-success-border motion-safe:animate-in motion-safe:fade-in">
                   <Check className="w-3 h-3 mr-1" aria-hidden="true" />
                   <span className="sr-only">Status: </span>
                   Connected
