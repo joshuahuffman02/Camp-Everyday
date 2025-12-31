@@ -5,22 +5,22 @@ import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone } from 'lucide-reac
 
 const navigation = {
   product: [
-    { name: 'Features', href: '#features' },
-    { name: 'Pricing', href: '#pricing' },
-    { name: 'Demo', href: '#demo' },
-    { name: 'Integrations', href: '#integrations' },
+    { name: 'Features', href: '/owners#features' },
+    { name: 'Pricing', href: '/pricing' },
+    { name: 'Demo', href: '/demo' },
+    { name: 'ROI Calculator', href: '/roi-calculator' },
+  ],
+  compare: [
+    { name: 'vs Campspot', href: '/compare/campspot' },
+    { name: 'vs Newbook', href: '/compare/newbook' },
+    { name: 'vs CampLife', href: '/compare/camplife' },
+    { name: 'Switch from Campspot', href: '/switch-from-campspot' },
   ],
   resources: [
     { name: 'Blog', href: '/blog' },
     { name: 'Help Center', href: '/help' },
-    { name: 'Case Studies', href: '/case-studies' },
-    { name: 'API Docs', href: '/docs' },
-  ],
-  company: [
-    { name: 'About', href: '/about' },
-    { name: 'Careers', href: '/careers' },
-    { name: 'Contact', href: '/contact' },
-    { name: 'Partners', href: '/partners' },
+    { name: 'Campground Software', href: '/campground-management-software' },
+    { name: 'RV Park Systems', href: '/rv-park-reservation-system' },
   ],
   legal: [
     { name: 'Privacy', href: '/privacy' },
@@ -95,22 +95,22 @@ export function Footer() {
               <ul className="space-y-3">
                 {navigation.product.map((item) => (
                   <li key={item.name}>
-                    <a
+                    <Link
                       href={item.href}
                       className="text-slate-400 hover:text-emerald-400 transition-colors text-sm"
                     >
                       {item.name}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
             </div>
 
-            {/* Resources Links */}
+            {/* Compare Links */}
             <div>
-              <h3 className="text-white font-semibold mb-4">Resources</h3>
+              <h3 className="text-white font-semibold mb-4">Compare</h3>
               <ul className="space-y-3">
-                {navigation.resources.map((item) => (
+                {navigation.compare.map((item) => (
                   <li key={item.name}>
                     <Link
                       href={item.href}
@@ -123,11 +123,11 @@ export function Footer() {
               </ul>
             </div>
 
-            {/* Company Links */}
+            {/* Resources Links */}
             <div>
-              <h3 className="text-white font-semibold mb-4">Company</h3>
+              <h3 className="text-white font-semibold mb-4">Resources</h3>
               <ul className="space-y-3">
-                {navigation.company.map((item) => (
+                {navigation.resources.map((item) => (
                   <li key={item.name}>
                     <Link
                       href={item.href}

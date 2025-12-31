@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { MarketingHeader } from '@/components/marketing/MarketingHeader';
 import { HeroSection } from '@/components/marketing/HeroSection';
 import { WhySwitch } from '@/components/marketing/WhySwitch';
 import { FeaturePillars } from '@/components/marketing/FeaturePillars';
@@ -24,6 +25,9 @@ export const metadata: Metadata = {
 export default function OwnersPage() {
   return (
     <div className="min-h-screen bg-white">
+      {/* Header */}
+      <MarketingHeader />
+
       {/* Hero Section */}
       <HeroSection />
 
