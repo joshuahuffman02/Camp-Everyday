@@ -191,13 +191,22 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
       <section className="relative" aria-label="Campground hero">
         <div className="h-[60vh] w-full overflow-hidden rounded-b-3xl bg-slate-900">
           {hero ? (
-            <Image
-              src={hero}
-              alt={`${campground?.name || "Campground"} - ${campground?.tagline || "scenic outdoor camping destination"} in ${campground?.city}, ${campground?.state}`}
-              fill
-              className="object-cover"
-              priority
-            />
+            // Use regular img for external images (RIDB/recreation.gov) to avoid Next.js Image optimization issues
+            isExternal ? (
+              <img
+                src={hero}
+                alt={`${campground?.name || "Campground"} - ${campground?.tagline || "scenic outdoor camping destination"} in ${campground?.city}, ${campground?.state}`}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
+              <Image
+                src={hero}
+                alt={`${campground?.name || "Campground"} - ${campground?.tagline || "scenic outdoor camping destination"} in ${campground?.city}, ${campground?.state}`}
+                fill
+                className="object-cover"
+                priority
+              />
+            )
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-teal-600" aria-hidden="true" />
           )}
