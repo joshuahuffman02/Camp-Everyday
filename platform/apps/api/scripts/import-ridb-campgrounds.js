@@ -221,17 +221,23 @@ async function importCampgrounds() {
   // Get or create a placeholder organization for imported campgrounds
   let orgId;
   if (!dryRun) {
-    const org = await prisma.organization.upsert({
-      where: { slug: "ridb-imported" },
-      update: {},
-      create: {
-        name: "RIDB Imported Campgrounds",
-        slug: "ridb-imported",
-        billingEmail: "imports@campreserv.com",
-      },
+    // Find existing org or create new one
+    let org = await prisma.organization.findFirst({
+      where: { name: "RIDB Imported Campgrounds" },
     });
+
+    if (!org) {
+      org = await prisma.organization.create({
+        data: {
+          name: "RIDB Imported Campgrounds",
+          billingEmail: "imports@campreserv.com",
+        },
+      });
+      console.log(`Created organization: ${org.name} (${org.id})`);
+    } else {
+      console.log(`Using existing organization: ${org.name} (${org.id})`);
+    }
     orgId = org.id;
-    console.log(`Using organization: ${org.name} (${orgId})`);
   } else {
     orgId = "dry-run-org-id";
   }
