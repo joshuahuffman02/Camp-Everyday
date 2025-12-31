@@ -110,6 +110,7 @@ async function fetchFacilities(apiKey, offset, state) {
     limit: PAGE_SIZE.toString(),
     offset: offset.toString(),
     activity: "CAMPING", // Only camping facilities
+    full: "true", // Include address, media, activities data
   });
 
   if (state) {

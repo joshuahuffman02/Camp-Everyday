@@ -41,6 +41,8 @@ export interface PublicCampgroundView {
   isClaimable: boolean;
   isComingSoon: boolean;
   isBookable: boolean;
+  isExternal: boolean;
+  externalUrl: string | null;
 
   // Only for claimed campgrounds
   tagline?: string;
@@ -129,6 +131,8 @@ export class PublicCampgroundsService {
         reviewCount: true,
         claimStatus: true,
         seededDataSource: true,
+        isExternal: true,
+        externalUrl: true,
         deletedAt: true,
         organization: {
           select: {
@@ -187,6 +191,8 @@ export class PublicCampgroundsService {
       isClaimable,
       isComingSoon,
       isBookable: isClaimed,
+      isExternal: campground.isExternal,
+      externalUrl: campground.externalUrl,
       nearbyAttractions: campground.attractionMappings.map((m) => ({
         id: m.attraction.id,
         name: m.attraction.name,
