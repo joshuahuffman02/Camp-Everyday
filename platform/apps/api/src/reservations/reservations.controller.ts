@@ -56,6 +56,15 @@ export class ReservationsController {
     });
   }
 
+  @Get("campgrounds/:campgroundId/reservations/search")
+  searchReservations(
+    @Param("campgroundId") campgroundId: string,
+    @Query("q") query: string,
+    @Query("activeOnly") activeOnly?: string
+  ) {
+    return this.reservations.searchReservations(campgroundId, query, activeOnly !== "false");
+  }
+
   @Get("campgrounds/:campgroundId/reservations/import/schema")
   importSchema() {
     return this.importExport.importSchema();

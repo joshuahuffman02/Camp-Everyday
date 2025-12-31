@@ -2863,6 +2863,24 @@ export const apiClient = {
     const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/reservations`);
     return ReservationArray.parse(data);
   },
+  async searchReservations(campgroundId: string, query: string, activeOnly = true) {
+    const params = new URLSearchParams({ q: query });
+    if (!activeOnly) params.set("activeOnly", "false");
+    const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/reservations/search?${params}`);
+    return data as Array<{
+      id: string;
+      confirmationCode: string;
+      status: string;
+      arrivalDate: string;
+      departureDate: string;
+      totalAmount: number;
+      paidAmount: number;
+      balanceAmount: number;
+      guest: { id: string; firstName: string; lastName: string; email: string; phone: string } | null;
+      site: { id: string; number: string; name: string | null; siteClass: { id: string; name: string } | null } | null;
+      displayLabel: string;
+    }>;
+  },
   async getReservation(id: string) {
     const data = await fetchJSON<unknown>(`/reservations/${id}`);
     return ReservationSchema.parse(data);

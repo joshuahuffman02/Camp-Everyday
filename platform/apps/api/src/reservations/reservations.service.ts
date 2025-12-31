@@ -983,6 +983,85 @@ export class ReservationsService {
     });
   }
 
+  /**
+   * Search reservations by site number or guest name
+   * Used for folio/charge-to-site lookups
+   */
+  async searchReservations(campgroundId: string, query: string, activeOnly = true) {
+    if (!query || query.trim().length < 1) {
+      return [];
+    }
+
+    const searchTerm = query.trim().toLowerCase();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const reservations = await this.prisma.reservation.findMany({
+      where: {
+        campgroundId,
+        // Only active reservations (confirmed or checked_in) if activeOnly
+        ...(activeOnly && {
+          status: { in: ['confirmed', 'checked_in'] },
+          departureDate: { gte: today }, // Not yet departed
+        }),
+        OR: [
+          // Search by site number/name
+          { site: { number: { contains: searchTerm, mode: 'insensitive' } } },
+          { site: { name: { contains: searchTerm, mode: 'insensitive' } } },
+          // Search by guest name
+          { guest: { firstName: { contains: searchTerm, mode: 'insensitive' } } },
+          { guest: { lastName: { contains: searchTerm, mode: 'insensitive' } } },
+          // Search by confirmation code
+          { confirmationCode: { contains: searchTerm, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        guest: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+        site: {
+          select: {
+            id: true,
+            number: true,
+            name: true,
+            siteClass: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [
+        { status: 'asc' }, // checked_in first
+        { arrivalDate: 'asc' },
+      ],
+      take: 10, // Limit results for typeahead
+    });
+
+    // Format results for display
+    return reservations.map((res) => ({
+      id: res.id,
+      confirmationCode: res.confirmationCode,
+      status: res.status,
+      arrivalDate: res.arrivalDate,
+      departureDate: res.departureDate,
+      totalAmount: res.totalAmount,
+      paidAmount: res.paidAmount,
+      balanceAmount: Math.max(0, res.totalAmount - (res.paidAmount ?? 0)),
+      guest: res.guest,
+      site: res.site,
+      displayLabel: `${res.site?.number || res.site?.name || 'No Site'} - ${res.guest?.firstName || ''} ${res.guest?.lastName || ''}`.trim(),
+    }));
+  }
+
   async findOne(id: string) {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id },
