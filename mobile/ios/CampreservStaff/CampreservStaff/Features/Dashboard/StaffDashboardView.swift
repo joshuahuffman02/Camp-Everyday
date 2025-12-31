@@ -447,6 +447,7 @@ struct GuestSearchSheet: View {
     @State private var searchText = ""
     @State private var searchResults: [GuestSearchResult] = []
     @State private var isSearching = false
+    @State private var selectedGuest: GuestSearchResult?
 
     var body: some View {
         NavigationStack {
@@ -520,8 +521,7 @@ struct GuestSearchSheet: View {
                         LazyVStack(spacing: 0) {
                             ForEach(searchResults) { guest in
                                 GuestSearchRow(guest: guest) {
-                                    // Navigate to guest detail or reservation
-                                    dismiss()
+                                    selectedGuest = guest
                                 }
 
                                 if guest.id != searchResults.last?.id {
@@ -545,6 +545,9 @@ struct GuestSearchSheet: View {
             }
             .onChange(of: searchText) { _ in
                 performSearch()
+            }
+            .sheet(item: $selectedGuest) { guest in
+                GuestDetailSheet(guest: guest)
             }
         }
     }
@@ -643,6 +646,196 @@ struct GuestSearchRow: View {
             return "\(parts[0].prefix(1))\(parts[1].prefix(1))"
         }
         return String(guest.name.prefix(2))
+    }
+}
+
+// MARK: - Guest Detail Sheet
+
+struct GuestDetailSheet: View {
+    let guest: GuestSearchResult
+    @Environment(\.dismiss) private var dismiss
+    @State private var showCheckIn = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Guest header
+                    VStack(spacing: 12) {
+                        Circle()
+                            .fill(Color.campPrimary.opacity(0.15))
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                Text(initials)
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .foregroundColor(.campPrimary)
+                            )
+
+                        Text(guest.name)
+                            .font(.campHeading2)
+                            .foregroundColor(.campTextPrimary)
+
+                        StatusBadge(rawValue: guest.status, size: .medium)
+                    }
+                    .padding(.top, 20)
+
+                    // Reservation info
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Reservation")
+                            .font(.campLabel)
+                            .foregroundColor(.campTextPrimary)
+
+                        VStack(spacing: 12) {
+                            HStack {
+                                Text("Confirmation")
+                                    .font(.campCaption)
+                                    .foregroundColor(.campTextHint)
+                                Spacer()
+                                Text(guest.confirmationNumber)
+                                    .font(.campLabel)
+                                    .foregroundColor(.campPrimary)
+                            }
+
+                            HStack {
+                                Text("Site")
+                                    .font(.campCaption)
+                                    .foregroundColor(.campTextHint)
+                                Spacer()
+                                Text(guest.siteName)
+                                    .font(.campLabel)
+                                    .foregroundColor(.campTextPrimary)
+                            }
+
+                            HStack {
+                                Text("Arrival")
+                                    .font(.campCaption)
+                                    .foregroundColor(.campTextHint)
+                                Spacer()
+                                Text(formatDate(guest.arrivalDate))
+                                    .font(.campLabel)
+                                    .foregroundColor(.campTextPrimary)
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.campSurface)
+                    .cornerRadius(12)
+
+                    // Contact info
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Contact")
+                            .font(.campLabel)
+                            .foregroundColor(.campTextPrimary)
+
+                        VStack(spacing: 12) {
+                            Button {
+                                if let url = URL(string: "mailto:\(guest.email)") {
+                                    UIApplication.shared.open(url)
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "envelope.fill")
+                                        .foregroundColor(.campPrimary)
+                                        .frame(width: 24)
+                                    Text(guest.email)
+                                        .font(.campBody)
+                                        .foregroundColor(.campPrimary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.campTextHint)
+                                }
+                            }
+
+                            Divider()
+
+                            Button {
+                                if let url = URL(string: "tel:\(guest.phone.filter { $0.isNumber })") {
+                                    UIApplication.shared.open(url)
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "phone.fill")
+                                        .foregroundColor(.campPrimary)
+                                        .frame(width: 24)
+                                    Text(guest.phone)
+                                        .font(.campBody)
+                                        .foregroundColor(.campPrimary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.campTextHint)
+                                }
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.campSurface)
+                    .cornerRadius(12)
+
+                    // Actions
+                    VStack(spacing: 12) {
+                        if guest.status == "confirmed" {
+                            PrimaryButton("Check In Guest", icon: "arrow.down.circle") {
+                                showCheckIn = true
+                            }
+                        } else if guest.status == "checked_in" {
+                            PrimaryButton("Check Out Guest", icon: "arrow.up.circle") {
+                                // Check out
+                            }
+                        }
+
+                        SecondaryButton("View Full Reservation") {
+                            // Navigate to reservation
+                        }
+
+                        Button {
+                            // Start chat
+                        } label: {
+                            HStack {
+                                Image(systemName: "message.fill")
+                                Text("Send Message")
+                            }
+                            .font(.campLabel)
+                            .foregroundColor(.campPrimary)
+                        }
+                        .padding(.top, 8)
+                    }
+                }
+                .padding(16)
+            }
+            .background(Color.campBackground)
+            .navigationTitle("Guest Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .alert("Check In Guest?", isPresented: $showCheckIn) {
+                Button("Cancel", role: .cancel) { }
+                Button("Check In") {
+                    // Would call API
+                    dismiss()
+                }
+            } message: {
+                Text("Check in \(guest.name) to \(guest.siteName)?")
+            }
+        }
+    }
+
+    private var initials: String {
+        let parts = guest.name.split(separator: " ")
+        if parts.count >= 2 {
+            return "\(parts[0].prefix(1))\(parts[1].prefix(1))"
+        }
+        return String(guest.name.prefix(2))
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter.string(from: date)
     }
 }
 

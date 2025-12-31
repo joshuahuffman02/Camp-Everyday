@@ -15,6 +15,10 @@ final class StaffAppState: ObservableObject {
     private let tokenManager: TokenManager
     private let apiClient: APIClient
 
+    // UserDefaults keys for demo mode persistence
+    private let kDemoModeKey = "campreserv.staff.demoMode"
+    private let kSelectedCampgroundKey = "campreserv.staff.selectedCampground"
+
     init() {
         let keychain = KeychainService(serviceName: "com.campreserv.staff")
         self.tokenManager = TokenManager(keychain: keychain)
@@ -29,6 +33,12 @@ final class StaffAppState: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
+        // Check for demo mode first
+        if UserDefaults.standard.bool(forKey: kDemoModeKey) {
+            await restoreDemoSession()
+            return
+        }
+
         do {
             _ = try await tokenManager.getValidToken()
             isAuthenticated = true
@@ -38,6 +48,42 @@ final class StaffAppState: ObservableObject {
             isAuthenticated = false
             currentUser = nil
             currentCampground = nil
+        }
+    }
+
+    private func restoreDemoSession() async {
+        isAuthenticated = true
+        currentUser = User(
+            id: "demo-user",
+            email: "demo@campreserv.com",
+            firstName: "Demo",
+            lastName: "Staff",
+            platformRole: nil,
+            campgrounds: [
+                CampgroundSummary(id: "demo-campground-1", name: "Pines Campground & RV Resort", slug: "pines", role: "manager"),
+                CampgroundSummary(id: "demo-campground-2", name: "Coastal Camping", slug: "coastal", role: "manager")
+            ]
+        )
+        campgrounds = [
+            Campground(
+                id: "demo-campground-1",
+                name: "Pines Campground & RV Resort",
+                slug: "pines",
+                city: "Lake Tahoe",
+                state: "CA"
+            ),
+            Campground(
+                id: "demo-campground-2",
+                name: "Coastal Camping",
+                slug: "coastal",
+                city: "Santa Cruz",
+                state: "CA"
+            )
+        ]
+
+        // Restore selected campground
+        if let savedCampgroundId = UserDefaults.standard.string(forKey: kSelectedCampgroundKey) {
+            currentCampground = campgrounds.first { $0.id == savedCampgroundId }
         }
     }
 
@@ -68,34 +114,11 @@ final class StaffAppState: ObservableObject {
         // Demo mode - use demo@campreserv.com / demo123
         if email == "demo@campreserv.com" && password == "demo123" {
             try await Task.sleep(for: .seconds(1)) // Simulate network delay
-            isAuthenticated = true
-            currentUser = User(
-                id: "demo-user",
-                email: "demo@campreserv.com",
-                firstName: "Demo",
-                lastName: "Staff",
-                platformRole: nil,
-                campgrounds: [
-                    CampgroundSummary(id: "demo-campground-1", name: "Pines Campground & RV Resort", slug: "pines", role: "manager"),
-                    CampgroundSummary(id: "demo-campground-2", name: "Coastal Camping", slug: "coastal", role: "manager")
-                ]
-            )
-            campgrounds = [
-                Campground(
-                    id: "demo-campground-1",
-                    name: "Pines Campground & RV Resort",
-                    slug: "pines",
-                    city: "Lake Tahoe",
-                    state: "CA"
-                ),
-                Campground(
-                    id: "demo-campground-2",
-                    name: "Coastal Camping",
-                    slug: "coastal",
-                    city: "Santa Cruz",
-                    state: "CA"
-                )
-            ]
+
+            // Persist demo mode
+            UserDefaults.standard.set(true, forKey: kDemoModeKey)
+
+            await restoreDemoSession()
             return
         }
 
@@ -132,11 +155,17 @@ final class StaffAppState: ObservableObject {
 
     func selectCampground(_ campground: Campground) {
         currentCampground = campground
+        // Persist selection
+        UserDefaults.standard.set(campground.id, forKey: kSelectedCampgroundKey)
     }
 
     // MARK: - Logout
 
     func logout() async {
+        // Clear demo mode
+        UserDefaults.standard.removeObject(forKey: kDemoModeKey)
+        UserDefaults.standard.removeObject(forKey: kSelectedCampgroundKey)
+
         do {
             if let refreshToken = await tokenManager.getRefreshToken() {
                 try await apiClient.request(.logout(refreshToken: refreshToken))

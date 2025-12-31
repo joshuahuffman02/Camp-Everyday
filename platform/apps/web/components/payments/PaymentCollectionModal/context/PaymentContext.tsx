@@ -342,6 +342,39 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
       .catch(() => dispatch({ type: "SET_WALLET_BALANCE", payload: 0 }));
   }, [modalProps.isOpen, modalProps.campgroundId, modalProps.guestId]);
 
+  // Recalculate charity round-up when payment method changes
+  // This ensures the round-up amount is correct whether paying by card (includes CC fee) or cash (no CC fee)
+  useEffect(() => {
+    if (!state.charityDonation.optedIn || !state.config) return;
+
+    const CARD_METHODS = ["card", "saved_card", "apple_pay", "google_pay", "terminal"];
+    const baseTotal = state.originalAmountCents - state.discountCents;
+
+    // Calculate CC fee if card method is selected
+    let totalForRounding = baseTotal;
+    if (state.selectedMethod && CARD_METHODS.includes(state.selectedMethod) && state.config.feeMode === "pass_through") {
+      const ccFeeCents = calculateProcessingFee(state.config, state.selectedMethod, baseTotal);
+      totalForRounding += ccFeeCents;
+    }
+
+    // Calculate new round-up amount
+    const dollars = totalForRounding / 100;
+    const roundedUp = Math.ceil(dollars);
+    const roundUpCents = Math.round((roundedUp - dollars) * 100);
+    const newRoundUpAmount = roundUpCents === 0 ? 100 : roundUpCents;
+
+    // Only update if the amount changed
+    if (newRoundUpAmount !== state.charityDonation.amountCents) {
+      dispatch({
+        type: "SET_CHARITY",
+        payload: {
+          ...state.charityDonation,
+          amountCents: newRoundUpAmount,
+        },
+      });
+    }
+  }, [state.selectedMethod, state.config, state.originalAmountCents, state.discountCents, state.charityDonation.optedIn]);
+
   // ============================================================================
   // ACTIONS
   // ============================================================================
