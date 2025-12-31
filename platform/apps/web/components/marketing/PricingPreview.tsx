@@ -215,14 +215,14 @@ export function PricingPreview() {
           </h2>
 
           <p className="text-xl text-slate-300 mb-8">
-            Lock in early access pricing that will never increase. Once these 45 spots are gone,
-            standard pricing kicks in — and you'll have helped shape the future of campground software.
+            Lock in per-booking fees that will never increase — $0.75 to $1.25 vs $2.30 standard.
+            Once these 45 spots are gone, you'll have helped shape the future of campground software.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-6 text-slate-400">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-emerald-400" />
-              <span>Price locked forever</span>
+              <span>Per-booking fee locked forever</span>
             </div>
             <div className="flex items-center gap-2">
               <Gift className="h-5 w-5 text-emerald-400" />

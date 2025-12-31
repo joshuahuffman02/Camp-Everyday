@@ -94,9 +94,6 @@ final class AppState: ObservableObject {
 // MARK: - Configuration
 
 enum Configuration {
-    #if DEBUG
-    static let apiBaseURL = "http://localhost:4000"
-    #else
-    static let apiBaseURL = "https://api.campreserv.com"
-    #endif
+    // Railway production API
+    static let apiBaseURL = "https://camp-everydayapi-production.up.railway.app"
 }
