@@ -2,16 +2,11 @@
 
 import { useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import Image from "next/image";
 import {
-  Caravan,
-  Home,
-  Tent,
-  Sparkles,
-  TreePine,
-  Building2,
-  Hexagon,
   ChevronLeft,
   ChevronRight,
+  TreePine,
   Calendar
 } from "lucide-react";
 
@@ -104,7 +99,8 @@ const categoryThemes: Record<CategoryType, CategoryTheme> = {
 interface Category {
   id: CategoryType;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  image?: string; // Path to custom image
+  fallbackIcon?: React.ComponentType<{ className?: string }>; // Fallback Lucide icon
   siteTypes: string[]; // Maps to SiteType enum values
 }
 
@@ -112,49 +108,51 @@ const categories: Category[] = [
   {
     id: "all",
     label: "All",
-    icon: Sparkles,
+    image: "/images/categories/all.png",
     siteTypes: []
   },
   {
     id: "rv",
     label: "RV Sites",
-    icon: Caravan,
+    image: "/images/categories/rv.png",
     siteTypes: ["rv"]
   },
   {
     id: "cabins",
     label: "Cabins",
-    icon: Home,
+    image: "/images/categories/cabins.png",
     siteTypes: ["cabin"]
   },
   {
     id: "tents",
     label: "Tent Sites",
-    icon: Tent,
+    image: "/images/categories/tents.png",
     siteTypes: ["tent", "group"]
   },
   {
     id: "glamping",
     label: "Glamping",
-    icon: Hexagon,
+    image: "/images/categories/glamping.png",
     siteTypes: ["glamping", "safari_tent", "dome"]
   },
   {
     id: "lodges",
     label: "Lodges",
-    icon: Building2,
+    image: "/images/categories/lodges.png",
     siteTypes: ["hotel_room", "suite", "lodge_room"]
   },
   {
     id: "unique",
     label: "Unique Stays",
-    icon: TreePine,
+    image: "/images/categories/unique.png",
+    fallbackIcon: TreePine,
     siteTypes: ["yurt", "treehouse", "tiny_house", "airstream"]
   },
   {
     id: "events",
     label: "Events",
-    icon: Calendar,
+    image: "/images/categories/events.png",
+    fallbackIcon: Calendar,
     siteTypes: [] // Events are handled separately, not by site type
   }
 ];
@@ -262,7 +260,7 @@ export function CategoryTabs({
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {categories.map((category) => {
-          const Icon = category.icon;
+          const FallbackIcon = category.fallbackIcon;
           const isActive = activeCategory === category.id;
           const isHovered = hoveredCategory === category.id;
           const theme = categoryThemes[category.id];
@@ -278,29 +276,43 @@ export function CategoryTabs({
               onMouseEnter={() => setHoveredCategory(category.id)}
               onMouseLeave={() => setHoveredCategory(null)}
               className={`
-                relative flex-shrink-0 flex flex-col items-center gap-1.5 px-5 py-3 rounded-full
+                relative flex-shrink-0 flex flex-col items-center gap-1.5 px-4 py-2 rounded-2xl
                 transition-all duration-200 border
                 ${isActive
-                  ? `${theme.activeBg} ${theme.activeText} border-transparent shadow-lg`
-                  : `${theme.bg} ${theme.hoverBg} ${theme.accent} border-transparent`
+                  ? `bg-white border-slate-200 shadow-md`
+                  : `bg-transparent border-transparent hover:bg-slate-50`
                 }
-                ${!isActive && isHovered ? `ring-2 ring-offset-1 ${theme.ring}` : ""}
               `}
             >
-              {/* Icon with animation */}
+              {/* Icon/Image with animation */}
               <motion.div
                 variants={iconVariants}
                 animate={isActive ? "active" : isHovered ? "hover" : "initial"}
+                className="relative w-8 h-8"
               >
-                <Icon
-                  className={`w-5 h-5 transition-colors duration-200 ${
-                    isActive ? theme.activeText : theme.accent
-                  }`}
-                />
+                {category.image ? (
+                  <Image
+                    src={category.image}
+                    alt={category.label}
+                    fill
+                    className="object-contain"
+                    sizes="32px"
+                    onError={(e) => {
+                      // Hide broken image, fallback icon will show
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : FallbackIcon ? (
+                  <FallbackIcon
+                    className={`w-8 h-8 transition-colors duration-200 ${theme.accent}`}
+                  />
+                ) : null}
               </motion.div>
 
               {/* Label */}
-              <span className="text-xs font-medium whitespace-nowrap">
+              <span className={`text-xs font-medium whitespace-nowrap transition-colors ${
+                isActive ? "text-slate-900" : "text-slate-600"
+              }`}>
                 {category.label}
               </span>
 
@@ -308,7 +320,7 @@ export function CategoryTabs({
               {isActive && (
                 <motion.div
                   layoutId="activeIndicator"
-                  className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full ${theme.activeBg}`}
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-slate-900"
                   initial={false}
                   transition={
                     prefersReducedMotion
