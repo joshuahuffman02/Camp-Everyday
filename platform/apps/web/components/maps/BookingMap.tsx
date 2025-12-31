@@ -14,7 +14,6 @@ let Marker: any = null;
 const loadMapLibre = async () => {
   if (!maplibregl) {
     const mapLibreModule = await import("maplibre-gl");
-    // @ts-expect-error CSS module import has no type declarations
     await import("maplibre-gl/dist/maplibre-gl.css");
     maplibregl = mapLibreModule.default;
     MapLibreMap = mapLibreModule.Map;
