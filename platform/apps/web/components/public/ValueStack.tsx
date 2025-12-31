@@ -1,40 +1,45 @@
 "use client";
 
-import { DollarSign, Building2, Zap, Camera, Shield, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
+import { CheckCircle2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const pillars = [
   {
-    icon: Building2,
-    title: "Book Direct",
-    description: "Book directly with the campground. No middleman, direct communication with the park.",
-    guarantee: "Direct from the park",
-    iconBg: "from-emerald-500 to-teal-600",
-    iconShadow: "shadow-emerald-500/20",
+    image: "/images/icons/trust-security.png",
+    title: "Secure Booking",
+    description: "Your payment and personal info protected with bank-level security.",
+    guarantee: "100% secure",
   },
   {
-    icon: DollarSign,
-    title: "Transparent Pricing",
-    description: "See the full price upfront before you book. No surprises at checkout.",
-    guarantee: "Clear pricing",
-    iconBg: "from-violet-500 to-purple-600",
-    iconShadow: "shadow-violet-500/20",
+    image: "/images/icons/easy-booking.png",
+    title: "Easy Booking",
+    description: "Book your perfect campsite in just a few clicks. Simple, fast, done.",
+    guarantee: "Book in minutes",
   },
   {
-    icon: Zap,
+    image: "/images/icons/support.png",
+    title: "24/7 Support",
+    description: "Real humans ready to help whenever you need us. Day or night.",
+    guarantee: "Always here for you",
+  },
+  {
+    image: "/images/icons/best-price.png",
+    title: "Best Price",
+    description: "Book direct with campgrounds. No middleman markup, no hidden fees.",
+    guarantee: "Price match guarantee",
+  },
+  {
+    image: "/images/icons/verified-reviews.png",
+    title: "Verified Reviews",
+    description: "Real reviews from real campers. Know what to expect before you arrive.",
+    guarantee: "Trusted feedback",
+  },
+  {
+    image: "/images/icons/instant-confirm.png",
     title: "Instant Confirmation",
-    description: "Know you're booked in seconds. Real-time availability means no waiting, no uncertainty.",
+    description: "Know you're booked in seconds. Real-time availability, no waiting.",
     guarantee: "Confirmed immediately",
-    iconBg: "from-amber-500 to-orange-600",
-    iconShadow: "shadow-amber-500/20",
-  },
-  {
-    icon: Camera,
-    title: "Verified Photos",
-    description: "Real photos from the campground. What you see is what you get when you arrive.",
-    guarantee: "No surprises",
-    iconBg: "from-rose-500 to-pink-600",
-    iconShadow: "shadow-rose-500/20",
   },
 ];
 
@@ -58,21 +63,21 @@ export function ValueStack({ className }: ValueStackProps) {
         </div>
 
         {/* Pillars grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           {pillars.map((pillar, i) => (
             <div
               key={i}
-              className="bg-white rounded-2xl p-6 md:p-8 shadow-lg shadow-slate-900/5 hover:shadow-xl hover:shadow-slate-900/10 transition-shadow"
+              className="bg-white rounded-2xl p-6 md:p-8 shadow-lg shadow-slate-900/5 hover:shadow-xl hover:shadow-slate-900/10 transition-all hover:-translate-y-1"
             >
               {/* Icon */}
-              <div
-                className={cn(
-                  "w-14 h-14 rounded-xl flex items-center justify-center mb-6 shadow-lg bg-gradient-to-br",
-                  pillar.iconBg,
-                  pillar.iconShadow
-                )}
-              >
-                <pillar.icon className="w-7 h-7 text-white" />
+              <div className="relative w-16 h-16 mb-6">
+                <Image
+                  src={pillar.image}
+                  alt={pillar.title}
+                  fill
+                  className="object-contain"
+                  sizes="64px"
+                />
               </div>
 
               {/* Content */}
@@ -90,8 +95,14 @@ export function ValueStack({ className }: ValueStackProps) {
 
         {/* Additional trust statement */}
         <div className="mt-12 text-center">
-          <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 rounded-full px-4 py-2 text-sm font-medium">
-            <Shield className="h-4 w-4" />
+          <div className="inline-flex items-center gap-3 bg-emerald-50 text-emerald-700 rounded-full px-5 py-2.5 text-sm font-medium">
+            <Image
+              src="/images/icons/trust-security.png"
+              alt="Security"
+              width={24}
+              height={24}
+              className="object-contain"
+            />
             Your satisfaction is our priority
           </div>
         </div>

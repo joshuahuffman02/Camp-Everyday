@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { Search, Calendar } from "lucide-react";
 import { CampgroundCard } from "../../components/public/CampgroundCard";
@@ -152,11 +153,20 @@ const US_STATES = [
     "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
 ];
 
-// Common amenities for filtering
+// Common amenities for filtering with icons
 const COMMON_AMENITIES = [
-    "Electric Hookups", "Water Hookups", "Sewer Hookups", "WiFi",
-    "Showers", "Restrooms", "Dump Station", "Laundry", "Store",
-    "Pool", "Playground", "Pet Friendly", "Fishing", "Hiking"
+    { name: "Electric Hookups", icon: "/images/icons/electric-hookup.png" },
+    { name: "Water Hookups", icon: "/images/icons/water-hookup.png" },
+    { name: "WiFi", icon: "/images/icons/wifi.png" },
+    { name: "Showers", icon: "/images/icons/shower.png" },
+    { name: "Pool", icon: "/images/icons/pool.png" },
+    { name: "Playground", icon: "/images/icons/playground.png" },
+    { name: "Pet Friendly", icon: "/images/icons/pet-friendly.png" },
+    { name: "Fishing", icon: "/images/icons/fishing.png" },
+    { name: "Hiking", icon: "/images/icons/hiking.png" },
+    { name: "Store", icon: "/images/icons/store.png" },
+    { name: "Campfire", icon: "/images/icons/campfire.png" },
+    { name: "Biking", icon: "/images/icons/biking.png" },
 ];
 
 // Event types for filter
@@ -615,26 +625,32 @@ export function HomeClient() {
                     {/* Amenity Filter Chips - hide for events */}
                     <div className="flex flex-wrap gap-2">
                         {activeCategory !== "events" && COMMON_AMENITIES.slice(0, 8).map((amenity) => {
-                            const isSelected = amenityFilters.includes(amenity);
+                            const isSelected = amenityFilters.includes(amenity.name);
                             return (
                                 <button
-                                    key={amenity}
+                                    key={amenity.name}
                                     onClick={() => {
                                         if (isSelected) {
-                                            setAmenityFilters(amenityFilters.filter((a) => a !== amenity));
+                                            setAmenityFilters(amenityFilters.filter((a) => a !== amenity.name));
                                         } else {
-                                            setAmenityFilters([...amenityFilters, amenity]);
+                                            setAmenityFilters([...amenityFilters, amenity.name]);
                                         }
                                         setDisplayCount(24);
                                     }}
-                                    className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                                    className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-full border transition-all ${
                                         isSelected
-                                            ? "bg-emerald-100 border-emerald-300 text-emerald-700"
-                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                            ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm"
+                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:shadow-sm"
                                     }`}
                                 >
-                                    {isSelected && <span className="mr-1">&#10003;</span>}
-                                    {amenity}
+                                    <Image
+                                        src={amenity.icon}
+                                        alt={amenity.name}
+                                        width={20}
+                                        height={20}
+                                        className="object-contain"
+                                    />
+                                    {amenity.name}
                                 </button>
                             );
                         })}
@@ -736,7 +752,15 @@ export function HomeClient() {
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.2 }}
                         >
-                            <Calendar className="w-16 h-16 text-orange-200 mx-auto mb-4" />
+                            <div className="relative w-32 h-32 mx-auto mb-6">
+                                <Image
+                                    src="/images/icons/confused-compass.png"
+                                    alt="No events"
+                                    fill
+                                    className="object-contain"
+                                    sizes="128px"
+                                />
+                            </div>
                             <h3 className="text-xl font-semibold text-slate-900 mb-2">No events found</h3>
                             <p className="text-slate-600">
                                 {stateFilter || eventTypeFilter || dateRangeFilter
@@ -848,9 +872,15 @@ export function HomeClient() {
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.2 }}
                     >
-                        <svg className="w-16 h-16 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                        <div className="relative w-32 h-32 mx-auto mb-6">
+                            <Image
+                                src="/images/icons/lonely-tent.png"
+                                alt="No results"
+                                fill
+                                className="object-contain"
+                                sizes="128px"
+                            />
+                        </div>
                         <h3 className="text-xl font-semibold text-slate-900 mb-2">No campgrounds found</h3>
                         <p className="text-slate-600">Try adjusting your search or filters</p>
                     </motion.div>

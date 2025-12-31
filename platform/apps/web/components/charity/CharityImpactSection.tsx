@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useInView, useReducedMotion } from "framer-motion";
-import { Heart, Users, Tent, TrendingUp, Sparkles } from "lucide-react";
+import { TrendingUp } from "lucide-react";
+import Image from "next/image";
 import { apiClient } from "@/lib/api-client";
 
 // Animated counter hook
@@ -161,8 +162,8 @@ export function CharityImpactSection({ variant = "full", showCTA = true }: Chari
         className="bg-gradient-to-r from-rose-50 to-amber-50 dark:from-rose-950/30 dark:to-amber-950/30 rounded-2xl p-6 border border-rose-100 dark:border-rose-900/50"
       >
         <motion.div variants={itemVariants} className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-full bg-rose-100 dark:bg-rose-900/50">
-            <Heart className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+          <div className="relative w-10 h-10">
+            <Image src="/images/icons/giving-heart.png" alt="Heart" fill className="object-contain" sizes="40px" />
           </div>
           <div>
             <h3 className="font-semibold text-slate-900 dark:text-white">Community Giving</h3>
@@ -198,9 +199,9 @@ export function CharityImpactSection({ variant = "full", showCTA = true }: Chari
           {/* Header */}
           <motion.div variants={itemVariants} className="mb-12">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-sm font-medium mb-4">
-              <Heart className="h-4 w-4" />
+              <Image src="/images/icons/giving-heart.png" alt="Heart" width={20} height={20} className="object-contain" />
               <span>Community Impact</span>
-              <Sparkles className="h-4 w-4" />
+              <Image src="/images/icons/tree-planting.png" alt="Impact" width={20} height={20} className="object-contain" />
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
               Camping with Heart
@@ -218,8 +219,9 @@ export function CharityImpactSection({ variant = "full", showCTA = true }: Chari
                 <motion.div
                   animate={isInView && !prefersReducedMotion ? { scale: [1, 1.2, 1] } : {}}
                   transition={{ duration: 0.5, delay: 1.5 }}
+                  className="relative w-12 h-12"
                 >
-                  <Heart className="h-8 w-8 text-rose-500 fill-rose-500" />
+                  <Image src="/images/icons/giving-heart.png" alt="Heart" fill className="object-contain" sizes="48px" />
                 </motion.div>
                 <span className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-rose-600 to-amber-600 bg-clip-text text-transparent">
                   {isLoading ? (
@@ -250,8 +252,8 @@ export function CharityImpactSection({ variant = "full", showCTA = true }: Chari
             className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-12 max-w-3xl mx-auto"
           >
             <div className="p-6 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur">
-              <div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 mb-2">
-                <Users className="h-5 w-5" />
+              <div className="flex items-center justify-center mb-2">
+                <Image src="/images/icons/donation-box.png" alt="Donations" width={32} height={32} className="object-contain" />
               </div>
               <div className="text-3xl font-bold text-slate-900 dark:text-white">
                 {isLoading ? "..." : animatedDonations.toLocaleString()}
@@ -260,8 +262,8 @@ export function CharityImpactSection({ variant = "full", showCTA = true }: Chari
             </div>
 
             <div className="p-6 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur">
-              <div className="flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400 mb-2">
-                <Tent className="h-5 w-5" />
+              <div className="flex items-center justify-center mb-2">
+                <Image src="/images/icons/community-circle.png" alt="Guests" width={32} height={32} className="object-contain" />
               </div>
               <div className="text-3xl font-bold text-slate-900 dark:text-white">
                 {isLoading ? "..." : animatedCampgrounds.toLocaleString()}
@@ -270,8 +272,8 @@ export function CharityImpactSection({ variant = "full", showCTA = true }: Chari
             </div>
 
             <div className="col-span-2 md:col-span-1 p-6 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur">
-              <div className="flex items-center justify-center gap-2 text-purple-600 dark:text-purple-400 mb-2">
-                <Heart className="h-5 w-5" />
+              <div className="flex items-center justify-center mb-2">
+                <Image src="/images/icons/tree-planting.png" alt="Charities" width={32} height={32} className="object-contain" />
               </div>
               <div className="text-3xl font-bold text-slate-900 dark:text-white">
                 {isLoading ? "..." : topCharities.length}

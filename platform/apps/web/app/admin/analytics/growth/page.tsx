@@ -27,6 +27,7 @@ import {
   DataTable,
   DateRangePicker,
   formatCurrency,
+  CohortHeatmap,
 } from "@/components/analytics";
 
 interface PlatformGrowthData {
@@ -210,14 +211,14 @@ export default function PlatformGrowthPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-white">Platform Growth</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Platform Growth</h1>
             {isUsingMockData && (
-              <Badge className="bg-amber-600/20 text-amber-400 border border-amber-600/50">
+              <Badge className="bg-amber-100 dark:bg-amber-600/20 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-600/50">
                 Demo Data
               </Badge>
             )}
           </div>
-          <p className="text-slate-400 mt-1">
+          <p className="text-slate-600 dark:text-slate-400 mt-1">
             Track campground signups, retention, and business health
           </p>
         </div>
@@ -227,7 +228,7 @@ export default function PlatformGrowthPage() {
             variant="outline"
             size="sm"
             onClick={() => window.location.reload()}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -236,32 +237,32 @@ export default function PlatformGrowthPage() {
       </div>
 
       {/* Founding Members Highlight */}
-      <Card className="bg-gradient-to-r from-amber-900/30 to-amber-800/20 border-amber-700/50">
+      <Card className="bg-gradient-to-r from-amber-100 to-amber-50 dark:from-amber-900/30 dark:to-amber-800/20 border-amber-300 dark:border-amber-700/50">
         <CardContent className="py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-amber-500/20 rounded-xl">
-                <Award className="h-8 w-8 text-amber-400" />
+              <div className="p-3 bg-amber-200 dark:bg-amber-500/20 rounded-xl">
+                <Award className="h-8 w-8 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">Founding Members</h2>
-                <p className="text-amber-200/70 text-sm">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Founding Members</h2>
+                <p className="text-amber-700/70 dark:text-amber-200/70 text-sm">
                   Your original 45 campgrounds who believed in Camp Everyday from the start
                 </p>
               </div>
             </div>
             <div className="flex gap-8">
               <div className="text-center">
-                <p className="text-4xl font-bold text-amber-400">{data.overview.foundingMembersActive}</p>
-                <p className="text-sm text-amber-200/60">Still Active</p>
+                <p className="text-4xl font-bold text-amber-600 dark:text-amber-400">{data.overview.foundingMembersActive}</p>
+                <p className="text-sm text-amber-700/60 dark:text-amber-200/60">Still Active</p>
               </div>
               <div className="text-center">
-                <p className="text-4xl font-bold text-white">{data.overview.foundingMembers - data.overview.foundingMembersActive}</p>
-                <p className="text-sm text-slate-400">Churned</p>
+                <p className="text-4xl font-bold text-slate-900 dark:text-white">{data.overview.foundingMembers - data.overview.foundingMembersActive}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Churned</p>
               </div>
               <div className="text-center">
-                <p className="text-4xl font-bold text-emerald-400">{foundingRetentionRate}%</p>
-                <p className="text-sm text-emerald-200/60">Retention Rate</p>
+                <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{foundingRetentionRate}%</p>
+                <p className="text-sm text-emerald-700/60 dark:text-emerald-200/60">Retention Rate</p>
               </div>
             </div>
           </div>
@@ -382,13 +383,13 @@ export default function PlatformGrowthPage() {
       />
 
       {/* Founding Members Table */}
-      <Card className="bg-slate-800/50 border-slate-700">
+      <Card className="border-slate-200 dark:border-slate-700">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Award className="h-5 w-5 text-amber-400" />
-            <CardTitle className="text-lg text-white">Founding Members Status</CardTitle>
+            <Award className="h-5 w-5 text-amber-500 dark:text-amber-400" />
+            <CardTitle className="text-lg text-slate-900 dark:text-white">Founding Members Status</CardTitle>
           </div>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Tracking the 45 original campgrounds who joined during launch
           </p>
         </CardHeader>
@@ -396,26 +397,26 @@ export default function PlatformGrowthPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Campground</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Joined</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Status</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-slate-400">Months Active</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Last Activity</th>
+                <tr className="border-b border-slate-200 dark:border-slate-700">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500 dark:text-slate-400">Campground</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500 dark:text-slate-400">Joined</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500 dark:text-slate-400">Status</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-slate-500 dark:text-slate-400">Months Active</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500 dark:text-slate-400">Last Activity</th>
                 </tr>
               </thead>
               <tbody>
                 {data.foundingMembers.map((member, idx) => (
-                  <tr key={idx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                    <td className="py-3 px-4 text-sm text-white font-medium">{member.name}</td>
-                    <td className="py-3 px-4 text-sm text-slate-400">
+                  <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                    <td className="py-3 px-4 text-sm text-slate-900 dark:text-white font-medium">{member.name}</td>
+                    <td className="py-3 px-4 text-sm text-slate-500 dark:text-slate-400">
                       {new Date(member.signupDate).toLocaleDateString()}
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge status={member.status} />
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-300 text-right">{member.monthsActive}</td>
-                    <td className="py-3 px-4 text-sm text-slate-400">
+                    <td className="py-3 px-4 text-sm text-slate-700 dark:text-slate-300 text-right">{member.monthsActive}</td>
+                    <td className="py-3 px-4 text-sm text-slate-500 dark:text-slate-400">
                       {new Date(member.lastActivity).toLocaleDateString()}
                     </td>
                   </tr>
@@ -463,94 +464,37 @@ export default function PlatformGrowthPage() {
         />
       </div>
 
-      {/* Cohort Retention Table */}
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-lg text-white">Cohort Retention Analysis</CardTitle>
-          <p className="text-sm text-slate-400">
-            Retention rates by signup quarter
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Cohort</th>
-                  <th className="text-center py-3 px-4 text-sm font-medium text-slate-400">Month 0</th>
-                  <th className="text-center py-3 px-4 text-sm font-medium text-slate-400">Month 1</th>
-                  <th className="text-center py-3 px-4 text-sm font-medium text-slate-400">Month 3</th>
-                  <th className="text-center py-3 px-4 text-sm font-medium text-slate-400">Month 6</th>
-                  <th className="text-center py-3 px-4 text-sm font-medium text-slate-400">Month 12</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.cohortRetention.map((cohort, idx) => (
-                  <tr key={idx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                    <td className="py-3 px-4 text-sm text-white font-medium">{cohort.cohort}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="text-emerald-400">{cohort.month0}%</span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={cohort.month1 >= 90 ? "text-emerald-400" : cohort.month1 >= 80 ? "text-amber-400" : "text-red-400"}>
-                        {cohort.month1}%
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={cohort.month3 >= 80 ? "text-emerald-400" : cohort.month3 >= 70 ? "text-amber-400" : cohort.month3 === 0 ? "text-slate-600" : "text-red-400"}>
-                        {cohort.month3 === 0 ? "—" : `${cohort.month3}%`}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={cohort.month6 >= 75 ? "text-emerald-400" : cohort.month6 >= 65 ? "text-amber-400" : cohort.month6 === 0 ? "text-slate-600" : "text-red-400"}>
-                        {cohort.month6 === 0 ? "—" : `${cohort.month6}%`}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={cohort.month12 >= 70 ? "text-emerald-400" : cohort.month12 >= 60 ? "text-amber-400" : cohort.month12 === 0 ? "text-slate-600" : "text-red-400"}>
-                        {cohort.month12 === 0 ? "—" : `${cohort.month12}%`}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 flex items-center justify-center gap-6 text-xs text-slate-500">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-emerald-400/50" /> Good
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-amber-400/50" /> Needs Attention
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-red-400/50" /> At Risk
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Cohort Retention Heatmap */}
+      <CohortHeatmap
+        title="Cohort Retention Analysis"
+        description="Retention rates by signup quarter - hover over cells for details"
+        data={data.cohortRetention}
+        periodKeys={["month0", "month1", "month3", "month6", "month12"]}
+        periodLabels={["Month 0", "Month 1", "Month 3", "Month 6", "Month 12"]}
+        loading={loading}
+      />
 
       {/* Quick Stats Footer */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-700">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
         <div className="text-center">
-          <p className="text-2xl font-bold text-emerald-400">{foundingRetentionRate}%</p>
-          <p className="text-sm text-slate-400">Founding Retention</p>
+          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{foundingRetentionRate}%</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Founding Retention</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-white">{overallRetentionRate}%</p>
-          <p className="text-sm text-slate-400">Overall Retention</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white">{overallRetentionRate}%</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Overall Retention</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-blue-400">
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
             {Math.round(data.overview.mrr / data.overview.activeCampgrounds)}
           </p>
-          <p className="text-sm text-slate-400">ARPU ($/mo)</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">ARPU ($/mo)</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-purple-400">
+          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
             {Math.round((data.overview.signupsThisMonth - data.overview.churnedThisMonth) / data.overview.activeCampgrounds * 100)}%
           </p>
-          <p className="text-sm text-slate-400">Net Growth Rate</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Net Growth Rate</p>
         </div>
       </div>
     </div>
