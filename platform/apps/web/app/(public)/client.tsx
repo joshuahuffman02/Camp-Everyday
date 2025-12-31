@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { Search } from "lucide-react";
 import { CampgroundCard } from "../../components/public/CampgroundCard";
+import { CategoryTabs, categories, type CategoryType } from "../../components/public/CategoryTabs";
 import { apiClient } from "../../lib/api-client";
 import type { AdaCertificationLevel } from "../../lib/ada-accessibility";
 import { trackEvent } from "@/lib/analytics";
@@ -159,6 +160,7 @@ export function HomeClient() {
     const [searchQuery, setSearchQuery] = useState("");
     const [stateFilter, setStateFilter] = useState<string>("");
     const [amenityFilters, setAmenityFilters] = useState<string[]>([]);
+    const [activeCategory, setActiveCategory] = useState<CategoryType>("all");
     const [sortBy, setSortBy] = useState<"recommended" | "name" | "rating" | "reviews">("recommended");
     const [displayCount, setDisplayCount] = useState(24);
     const [searchFilters, setSearchFilters] = useState<{
@@ -214,7 +216,8 @@ export function HomeClient() {
 
             return {
                 ...cg,
-                isInternal: true,
+                isInternal: !cg.isExternal, // External campgrounds (RIDB) are not internal
+                isExternal: cg.isExternal ?? false,
                 rating,
                 reviewCount,
                 pricePerNight: undefined,
@@ -261,6 +264,37 @@ export function HomeClient() {
             filtered = filtered.filter((cg) => cg.state === stateFilter);
         }
 
+        // Apply category filter
+        if (activeCategory !== "all") {
+            const category = categories.find((c) => c.id === activeCategory);
+            if (category && category.siteTypes.length > 0) {
+                // For now, filter by amenities or name that suggest the category
+                // TODO: When site types are available on campgrounds, filter by siteTypes
+                filtered = filtered.filter((cg) => {
+                    const name = cg.name.toLowerCase();
+                    const amenitiesStr = ("amenities" in cg ? cg.amenities : [])?.join(" ").toLowerCase() || "";
+                    const combined = `${name} ${amenitiesStr}`;
+
+                    switch (activeCategory) {
+                        case "rv":
+                            return combined.includes("rv") || combined.includes("hookup") || combined.includes("electric");
+                        case "cabins":
+                            return combined.includes("cabin") || combined.includes("cottage");
+                        case "tents":
+                            return combined.includes("tent") || combined.includes("primitive") || combined.includes("group");
+                        case "glamping":
+                            return combined.includes("glamping") || combined.includes("safari") || combined.includes("dome") || combined.includes("luxury");
+                        case "lodges":
+                            return combined.includes("lodge") || combined.includes("hotel") || combined.includes("suite") || combined.includes("inn");
+                        case "unique":
+                            return combined.includes("yurt") || combined.includes("treehouse") || combined.includes("tiny") || combined.includes("airstream");
+                        default:
+                            return true;
+                    }
+                });
+            }
+        }
+
         // Apply amenity filters (must have ALL selected amenities)
         if (amenityFilters.length > 0) {
             filtered = filtered.filter((cg) => {
@@ -294,7 +328,7 @@ export function HomeClient() {
         }
 
         return filtered;
-    }, [internalCampgrounds, searchQuery, searchFilters, stateFilter, amenityFilters, sortBy]);
+    }, [internalCampgrounds, searchQuery, searchFilters, stateFilter, activeCategory, amenityFilters, sortBy]);
 
     const handleSearch = (query: string, filters: typeof searchFilters) => {
         setSearchQuery(query);
@@ -315,6 +349,19 @@ export function HomeClient() {
             {/* Hero Section with Hormozi-style messaging */}
             <HeroBanner onSearch={handleSearch} />
 
+            {/* Category Navigation - Airbnb-style tabs */}
+            <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-slate-100 shadow-sm">
+                <div className="max-w-7xl mx-auto px-6 py-3">
+                    <CategoryTabs
+                        activeCategory={activeCategory}
+                        onCategoryChange={(category) => {
+                            setActiveCategory(category);
+                            setDisplayCount(24);
+                        }}
+                    />
+                </div>
+            </div>
+
             {/* Featured Campgrounds */}
             <section id="featured" className="max-w-7xl mx-auto px-6 py-16" ref={featuredRef}>
                 <motion.div
@@ -327,7 +374,11 @@ export function HomeClient() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div>
                             <h2 className="text-2xl md:text-3xl font-bold text-slate-900">
-                                {searchQuery || stateFilter || amenityFilters.length > 0 ? "Search Results" : "Featured Campgrounds"}
+                                {activeCategory !== "all"
+                                    ? categories.find((c) => c.id === activeCategory)?.label || "Campgrounds"
+                                    : searchQuery || stateFilter || amenityFilters.length > 0
+                                    ? "Search Results"
+                                    : "Featured Campgrounds"}
                             </h2>
                             <p className="text-slate-600 mt-1">
                                 {allCampgrounds.length.toLocaleString()} campgrounds
@@ -412,12 +463,13 @@ export function HomeClient() {
                                 </button>
                             );
                         })}
-                        {(searchQuery || stateFilter || amenityFilters.length > 0) && (
+                        {(searchQuery || stateFilter || amenityFilters.length > 0 || activeCategory !== "all") && (
                             <button
                                 onClick={() => {
                                     setSearchQuery("");
                                     setStateFilter("");
                                     setAmenityFilters([]);
+                                    setActiveCategory("all");
                                     setDisplayCount(24);
                                 }}
                                 className="px-3 py-1.5 text-sm rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
@@ -492,6 +544,7 @@ export function HomeClient() {
                                             country={"country" in campground ? (campground.country || undefined) : undefined}
                                             imageUrl={"heroImageUrl" in campground ? (campground.heroImageUrl || undefined) : undefined}
                                             isInternal={campground.isInternal}
+                                            isExternal={campground.isExternal}
                                             rating={campground.rating}
                                             reviewCount={campground.reviewCount}
                                             pricePerNight={pricePerNight}

@@ -413,61 +413,63 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
       )}
 
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-10">
-        {/* Preview strip for reviews/FAQ */}
-        <section className="grid gap-4 md:grid-cols-2">
-          <Card className="p-4 border-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Guest reviews</h2>
-              <Button variant="ghost" size="sm" onClick={() => (window.location.href = "/reviews")}>
-                See all <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-            {reviews && reviews.length > 0 ? (
-              <div className="space-y-2">
-                {reviews.slice(0, 1).map((rev) => (
-                  <div key={rev.id} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-slate-900">{rev.reviewerName || "Guest"}</div>
-                      {rev.rating && <Badge variant="secondary" className="flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {rev.rating}</Badge>}
+        {/* Preview strip for reviews/FAQ - only show for internal (non-RIDB) campgrounds */}
+        {!isExternal && (
+          <section className="grid gap-4 md:grid-cols-2">
+            <Card className="p-4 border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Guest reviews</h2>
+                <Button variant="ghost" size="sm" onClick={() => (window.location.href = "/reviews")}>
+                  See all <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+              {reviews && reviews.length > 0 ? (
+                <div className="space-y-2">
+                  {reviews.slice(0, 1).map((rev) => (
+                    <div key={rev.id} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-slate-900">{rev.reviewerName || "Guest"}</div>
+                        {rev.rating && <Badge variant="secondary" className="flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {rev.rating}</Badge>}
+                      </div>
+                      <p className="text-sm text-slate-700 line-clamp-2">{rev.comment}</p>
                     </div>
-                    <p className="text-sm text-slate-700 line-clamp-2">{rev.comment}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-4">
-                <div className="w-10 h-10 bg-status-warning/15 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Sparkles className="h-5 w-5 text-status-warning" />
+                  ))}
                 </div>
-                <p className="text-sm text-slate-600">Be the first to share your experience!</p>
-                <p className="text-xs text-slate-400 mt-1">Reviews appear after your stay</p>
-              </div>
-            )}
-          </Card>
-          <Card className="p-4 border-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">FAQ</h2>
-              <Button variant="ghost" size="sm" onClick={() => (window.location.href = "#faq")}>
-                View all <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-            {faq && faq.length > 0 ? (
-              <div className="space-y-1">
-                {faq.slice(0, 2).map((item, idx: number) => (
-                  <div key={idx} className="space-y-1">
-                    <div className="font-semibold text-slate-900">{item.question}</div>
-                    <p className="text-sm text-slate-700 line-clamp-2">{item.answer}</p>
+              ) : (
+                <div className="text-center py-4">
+                  <div className="w-10 h-10 bg-status-warning/15 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Sparkles className="h-5 w-5 text-status-warning" />
                   </div>
-                ))}
+                  <p className="text-sm text-slate-600">Be the first to share your experience!</p>
+                  <p className="text-xs text-slate-400 mt-1">Reviews appear after your stay</p>
+                </div>
+              )}
+            </Card>
+            <Card className="p-4 border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">FAQ</h2>
+                <Button variant="ghost" size="sm" onClick={() => (window.location.href = "#faq")}>
+                  View all <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
-            ) : (
-              <p className="text-sm text-slate-600">Common questions will appear here once added.</p>
-            )}
-          </Card>
-        </section>
+              {faq && faq.length > 0 ? (
+                <div className="space-y-1">
+                  {faq.slice(0, 2).map((item, idx: number) => (
+                    <div key={idx} className="space-y-1">
+                      <div className="font-semibold text-slate-900">{item.question}</div>
+                      <p className="text-sm text-slate-700 line-clamp-2">{item.answer}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">Common questions will appear here once added.</p>
+              )}
+            </Card>
+          </section>
+        )}
 
-        {/* Featured Review - highlight top review */}
-        {reviews && reviews.length > 0 && reviews[0].rating >= 4 && (
+        {/* Featured Review - highlight top review (only for internal campgrounds) */}
+        {!isExternal && reviews && reviews.length > 0 && reviews[0].rating >= 4 && (
           <section className="grid md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <FeaturedReview
@@ -489,50 +491,52 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
           </section>
         )}
 
-        {/* FAQ + Reviews side rail */}
-        <section id="faq" className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-3">
-            <h2 className="text-xl font-semibold text-slate-900">FAQ</h2>
-            {faq && faq.length > 0 ? (
-              <div className="space-y-3">
-                {faq.slice(0, 6).map((item, idx: number) => (
-                  <Card key={idx} className="p-4 border-slate-200">
-                    <div className="font-semibold text-slate-900">{item.question}</div>
-                    <p className="text-sm text-slate-600 mt-1">{item.answer}</p>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card className="p-4 text-sm text-slate-600 border-dashed border-slate-200">
-                Common questions will appear here once added.
-              </Card>
-            )}
-          </div>
-          <div className="space-y-3">
-            <h2 className="text-xl font-semibold text-slate-900">Guest reviews</h2>
-            {reviews && reviews.length > 0 ? (
-              reviews.slice(0, 3).map((rev) => (
-                <Card key={rev.id} className="p-4 border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold text-slate-900">{rev.reviewerName || "Guest"}</div>
-                    {rev.rating && <Badge variant="secondary" className="flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {rev.rating}</Badge>}
-                  </div>
-                  <p className="text-sm text-slate-700 line-clamp-3">{rev.comment}</p>
-                  {rev.stayDate && <div className="text-xs text-slate-500">Stayed {rev.stayDate}</div>}
+        {/* FAQ + Reviews side rail (only for internal campgrounds) */}
+        {!isExternal && (
+          <section id="faq" className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2 space-y-3">
+              <h2 className="text-xl font-semibold text-slate-900">FAQ</h2>
+              {faq && faq.length > 0 ? (
+                <div className="space-y-3">
+                  {faq.slice(0, 6).map((item, idx: number) => (
+                    <Card key={idx} className="p-4 border-slate-200">
+                      <div className="font-semibold text-slate-900">{item.question}</div>
+                      <p className="text-sm text-slate-600 mt-1">{item.answer}</p>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card className="p-4 text-sm text-slate-600 border-dashed border-slate-200">
+                  Common questions will appear here once added.
                 </Card>
-              ))
-            ) : (
-              <Card className="p-4 text-sm text-slate-600 border-dashed border-slate-200">
-                Reviews will appear here once available.
-              </Card>
-            )}
-            <Button variant="outline" className="w-full" onClick={() => window.location.href = "/reviews"}>
-              See all reviews
-            </Button>
-          </div>
-        </section>
-        {/* Events rail */}
-        {events.length > 0 ? (
+              )}
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-xl font-semibold text-slate-900">Guest reviews</h2>
+              {reviews && reviews.length > 0 ? (
+                reviews.slice(0, 3).map((rev) => (
+                  <Card key={rev.id} className="p-4 border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-slate-900">{rev.reviewerName || "Guest"}</div>
+                      {rev.rating && <Badge variant="secondary" className="flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {rev.rating}</Badge>}
+                    </div>
+                    <p className="text-sm text-slate-700 line-clamp-3">{rev.comment}</p>
+                    {rev.stayDate && <div className="text-xs text-slate-500">Stayed {rev.stayDate}</div>}
+                  </Card>
+                ))
+              ) : (
+                <Card className="p-4 text-sm text-slate-600 border-dashed border-slate-200">
+                  Reviews will appear here once available.
+                </Card>
+              )}
+              <Button variant="outline" className="w-full" onClick={() => window.location.href = "/reviews"}>
+                See all reviews
+              </Button>
+            </div>
+          </section>
+        )}
+        {/* Events rail (only for internal campgrounds) */}
+        {!isExternal && (events.length > 0 ? (
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-slate-900">Events & offers</h2>
@@ -662,7 +666,7 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
               </div>
             </Card>
           </section>
-        )}
+        ))}
 
         {/* Availability cards - or external campground info section */}
         {isExternal ? (

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Sparkles, Accessibility } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useState, useCallback } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { Sparkles, Accessibility, ChevronLeft, ChevronRight, Heart } from "lucide-react";
 import { getAdaBadgeInfo, type AdaCertificationLevel } from "@/lib/ada-accessibility";
 
 interface CampgroundCardProps {
@@ -14,7 +16,9 @@ interface CampgroundCardProps {
     country?: string;
     description?: string;
     imageUrl?: string;
+    photos?: string[]; // Multiple photos for carousel
     isInternal?: boolean; // Whether campground is in our system
+    isExternal?: boolean; // Whether campground is from external source (RIDB)
     rating?: number | null;
     reviewCount?: number | null;
     pricePerNight?: number;
@@ -41,7 +45,9 @@ export function CampgroundCard({
     country,
     description,
     imageUrl,
+    photos = [],
     isInternal = false,
+    isExternal = false,
     rating,
     reviewCount,
     pricePerNight,
@@ -88,6 +94,11 @@ export function CampgroundCard({
     const campgroundPath = `/park/${slug || id}`;
 
     const location = [city, state, country].filter(Boolean).join(", ") || "Location TBD";
+
+    // Combine heroImageUrl with photos array for carousel
+    const allImages = imageUrl
+        ? [imageUrl, ...photos.filter((p) => p !== imageUrl)]
+        : photos;
 
     // Generate a placeholder gradient if no image
     const gradients = [
@@ -171,8 +182,8 @@ export function CampgroundCard({
                                 : `${pastAwards.length}x Campground of the Year`}
                         </div>
                     )}
-                    {/* Verified badge for internal campgrounds */}
-                    {isInternal && !npsBadge && (
+                    {/* Verified badge for internal campgrounds (not external/RIDB) */}
+                    {isInternal && !npsBadge && !isExternal && (
                         <div className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold rounded-full shadow-lg flex items-center gap-1.5">
                             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -231,7 +242,7 @@ export function CampgroundCard({
                             }`}
                     >
                         <Sparkles className="h-4 w-4 text-emerald-600" />
-                        See Available Sites
+                        {isExternal ? "See More Details" : "See Available Sites"}
                     </Link>
                 )}
             </div>
