@@ -177,26 +177,29 @@ export function LocationSections({ campgrounds, className = "" }: LocationSectio
   }, [campgrounds, userState, stateName]);
 
   // Highly rated campgrounds (4.5+ stars with at least 10 reviews)
+  // Exclude external/RIDB campgrounds
   const highlyRated = useMemo(() => {
     return campgrounds
-      .filter((cg) => (cg.rating ?? 0) >= 4.5 && (cg.reviewCount ?? 0) >= 10)
+      .filter((cg) => (cg.rating ?? 0) >= 4.5 && (cg.reviewCount ?? 0) >= 10 && !cg.isExternal)
       .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
       .slice(0, 12);
   }, [campgrounds]);
 
   // New listings (would normally use createdAt, but for now just shuffle)
+  // Exclude external/RIDB campgrounds from Rising Stars
   const newListings = useMemo(() => {
     // For demo, show campgrounds with fewer reviews as "new"
     return campgrounds
-      .filter((cg) => (cg.reviewCount ?? 0) < 20 && cg.heroImageUrl)
+      .filter((cg) => (cg.reviewCount ?? 0) < 20 && cg.heroImageUrl && !cg.isExternal)
       .sort(() => Math.random() - 0.5)
       .slice(0, 8);
   }, [campgrounds]);
 
   // Featured picks - campgrounds with NPS badges
+  // Exclude external/RIDB campgrounds
   const featuredPicks = useMemo(() => {
     return campgrounds
-      .filter((cg) => cg.npsBadge)
+      .filter((cg) => cg.npsBadge && !cg.isExternal)
       .sort((a, b) => {
         // Priority: top-campground > top-1 > top-5 > top-10 > world-class > rising-star
         const priority: Record<string, number> = {
