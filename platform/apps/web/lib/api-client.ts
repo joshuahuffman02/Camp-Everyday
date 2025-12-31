@@ -418,11 +418,11 @@ const PublicCampgroundListSchema = z.array(
     slug: z.string(),
     city: z.string().nullable(),
     state: z.string().nullable(),
-    country: z.string().nullable(),
-    tagline: z.string().nullable(),
+    country: z.string().nullable().optional(),
+    tagline: z.string().nullable().optional(),
     heroImageUrl: z.string().nullable(),
     amenities: z.array(z.string()),
-    photos: z.array(z.string()),
+    photos: z.array(z.string()).optional().default([]),
     isExternal: z.boolean().optional().default(false),
     isBookable: z.boolean().optional().default(true),
     externalUrl: z.string().nullable().optional(),
@@ -4260,8 +4260,9 @@ export const apiClient = {
 
   // Public API methods (no auth required)
   async getPublicCampgrounds() {
-    const data = await fetchJSON<unknown>("/public/campgrounds");
-    return PublicCampgroundListSchema.parse(data);
+    const data = await fetchJSON<{ results: unknown[]; total: number }>("/public/campgrounds");
+    // API returns { results, total } - extract results array
+    return PublicCampgroundListSchema.parse(data.results);
   },
   async getPublicCampground(slug: string, previewToken?: string) {
     const url = previewToken
