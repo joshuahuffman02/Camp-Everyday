@@ -258,7 +258,7 @@ export function CategoryTabs({
       {/* Scrollable container */}
       <div
         ref={scrollContainerRef}
-        className="flex gap-2 overflow-x-auto scrollbar-hide py-3 px-1"
+        className="flex justify-center gap-2 overflow-x-auto scrollbar-hide py-3 px-1"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {categories.map((category) => {
