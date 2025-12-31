@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, useInView, useReducedMotion } from "framer-motion";
+import { Search } from "lucide-react";
 import { CampgroundCard } from "../../components/public/CampgroundCard";
 import { apiClient } from "../../lib/api-client";
 import type { AdaCertificationLevel } from "../../lib/ada-accessibility";
@@ -138,8 +139,28 @@ function BlogSection({ prefersReducedMotion }: { prefersReducedMotion: boolean |
 
 // Note: External campgrounds removed - only showing campgrounds from our database
 
+// US States for filter
+const US_STATES = [
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+];
+
+// Common amenities for filtering
+const COMMON_AMENITIES = [
+    "Electric Hookups", "Water Hookups", "Sewer Hookups", "WiFi",
+    "Showers", "Restrooms", "Dump Station", "Laundry", "Store",
+    "Pool", "Playground", "Pet Friendly", "Fishing", "Hiking"
+];
+
 export function HomeClient() {
     const [searchQuery, setSearchQuery] = useState("");
+    const [stateFilter, setStateFilter] = useState<string>("");
+    const [amenityFilters, setAmenityFilters] = useState<string[]>([]);
+    const [sortBy, setSortBy] = useState<"recommended" | "name" | "rating" | "reviews">("recommended");
+    const [displayCount, setDisplayCount] = useState(24);
     const [searchFilters, setSearchFilters] = useState<{
         location: string;
         dates: { checkIn: string; checkOut: string };
@@ -205,35 +226,75 @@ export function HomeClient() {
         });
 
         // Only use internal campgrounds from our database
-        const combined = [...internal];
+        let filtered = [...internal];
 
-        // Build search terms from query and location filter
-        const searchTerms: string[] = [];
-        if (searchQuery) searchTerms.push(searchQuery.toLowerCase());
-        if (searchFilters?.location) searchTerms.push(searchFilters.location.toLowerCase());
-
-        // If no filters, return all
-        if (searchTerms.length === 0) {
-            return combined;
+        // Apply search query filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter((cg) => {
+                const searchableText = [
+                    cg.name,
+                    cg.city,
+                    cg.state,
+                    "country" in cg ? cg.country : "",
+                    "tagline" in cg ? cg.tagline : "",
+                    "amenities" in cg ? cg.amenities?.join(" ") : ""
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase();
+                return searchableText.includes(query);
+            });
         }
 
-        // Filter campgrounds that match ANY search term
-        return combined.filter((cg) => {
-            const searchableText = [
-                cg.name,
-                cg.city,
-                cg.state,
-                "country" in cg ? cg.country : "",
-                "tagline" in cg ? cg.tagline : "",
-                "amenities" in cg ? cg.amenities?.join(" ") : ""
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
+        // Apply location filter from hero search
+        if (searchFilters?.location) {
+            const location = searchFilters.location.toLowerCase();
+            filtered = filtered.filter((cg) => {
+                const cgLocation = [cg.name, cg.city, cg.state].filter(Boolean).join(" ").toLowerCase();
+                return cgLocation.includes(location);
+            });
+        }
 
-            return searchTerms.some((term) => searchableText.includes(term));
-        });
-    }, [internalCampgrounds, searchQuery, searchFilters]);
+        // Apply state filter
+        if (stateFilter) {
+            filtered = filtered.filter((cg) => cg.state === stateFilter);
+        }
+
+        // Apply amenity filters (must have ALL selected amenities)
+        if (amenityFilters.length > 0) {
+            filtered = filtered.filter((cg) => {
+                const cgAmenities = ("amenities" in cg ? cg.amenities : [])?.map((a: string) => a.toLowerCase()) || [];
+                return amenityFilters.every((af) =>
+                    cgAmenities.some((ca: string) => ca.includes(af.toLowerCase()))
+                );
+            });
+        }
+
+        // Apply sorting
+        switch (sortBy) {
+            case "name":
+                filtered.sort((a, b) => a.name.localeCompare(b.name));
+                break;
+            case "rating":
+                filtered.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+                break;
+            case "reviews":
+                filtered.sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0));
+                break;
+            case "recommended":
+            default:
+                // Sort by a combination of rating and review count
+                filtered.sort((a, b) => {
+                    const scoreA = ((a.rating ?? 0) * 20) + Math.min(a.reviewCount ?? 0, 100);
+                    const scoreB = ((b.rating ?? 0) * 20) + Math.min(b.reviewCount ?? 0, 100);
+                    return scoreB - scoreA;
+                });
+                break;
+        }
+
+        return filtered;
+    }, [internalCampgrounds, searchQuery, searchFilters, stateFilter, amenityFilters, sortBy]);
 
     const handleSearch = (query: string, filters: typeof searchFilters) => {
         setSearchQuery(query);
@@ -257,33 +318,113 @@ export function HomeClient() {
             {/* Featured Campgrounds */}
             <section id="featured" className="max-w-7xl mx-auto px-6 py-16" ref={featuredRef}>
                 <motion.div
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8"
+                    className="space-y-4 mb-8"
                     variants={prefersReducedMotion ? undefined : fadeInUp}
                     initial="hidden"
                     animate={featuredInView ? "visible" : "hidden"}
                 >
-                    <div>
-                        <h2 className="text-2xl md:text-3xl font-bold text-slate-900">
-                            {searchQuery ? "Search Results" : "Featured Campgrounds"}
-                        </h2>
-                        <p className="text-slate-600 mt-1">
-                            {searchQuery
-                                ? `${allCampgrounds.length} campgrounds found`
-                                : "Discover top-rated destinations"}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-2">
-                            Tap the heart to save a campground. Saved lists stay on this device for now.
-                        </p>
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <h2 className="text-2xl md:text-3xl font-bold text-slate-900">
+                                {searchQuery || stateFilter || amenityFilters.length > 0 ? "Search Results" : "Featured Campgrounds"}
+                            </h2>
+                            <p className="text-slate-600 mt-1">
+                                {allCampgrounds.length.toLocaleString()} campgrounds
+                                {stateFilter && ` in ${stateFilter}`}
+                                {amenityFilters.length > 0 && ` with ${amenityFilters.join(", ")}`}
+                            </p>
+                        </div>
                     </div>
-                    <div className="w-full sm:w-auto flex items-center gap-2">
-                        <span className="text-sm text-slate-500 whitespace-nowrap">Sort by:</span>
-                        <select className="flex-1 sm:flex-none w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
-                            <option>Recommended</option>
-                            <option>Price: Low to High</option>
-                            <option>Price: High to Low</option>
-                            <option>Rating</option>
-                            <option>Reviews</option>
+
+                    {/* Search and Filters Bar */}
+                    <div className="flex flex-col lg:flex-row gap-3">
+                        {/* Search Input */}
+                        <div className="relative flex-1 max-w-md">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search campgrounds by name, city..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery("")}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* State Filter */}
+                        <select
+                            value={stateFilter}
+                            onChange={(e) => { setStateFilter(e.target.value); setDisplayCount(24); }}
+                            className="px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white min-w-[140px]"
+                        >
+                            <option value="">All States</option>
+                            {US_STATES.map((state) => (
+                                <option key={state} value={state}>{state}</option>
+                            ))}
                         </select>
+
+                        {/* Sort */}
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                            className="px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white min-w-[160px]"
+                        >
+                            <option value="recommended">Recommended</option>
+                            <option value="name">Name A-Z</option>
+                            <option value="rating">Highest Rated</option>
+                            <option value="reviews">Most Reviews</option>
+                        </select>
+                    </div>
+
+                    {/* Amenity Filter Chips */}
+                    <div className="flex flex-wrap gap-2">
+                        {COMMON_AMENITIES.slice(0, 8).map((amenity) => {
+                            const isSelected = amenityFilters.includes(amenity);
+                            return (
+                                <button
+                                    key={amenity}
+                                    onClick={() => {
+                                        if (isSelected) {
+                                            setAmenityFilters(amenityFilters.filter((a) => a !== amenity));
+                                        } else {
+                                            setAmenityFilters([...amenityFilters, amenity]);
+                                        }
+                                        setDisplayCount(24);
+                                    }}
+                                    className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                                        isSelected
+                                            ? "bg-emerald-100 border-emerald-300 text-emerald-700"
+                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                    }`}
+                                >
+                                    {isSelected && <span className="mr-1">&#10003;</span>}
+                                    {amenity}
+                                </button>
+                            );
+                        })}
+                        {(searchQuery || stateFilter || amenityFilters.length > 0) && (
+                            <button
+                                onClick={() => {
+                                    setSearchQuery("");
+                                    setStateFilter("");
+                                    setAmenityFilters([]);
+                                    setDisplayCount(24);
+                                }}
+                                className="px-3 py-1.5 text-sm rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                            >
+                                Clear All
+                            </button>
+                        )}
                     </div>
                 </motion.div>
 
@@ -326,43 +467,60 @@ export function HomeClient() {
                         </div>
                     </div>
                 ) : (
-                    <motion.div
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                        variants={prefersReducedMotion ? undefined : staggerContainer}
-                        initial="hidden"
-                        animate={featuredInView ? "visible" : "hidden"}
-                    >
-                        {allCampgrounds.map((campground, index) => {
-                            const pricePerNight = "pricePerNight" in campground ? campground.pricePerNight : undefined;
+                    <>
+                        <motion.div
+                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                            variants={prefersReducedMotion ? undefined : staggerContainer}
+                            initial="hidden"
+                            animate={featuredInView ? "visible" : "hidden"}
+                        >
+                            {allCampgrounds.slice(0, displayCount).map((campground, index) => {
+                                const pricePerNight = "pricePerNight" in campground ? campground.pricePerNight : undefined;
 
-                            return (
-                                <motion.div
-                                    key={campground.id}
-                                    variants={prefersReducedMotion ? undefined : scaleIn}
-                                    custom={index}
+                                return (
+                                    <motion.div
+                                        key={campground.id}
+                                        variants={prefersReducedMotion ? undefined : scaleIn}
+                                        custom={index}
+                                    >
+                                        <CampgroundCard
+                                            id={campground.id}
+                                            name={campground.name}
+                                            slug={"slug" in campground ? campground.slug : undefined}
+                                            city={campground.city || undefined}
+                                            state={campground.state || undefined}
+                                            country={"country" in campground ? (campground.country || undefined) : undefined}
+                                            imageUrl={"heroImageUrl" in campground ? (campground.heroImageUrl || undefined) : undefined}
+                                            isInternal={campground.isInternal}
+                                            rating={campground.rating}
+                                            reviewCount={campground.reviewCount}
+                                            pricePerNight={pricePerNight}
+                                            amenities={"amenities" in campground ? campground.amenities : []}
+                                            npsBadge={campground.npsBadge}
+                                            pastAwards={"pastAwards" in campground ? campground.pastAwards : []}
+                                            adaCertificationLevel={"adaCertificationLevel" in campground ? campground.adaCertificationLevel as AdaCertificationLevel : undefined}
+                                            onExplore={() => trackEvent("site_card_view", { campgroundId: campground.id, page: "/" })}
+                                        />
+                                    </motion.div>
+                                );
+                            })}
+                        </motion.div>
+
+                        {/* Load More Button */}
+                        {allCampgrounds.length > displayCount && (
+                            <div className="flex justify-center mt-8">
+                                <button
+                                    onClick={() => setDisplayCount((prev) => prev + 24)}
+                                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
                                 >
-                                    <CampgroundCard
-                                        id={campground.id}
-                                        name={campground.name}
-                                        slug={"slug" in campground ? campground.slug : undefined}
-                                        city={campground.city || undefined}
-                                        state={campground.state || undefined}
-                                        country={"country" in campground ? (campground.country || undefined) : undefined}
-                                        imageUrl={"heroImageUrl" in campground ? (campground.heroImageUrl || undefined) : undefined}
-                                        isInternal={campground.isInternal}
-                                        rating={campground.rating}
-                                        reviewCount={campground.reviewCount}
-                                        pricePerNight={pricePerNight}
-                                        amenities={"amenities" in campground ? campground.amenities : []}
-                                        npsBadge={campground.npsBadge}
-                                        pastAwards={"pastAwards" in campground ? campground.pastAwards : []}
-                                        adaCertificationLevel={"adaCertificationLevel" in campground ? campground.adaCertificationLevel as AdaCertificationLevel : undefined}
-                                        onExplore={() => trackEvent("site_card_view", { campgroundId: campground.id, page: "/" })}
-                                    />
-                                </motion.div>
-                            );
-                        })}
-                    </motion.div>
+                                    Load More
+                                    <span className="text-emerald-200">
+                                        ({Math.min(displayCount + 24, allCampgrounds.length) - displayCount} more of {allCampgrounds.length - displayCount} remaining)
+                                    </span>
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {!isLoading && allCampgrounds.length === 0 && (
