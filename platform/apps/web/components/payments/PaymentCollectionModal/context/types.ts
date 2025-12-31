@@ -543,6 +543,7 @@ export function getAvailablePaymentMethods(
     hasSavedCards: boolean;
     hasWalletBalance: boolean;
     hasTerminalReaders: boolean;
+    isReservationPayment?: boolean; // Disable folio when paying reservation balance
   }
 ): PaymentMethodType[] {
   const available: PaymentMethodType[] = [];
@@ -567,6 +568,8 @@ export function getAvailablePaymentMethods(
     if (method === "cash" && !config.enableCash) continue;
     if (method === "check" && !config.enableCheck) continue;
     if (method === "folio" && !config.enableFolio) continue;
+    // Cannot charge to folio when paying a reservation balance (circular)
+    if (method === "folio" && options.isReservationPayment) continue;
     if (method === "gift_card" && !config.enableGiftCards) continue;
     if (method === "external_pos" && !config.enableExternalPOS) continue;
 

@@ -34,14 +34,18 @@ export function usePaymentMethods(): UsePaymentMethodsResult {
   const availableMethods = useMemo(() => {
     if (!config) return [];
 
+    // Folio is disabled when paying for a reservation balance (circular logic)
+    const isReservationPayment = props.subject?.type === "reservation" || props.subject?.type === "balance";
+
     return getAvailablePaymentMethods(props.context, config, {
       hasGuest: !!props.guestId,
       isOnline,
       hasSavedCards: savedCards.length > 0,
       hasWalletBalance: walletBalanceCents > 0,
       hasTerminalReaders: terminalReaders.some((r) => r.status === "online"),
+      isReservationPayment,
     });
-  }, [config, props.context, props.guestId, isOnline, savedCards.length, walletBalanceCents, terminalReaders]);
+  }, [config, props.context, props.guestId, props.subject, isOnline, savedCards.length, walletBalanceCents, terminalReaders]);
 
   const isMethodAvailable = useMemo(() => {
     return (method: PaymentMethodType) => availableMethods.includes(method);
