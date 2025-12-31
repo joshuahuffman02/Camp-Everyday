@@ -9,7 +9,8 @@ import { apiClient } from "@/lib/api-client";
 import {
   ArrowRight, Calendar, MapPin, Search, Sparkles, Users, AlertCircle,
   Shield, Gift, ChevronLeft, ChevronRight, Mail, Check, Flame, Coffee,
-  Tent, ShieldCheck, CloudRain, DollarSign, Umbrella, BadgeCheck, Clock, Star
+  Tent, ShieldCheck, CloudRain, DollarSign, Umbrella, BadgeCheck, Clock, Star,
+  ExternalLink, Building2, Trees, Phone, Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -144,6 +145,12 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
   const photos = campground?.photos ?? [];
   const hero = campground?.heroImageUrl || photos[0];
 
+  // Check if this is an external/unclaimed campground (RIDB imported)
+  const isExternal = (campground as any)?.isExternal ?? false;
+  const isClaimable = (campground as any)?.isClaimable ?? false;
+  const externalUrl = (campground as any)?.externalUrl as string | null;
+  const seededDataSource = (campground as any)?.seededDataSource as string | null;
+
   useEffect(() => {
     if (campground?.id) {
       trackEvent("page_view", { page: `/park/${slug}/v2`, campgroundId: campground.id });
@@ -223,66 +230,105 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
               <h1 className="text-4xl md:text-5xl font-bold">{campground?.name ?? "Campground"}</h1>
               {campground?.tagline && <p className="text-lg text-white/80 mt-2">{campground.tagline}</p>}
             </div>
-            {/* Booking bar */}
-            <div className="bg-white rounded-2xl shadow-2xl p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
-              <div className="flex flex-1 flex-wrap gap-3">
-                <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
-                  <Calendar className="h-4 w-4 text-slate-500" />
-                  <Input type="date" value={arrivalDate} onChange={(e) => setArrivalDate(e.target.value)} className="border-none bg-transparent px-0 text-sm" />
-                  <span className="text-slate-400">→</span>
-                  <Input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} className="border-none bg-transparent px-0 text-sm" />
+            {/* Booking bar - different for external vs internal campgrounds */}
+            {isExternal ? (
+              <div className="bg-white rounded-2xl shadow-2xl p-4 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 text-slate-600 mb-2">
+                    <Trees className="h-4 w-4" />
+                    <span className="text-sm">
+                      {seededDataSource === "recreation_gov" ? "Federal Recreation Area" : "Public Campground"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500">
+                    This campground is managed by {seededDataSource === "recreation_gov" ? "Recreation.gov" : "an external provider"}.
+                    Book directly through their official website.
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
-                  <Users className="h-4 w-4 text-slate-500" />
-                  <Select value={guests} onValueChange={setGuests}>
-                    <SelectTrigger className="w-[120px] border-none bg-transparent px-0">
-                      <SelectValue placeholder="Guests" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["1", "2", "3", "4", "5", "6", "7", "8"].map((g) => (
-                        <SelectItem key={g} value={g}>{g} guest{g === "1" ? "" : "s"}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
-                  <Sparkles className="h-4 w-4 text-slate-500" />
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-[150px] border-none bg-transparent px-0">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All types</SelectItem>
-                      <SelectItem value="rv">RV</SelectItem>
-                      <SelectItem value="cabin">Cabin</SelectItem>
-                      <SelectItem value="tent">Tent</SelectItem>
-                      <SelectItem value="glamping">Glamping</SelectItem>
-                      <SelectItem value="group">Group</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex gap-2 flex-shrink-0">
+                  {externalUrl && (
+                    <Button
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      onClick={() => {
+                        trackEvent("external_booking_click", { campgroundId: campground?.id, referrerUrl: externalUrl || "" });
+                        window.open(externalUrl, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      Book on Recreation.gov
+                      <ExternalLink className="h-4 w-4 ml-2" />
+                    </Button>
+                  )}
+                  {isClaimable && (
+                    <Button variant="outline" asChild>
+                      <Link href={`/claim/${slug}`}>
+                        <Building2 className="h-4 w-4 mr-2" />
+                        Claim This Listing
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => {
-                    trackEvent("booking_cta", { campgroundId: campground?.id, page: `/park/${slug}/v2` });
-                    const q = new URLSearchParams({
-                      arrivalDate,
-                      departureDate,
-                      guests,
-                      ...(previewToken ? { token: previewToken } : {})
-                    }).toString();
-                    window.location.href = `/park/${slug}/book?${q}`;
-                  }}
-                >
-                  Check availability
-                </Button>
-                <Button variant="outline" onClick={() => window.location.href = "#availability"}>
-                  View availability
-                </Button>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-2xl p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+                <div className="flex flex-1 flex-wrap gap-3">
+                  <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
+                    <Calendar className="h-4 w-4 text-slate-500" />
+                    <Input type="date" value={arrivalDate} onChange={(e) => setArrivalDate(e.target.value)} className="border-none bg-transparent px-0 text-sm" />
+                    <span className="text-slate-400">→</span>
+                    <Input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} className="border-none bg-transparent px-0 text-sm" />
+                  </div>
+                  <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
+                    <Users className="h-4 w-4 text-slate-500" />
+                    <Select value={guests} onValueChange={setGuests}>
+                      <SelectTrigger className="w-[120px] border-none bg-transparent px-0">
+                        <SelectValue placeholder="Guests" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["1", "2", "3", "4", "5", "6", "7", "8"].map((g) => (
+                          <SelectItem key={g} value={g}>{g} guest{g === "1" ? "" : "s"}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
+                    <Sparkles className="h-4 w-4 text-slate-500" />
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                      <SelectTrigger className="w-[150px] border-none bg-transparent px-0">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All types</SelectItem>
+                        <SelectItem value="rv">RV</SelectItem>
+                        <SelectItem value="cabin">Cabin</SelectItem>
+                        <SelectItem value="tent">Tent</SelectItem>
+                        <SelectItem value="glamping">Glamping</SelectItem>
+                        <SelectItem value="group">Group</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => {
+                      trackEvent("booking_cta", { campgroundId: campground?.id, page: `/park/${slug}/v2` });
+                      const q = new URLSearchParams({
+                        arrivalDate,
+                        departureDate,
+                        guests,
+                        ...(previewToken ? { token: previewToken } : {})
+                      }).toString();
+                      window.location.href = `/park/${slug}/book?${q}`;
+                    }}
+                  >
+                    Check availability
+                  </Button>
+                  <Button variant="outline" onClick={() => window.location.href = "#availability"}>
+                    View availability
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Trust badges */}
             <TrustBadges variant="compact" className="mt-4 justify-center text-white/90" />
@@ -290,8 +336,8 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
         </div>
       </section>
 
-      {/* Immersive Map Explorer - only shown if enabled */}
-      {campground?.showPublicMap && (
+      {/* Immersive Map Explorer - only shown if enabled and NOT external */}
+      {campground?.showPublicMap && !isExternal && (
         <section className="w-full bg-slate-900 overflow-hidden">
           <div className="relative h-[70vh] min-h-[520px] group">
             <BookingMap
@@ -618,101 +664,237 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
           </section>
         )}
 
-        {/* Availability cards */}
-        <section id="availability" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-slate-900">Available stays</h2>
-            <div className="text-sm text-slate-500">Based on your dates and filters</div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {filteredSiteClasses.map((sc: SiteClassWithType, idx: number) => {
-              // Stub scarcity data - in production this would come from availability API
-              const stubbedAvailability = [3, 5, 2, 8, 4, 1, 6, 7][idx % 8];
-              const pricePerNight = ((sc.defaultRate || 0) / 100).toFixed(0);
-              return (
-                <Card
-                  key={sc.id}
-                  className="group overflow-hidden border-slate-200 transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-1 motion-reduce:hover:translate-y-0 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-2"
-                  style={{ animationDelay: `${idx * 100}ms` }}
-                  role="article"
-                  aria-label={`${sc.name} - $${pricePerNight} per night`}
-                >
-                  <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
-                    <Image
-                      src={sc.photoUrl || hero || "/placeholder.png"}
-                      alt={`${sc.name} accommodation at ${campground?.name} - ${sc.description || sc.siteType}`}
-                      fill
-                      className="object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:group-hover:scale-100"
-                    />
-                    <div className="absolute top-3 left-3 flex gap-2">
-                      <Badge variant="secondary" className="bg-black/60 text-white border-white/10">
-                        {sc.siteType?.toUpperCase() || "STAY"}
-                      </Badge>
-                      {sc.petFriendly && <Badge variant="secondary" className="bg-status-success text-white border-status-success">Pet friendly</Badge>}
-                    </div>
-                    {/* Scarcity badge for limited availability */}
-                    {stubbedAvailability <= 5 && (
-                      <div className="absolute top-3 right-3">
-                        <ScarcityBadge sitesLeft={stubbedAvailability} />
+        {/* Availability cards - or external campground info section */}
+        {isExternal ? (
+          <section id="availability" className="space-y-6">
+            {/* About this campground */}
+            <Card className="p-6 border-slate-200">
+              <h2 className="text-xl font-semibold text-slate-900 mb-4">About {campground?.name}</h2>
+              {campground?.description && (
+                <p className="text-slate-600 mb-4">{campground.description}</p>
+              )}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-5 w-5 text-slate-400" />
+                    <div>
+                      <div className="font-medium text-slate-900">Location</div>
+                      <div className="text-sm text-slate-600">
+                        {campground?.city && campground?.state
+                          ? `${campground.city}, ${campground.state}`
+                          : campground?.state || "Location varies"}
                       </div>
-                    )}
+                    </div>
                   </div>
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-center justify-between">
+                  {(campground as any)?.amenities?.length > 0 && (
+                    <div className="flex items-start gap-3">
+                      <Sparkles className="h-5 w-5 text-slate-400 mt-0.5" />
                       <div>
-                        <h3 className="text-lg font-semibold text-slate-900">{sc.name}</h3>
-                        <p className="text-sm text-slate-600 line-clamp-2">{sc.description}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-status-success" aria-label={`${pricePerNight} dollars per night`}>
-                          ${pricePerNight}
+                        <div className="font-medium text-slate-900">Amenities</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {((campground as any).amenities as string[]).slice(0, 6).map((a, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">{a}</Badge>
+                          ))}
+                          {((campground as any).amenities as string[]).length > 6 && (
+                            <Badge variant="outline" className="text-xs">+{((campground as any).amenities as string[]).length - 6} more</Badge>
+                          )}
                         </div>
-                        <div className="text-xs text-slate-500">per night</div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-600" role="list" aria-label="Amenities">
-                      {sc.maxOccupancy && <Badge variant="outline" role="listitem">Up to {sc.maxOccupancy} guests</Badge>}
-                      {sc.hookupsPower && <Badge variant="outline" role="listitem" title="Electric hookup available">Power</Badge>}
-                      {sc.hookupsWater && <Badge variant="outline" role="listitem" title="Water hookup available">Water</Badge>}
-                      {sc.hookupsSewer && <Badge variant="outline" role="listitem" title="Sewer hookup available">Sewer</Badge>}
-                    </div>
-                    <div className="flex items-center justify-between pt-2">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <MapPin className="h-4 w-4" aria-hidden="true" />
-                        <span>{campground?.city}, {campground?.state}</span>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {(campground as any)?.website && (
+                    <div className="flex items-center gap-3">
+                      <Globe className="h-5 w-5 text-slate-400" />
+                      <div>
+                        <div className="font-medium text-slate-900">Website</div>
+                        <a
+                          href={(campground as any).website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-emerald-600 hover:underline"
+                        >
+                          Visit official website
+                        </a>
                       </div>
-                      <Button
-                        className="bg-slate-900 hover:bg-slate-800 transition-all duration-150 hover:scale-105 active:scale-95 motion-reduce:hover:scale-100"
-                        aria-label={`Book ${sc.name} for $${pricePerNight} per night`}
-                        onClick={() => {
-                          trackEvent("accommodation_book_click", { siteClassId: sc.id, campgroundId: campground?.id });
-                          const q = new URLSearchParams({
-                            arrivalDate,
-                            departureDate,
-                            siteType: sc.siteType || "all",
-                            guests,
-                            ...(previewToken ? { token: previewToken } : {})
-                          }).toString();
-                          window.location.href = `/park/${slug}/book?${q}`;
-                        }}
-                      >
-                        Book
-                      </Button>
                     </div>
+                  )}
+                  {(campground as any)?.phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-5 w-5 text-slate-400" />
+                      <div>
+                        <div className="font-medium text-slate-900">Phone</div>
+                        <a
+                          href={`tel:${(campground as any).phone}`}
+                          className="text-sm text-emerald-600 hover:underline"
+                        >
+                          {(campground as any).phone}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Book externally CTA */}
+            <Card className="p-6 border-emerald-200 bg-emerald-50">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Ready to book?</h3>
+                  <p className="text-sm text-slate-600">
+                    Make a reservation directly through {seededDataSource === "recreation_gov" ? "Recreation.gov" : "the official website"}.
+                  </p>
+                </div>
+                {externalUrl && (
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => {
+                      trackEvent("external_booking_click", { campgroundId: campground?.id, referrerUrl: externalUrl || "" });
+                      window.open(externalUrl, "_blank", "noopener,noreferrer");
+                    }}
+                  >
+                    Book on Recreation.gov
+                    <ExternalLink className="h-4 w-4 ml-2" />
+                  </Button>
+                )}
+              </div>
+            </Card>
+
+            {/* Claim This Listing CTA */}
+            {isClaimable && (
+              <Card className="p-6 border-amber-200 bg-amber-50">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="h-5 w-5 text-amber-600" />
+                      <h3 className="font-semibold text-slate-900">Own or manage this campground?</h3>
+                    </div>
+                    <p className="text-sm text-slate-600">
+                      Claim your free listing to manage bookings, respond to reviews, and update your campground information.
+                    </p>
                   </div>
-                </Card>
-              );
-            })}
-            {filteredSiteClasses.length === 0 && (
-              <Card className="p-6 text-center text-slate-600 space-y-2">
-                <div>No stays match these filters.</div>
-                <Button variant="ghost" size="sm" onClick={() => setTypeFilter("all")}>
-                  Clear filters
-                </Button>
+                  <Button variant="outline" className="border-amber-300 hover:bg-amber-100" asChild>
+                    <Link href={`/claim/${slug}`}>
+                      Claim This Listing
+                    </Link>
+                  </Button>
+                </div>
               </Card>
             )}
-          </div>
-        </section>
+
+            {/* RIDB Attribution */}
+            {seededDataSource === "recreation_gov" && (
+              <div className="text-center text-xs text-slate-400 py-4">
+                Campground data provided by{" "}
+                <a
+                  href="https://ridb.recreation.gov"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-slate-600"
+                >
+                  Recreation Information Database (RIDB)
+                </a>
+              </div>
+            )}
+          </section>
+        ) : (
+          <section id="availability" className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-slate-900">Available stays</h2>
+              <div className="text-sm text-slate-500">Based on your dates and filters</div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {filteredSiteClasses.map((sc: SiteClassWithType, idx: number) => {
+                // Stub scarcity data - in production this would come from availability API
+                const stubbedAvailability = [3, 5, 2, 8, 4, 1, 6, 7][idx % 8];
+                const pricePerNight = ((sc.defaultRate || 0) / 100).toFixed(0);
+                return (
+                  <Card
+                    key={sc.id}
+                    className="group overflow-hidden border-slate-200 transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-1 motion-reduce:hover:translate-y-0 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-2"
+                    style={{ animationDelay: `${idx * 100}ms` }}
+                    role="article"
+                    aria-label={`${sc.name} - $${pricePerNight} per night`}
+                  >
+                    <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
+                      <Image
+                        src={sc.photoUrl || hero || "/placeholder.png"}
+                        alt={`${sc.name} accommodation at ${campground?.name} - ${sc.description || sc.siteType}`}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:group-hover:scale-100"
+                      />
+                      <div className="absolute top-3 left-3 flex gap-2">
+                        <Badge variant="secondary" className="bg-black/60 text-white border-white/10">
+                          {sc.siteType?.toUpperCase() || "STAY"}
+                        </Badge>
+                        {sc.petFriendly && <Badge variant="secondary" className="bg-status-success text-white border-status-success">Pet friendly</Badge>}
+                      </div>
+                      {/* Scarcity badge for limited availability */}
+                      {stubbedAvailability <= 5 && (
+                        <div className="absolute top-3 right-3">
+                          <ScarcityBadge sitesLeft={stubbedAvailability} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-900">{sc.name}</h3>
+                          <p className="text-sm text-slate-600 line-clamp-2">{sc.description}</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-status-success" aria-label={`${pricePerNight} dollars per night`}>
+                            ${pricePerNight}
+                          </div>
+                          <div className="text-xs text-slate-500">per night</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs text-slate-600" role="list" aria-label="Amenities">
+                        {sc.maxOccupancy && <Badge variant="outline" role="listitem">Up to {sc.maxOccupancy} guests</Badge>}
+                        {sc.hookupsPower && <Badge variant="outline" role="listitem" title="Electric hookup available">Power</Badge>}
+                        {sc.hookupsWater && <Badge variant="outline" role="listitem" title="Water hookup available">Water</Badge>}
+                        {sc.hookupsSewer && <Badge variant="outline" role="listitem" title="Sewer hookup available">Sewer</Badge>}
+                      </div>
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <MapPin className="h-4 w-4" aria-hidden="true" />
+                          <span>{campground?.city}, {campground?.state}</span>
+                        </div>
+                        <Button
+                          className="bg-slate-900 hover:bg-slate-800 transition-all duration-150 hover:scale-105 active:scale-95 motion-reduce:hover:scale-100"
+                          aria-label={`Book ${sc.name} for $${pricePerNight} per night`}
+                          onClick={() => {
+                            trackEvent("accommodation_book_click", { siteClassId: sc.id, campgroundId: campground?.id });
+                            const q = new URLSearchParams({
+                              arrivalDate,
+                              departureDate,
+                              siteType: sc.siteType || "all",
+                              guests,
+                              ...(previewToken ? { token: previewToken } : {})
+                            }).toString();
+                            window.location.href = `/park/${slug}/book?${q}`;
+                          }}
+                        >
+                          Book
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+              {filteredSiteClasses.length === 0 && (
+                <Card className="p-6 text-center text-slate-600 space-y-2">
+                  <div>No stays match these filters.</div>
+                  <Button variant="ghost" size="sm" onClick={() => setTypeFilter("all")}>
+                    Clear filters
+                  </Button>
+                </Card>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Gallery with keyboard navigation */}
         {photos.length > 0 && (
@@ -862,27 +1044,29 @@ export function CampgroundV2Client({ slug, initialData, previewToken }: { slug: 
         )}
       </main>
 
-      {/* Why Book Direct - full section */}
-      <WhyBookDirect campgroundName={campground?.name} />
+      {/* Why Book Direct - full section (only for internal campgrounds) */}
+      {!isExternal && <WhyBookDirect campgroundName={campground?.name} />}
 
-      {/* AI Chat Widget */}
-      {campground?.id && <AiChatWidget campgroundId={campground.id} campgroundName={campground.name} />}
+      {/* AI Chat Widget (only for internal campgrounds) */}
+      {campground?.id && !isExternal && <AiChatWidget campgroundId={campground.id} campgroundName={campground.name} />}
 
-      {/* Sticky Booking Bar - mobile only */}
-      <StickyBookingBar
-        campgroundName={campground?.name || "Campground"}
-        priceFrom={typedSiteClasses.length > 0 ? Math.min(...typedSiteClasses.map((sc) => (sc.defaultRate || 0) / 100)) : undefined}
-        onBookClick={() => {
-          trackEvent("sticky_booking_cta", { campgroundId: campground?.id, page: `/park/${slug}/v2` });
-          const q = new URLSearchParams({
-            arrivalDate,
-            departureDate,
-            guests,
-            ...(previewToken ? { token: previewToken } : {})
-          }).toString();
-          window.location.href = `/park/${slug}/book?${q}`;
-        }}
-      />
+      {/* Sticky Booking Bar - mobile only (only for internal campgrounds) */}
+      {!isExternal && (
+        <StickyBookingBar
+          campgroundName={campground?.name || "Campground"}
+          priceFrom={typedSiteClasses.length > 0 ? Math.min(...typedSiteClasses.map((sc) => (sc.defaultRate || 0) / 100)) : undefined}
+          onBookClick={() => {
+            trackEvent("sticky_booking_cta", { campgroundId: campground?.id, page: `/park/${slug}/v2` });
+            const q = new URLSearchParams({
+              arrivalDate,
+              departureDate,
+              guests,
+              ...(previewToken ? { token: previewToken } : {})
+            }).toString();
+            window.location.href = `/park/${slug}/book?${q}`;
+          }}
+        />
+      )}
     </div>
   );
 }
