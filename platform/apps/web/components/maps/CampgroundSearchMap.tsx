@@ -174,36 +174,40 @@ export function CampgroundSearchMap({
     loadMapLibre().then(({ MapLibreMap: MapClass, NavigationControl: NavControl }) => {
       if (!isMounted || !containerRef.current) return;
 
-      const map = new MapClass({
-        container: containerRef.current,
-        style: FREE_MAP_STYLE,
-        center: initialCenter,
-        zoom: initialZoom,
-        attributionControl: true,
-      });
+      try {
+        const map = new MapClass({
+          container: containerRef.current,
+          style: FREE_MAP_STYLE as any,
+          center: initialCenter,
+          zoom: initialZoom,
+          attributionControl: true,
+        });
 
-      map.addControl(new NavControl(), "top-right");
+        map.addControl(new NavControl(), "top-right");
 
-      map.on("load", () => {
-        if (isMounted) {
-          setIsMapReady(true);
-          mapRef.current = map;
-        }
-      });
+        map.on("error", (e: any) => {
+          console.error("MapLibre error:", e);
+        });
 
-      map.on("moveend", () => {
-        if (onBoundsChange && map) {
-          const bounds = map.getBounds();
-          onBoundsChange({
-            north: bounds.getNorth(),
-            south: bounds.getSouth(),
-            east: bounds.getEast(),
-            west: bounds.getWest(),
-          });
-        }
+        map.on("load", () => {
+          if (isMounted) {
+            setIsMapReady(true);
+            mapRef.current = map;
+          }
+        });
 
-        // Update visible campgrounds
-        if (map) {
+        map.on("moveend", () => {
+          if (onBoundsChange) {
+            const bounds = map.getBounds();
+            onBoundsChange({
+              north: bounds.getNorth(),
+              south: bounds.getSouth(),
+              east: bounds.getEast(),
+              west: bounds.getWest(),
+            });
+          }
+
+          // Update visible campgrounds
           const bounds = map.getBounds();
           const visible = filteredCampgrounds.filter(
             (c) =>
@@ -213,8 +217,10 @@ export function CampgroundSearchMap({
               c.longitude <= bounds.getEast()
           );
           setVisibleCampgrounds(visible);
-        }
-      });
+        });
+      } catch (err) {
+        console.error("Failed to initialize map:", err);
+      }
     });
 
     return () => {

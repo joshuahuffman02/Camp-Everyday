@@ -173,6 +173,8 @@ export function SiteLayoutEditor({
   const [nextSiteNumber, setNextSiteNumber] = useState(1);
   const [showBackgroundImage, setShowBackgroundImage] = useState(true);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.5);
+  const [backgroundScale, setBackgroundScale] = useState(1);
+  const [backgroundOffset, setBackgroundOffset] = useState({ x: 0, y: 0 });
 
   const canvasWidth = initialData?.canvasWidth || 1200;
   const canvasHeight = initialData?.canvasHeight || 800;
@@ -421,9 +423,14 @@ export function SiteLayoutEditor({
     setDraggedItem(null);
   }, [isDragging, draggedItem, saveToHistory]);
 
-  // Wheel zoom
+  // Wheel zoom - only zoom if Ctrl/Cmd is held, otherwise let page scroll
   const handleWheel = useCallback(
     (e: React.WheelEvent<HTMLCanvasElement>) => {
+      // Only zoom if Ctrl (Windows/Linux) or Cmd (Mac) is held
+      if (!e.ctrlKey && !e.metaKey) {
+        // Let the page scroll normally
+        return;
+      }
       e.preventDefault();
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
       setZoom((prev) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * delta)));
@@ -508,24 +515,28 @@ export function SiteLayoutEditor({
     // Draw background image if available
     if (showBackgroundImage && backgroundImageRef.current) {
       ctx.globalAlpha = backgroundOpacity;
-      // Scale image to fit canvas while maintaining aspect ratio
+      // Scale image to fit canvas while maintaining aspect ratio, then apply user scale
       const img = backgroundImageRef.current;
       const imgAspect = img.width / img.height;
       const canvasAspect = canvasWidth / canvasHeight;
-      let drawWidth = canvasWidth;
-      let drawHeight = canvasHeight;
-      let drawX = 0;
-      let drawY = 0;
+      let baseWidth = canvasWidth;
+      let baseHeight = canvasHeight;
 
       if (imgAspect > canvasAspect) {
         // Image is wider - fit to width
-        drawHeight = canvasWidth / imgAspect;
-        drawY = (canvasHeight - drawHeight) / 2;
+        baseHeight = canvasWidth / imgAspect;
       } else {
         // Image is taller - fit to height
-        drawWidth = canvasHeight * imgAspect;
-        drawX = (canvasWidth - drawWidth) / 2;
+        baseWidth = canvasHeight * imgAspect;
       }
+
+      // Apply user scale
+      const drawWidth = baseWidth * backgroundScale;
+      const drawHeight = baseHeight * backgroundScale;
+
+      // Center the scaled image, then apply offset
+      const drawX = (canvasWidth - drawWidth) / 2 + backgroundOffset.x;
+      const drawY = (canvasHeight - drawHeight) / 2 + backgroundOffset.y;
 
       ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
       ctx.globalAlpha = 1;
@@ -608,7 +619,7 @@ export function SiteLayoutEditor({
     });
 
     ctx.restore();
-  }, [sites, elements, selectedIds, zoom, pan, showGrid, gridSize, canvasWidth, canvasHeight, showBackgroundImage, backgroundOpacity, backgroundImageUrl]);
+  }, [sites, elements, selectedIds, zoom, pan, showGrid, gridSize, canvasWidth, canvasHeight, showBackgroundImage, backgroundOpacity, backgroundScale, backgroundOffset, backgroundImageUrl]);
 
   // Handle save
   const handleSave = () => {
@@ -850,6 +861,20 @@ export function SiteLayoutEditor({
                   </Tooltip>
 
                   <div className="flex items-center gap-1 ml-1">
+                    <span className="text-xs text-slate-500">Scale:</span>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="3"
+                      step="0.1"
+                      value={backgroundScale}
+                      onChange={(e) => setBackgroundScale(parseFloat(e.target.value))}
+                      className="w-16 h-1 accent-emerald-600"
+                    />
+                    <span className="text-xs text-slate-500 w-8">{Math.round(backgroundScale * 100)}%</span>
+                  </div>
+
+                  <div className="flex items-center gap-1 ml-1">
                     <span className="text-xs text-slate-500">Opacity:</span>
                     <input
                       type="range"
@@ -862,6 +887,22 @@ export function SiteLayoutEditor({
                     />
                     <span className="text-xs text-slate-500 w-8">{Math.round(backgroundOpacity * 100)}%</span>
                   </div>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setBackgroundScale(1);
+                          setBackgroundOffset({ x: 0, y: 0 });
+                        }}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Reset background position</TooltipContent>
+                  </Tooltip>
                 </>
               )}
             </div>
