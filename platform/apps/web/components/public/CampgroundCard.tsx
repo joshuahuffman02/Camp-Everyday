@@ -61,6 +61,8 @@ export function CampgroundCard({
     const adaBadge = adaCertificationLevel ? getAdaBadgeInfo(adaCertificationLevel) : null;
     const [isHovered, setIsHovered] = useState(false);
     const [isFavorited, setIsFavorited] = useState(false);
+    const [isHeartAnimating, setIsHeartAnimating] = useState(false);
+    const prefersReducedMotion = useReducedMotion();
 
     const STORAGE_KEY = "campreserv:saved-campgrounds";
 
@@ -89,6 +91,27 @@ export function CampgroundCard({
         const saved = readSaved();
         if (saved.includes(id)) setIsFavorited(true);
     }, [id]);
+
+    // Handle favorite toggle with animation
+    const handleToggleFavorite = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        setIsFavorited((prev) => {
+            const next = !prev;
+            // Trigger animation only when adding to favorites
+            if (next && !prefersReducedMotion) {
+                setIsHeartAnimating(true);
+                setTimeout(() => setIsHeartAnimating(false), 400);
+            }
+            const saved = readSaved();
+            const nextList = next
+                ? Array.from(new Set([...saved, id]))
+                : saved.filter((x) => x !== id);
+            writeSaved(nextList);
+            return next;
+        });
+    }, [id, prefersReducedMotion]);
 
     // Use slug for routing if available, fallback to ID
     const campgroundPath = `/park/${slug || id}`;
@@ -203,35 +226,50 @@ export function CampgroundCard({
                     )}
                 </div>
 
-                {/* Favorite button */}
+                {/* Animated Wishlist Button */}
                 <button
-                    onClick={(e) => {
-                        e.preventDefault();
-                        setIsFavorited((prev) => {
-                            const next = !prev;
-                            const saved = readSaved();
-                            const nextList = next
-                                ? Array.from(new Set([...saved, id]))
-                                : saved.filter((x) => x !== id);
-                            writeSaved(nextList);
-                            return next;
-                        });
-                    }}
-                    className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-colors"
+                    onClick={handleToggleFavorite}
+                    className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-colors z-10"
+                    aria-label={isFavorited ? "Remove from wishlist" : "Add to wishlist"}
                 >
-                    <svg
-                        className={`w-5 h-5 transition-colors ${isFavorited ? "text-rose-500 fill-current" : "text-slate-600"}`}
-                        fill={isFavorited ? "currentColor" : "none"}
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                    <motion.div
+                        animate={
+                            isHeartAnimating
+                                ? { scale: [1, 1.3, 0.9, 1.1, 1] }
+                                : {}
+                        }
+                        transition={{ duration: 0.4, ease: "easeInOut" }}
                     >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                        <Heart
+                            className={`w-5 h-5 transition-colors duration-200 ${
+                                isFavorited ? "text-rose-500 fill-rose-500" : "text-slate-600"
+                            }`}
+                            strokeWidth={isFavorited ? 0 : 2}
                         />
-                    </svg>
+                    </motion.div>
+
+                    {/* Heart burst particles */}
+                    <AnimatePresence>
+                        {isHeartAnimating && (
+                            <>
+                                {[...Array(6)].map((_, i) => (
+                                    <motion.div
+                                        key={i}
+                                        className="absolute w-1.5 h-1.5 bg-rose-400 rounded-full"
+                                        initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                                        animate={{
+                                            scale: [0, 1, 0],
+                                            x: Math.cos((i * 60 * Math.PI) / 180) * 20,
+                                            y: Math.sin((i * 60 * Math.PI) / 180) * 20,
+                                            opacity: [1, 1, 0]
+                                        }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.4, ease: "easeOut", delay: i * 0.02 }}
+                                    />
+                                ))}
+                            </>
+                        )}
+                    </AnimatePresence>
                 </button>
 
                 {/* Quick book button on hover */}
