@@ -256,7 +256,7 @@ export default function GuestAnalyticsPage() {
         setLoading(true);
         setError(null);
 
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const apiUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
         const token = localStorage.getItem("campreserv:authToken");
 
         const res = await fetch(`${apiUrl}/admin/guest-analytics?range=${dateRange}`, {
@@ -294,7 +294,7 @@ export default function GuestAnalyticsPage() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
       const token = localStorage.getItem("campreserv:authToken");
 
       const res = await fetch(`${apiUrl}/admin/guest-analytics?range=${dateRange}`, {
@@ -326,7 +326,7 @@ export default function GuestAnalyticsPage() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
       const token = localStorage.getItem("campreserv:authToken");
 
       const res = await fetch(`${apiUrl}/admin/analytics/export`, {
@@ -431,7 +431,7 @@ export default function GuestAnalyticsPage() {
   const handleCreateShareLink = async () => {
     setSharing(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
       const token = localStorage.getItem("campreserv:authToken");
 
       const res = await fetch(`${apiUrl}/admin/analytics/share`, {

@@ -217,7 +217,7 @@ export default function GuestSegmentsPage() {
   const platformRole = whoami?.user?.platformRole;
   const canManageSegments = platformRole === "platform_admin" || platformRole === "platform_support";
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 
   const fetchSegments = useCallback(async () => {
     try {

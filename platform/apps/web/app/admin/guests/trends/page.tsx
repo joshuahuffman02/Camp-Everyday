@@ -184,7 +184,7 @@ export default function GuestTrendsPage() {
         setLoading(true);
         setError(null);
 
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const apiUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
         const token = localStorage.getItem("campreserv:authToken");
 
         // For now, we'll use the guest-analytics endpoint

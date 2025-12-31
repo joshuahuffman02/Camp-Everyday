@@ -288,7 +288,7 @@ export function CategoryTabs({
               <motion.div
                 variants={iconVariants}
                 animate={isActive ? "active" : isHovered ? "hover" : "initial"}
-                className="relative w-12 h-12"
+                className="relative w-14 h-14"
               >
                 {category.image ? (
                   <Image
@@ -296,7 +296,7 @@ export function CategoryTabs({
                     alt={category.label}
                     fill
                     className="object-contain"
-                    sizes="48px"
+                    sizes="56px"
                     onError={(e) => {
                       // Hide broken image, fallback icon will show
                       e.currentTarget.style.display = 'none';
@@ -304,7 +304,7 @@ export function CategoryTabs({
                   />
                 ) : FallbackIcon ? (
                   <FallbackIcon
-                    className={`w-12 h-12 transition-colors duration-200 ${theme.accent}`}
+                    className={`w-14 h-14 transition-colors duration-200 ${theme.accent}`}
                   />
                 ) : null}
               </motion.div>
