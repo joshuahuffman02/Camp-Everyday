@@ -45,12 +45,14 @@ public actor APIClient: APIClientProtocol {
 
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format: \(dateString)")
         }
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        // NestJS API returns camelCase, so no conversion needed
+        // decoder.keyDecodingStrategy = .convertFromSnakeCase
 
         // Configure encoder for API requests
         self.encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        encoder.keyEncodingStrategy = .convertToSnakeCase
+        // NestJS API expects camelCase, so no conversion needed
+        // encoder.keyEncodingStrategy = .convertToSnakeCase
     }
 
     // MARK: - Public Methods
@@ -144,8 +146,21 @@ public actor APIClient: APIClientProtocol {
              .staffCheckout(_, let data):
             return data
 
-        case .sendMessage(_, let content):
-            return ["content": content]
+        case .sendMessage(_, let content, let guestId):
+            return [
+                "content": content,
+                "senderType": "staff",
+                "guestId": guestId
+            ]
+
+        case .createInternalConversation(_, let data):
+            return data
+
+        case .sendInternalMessage(let conversationId, let content):
+            return [
+                "content": content,
+                "conversationId": conversationId
+            ]
 
         case .processTerminalPayment(_, _, let readerId):
             return ["readerId": readerId]

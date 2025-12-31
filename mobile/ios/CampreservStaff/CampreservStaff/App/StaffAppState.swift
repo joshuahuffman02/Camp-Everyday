@@ -97,13 +97,34 @@ final class StaffAppState: ObservableObject {
 
     func loadCampgrounds() async {
         do {
+            print("[StaffAppState] Loading campgrounds...")
             campgrounds = try await apiClient.request(.getCampgrounds)
+            print("[StaffAppState] Loaded \(campgrounds.count) campgrounds")
+            for cg in campgrounds {
+                print("[StaffAppState]   - \(cg.name) (\(cg.id))")
+            }
 
             // Auto-select if only one campground
             if campgrounds.count == 1 {
                 currentCampground = campgrounds.first
             }
+        } catch let decodingError as DecodingError {
+            print("[StaffAppState] Decoding error: \(decodingError)")
+            switch decodingError {
+            case .keyNotFound(let key, let context):
+                print("[StaffAppState]   Key '\(key.stringValue)' not found: \(context.debugDescription)")
+            case .typeMismatch(let type, let context):
+                print("[StaffAppState]   Type mismatch for \(type): \(context.debugDescription)")
+            case .valueNotFound(let type, let context):
+                print("[StaffAppState]   Value not found for \(type): \(context.debugDescription)")
+            case .dataCorrupted(let context):
+                print("[StaffAppState]   Data corrupted: \(context.debugDescription)")
+            @unknown default:
+                print("[StaffAppState]   Unknown decoding error")
+            }
+            self.error = decodingError
         } catch {
+            print("[StaffAppState] Failed to load campgrounds: \(error)")
             self.error = error
         }
     }
@@ -195,6 +216,6 @@ final class StaffAppState: ObservableObject {
 // MARK: - Configuration
 
 enum StaffConfiguration {
-    // Railway production API
-    static let apiBaseURL = "https://camp-everydayapi-production.up.railway.app"
+    // Railway production API (with /api prefix)
+    static let apiBaseURL = "https://camp-everydayapi-production.up.railway.app/api"
 }

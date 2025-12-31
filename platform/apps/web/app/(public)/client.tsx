@@ -136,75 +136,7 @@ function BlogSection({ prefersReducedMotion }: { prefersReducedMotion: boolean |
     );
 }
 
-// Sample external campgrounds to mix with internal ones
-const externalCampgrounds = [
-    {
-        id: "ext-1",
-        name: "Yellowstone River RV Park",
-        city: "Gardiner",
-        state: "MT",
-        description: "Gateway to Yellowstone National Park",
-        rating: 4.7,
-        reviewCount: 328,
-        pricePerNight: 65,
-        amenities: ["Full Hookups", "WiFi", "Pet Friendly"]
-    },
-    {
-        id: "ext-2",
-        name: "Redwood Coast Cabins",
-        city: "Crescent City",
-        state: "CA",
-        description: "Nestled among the ancient redwoods",
-        rating: 4.9,
-        reviewCount: 156,
-        pricePerNight: 125,
-        amenities: ["Cabins", "Hiking Trails", "Fire Pits"]
-    },
-    {
-        id: "ext-3",
-        name: "Great Smoky Mountains Camp",
-        city: "Gatlinburg",
-        state: "TN",
-        description: "Family camping in the Smokies",
-        rating: 4.6,
-        reviewCount: 412,
-        pricePerNight: 45,
-        amenities: ["Tent Sites", "Showers", "Camp Store"]
-    },
-    {
-        id: "ext-4",
-        name: "Desert Oasis RV Resort",
-        city: "Palm Springs",
-        state: "CA",
-        description: "Luxury RV resort with pool and spa",
-        rating: 4.8,
-        reviewCount: 289,
-        pricePerNight: 85,
-        amenities: ["Pool", "Hot Tub", "Full Hookups"]
-    },
-    {
-        id: "ext-5",
-        name: "Maine Coastal Campground",
-        city: "Bar Harbor",
-        state: "ME",
-        description: "Ocean views near Acadia National Park",
-        rating: 4.5,
-        reviewCount: 198,
-        pricePerNight: 55,
-        amenities: ["Ocean View", "Kayak Rentals", "WiFi"]
-    },
-    {
-        id: "ext-6",
-        name: "Rocky Mountain High Camp",
-        city: "Estes Park",
-        state: "CO",
-        description: "High altitude camping adventure",
-        rating: 4.7,
-        reviewCount: 267,
-        pricePerNight: 50,
-        amenities: ["Mountain Views", "Hiking", "Wildlife"]
-    }
-];
+// Note: External campgrounds removed - only showing campgrounds from our database
 
 export function HomeClient() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -220,7 +152,7 @@ export function HomeClient() {
         queryFn: () => apiClient.getPublicCampgrounds()
     });
 
-    // Combine and filter campgrounds
+    // Filter campgrounds from our database
     const allCampgrounds = useMemo(() => {
         const internal = internalCampgrounds.map((cg) => {
             const rating = cg.reviewScore ?? undefined;
@@ -272,15 +204,8 @@ export function HomeClient() {
             };
         });
 
-        const externalWithBadges = externalCampgrounds.map((cg) => ({
-            ...cg,
-            isInternal: false,
-            ratingBadge: cg.reviewCount && cg.reviewCount > 150 ? "Popular pick" : undefined,
-            npsBadge: undefined,
-            pastAwards: []
-        }));
-
-        const combined = [...internal, ...externalWithBadges];
+        // Only use internal campgrounds from our database
+        const combined = [...internal];
 
         // Build search terms from query and location filter
         const searchTerms: string[] = [];

@@ -28,15 +28,16 @@ type Portfolio = {
 
 @Injectable()
 export class PortfoliosService {
+  // Demo portfolio data - to be replaced with real database queries
   private readonly portfolios: Portfolio[] = [
     {
-      id: "pf-continental",
-      name: "Continental Parks",
+      id: "pf-example-1",
+      name: "Example Portfolio 1",
       homeCurrency: "USD",
       parks: [
         {
-          id: "cg-redwood",
-          name: "Redwood Ridge",
+          id: "cg-example-1",
+          name: "West Coast RV Park",
           region: "US-CA",
           currency: "USD",
           occupancy: 0.82,
@@ -47,14 +48,14 @@ export class PortfoliosService {
           fxToHome: 1,
           taxSummary: "US sales/lodging tax blended 8.5%",
           routing: {
-            adminHost: "redwood.admin.campreserv.test",
-            guestHost: "stay.redwood.test",
-            path: "/campgrounds/cg-redwood",
+            adminHost: "example1.admin.campreserv.test",
+            guestHost: "stay.example1.test",
+            path: "/campgrounds/cg-example-1",
           },
         },
         {
-          id: "cg-lakeview",
-          name: "Lakeview Shores",
+          id: "cg-example-2",
+          name: "Northern Campground",
           region: "CA-BC",
           currency: "CAD",
           occupancy: 0.76,
@@ -65,14 +66,14 @@ export class PortfoliosService {
           fxToHome: 0.74,
           taxSummary: "GST 5% + PST 7%",
           routing: {
-            adminHost: "lakeview.admin.campreserv.test",
-            guestHost: "lakeview.travel.test",
-            path: "/campgrounds/cg-lakeview",
+            adminHost: "example2.admin.campreserv.test",
+            guestHost: "example2.travel.test",
+            path: "/campgrounds/cg-example-2",
           },
         },
         {
-          id: "cg-alpine",
-          name: "Alpine Meadow",
+          id: "cg-example-3",
+          name: "European Resort",
           region: "DE-BY",
           currency: "EUR",
           occupancy: 0.81,
@@ -83,21 +84,21 @@ export class PortfoliosService {
           fxToHome: 1.07,
           taxSummary: "VAT 19% included",
           routing: {
-            adminHost: "alpine.admin.campreserv.test",
-            guestHost: "alpine.stays.test",
-            path: "/campgrounds/cg-alpine",
+            adminHost: "example3.admin.campreserv.test",
+            guestHost: "example3.stays.test",
+            path: "/campgrounds/cg-example-3",
           },
         },
       ],
     },
     {
-      id: "pf-sunbelt",
-      name: "Sunbelt Resorts",
+      id: "pf-example-2",
+      name: "Example Portfolio 2",
       homeCurrency: "USD",
       parks: [
         {
-          id: "cg-desert",
-          name: "Desert Oasis",
+          id: "cg-example-4",
+          name: "Southwest RV Resort",
           region: "US-AZ",
           currency: "USD",
           occupancy: 0.74,
@@ -108,14 +109,14 @@ export class PortfoliosService {
           fxToHome: 1,
           taxSummary: "AZ transient tax 11%",
           routing: {
-            adminHost: "desert.admin.campreserv.test",
-            guestHost: "desertstay.test",
-            path: "/campgrounds/cg-desert",
+            adminHost: "example4.admin.campreserv.test",
+            guestHost: "example4.test",
+            path: "/campgrounds/cg-example-4",
           },
         },
         {
-          id: "cg-gulf",
-          name: "Gulf Breeze",
+          id: "cg-example-5",
+          name: "Coastal Campground",
           region: "US-FL",
           currency: "USD",
           occupancy: 0.79,
@@ -126,9 +127,9 @@ export class PortfoliosService {
           fxToHome: 1,
           taxSummary: "Tourist + state tax 11.5%",
           routing: {
-            adminHost: "gulf.admin.campreserv.test",
-            guestHost: "gulfbreeze.test",
-            path: "/campgrounds/cg-gulf",
+            adminHost: "example5.admin.campreserv.test",
+            guestHost: "example5.test",
+            path: "/campgrounds/cg-example-5",
           },
         },
       ],

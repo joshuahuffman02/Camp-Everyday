@@ -1,4 +1,5 @@
 import SwiftUI
+import CampreservCore
 import CampreservUI
 
 /// Staff login view
@@ -96,8 +97,22 @@ struct StaffAuthView: View {
                 password: password,
                 deviceId: UIDevice.current.identifierForVendor?.uuidString
             )
+        } catch let apiError as APIError {
+            // Show detailed API error
+            switch apiError {
+            case .unauthorized:
+                self.error = "Invalid email or password."
+            case .validationError(let message):
+                self.error = message
+            case .networkError(let underlying):
+                self.error = "Network error: \(underlying.localizedDescription)"
+            case .serverError(let code):
+                self.error = "Server error (\(code)). Please try again."
+            default:
+                self.error = "Login failed: \(apiError.localizedDescription)"
+            }
         } catch {
-            self.error = "Invalid email or password. Please try again."
+            self.error = "Login failed: \(error.localizedDescription)"
         }
 
         isLoading = false

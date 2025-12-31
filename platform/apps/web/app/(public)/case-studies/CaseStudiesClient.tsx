@@ -3,22 +3,23 @@
 import Link from "next/link";
 import { Sparkles, Users, TrendingUp, MessageSquare } from "lucide-react";
 
+// Case studies - to be populated with real customer success stories
 const studies = [
   {
-    id: "pine-lake",
-    name: "Pine Lake RV Resort",
+    id: "example-rv",
+    name: "50-Site RV Resort",
     impact: "+18% revenue",
     summary: "Dynamic pricing + online check-in reduced lines and lifted ADR.",
   },
   {
-    id: "redwood",
-    name: "Redwood Coast Cabins",
+    id: "example-cabins",
+    name: "Cabin & Glamping Property",
     impact: "-27% no-shows",
     summary: "Automated pre-arrival messaging and deposits cut no-shows and late arrivals.",
   },
   {
-    id: "desert-oasis",
-    name: "Desert Oasis RV",
+    id: "example-campground",
+    name: "Family Campground",
     impact: "2x upsells",
     summary: "POS + guest portal increased firewood, late checkout, and rental upsells.",
   },

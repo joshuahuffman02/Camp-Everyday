@@ -49,10 +49,18 @@ public enum APIEndpoint {
     case staffCheckin(reservationId: String, data: [String: Any]?)
     case staffCheckout(reservationId: String, data: [String: Any]?)
 
-    // MARK: - Messaging
+    // MARK: - Messaging (Guest-Staff)
+    case getConversations(campgroundId: String)
+    case getUnreadMessageCount(campgroundId: String)
     case getMessages(reservationId: String)
-    case sendMessage(reservationId: String, content: String)
+    case sendMessage(reservationId: String, content: String, guestId: String)
     case markMessagesRead(reservationId: String)
+
+    // MARK: - Internal Messaging (Team Chat)
+    case getInternalConversations(campgroundId: String)
+    case createInternalConversation(campgroundId: String, data: [String: Any])
+    case getInternalMessages(conversationId: String, limit: Int?)
+    case sendInternalMessage(conversationId: String, content: String)
 
     // MARK: - Guests
     case getGuests(campgroundId: String, search: String?, limit: Int?, offset: Int?)
@@ -146,10 +154,18 @@ public enum APIEndpoint {
         case .staffCheckin(let reservationId, _): return "/reservations/\(reservationId)/check-in"
         case .staffCheckout(let reservationId, _): return "/reservations/\(reservationId)/check-out"
 
-        // Messaging
+        // Messaging (Guest-Staff)
+        case .getConversations(let campgroundId): return "/campgrounds/\(campgroundId)/conversations"
+        case .getUnreadMessageCount(let campgroundId): return "/campgrounds/\(campgroundId)/messages/unread-count"
         case .getMessages(let reservationId): return "/reservations/\(reservationId)/messages"
-        case .sendMessage(let reservationId, _): return "/reservations/\(reservationId)/messages"
+        case .sendMessage(let reservationId, _, _): return "/reservations/\(reservationId)/messages"
         case .markMessagesRead(let reservationId): return "/reservations/\(reservationId)/messages/read"
+
+        // Internal Messaging (Team Chat)
+        case .getInternalConversations: return "/internal-conversations"
+        case .createInternalConversation: return "/internal-conversations"
+        case .getInternalMessages: return "/internal-messages"
+        case .sendInternalMessage: return "/internal-messages"
 
         // Guests
         case .getGuests(let campgroundId, _, _, _): return "/campgrounds/\(campgroundId)/guests"
@@ -213,6 +229,7 @@ public enum APIEndpoint {
              .createReservation, .cancelReservation,
              .selfCheckin, .selfCheckout, .staffCheckin, .staffCheckout,
              .sendMessage, .markMessagesRead,
+             .createInternalConversation, .sendInternalMessage,
              .createGuest,
              .recordPayment, .refundPayment,
              .createTerminalPayment, .processTerminalPayment, .cancelTerminalPayment,
@@ -294,6 +311,14 @@ public enum APIEndpoint {
             if let state = state { items.append(URLQueryItem(name: "state", value: state)) }
             if let type = type { items.append(URLQueryItem(name: "type", value: type)) }
             return items.isEmpty ? nil : items
+
+        case .getInternalConversations(let campgroundId):
+            return [URLQueryItem(name: "campgroundId", value: campgroundId)]
+
+        case .getInternalMessages(let conversationId, let limit):
+            var items = [URLQueryItem(name: "conversationId", value: conversationId)]
+            if let limit = limit { items.append(URLQueryItem(name: "limit", value: String(limit))) }
+            return items
 
         default:
             return nil

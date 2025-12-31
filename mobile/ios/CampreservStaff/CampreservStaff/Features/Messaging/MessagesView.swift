@@ -2,15 +2,195 @@ import SwiftUI
 import CampreservCore
 import CampreservUI
 
+// MARK: - Message Store (Shared State)
+
+@MainActor
+final class MessageStore: ObservableObject {
+    static let shared = MessageStore()
+
+    @Published var guestConversations: [GuestConversation] = []
+    @Published var teamConversations: [TeamConversation] = []
+    @Published var isLoading = false
+    @Published var error: Error?
+
+    private var loadedCampgroundId: String?
+    private var apiClient: APIClient?
+
+    private init() {}
+
+    /// Configure the store with an API client
+    func configure(apiClient: APIClient) {
+        self.apiClient = apiClient
+    }
+
+    /// Load conversations from the API
+    func load(campgroundId: String, forceRefresh: Bool = false) async {
+        // Skip if already loaded for this campground (unless forcing refresh)
+        if !forceRefresh && loadedCampgroundId == campgroundId && !guestConversations.isEmpty {
+            return
+        }
+
+        guard let apiClient = apiClient else {
+            // Fallback to demo data if no API client
+            await loadDemoData()
+            return
+        }
+
+        isLoading = true
+        error = nil
+
+        do {
+            // Load guest conversations
+            let apiConversations: [APIConversation] = try await apiClient.request(.getConversations(campgroundId: campgroundId))
+            guestConversations = apiConversations.map { conv in
+                GuestConversation(from: conv)
+            }
+
+            // Load team conversations
+            let apiTeamConversations: [APIInternalConversation] = try await apiClient.request(.getInternalConversations(campgroundId: campgroundId))
+            teamConversations = apiTeamConversations.map { conv in
+                TeamConversation(from: conv)
+            }
+
+            loadedCampgroundId = campgroundId
+        } catch {
+            self.error = error
+            print("Failed to load conversations: \(error)")
+            // Fallback to demo data on error
+            await loadDemoData()
+        }
+
+        isLoading = false
+    }
+
+    /// Load demo data (fallback)
+    private func loadDemoData() async {
+        try? await Task.sleep(for: .seconds(0.3))
+        guestConversations = GuestConversation.samples
+        teamConversations = TeamConversation.samples
+    }
+
+    /// Send a message to a guest conversation
+    func sendMessage(reservationId: String, guestId: String, content: String) async throws {
+        guard let apiClient = apiClient else {
+            // Demo mode - just add locally
+            let message = ChatMessage(
+                id: UUID().uuidString,
+                content: content,
+                senderType: "staff",
+                senderName: "You",
+                sentAt: Date(),
+                isRead: true
+            )
+            addMessageToGuestConversation(conversationId: reservationId, message: message)
+            return
+        }
+
+        // Send via API
+        let _: APIMessage = try await apiClient.request(.sendMessage(reservationId: reservationId, content: content, guestId: guestId))
+
+        // Update local state
+        let message = ChatMessage(
+            id: UUID().uuidString,
+            content: content,
+            senderType: "staff",
+            senderName: "You",
+            sentAt: Date(),
+            isRead: true
+        )
+        addMessageToGuestConversation(conversationId: reservationId, message: message)
+    }
+
+    /// Mark messages as read
+    func markAsRead(reservationId: String) async {
+        guard let apiClient = apiClient else {
+            markGuestConversationAsRead(conversationId: reservationId)
+            return
+        }
+
+        do {
+            try await apiClient.request(.markMessagesRead(reservationId: reservationId))
+            markGuestConversationAsRead(conversationId: reservationId)
+        } catch {
+            print("Failed to mark messages as read: \(error)")
+            // Still update locally
+            markGuestConversationAsRead(conversationId: reservationId)
+        }
+    }
+
+    /// Add message to local conversation state
+    func addMessageToGuestConversation(conversationId: String, message: ChatMessage) {
+        if let index = guestConversations.firstIndex(where: { $0.id == conversationId }) {
+            let conversation = guestConversations[index]
+            var messages = conversation.messages
+            messages.append(message)
+
+            // Update the conversation with new message
+            guestConversations[index] = GuestConversation(
+                id: conversation.id,
+                reservationId: conversation.reservationId,
+                guestId: conversation.guestId,
+                guestName: conversation.guestName,
+                guestEmail: conversation.guestEmail,
+                guestPhone: conversation.guestPhone,
+                siteName: conversation.siteName,
+                status: conversation.status,
+                arrivalDate: conversation.arrivalDate,
+                departureDate: conversation.departureDate,
+                lastMessagePreview: message.content,
+                lastMessageTime: message.sentAt,
+                lastMessageSender: message.senderType,
+                unreadCount: 0,
+                needsReply: false,
+                messages: messages
+            )
+        }
+    }
+
+    /// Mark conversation as read locally
+    func markGuestConversationAsRead(conversationId: String) {
+        if let index = guestConversations.firstIndex(where: { $0.id == conversationId }) {
+            let conversation = guestConversations[index]
+            guestConversations[index] = GuestConversation(
+                id: conversation.id,
+                reservationId: conversation.reservationId,
+                guestId: conversation.guestId,
+                guestName: conversation.guestName,
+                guestEmail: conversation.guestEmail,
+                guestPhone: conversation.guestPhone,
+                siteName: conversation.siteName,
+                status: conversation.status,
+                arrivalDate: conversation.arrivalDate,
+                departureDate: conversation.departureDate,
+                lastMessagePreview: conversation.lastMessagePreview,
+                lastMessageTime: conversation.lastMessageTime,
+                lastMessageSender: conversation.lastMessageSender,
+                unreadCount: 0,
+                needsReply: conversation.lastMessageSender == "guest",
+                messages: conversation.messages.map { msg in
+                    ChatMessage(id: msg.id, content: msg.content, senderType: msg.senderType, senderName: msg.senderName, sentAt: msg.sentAt, isRead: true)
+                }
+            )
+        }
+    }
+
+    /// Clear all data (on logout or campground switch)
+    func clear() {
+        guestConversations = []
+        teamConversations = []
+        loadedCampgroundId = nil
+        error = nil
+    }
+}
+
 // MARK: - Main Messages View
 
 /// Full messaging system with guest conversations and team chat
 struct MessagesView: View {
 
     @EnvironmentObject private var appState: StaffAppState
+    @StateObject private var messageStore = MessageStore.shared
     @State private var selectedTab = 0
-    @State private var guestConversations: [GuestConversation] = []
-    @State private var teamConversations: [TeamConversation] = []
     @State private var isLoading = true
     @State private var searchText = ""
 
@@ -118,6 +298,7 @@ struct MessagesView: View {
                                     GuestConversationRow(conversation: conversation)
                                 }
                                 .buttonStyle(.plain)
+                                .id(conversation.viewId)
                             }
                         }
 
@@ -130,6 +311,7 @@ struct MessagesView: View {
                                     GuestConversationRow(conversation: conversation)
                                 }
                                 .buttonStyle(.plain)
+                                .id(conversation.viewId)
                             }
                         }
                     }
@@ -140,9 +322,9 @@ struct MessagesView: View {
 
     private var filteredGuestConversations: [GuestConversation] {
         if searchText.isEmpty {
-            return guestConversations
+            return messageStore.guestConversations
         }
-        return guestConversations.filter { conversation in
+        return messageStore.guestConversations.filter { conversation in
             conversation.guestName.localizedCaseInsensitiveContains(searchText) ||
             conversation.siteName.localizedCaseInsensitiveContains(searchText) ||
             (conversation.lastMessagePreview?.localizedCaseInsensitiveContains(searchText) ?? false)
@@ -157,7 +339,7 @@ struct MessagesView: View {
                 Spacer()
                 LoadingView(message: "Loading team chat...")
                 Spacer()
-            } else if teamConversations.isEmpty {
+            } else if messageStore.teamConversations.isEmpty {
                 Spacer()
                 EmptyStateView(
                     icon: "person.2",
@@ -170,7 +352,7 @@ struct MessagesView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         // Channels
-                        let channels = teamConversations.filter { $0.type == .channel }
+                        let channels = messageStore.teamConversations.filter { $0.type == .channel }
                         if !channels.isEmpty {
                             SectionHeader(title: "Channels", count: channels.count, color: .campPrimary)
                             ForEach(channels) { conversation in
@@ -182,7 +364,7 @@ struct MessagesView: View {
                         }
 
                         // Direct Messages
-                        let dms = teamConversations.filter { $0.type == .dm }
+                        let dms = messageStore.teamConversations.filter { $0.type == .dm }
                         if !dms.isEmpty {
                             SectionHeader(title: "Direct Messages", count: dms.count, color: .campTextSecondary)
                             ForEach(dms) { conversation in
@@ -201,14 +383,18 @@ struct MessagesView: View {
     // MARK: - Data Loading
 
     private func loadMessages() async {
+        // Configure the message store with the API client
+        messageStore.configure(apiClient: appState.getAPIClient())
+
+        // Load conversations for the current campground
+        guard let campgroundId = appState.getCampgroundId() else {
+            isLoading = false
+            return
+        }
+
         isLoading = true
-        defer { isLoading = false }
-
-        try? await Task.sleep(for: .seconds(0.5))
-
-        // Load demo data
-        guestConversations = GuestConversation.samples
-        teamConversations = TeamConversation.samples
+        await messageStore.load(campgroundId: campgroundId)
+        isLoading = false
     }
 }
 
@@ -248,6 +434,7 @@ struct SectionHeader: View {
 struct GuestConversation: Identifiable {
     let id: String
     let reservationId: String
+    let guestId: String?
     let guestName: String
     let guestEmail: String?
     let guestPhone: String?
@@ -262,6 +449,77 @@ struct GuestConversation: Identifiable {
     let needsReply: Bool
     let messages: [ChatMessage]
 
+    /// Unique view ID that changes when conversation state changes (forces SwiftUI re-render)
+    var viewId: String {
+        "\(id)-\(needsReply)-\(unreadCount)-\(messages.count)-\(lastMessageTime?.timeIntervalSince1970 ?? 0)"
+    }
+
+    /// Initialize from API response
+    init(from api: APIConversation) {
+        self.id = api.reservationId
+        self.reservationId = api.reservationId
+        self.guestId = api.guestId
+        self.guestName = api.guestName
+        self.guestEmail = api.guestEmail
+        self.guestPhone = api.guestPhone
+        self.siteName = api.siteName
+        self.status = api.status
+        self.arrivalDate = api.arrivalDate ?? Date()
+        self.departureDate = api.departureDate ?? Date()
+        self.lastMessagePreview = api.lastMessage?.content
+        self.lastMessageTime = api.lastMessage?.createdAt
+        self.lastMessageSender = api.lastMessage?.senderType.rawValue ?? "guest"
+        self.unreadCount = api.unreadCount
+        self.needsReply = api.unreadCount > 0 && (api.lastMessage?.senderType == .guest)
+        self.messages = api.messages.map { msg in
+            ChatMessage(
+                id: msg.id,
+                content: msg.content,
+                senderType: msg.senderType.rawValue,
+                senderName: msg.senderType == .guest ? api.guestName : "Staff",
+                sentAt: msg.createdAt,
+                isRead: msg.readAt != nil
+            )
+        }
+    }
+
+    /// Memberwise initializer
+    init(
+        id: String,
+        reservationId: String,
+        guestId: String?,
+        guestName: String,
+        guestEmail: String?,
+        guestPhone: String?,
+        siteName: String,
+        status: String,
+        arrivalDate: Date,
+        departureDate: Date,
+        lastMessagePreview: String?,
+        lastMessageTime: Date?,
+        lastMessageSender: String,
+        unreadCount: Int,
+        needsReply: Bool,
+        messages: [ChatMessage]
+    ) {
+        self.id = id
+        self.reservationId = reservationId
+        self.guestId = guestId
+        self.guestName = guestName
+        self.guestEmail = guestEmail
+        self.guestPhone = guestPhone
+        self.siteName = siteName
+        self.status = status
+        self.arrivalDate = arrivalDate
+        self.departureDate = departureDate
+        self.lastMessagePreview = lastMessagePreview
+        self.lastMessageTime = lastMessageTime
+        self.lastMessageSender = lastMessageSender
+        self.unreadCount = unreadCount
+        self.needsReply = needsReply
+        self.messages = messages
+    }
+
     static let samples: [GuestConversation] = {
         let today = Date()
         let calendar = Calendar.current
@@ -270,6 +528,7 @@ struct GuestConversation: Identifiable {
             GuestConversation(
                 id: "conv-1",
                 reservationId: "res-1",
+                guestId: "guest-1",
                 guestName: "Michael Johnson",
                 guestEmail: "michael.j@email.com",
                 guestPhone: "(555) 123-4567",
@@ -291,6 +550,7 @@ struct GuestConversation: Identifiable {
             GuestConversation(
                 id: "conv-2",
                 reservationId: "res-2",
+                guestId: "guest-2",
                 guestName: "Sarah Williams",
                 guestEmail: "sarah.w@email.com",
                 guestPhone: "(555) 234-5678",
@@ -311,6 +571,7 @@ struct GuestConversation: Identifiable {
             GuestConversation(
                 id: "conv-3",
                 reservationId: "res-3",
+                guestId: "guest-3",
                 guestName: "Robert Chen",
                 guestEmail: "robert.c@email.com",
                 guestPhone: "(555) 345-6789",
@@ -332,6 +593,7 @@ struct GuestConversation: Identifiable {
             GuestConversation(
                 id: "conv-4",
                 reservationId: "res-5",
+                guestId: "guest-4",
                 guestName: "James Wilson",
                 guestEmail: "james.w@email.com",
                 guestPhone: "(555) 567-8901",
@@ -378,6 +640,58 @@ struct TeamConversation: Identifiable {
     enum ConversationType {
         case channel
         case dm
+    }
+
+    /// Initialize from API response
+    init(from api: APIInternalConversation) {
+        self.id = api.id
+        self.name = api.name ?? api.participants?.first?.user?.firstName ?? "Direct Message"
+        self.type = api.type == .channel ? .channel : .dm
+        self.participants = api.participants?.map { participant in
+            TeamMember(
+                id: participant.userId,
+                firstName: participant.user?.firstName ?? "",
+                lastName: participant.user?.lastName ?? "",
+                role: "Staff"
+            )
+        } ?? []
+        let lastMsg = api.messages?.last
+        self.lastMessagePreview = lastMsg?.content
+        self.lastMessageTime = lastMsg?.createdAt
+        self.lastMessageSender = lastMsg?.sender?.firstName
+        self.unreadCount = 0 // TODO: Track unread for internal messages
+        self.messages = api.messages?.map { msg in
+            TeamChatMessage(
+                id: msg.id,
+                content: msg.content,
+                senderName: msg.sender?.firstName ?? "Unknown",
+                sentAt: msg.createdAt,
+                isRead: true
+            )
+        } ?? []
+    }
+
+    /// Memberwise initializer
+    init(
+        id: String,
+        name: String,
+        type: ConversationType,
+        participants: [TeamMember],
+        lastMessagePreview: String?,
+        lastMessageTime: Date?,
+        lastMessageSender: String?,
+        unreadCount: Int,
+        messages: [TeamChatMessage]
+    ) {
+        self.id = id
+        self.name = name
+        self.type = type
+        self.participants = participants
+        self.lastMessagePreview = lastMessagePreview
+        self.lastMessageTime = lastMessageTime
+        self.lastMessageSender = lastMessageSender
+        self.unreadCount = unreadCount
+        self.messages = messages
     }
 
     static let samples: [TeamConversation] = {

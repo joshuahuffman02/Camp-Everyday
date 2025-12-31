@@ -48,11 +48,11 @@ interface Anomaly {
   recommendations: string[];
 }
 
-// Mock data
+// Mock data - to be replaced with real AI-generated insights
 const mockSuggestions: CampgroundSuggestion[] = [
   {
     campgroundId: "1",
-    campgroundName: "Dusty Pines RV Park",
+    campgroundName: "Needs Attention 1",
     npsScore: -12,
     primaryIssues: ["cleanliness", "facilities", "staff"],
     suggestions: [
@@ -99,7 +99,7 @@ const mockSuggestions: CampgroundSuggestion[] = [
   },
   {
     campgroundId: "2",
-    campgroundName: "Shady Acres Camp",
+    campgroundName: "Needs Attention 2",
     npsScore: -5,
     primaryIssues: ["noise", "management", "wifi"],
     suggestions: [
@@ -137,7 +137,7 @@ const mockSuggestions: CampgroundSuggestion[] = [
   },
   {
     campgroundId: "3",
-    campgroundName: "Roadside Rest Stop",
+    campgroundName: "Needs Attention 3",
     npsScore: 5,
     primaryIssues: ["amenities", "value", "sites"],
     suggestions: [
@@ -180,7 +180,7 @@ const mockAnomalies: Anomaly[] = [
     id: "1",
     type: "nps_drop",
     severity: "critical",
-    campgroundName: "Dusty Pines RV Park",
+    campgroundName: "Needs Attention 1",
     message: "NPS dropped 25 points in the last 30 days",
     currentValue: -12,
     expectedValue: 13,

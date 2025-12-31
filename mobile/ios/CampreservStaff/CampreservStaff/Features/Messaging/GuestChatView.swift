@@ -6,11 +6,21 @@ import CampreservUI
 struct GuestChatView: View {
 
     let conversation: GuestConversation
+    @StateObject private var messageStore = MessageStore.shared
     @State private var messageText = ""
-    @State private var messages: [ChatMessage] = []
     @State private var showGuestInfo = false
+    @State private var isSending = false
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.dismiss) private var dismiss
+
+    /// Get the current conversation from the store (for live updates)
+    private var currentConversation: GuestConversation {
+        messageStore.guestConversations.first { $0.id == conversation.id } ?? conversation
+    }
+
+    private var messages: [ChatMessage] {
+        currentConversation.messages
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,7 +52,7 @@ struct GuestChatView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.campBackground)
-        .navigationTitle(conversation.guestName)
+        .navigationTitle(currentConversation.guestName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -54,10 +64,11 @@ struct GuestChatView: View {
             }
         }
         .sheet(isPresented: $showGuestInfo) {
-            GuestInfoSheet(conversation: conversation)
+            GuestInfoSheet(conversation: currentConversation)
         }
-        .onAppear {
-            messages = conversation.messages
+        .task {
+            // Mark conversation as read when opened
+            await messageStore.markAsRead(reservationId: conversation.reservationId)
         }
     }
 
@@ -68,12 +79,12 @@ struct GuestChatView: View {
             HStack(spacing: 12) {
                 // Reservation status
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(conversation.siteName)
+                    Text(currentConversation.siteName)
                         .font(.campLabel)
                         .foregroundColor(.campTextPrimary)
 
                     HStack(spacing: 8) {
-                        ConversationStatusBadge(status: conversation.status)
+                        ConversationStatusBadge(status: currentConversation.status)
                         Text(formatDateRange())
                             .font(.campCaption)
                             .foregroundColor(.campTextHint)
@@ -84,7 +95,7 @@ struct GuestChatView: View {
 
                 // Quick actions
                 HStack(spacing: 12) {
-                    if let phone = conversation.guestPhone {
+                    if let phone = currentConversation.guestPhone {
                         Button {
                             if let url = URL(string: "tel:\(phone.filter { $0.isNumber })") {
                                 UIApplication.shared.open(url)
@@ -109,8 +120,8 @@ struct GuestChatView: View {
     private func formatDateRange() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
-        let start = formatter.string(from: conversation.arrivalDate)
-        let end = formatter.string(from: conversation.departureDate)
+        let start = formatter.string(from: currentConversation.arrivalDate)
+        let end = formatter.string(from: currentConversation.departureDate)
         return "\(start) - \(end)"
     }
 
@@ -132,39 +143,60 @@ struct GuestChatView: View {
 
                 // Send button
                 Button {
-                    sendMessage()
+                    Task {
+                        await sendMessage()
+                    }
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .campTextHint : .campPrimary)
+                    if isSending {
+                        ProgressView()
+                            .frame(width: 32, height: 32)
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .campTextHint : .campPrimary)
+                    }
                 }
-                .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
             }
             .padding(12)
             .background(Color.campSurface)
         }
     }
 
-    private func sendMessage() {
+    private func sendMessage() async {
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        guard let guestId = currentConversation.guestId else {
+            // Fallback for demo mode - add locally
+            let message = ChatMessage(
+                id: UUID().uuidString,
+                content: text,
+                senderType: "staff",
+                senderName: "You",
+                sentAt: Date(),
+                isRead: true
+            )
+            messageStore.addMessageToGuestConversation(conversationId: conversation.id, message: message)
+            messageText = ""
+            isTextFieldFocused = false
+            return
+        }
 
-        let newMessage = ChatMessage(
-            id: UUID().uuidString,
-            content: text,
-            senderType: "staff",
-            senderName: "You",
-            sentAt: Date(),
-            isRead: true
-        )
+        isSending = true
+        defer { isSending = false }
 
-        messages.append(newMessage)
-        messageText = ""
-
-        // Dismiss keyboard
-        isTextFieldFocused = false
-
-        // Would send to API here
+        do {
+            try await messageStore.sendMessage(
+                reservationId: conversation.reservationId,
+                guestId: guestId,
+                content: text
+            )
+            messageText = ""
+            isTextFieldFocused = false
+        } catch {
+            print("Failed to send message: \(error)")
+            // TODO: Show error toast
+        }
     }
 }
 

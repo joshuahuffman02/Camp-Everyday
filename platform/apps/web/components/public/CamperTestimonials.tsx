@@ -14,13 +14,12 @@ interface Testimonial {
   avatar?: string;
 }
 
-// Static testimonials - can be replaced with API data later
+// Static testimonials - to be replaced with real customer reviews from API
 const defaultTestimonials: Testimonial[] = [
   {
     id: "1",
     name: "Sarah M.",
     location: "Portland, OR",
-    campground: "Pine Valley RV Resort",
     rating: 5,
     quote: "Booking was so easy! No surprise fees and the campground was exactly as pictured. We'll definitely use Camp Everyday again.",
     stayDate: "November 2024",
@@ -29,7 +28,6 @@ const defaultTestimonials: Testimonial[] = [
     id: "2",
     name: "Mike & Jenny T.",
     location: "Austin, TX",
-    campground: "Lakeside Campground",
     rating: 5,
     quote: "Finally, a booking site that doesn't charge ridiculous fees. The direct booking feature meant we could ask the campground questions before we arrived.",
     stayDate: "October 2024",
@@ -38,7 +36,6 @@ const defaultTestimonials: Testimonial[] = [
     id: "3",
     name: "David R.",
     location: "Denver, CO",
-    campground: "Mountain View RV Park",
     rating: 5,
     quote: "Instant confirmation was a game changer. No more wondering if our spot was actually reserved. Highly recommend!",
     stayDate: "September 2024",
@@ -47,7 +44,6 @@ const defaultTestimonials: Testimonial[] = [
     id: "4",
     name: "Lisa & Tom K.",
     location: "Seattle, WA",
-    campground: "Coastal Haven",
     rating: 5,
     quote: "We've tried other booking sites but always got hit with hidden fees at checkout. Camp Everyday shows the real price upfront.",
     stayDate: "August 2024",
@@ -56,7 +52,6 @@ const defaultTestimonials: Testimonial[] = [
     id: "5",
     name: "Chris P.",
     location: "Phoenix, AZ",
-    campground: "Desert Oasis RV",
     rating: 5,
     quote: "The photos were accurate, the reviews were genuine, and the whole process was smooth. This is how camping booking should be.",
     stayDate: "October 2024",
@@ -65,7 +60,6 @@ const defaultTestimonials: Testimonial[] = [
     id: "6",
     name: "Amanda & Steve B.",
     location: "Nashville, TN",
-    campground: "Smoky Mountain Camp",
     rating: 5,
     quote: "Love that we can book directly with the campground. It feels more personal and we got a great rate.",
     stayDate: "November 2024",

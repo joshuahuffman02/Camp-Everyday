@@ -108,9 +108,9 @@ extension DemoTrip {
         DemoTrip(
             id: "trip-current",
             confirmationNumber: "CR-2024-9999",
-            campgroundName: "Redwood Coast Campground",
-            campgroundLocation: "Crescent City, CA",
-            siteName: "Redwood 15",
+            campgroundName: "Current Trip Campground",
+            campgroundLocation: "Sample City, CA",
+            siteName: "Site 15",
             siteType: "Forest Premium",
             startDate: Calendar.current.date(byAdding: .day, value: -2, to: Date())!,
             endDate: Calendar.current.date(byAdding: .day, value: 2, to: Date())!,
