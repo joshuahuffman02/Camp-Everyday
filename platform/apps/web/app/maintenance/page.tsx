@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Button } from "@/components/ui/button";
-import { Plus, Filter, ClipboardList, MessageSquare, HeartPulse, ClipboardCheck } from "lucide-react";
+import { Plus, Filter, ClipboardList, MessageSquare, HeartPulse, ClipboardCheck, Play, CheckCircle, RotateCcw, StickyNote, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { Maintenance } from "@campreserv/shared";
 import { format } from "date-fns";
@@ -14,20 +14,90 @@ import { CreateTicketDialog, MaintenanceTicket } from "@/components/maintenance/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HelpAnchor } from "@/components/help/HelpAnchor";
 import { MobileQuickActionsBar } from "@/components/staff/MobileQuickActionsBar";
+import { useToast } from "@/components/ui/use-toast";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 type MaintenanceStatus = Maintenance["status"];
 type MaintenancePriority = Maintenance["priority"];
 
 export default function MaintenancePage() {
+  const { toast } = useToast();
   const [tickets, setTickets] = useState<Maintenance[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("open");
   const [selectedTicket, setSelectedTicket] = useState<MaintenanceTicket | null>(null);
+  const [noteTicketId, setNoteTicketId] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [updatingTicket, setUpdatingTicket] = useState<string | null>(null);
 
   useEffect(() => {
     loadTickets();
   }, [activeTab]);
+
+  async function updateTicketStatus(ticketId: string, newStatus: MaintenanceStatus, note?: string) {
+    setUpdatingTicket(ticketId);
+    try {
+      const ticket = tickets.find(t => t.id === ticketId);
+      if (!ticket) return;
+
+      const payload: Record<string, unknown> = { status: newStatus };
+      if (note) {
+        // Append note to description
+        payload.description = ticket.description
+          ? `${ticket.description}\n\n[${format(new Date(), 'MMM d, h:mm a')}] ${note}`
+          : `[${format(new Date(), 'MMM d, h:mm a')}] ${note}`;
+      }
+
+      await apiClient.updateMaintenance(ticketId, payload);
+      toast({
+        title: "Ticket updated",
+        description: `Status changed to ${newStatus.replace('_', ' ')}`,
+      });
+      loadTickets();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update ticket",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingTicket(null);
+    }
+  }
+
+  async function addNote(ticketId: string) {
+    if (!noteText.trim()) return;
+
+    setUpdatingTicket(ticketId);
+    try {
+      const ticket = tickets.find(t => t.id === ticketId);
+      if (!ticket) return;
+
+      const newDescription = ticket.description
+        ? `${ticket.description}\n\n[${format(new Date(), 'MMM d, h:mm a')}] ${noteText}`
+        : `[${format(new Date(), 'MMM d, h:mm a')}] ${noteText}`;
+
+      await apiClient.updateMaintenance(ticketId, { description: newDescription });
+      toast({
+        title: "Note added",
+        description: "Your note has been saved to the ticket",
+      });
+      setNoteText("");
+      setNoteTicketId(null);
+      loadTickets();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add note",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingTicket(null);
+    }
+  }
 
   async function loadTickets() {
     setLoading(true);
@@ -116,8 +186,7 @@ export default function MaintenancePage() {
             tickets.map((ticket) => (
               <Card
                 key={ticket.id}
-                className="relative overflow-hidden cursor-pointer hover:border-slate-400 transition-colors"
-                onClick={() => setSelectedTicket(ticket as unknown as MaintenanceTicket)}
+                className="relative overflow-hidden"
               >
                 <div className="p-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
                   <div className={`hidden sm:block w-2 h-full absolute left-0 top-0 ${ticket.priority === 'critical' ? 'bg-red-500' :
@@ -142,9 +211,9 @@ export default function MaintenancePage() {
                       </Badge>
                     </div>
 
-                    <p className="text-slate-600 text-sm mb-3">{ticket.description}</p>
+                    <p className="text-slate-600 text-sm mb-3 whitespace-pre-wrap">{ticket.description}</p>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-3">
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
                         Created {format(new Date(ticket.createdAt || new Date()), 'MMM d, yyyy')}
                       </span>
@@ -158,6 +227,123 @@ export default function MaintenancePage() {
                           Due: {format(new Date(ticket.dueDate), 'MMM d')}
                         </span>
                       )}
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                      {ticket.status === "open" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                          disabled={updatingTicket === ticket.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateTicketStatus(ticket.id, "in_progress");
+                          }}
+                        >
+                          <Play className="h-3 w-3 mr-1" />
+                          Start Work
+                        </Button>
+                      )}
+                      {ticket.status === "in_progress" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                          disabled={updatingTicket === ticket.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateTicketStatus(ticket.id, "closed");
+                          }}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Complete
+                        </Button>
+                      )}
+                      {ticket.status === "closed" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-slate-600 border-slate-200 hover:bg-slate-50"
+                          disabled={updatingTicket === ticket.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateTicketStatus(ticket.id, "open");
+                          }}
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          Reopen
+                        </Button>
+                      )}
+
+                      <Popover
+                        open={noteTicketId === ticket.id}
+                        onOpenChange={(open) => {
+                          if (open) {
+                            setNoteTicketId(ticket.id);
+                            setNoteText("");
+                          } else {
+                            setNoteTicketId(null);
+                          }
+                        }}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-slate-600"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <StickyNote className="h-3 w-3 mr-1" />
+                            Add Note
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-80"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="space-y-3">
+                            <Label htmlFor={`note-${ticket.id}`}>Add a note</Label>
+                            <Textarea
+                              id={`note-${ticket.id}`}
+                              placeholder="Enter your note..."
+                              value={noteText}
+                              onChange={(e) => setNoteText(e.target.value)}
+                              rows={3}
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setNoteTicketId(null)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={!noteText.trim() || updatingTicket === ticket.id}
+                                onClick={() => addNote(ticket.id)}
+                              >
+                                Save Note
+                              </Button>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-slate-500"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedTicket(ticket as unknown as MaintenanceTicket);
+                        }}
+                      >
+                        <Pencil className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
                     </div>
                   </div>
                 </div>
