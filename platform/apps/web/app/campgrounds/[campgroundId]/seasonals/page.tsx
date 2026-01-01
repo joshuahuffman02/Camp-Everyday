@@ -1430,6 +1430,14 @@ export default function SeasonalsPage() {
   const [selectedSeasonal, setSelectedSeasonal] = useState<SeasonalGuest | null>(null);
   const [seasonYear, setSeasonYear] = useState(currentYear);
 
+  // Helper to get auth headers for API calls
+  const getAuthHeaders = useCallback((): Record<string, string> => {
+    const token = typeof window !== "undefined"
+      ? localStorage.getItem("campreserv:authToken")
+      : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
+
   // Debounced search - waits 300ms after typing stops before querying
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1444,7 +1452,7 @@ export default function SeasonalsPage() {
     queryFn: async () => {
       const response = await fetch(
         `/api/seasonals/campground/${campgroundId}/stats?seasonYear=${seasonYear}`,
-        { credentials: "include" }
+        { credentials: "include", headers: getAuthHeaders() }
       );
       if (!response.ok) {
         // Return mock data for now if API not ready
@@ -1485,7 +1493,7 @@ export default function SeasonalsPage() {
 
       const response = await fetch(
         `/api/seasonals/campground/${campgroundId}?${params.toString()}`,
-        { credentials: "include" }
+        { credentials: "include", headers: getAuthHeaders() }
       );
       if (!response.ok) {
         return { data: [], total: 0 };
@@ -1509,7 +1517,7 @@ export default function SeasonalsPage() {
     queryFn: async () => {
       const response = await fetch(
         `/api/seasonals/campground/${campgroundId}/rate-cards?seasonYear=${seasonYear}`,
-        { credentials: "include" }
+        { credentials: "include", headers: getAuthHeaders() }
       );
       if (!response.ok) return [];
       return response.json() as Promise<RateCard[]>;
@@ -1535,7 +1543,7 @@ export default function SeasonalsPage() {
     mutationFn: async ({ id, intent, notes }: { id: string; intent: RenewalIntent; notes?: string }) => {
       const response = await fetch(`/api/seasonals/${id}/renewal-intent`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         credentials: "include",
         body: JSON.stringify({ intent, notes }),
       });
@@ -1572,7 +1580,7 @@ export default function SeasonalsPage() {
     mutationFn: async () => {
       const response = await fetch("/api/seasonals/messages/bulk", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         credentials: "include",
         body: JSON.stringify({
           campgroundId,
@@ -2465,7 +2473,8 @@ export default function SeasonalsPage() {
           try {
             const response = await fetch("/api/seasonals/contracts/bulk", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+              credentials: "include",
               body: JSON.stringify({
                 seasonalGuestIds: selectedIds,
                 campgroundId,
@@ -2488,7 +2497,10 @@ export default function SeasonalsPage() {
         onExport={async () => {
           try {
             const params = new URLSearchParams({ ids: selectedIds.join(",") });
-            const response = await fetch(`/api/seasonals/campground/${campgroundId}/export?${params}`);
+            const response = await fetch(`/api/seasonals/campground/${campgroundId}/export?${params}`, {
+              credentials: "include",
+              headers: getAuthHeaders()
+            });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message || "Failed to export");
 
@@ -2605,7 +2617,8 @@ export default function SeasonalsPage() {
               try {
                 const response = await fetch("/api/seasonals/payments/bulk", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                  credentials: "include",
                   body: JSON.stringify({
                     seasonalGuestIds: selectedIds,
                     amountCents,

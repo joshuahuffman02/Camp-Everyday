@@ -158,6 +158,81 @@ async function main() {
   }
   console.log(`Created ${seasonalGuests.length} seasonal guests`);
 
+  // ============ CREATE SEASONAL RATE CARDS & PRICING ============
+  console.log("\n--- Creating Seasonal Rate Cards & Pricing ---");
+
+  // Create rate card for 2025
+  const rateCard2025 = await prisma.seasonalRateCard.upsert({
+    where: { id: "seed-rate-card-2025-riverbend" },
+    update: {},
+    create: {
+      id: "seed-rate-card-2025-riverbend",
+      campgroundId: campground.id,
+      name: "2025 Season - Standard",
+      seasonYear: 2025,
+      baseRate: 3200,
+      billingFrequency: "monthly",
+      description: "May-October 2025. Includes water, sewer, WiFi.",
+      includedUtilities: ["water", "sewer", "wifi"],
+      seasonStartDate: new Date("2025-05-01"),
+      seasonEndDate: new Date("2025-10-31"),
+      isActive: true,
+      isDefault: true
+    }
+  });
+
+  // Create rate card for 2026
+  const rateCard2026 = await prisma.seasonalRateCard.upsert({
+    where: { id: "seed-rate-card-2026-riverbend" },
+    update: {},
+    create: {
+      id: "seed-rate-card-2026-riverbend",
+      campgroundId: campground.id,
+      name: "2026 Season - Standard",
+      seasonYear: 2026,
+      baseRate: 3400,
+      billingFrequency: "monthly",
+      description: "May-October 2026. Includes water, sewer, WiFi.",
+      includedUtilities: ["water", "sewer", "wifi"],
+      seasonStartDate: new Date("2026-05-01"),
+      seasonEndDate: new Date("2026-10-31"),
+      isActive: true,
+      isDefault: false
+    }
+  });
+
+  // Create pricing records for each seasonal guest (2025)
+  for (const sg of seasonalGuests) {
+    const baseRate = 3200 + randomBetween(-200, 400); // Some variation
+    const discount = sg.tags?.includes("founding-member") ? 200 : sg.tags?.includes("vip") ? 100 : 0;
+
+    await prisma.seasonalGuestPricing.upsert({
+      where: {
+        seasonalGuestId_seasonYear: { seasonalGuestId: sg.id, seasonYear: 2025 }
+      },
+      update: {},
+      create: {
+        seasonalGuestId: sg.id,
+        rateCardId: rateCard2025.id,
+        seasonYear: 2025,
+        baseRate,
+        totalDiscount: discount,
+        finalRate: baseRate - discount,
+        billingFrequency: "monthly",
+        appliedDiscounts: discount > 0 ? JSON.stringify([{ name: sg.tags?.includes("founding-member") ? "Founding Member" : "VIP", amount: discount }]) : "[]",
+        paymentSchedule: JSON.stringify([
+          { dueDate: "2025-05-01", amount: (baseRate - discount) / 6, description: "May payment" },
+          { dueDate: "2025-06-01", amount: (baseRate - discount) / 6, description: "June payment" },
+          { dueDate: "2025-07-01", amount: (baseRate - discount) / 6, description: "July payment" },
+          { dueDate: "2025-08-01", amount: (baseRate - discount) / 6, description: "August payment" },
+          { dueDate: "2025-09-01", amount: (baseRate - discount) / 6, description: "September payment" },
+          { dueDate: "2025-10-01", amount: (baseRate - discount) / 6, description: "October payment" }
+        ])
+      }
+    });
+  }
+  console.log(`Created rate cards and ${seasonalGuests.length} pricing records for 2025`);
+
   // ============ CREATE RESERVATIONS ============
   console.log("\n--- Creating 500 Reservations ---");
   const siteBookings = new Map<string, { start: Date; end: Date }[]>();
@@ -413,22 +488,25 @@ async function main() {
   }
 
   for (const prod of products) {
-    await prisma.product.upsert({
-      where: { campgroundId_sku: { campgroundId: campground.id, sku: prod.sku } },
-      update: {},
-      create: {
-        campgroundId: campground.id,
-        categoryId: category.id,
-        name: prod.name,
-        sku: prod.sku,
-        priceCents: prod.price,
-        description: `${prod.name} - ${prod.category}`,
-        isActive: true,
-        taxable: prod.category !== "Rentals",
-        trackInventory: prod.category === "Supplies" || prod.category === "Food",
-        stockQty: prod.category === "Supplies" ? randomBetween(10, 100) : null
-      }
+    // Check if product exists first
+    const existing = await prisma.product.findFirst({
+      where: { campgroundId: campground.id, sku: prod.sku }
     });
+    if (!existing) {
+      await prisma.product.create({
+        data: {
+          campgroundId: campground.id,
+          categoryId: category.id,
+          name: prod.name,
+          sku: prod.sku,
+          priceCents: prod.price,
+          description: `${prod.name} - ${prod.category}`,
+          isActive: true,
+          trackInventory: prod.category === "Supplies" || prod.category === "Food",
+          stockQty: prod.category === "Supplies" ? randomBetween(10, 100) : 0
+        }
+      });
+    }
   }
   console.log(`Created ${products.length} products`);
 
@@ -448,20 +526,22 @@ async function main() {
       data: {
         campgroundId: campground.id,
         guestId: guest.id,
-        orderNumber: `ORD-${String(i + 1000).padStart(5, "0")}`,
         subtotalCents: subtotal,
         taxCents: tax,
         totalCents: subtotal + tax,
-        status: pick(["completed", "completed", "completed", "pending", "refunded"]),
-        paidAt: addDays(new Date(), -randomBetween(0, 60)),
+        status: pick(["completed", "completed", "completed", "pending"]),
+        completedAt: pick([addDays(new Date(), -randomBetween(0, 60)), null]),
         items: {
-          create: orderProducts.map(p => ({
-            productId: p.id,
-            productName: p.name,
-            quantity: randomBetween(1, 3),
-            unitPriceCents: p.priceCents,
-            totalCents: p.priceCents * randomBetween(1, 3)
-          }))
+          create: orderProducts.map(p => {
+            const qty = randomBetween(1, 3);
+            return {
+              product: { connect: { id: p.id } },
+              name: p.name,
+              qty,
+              unitCents: p.priceCents,
+              totalCents: p.priceCents * qty
+            };
+          })
         }
       }
     });
@@ -470,7 +550,7 @@ async function main() {
 
   // ============ MESSAGES ============
   console.log("\n--- Creating Messages ---");
-  const messageTemplates = [
+  const guestMessageTemplates = [
     "Hi! What time is check-in?",
     "Can we request an early check-in?",
     "Is the pool open this weekend?",
@@ -482,17 +562,32 @@ async function main() {
     "The water pressure seems low",
     "Thanks for a great stay!"
   ];
+  const staffMessageTemplates = [
+    "Check-in is at 3pm, but we can try to accommodate early arrivals!",
+    "Yes, we have firewood available at the camp store - $8/bundle",
+    "The WiFi password is on your check-in sheet",
+    "No problem, see you soon!",
+    "We'll have maintenance take a look at that",
+    "You're welcome! Hope to see you again!"
+  ];
+
+  // Get reservations to link messages
+  const reservations = await prisma.reservation.findMany({
+    where: { campgroundId: campground.id },
+    select: { id: true, guestId: true },
+    take: 100
+  });
 
   for (let i = 0; i < 30; i++) {
-    const guest = pick(guests);
+    const res = pick(reservations);
+    const isGuestMessage = randomBetween(0, 2) < 2; // 66% guest messages
     await prisma.message.create({
       data: {
         campgroundId: campground.id,
-        guestId: guest.id,
-        direction: pick(["inbound", "inbound", "outbound"]),
-        channel: pick(["sms", "email", "web"]),
-        content: pick(messageTemplates),
-        status: "delivered",
+        reservationId: res.id,
+        guestId: res.guestId,
+        senderType: isGuestMessage ? "guest" : "staff",
+        content: isGuestMessage ? pick(guestMessageTemplates) : pick(staffMessageTemplates),
         createdAt: addDays(new Date(), -randomBetween(0, 30))
       }
     });
@@ -501,24 +596,39 @@ async function main() {
 
   // ============ NPS RESPONSES ============
   console.log("\n--- Creating NPS Responses ---");
+
+  // Create or get NPS survey first
+  const npsSurvey = await prisma.npsSurvey.upsert({
+    where: { id: "seed-nps-survey-riverbend" },
+    update: {},
+    create: {
+      id: "seed-nps-survey-riverbend",
+      campgroundId: campground.id,
+      name: "Post-Stay Survey",
+      question: "How likely are you to recommend us to a friend?",
+      status: "active",
+      channels: ["email", "inapp"]
+    }
+  });
+
   for (let i = 0; i < 40; i++) {
     const guest = pick(guests);
+    const res = pick(reservations);
     const score = pick([10, 10, 10, 9, 9, 8, 8, 7, 6, 4]);
 
     await prisma.npsResponse.create({
       data: {
+        surveyId: npsSurvey.id,
         campgroundId: campground.id,
         guestId: guest.id,
+        reservationId: res.id,
         score,
-        feedback: score >= 9
+        comment: score >= 9
           ? pick(["Amazing stay!", "Will definitely come back", "Best campground we've been to", "Love the staff here"])
           : score >= 7
             ? pick(["Good overall", "Nice facilities", "Pretty good experience"])
             : pick(["Could use some improvements", "WiFi was slow", "Sites felt cramped"]),
-        channel: "email",
-        sentAt: addDays(new Date(), -randomBetween(1, 90)),
-        respondedAt: addDays(new Date(), -randomBetween(0, 89)),
-        status: "completed"
+        createdAt: addDays(new Date(), -randomBetween(0, 90))
       }
     });
   }
