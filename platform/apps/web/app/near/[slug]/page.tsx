@@ -15,8 +15,7 @@ import {
   Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
+import { getServerApiBase } from "@/lib/api-base";
 
 interface AttractionPageData {
   id: string;
@@ -59,7 +58,8 @@ interface AttractionPageData {
 
 async function getAttraction(slug: string): Promise<AttractionPageData | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/public/attractions/${slug}`, {
+    const apiBase = getServerApiBase();
+    const res = await fetch(`${apiBase}/api/public/attractions/${slug}`, {
       next: { revalidate: 3600 }, // Cache for 1 hour
     });
     if (!res.ok) return null;

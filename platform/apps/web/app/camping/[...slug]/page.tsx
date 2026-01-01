@@ -11,8 +11,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
+import { getServerApiBase } from "@/lib/api-base";
 
 interface LocationPageData {
   type: "state" | "city" | "region" | "county";
@@ -66,7 +65,8 @@ interface LocationPageData {
 async function getLocation(slugParts: string[]): Promise<LocationPageData | null> {
   const slug = slugParts.join("/");
   try {
-    const res = await fetch(`${API_BASE}/api/public/locations/${slug}`, {
+    const apiBase = getServerApiBase();
+    const res = await fetch(`${apiBase}/api/public/locations/${slug}`, {
       next: { revalidate: 3600 }, // Cache for 1 hour
     });
     if (!res.ok) return null;
