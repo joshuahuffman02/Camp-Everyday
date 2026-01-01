@@ -259,11 +259,12 @@ export class ValueStackService {
   // ==================== PUBLIC API ====================
 
   async getPublicValueStack(campgroundId: string) {
-    const [guarantees, bonuses, leadConfig, bookingConfig] = await Promise.all([
+    const [guarantees, bonuses, leadConfig, bookingConfig, charitySettings] = await Promise.all([
       this.getGuarantees(campgroundId),
       this.getBonuses(campgroundId),
       this.getLeadCaptureConfig(campgroundId),
       this.getBookingPageConfig(campgroundId),
+      this.getCharityInfo(campgroundId),
     ]);
 
     return {
@@ -273,6 +274,63 @@ export class ValueStackService {
       bookingPageConfig: bookingConfig,
       // Calculate total bonus value for display
       totalBonusValue: bonuses.reduce((sum, b) => sum + b.valueCents, 0),
+      // Charity info if configured
+      charity: charitySettings,
+    };
+  }
+
+  // ==================== CHARITY ====================
+
+  private async getCharityInfo(campgroundId: string) {
+    // Get campground's charity settings
+    const charitySettings = await this.prisma.campgroundCharity.findUnique({
+      where: { campgroundId },
+      include: {
+        charity: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            logoUrl: true,
+            website: true,
+            category: true,
+          },
+        },
+      },
+    });
+
+    if (!charitySettings?.isEnabled || !charitySettings.charity) {
+      return null;
+    }
+
+    // Get donation stats for this campground
+    const donationStats = await this.prisma.charityDonation.aggregate({
+      where: {
+        campgroundId,
+        status: { not: 'refunded' },
+      },
+      _count: true,
+      _sum: { amountCents: true },
+    });
+
+    // Get unique donor count
+    const donors = await this.prisma.charityDonation.groupBy({
+      by: ['guestId'],
+      where: {
+        campgroundId,
+        status: { not: 'refunded' },
+        guestId: { not: null },
+      },
+    });
+
+    return {
+      charity: charitySettings.charity,
+      customMessage: charitySettings.customMessage,
+      stats: {
+        totalDonations: donationStats._count,
+        totalAmountCents: donationStats._sum.amountCents ?? 0,
+        donorCount: donors.length,
+      },
     };
   }
 }
