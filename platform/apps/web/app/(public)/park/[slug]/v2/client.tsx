@@ -233,7 +233,7 @@ export function CampgroundV2Client({
       {/* Main content */}
       <main
         id="main-content"
-        className="max-w-7xl mx-auto px-4 md:px-6 py-8"
+        className="max-w-7xl mx-auto px-4 md:px-6 py-8 overflow-hidden"
       >
         {/* Breadcrumbs */}
         <Breadcrumbs
@@ -247,9 +247,9 @@ export function CampgroundV2Client({
         />
 
         {/* Two-column layout */}
-        <div className="grid lg:grid-cols-[1fr,380px] gap-8 lg:gap-12">
+        <div className="grid lg:grid-cols-[minmax(0,1fr),380px] gap-8 lg:gap-12">
           {/* Left column - Content */}
-          <div className="space-y-10">
+          <div className="space-y-10 min-w-0">
             {/* Header */}
             <header className="space-y-4">
               <div className="flex items-start justify-between gap-4">
