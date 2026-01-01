@@ -58,10 +58,8 @@ interface CampgroundPageData {
     type: string;
     distanceMiles: number;
   }>;
-  seo: {
-    metaTitle: string;
-    metaDescription: string;
-  };
+  metaTitle: string;
+  metaDescription: string;
 }
 
 async function getCampground(slug: string): Promise<CampgroundPageData | null> {
@@ -91,11 +89,11 @@ export async function generateMetadata({
   }
 
   return {
-    title: campground.seo.metaTitle,
-    description: campground.seo.metaDescription,
+    title: campground.metaTitle,
+    description: campground.metaDescription,
     openGraph: {
-      title: campground.seo.metaTitle,
-      description: campground.seo.metaDescription,
+      title: campground.metaTitle,
+      description: campground.metaDescription,
       type: "website",
       images: campground.heroImageUrl ? [campground.heroImageUrl] : [],
     },

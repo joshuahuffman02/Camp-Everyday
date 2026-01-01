@@ -59,10 +59,8 @@ interface LocationPageData {
     name: string;
     slug: string;
   }>;
-  seo: {
-    metaTitle: string;
-    metaDescription: string;
-  };
+  metaTitle: string;
+  metaDescription: string;
 }
 
 async function getLocation(slugParts: string[]): Promise<LocationPageData | null> {
@@ -93,11 +91,11 @@ export async function generateMetadata({
   }
 
   return {
-    title: location.seo.metaTitle,
-    description: location.seo.metaDescription,
+    title: location.metaTitle,
+    description: location.metaDescription,
     openGraph: {
-      title: location.seo.metaTitle,
-      description: location.seo.metaDescription,
+      title: location.metaTitle,
+      description: location.metaDescription,
       type: "website",
       images: location.heroImageUrl ? [location.heroImageUrl] : [],
     },
@@ -120,7 +118,7 @@ export default async function LocationPage({
     "@context": "https://schema.org",
     "@type": "Place",
     name: location.name,
-    description: location.description || location.seo.metaDescription,
+    description: location.description || location.metaDescription,
     ...(location.heroImageUrl ? { image: location.heroImageUrl } : {}),
   };
 

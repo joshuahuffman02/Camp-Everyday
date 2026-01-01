@@ -53,10 +53,8 @@ interface AttractionPageData {
     type: string;
     nearbyCampgroundCount: number;
   }>;
-  seo: {
-    metaTitle: string;
-    metaDescription: string;
-  };
+  metaTitle: string;
+  metaDescription: string;
 }
 
 async function getAttraction(slug: string): Promise<AttractionPageData | null> {
@@ -86,11 +84,11 @@ export async function generateMetadata({
   }
 
   return {
-    title: attraction.seo.metaTitle,
-    description: attraction.seo.metaDescription,
+    title: attraction.metaTitle,
+    description: attraction.metaDescription,
     openGraph: {
-      title: attraction.seo.metaTitle,
-      description: attraction.seo.metaDescription,
+      title: attraction.metaTitle,
+      description: attraction.metaDescription,
       type: "website",
       images: attraction.heroImageUrl ? [attraction.heroImageUrl] : [],
     },
@@ -136,7 +134,7 @@ export default async function AttractionPage({
     "@context": "https://schema.org",
     "@type": "TouristAttraction",
     name: attraction.name,
-    description: attraction.description || attraction.seo.metaDescription,
+    description: attraction.description || attraction.metaDescription,
     ...(attraction.heroImageUrl ? { image: attraction.heroImageUrl } : {}),
     ...(attraction.state
       ? {
