@@ -10,6 +10,22 @@ import { useGeolocation, getStateName } from "../../hooks/use-geolocation";
 import type { AdaCertificationLevel } from "../../lib/ada-accessibility";
 
 // Region-based icons for state detection
+// Map state abbreviations to URL slugs
+const stateToSlug: Record<string, string> = {
+  AL: "alabama", AK: "alaska", AZ: "arizona", AR: "arkansas", CA: "california",
+  CO: "colorado", CT: "connecticut", DE: "delaware", FL: "florida", GA: "georgia",
+  HI: "hawaii", ID: "idaho", IL: "illinois", IN: "indiana", IA: "iowa",
+  KS: "kansas", KY: "kentucky", LA: "louisiana", ME: "maine", MD: "maryland",
+  MA: "massachusetts", MI: "michigan", MN: "minnesota", MS: "mississippi", MO: "missouri",
+  MT: "montana", NE: "nebraska", NV: "nevada", NH: "new-hampshire", NJ: "new-jersey",
+  NM: "new-mexico", NY: "new-york", NC: "north-carolina", ND: "north-dakota", OH: "ohio",
+  OK: "oklahoma", OR: "oregon", PA: "pennsylvania", RI: "rhode-island", SC: "south-carolina",
+  SD: "south-dakota", TN: "tennessee", TX: "texas", UT: "utah", VT: "vermont",
+  VA: "virginia", WA: "washington", WV: "west-virginia", WI: "wisconsin", WY: "wyoming",
+  DC: "washington-dc"
+};
+
+// Region-based icons for state detection
 const regionIcons: Record<string, string> = {
   // Mountain states
   CO: "/images/icons/regions/mountain.png",
@@ -279,7 +295,8 @@ export function LocationSections({ campgrounds, className = "" }: LocationSectio
           subtitle={nearbySection.subtitle}
           iconImage={userState ? (regionIcons[userState] || "/images/icons/regions/forest.png") : "/images/icons/regions/forest.png"}
           campgrounds={nearbySection.campgrounds}
-          viewAllHref={userState ? `/?state=${userState}` : undefined}
+          viewAllHref={userState && stateToSlug[userState] ? `/camping/${stateToSlug[userState]}` : "/camping"}
+          viewAllLabel={userState ? `See all in ${stateName || getStateName(userState)}` : "Browse all"}
           prefersReducedMotion={prefersReducedMotion}
         />
       )}
@@ -302,7 +319,8 @@ export function LocationSections({ campgrounds, className = "" }: LocationSectio
           subtitle="4.5+ stars from guests"
           iconImage="/images/icons/giving-heart.png"
           campgrounds={highlyRated}
-          viewAllHref="/?sort=rating"
+          viewAllHref="/camping"
+          viewAllLabel="Explore all campgrounds"
           prefersReducedMotion={prefersReducedMotion}
         />
       )}

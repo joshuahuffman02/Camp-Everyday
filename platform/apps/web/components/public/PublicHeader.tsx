@@ -14,7 +14,13 @@ import {
     Heart,
     Calendar,
     Building2,
-    ChevronDown
+    ChevronDown,
+    Compass,
+    MapPin,
+    Mountain,
+    Trees,
+    Tent,
+    Waves
 } from "lucide-react";
 import { useEasterEggs } from "@/contexts/EasterEggsContext";
 
@@ -36,22 +42,46 @@ const navLinks = [
     { label: "Help", href: "/help" }
 ];
 
+// Popular destinations for the Explore dropdown
+const exploreDestinations = [
+    { name: "Yosemite", slug: "yosemite-national-park", icon: Mountain },
+    { name: "Yellowstone", slug: "yellowstone-national-park", icon: Trees },
+    { name: "Grand Canyon", slug: "grand-canyon-national-park", icon: Mountain },
+    { name: "Zion", slug: "zion-national-park", icon: Mountain },
+    { name: "Joshua Tree", slug: "joshua-tree-national-park", icon: Tent },
+    { name: "Acadia", slug: "acadia-national-park", icon: Waves },
+];
+
+const popularStates = [
+    { name: "California", slug: "california" },
+    { name: "Colorado", slug: "colorado" },
+    { name: "Utah", slug: "utah" },
+    { name: "Arizona", slug: "arizona" },
+    { name: "Florida", slug: "florida" },
+    { name: "Texas", slug: "texas" },
+];
+
 export function PublicHeader() {
     const { data: session, status } = useSession() as { data: ExtendedSession | null; status: string };
     const [mobileOpen, setMobileOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
+    const [exploreOpen, setExploreOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement>(null);
+    const exploreRef = useRef<HTMLDivElement>(null);
     const isLoading = status === "loading";
     const { handleLogoClick } = useEasterEggs();
 
     // Check if user has campground access (owner/manager)
     const hasCampgroundAccess = session?.campgrounds && session.campgrounds.length > 0;
 
-    // Close dropdown when clicking outside
+    // Close dropdowns when clicking outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
                 setProfileOpen(false);
+            }
+            if (exploreRef.current && !exploreRef.current.contains(event.target as Node)) {
+                setExploreOpen(false);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
@@ -69,6 +99,86 @@ export function PublicHeader() {
         }
         return name.substring(0, 2).toUpperCase();
     };
+
+    const ExploreDropdown = () => (
+        <div ref={exploreRef} className="relative">
+            <button
+                onClick={() => setExploreOpen(!exploreOpen)}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+            >
+                <Compass className="w-4 h-4" />
+                Explore
+                <ChevronDown className={`w-4 h-4 transition-transform ${exploreOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+                {exploreOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-50"
+                    >
+                        {/* Browse All */}
+                        <div className="p-3 border-b border-slate-100">
+                            <Link
+                                href="/camping"
+                                onClick={() => setExploreOpen(false)}
+                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 transition-colors"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                                    <MapPin className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-900">Browse All Campgrounds</p>
+                                    <p className="text-xs text-slate-500">Explore by state, region, or amenity</p>
+                                </div>
+                            </Link>
+                        </div>
+
+                        {/* Popular Destinations */}
+                        <div className="p-3">
+                            <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Popular Destinations</p>
+                            <div className="grid grid-cols-2 gap-1">
+                                {exploreDestinations.map((dest) => {
+                                    const Icon = dest.icon;
+                                    return (
+                                        <Link
+                                            key={dest.slug}
+                                            href={`/near/${dest.slug}`}
+                                            onClick={() => setExploreOpen(false)}
+                                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                        >
+                                            <Icon className="w-4 h-4 text-slate-400" />
+                                            {dest.name}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Popular States */}
+                        <div className="p-3 border-t border-slate-100">
+                            <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">By State</p>
+                            <div className="grid grid-cols-3 gap-1">
+                                {popularStates.map((state) => (
+                                    <Link
+                                        key={state.slug}
+                                        href={`/camping/${state.slug}`}
+                                        onClick={() => setExploreOpen(false)}
+                                        className="px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors text-center"
+                                    >
+                                        {state.name}
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
 
     const ProfileDropdown = () => (
         <div ref={profileRef} className="relative">
@@ -227,6 +337,11 @@ export function PublicHeader() {
                     </span>
                 </Link>
 
+                {/* Desktop Navigation */}
+                <div className="hidden md:flex items-center gap-2">
+                    <ExploreDropdown />
+                </div>
+
                 {/* Right side buttons */}
                 <div className="flex items-center gap-3">
                     <button
@@ -250,6 +365,39 @@ export function PublicHeader() {
                         className="md:hidden border-t border-slate-200 bg-white shadow-lg overflow-hidden"
                     >
                         <nav className="px-4 py-4 space-y-3">
+                            {/* Explore Section */}
+                            <div className="pb-3 border-b border-slate-100">
+                                <Link
+                                    href="/camping"
+                                    className="flex items-center gap-3 rounded-lg px-3 py-3 bg-gradient-to-r from-emerald-50 to-teal-50"
+                                    onClick={closeMobile}
+                                >
+                                    <Compass className="w-5 h-5 text-emerald-600" />
+                                    <div>
+                                        <p className="text-base font-medium text-slate-900">Explore Campgrounds</p>
+                                        <p className="text-xs text-slate-500">Browse all states & destinations</p>
+                                    </div>
+                                </Link>
+
+                                {/* Popular destinations */}
+                                <div className="mt-2 grid grid-cols-2 gap-1">
+                                    {exploreDestinations.slice(0, 4).map((dest) => {
+                                        const Icon = dest.icon;
+                                        return (
+                                            <Link
+                                                key={dest.slug}
+                                                href={`/near/${dest.slug}`}
+                                                onClick={closeMobile}
+                                                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
+                                            >
+                                                <Icon className="w-4 h-4 text-slate-400" />
+                                                {dest.name}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             {navLinks.map((link) => (
                                 <Link
                                     key={link.href}

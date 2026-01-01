@@ -5,7 +5,8 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import { motion, useInView, useReducedMotion } from "framer-motion";
-import { Search, Calendar, Sparkles } from "lucide-react";
+import { Search, Calendar, Sparkles, MapPin, Mountain } from "lucide-react";
+import Link from "next/link";
 import { CampgroundCard } from "../../components/public/CampgroundCard";
 import { CategoryTabs, categories, type CategoryType } from "../../components/public/CategoryTabs";
 import { LocationSections } from "../../components/public/LocationSections";
@@ -813,6 +814,71 @@ export function HomeClient() {
                         </button>
                     </motion.div>
                 )}
+            </section>
+
+            {/* Browse All Campgrounds CTA */}
+            <section className="py-16 bg-gradient-to-br from-emerald-50 via-white to-teal-50 border-y border-slate-100">
+                <div className="max-w-4xl mx-auto px-6 text-center">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-50px" }}
+                        transition={{ duration: 0.5 }}
+                        className="space-y-6"
+                    >
+                        {/* Icon */}
+                        <div className="relative w-20 h-20 mx-auto">
+                            <Image
+                                src="/images/icons/bouncing-tent.png"
+                                alt=""
+                                fill
+                                className="object-contain"
+                                sizes="80px"
+                            />
+                        </div>
+
+                        {/* Text */}
+                        <div className="space-y-3">
+                            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">
+                                Discover Your Next Adventure
+                            </h2>
+                            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                                Browse campgrounds by state, explore national parks, or find the perfect spot near your favorite attractions.
+                            </p>
+                        </div>
+
+                        {/* CTA Buttons */}
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                            <Link
+                                href="/camping"
+                                className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:scale-105"
+                            >
+                                <MapPin className="w-5 h-5" />
+                                Browse All Campgrounds
+                            </Link>
+                            <Link
+                                href="/near/yosemite-national-park"
+                                className="inline-flex items-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all"
+                            >
+                                <Mountain className="w-5 h-5 text-slate-400" />
+                                Explore National Parks
+                            </Link>
+                        </div>
+
+                        {/* Quick state links */}
+                        <div className="flex flex-wrap justify-center gap-2 pt-4">
+                            {["California", "Colorado", "Utah", "Arizona", "Florida", "Texas"].map((state) => (
+                                <Link
+                                    key={state}
+                                    href={`/camping/${state.toLowerCase().replace(/ /g, "-")}`}
+                                    className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-200 rounded-full hover:border-emerald-300 hover:text-emerald-700 transition-colors"
+                                >
+                                    {state}
+                                </Link>
+                            ))}
+                        </div>
+                    </motion.div>
+                </div>
             </section>
 
             {/* Charity Impact Section - The heart of Camp Everyday */}
