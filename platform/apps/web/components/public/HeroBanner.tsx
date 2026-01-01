@@ -1,9 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import { Sunrise, Sun, Sunset, Moon } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { TrustBadgesDark } from "./TrustBadges";
 import { SocialProofInline } from "./SocialProofStrip";
+import { useTemporalContext } from "../../hooks/use-temporal-context";
+import { getGreeting } from "../../lib/temporal/greetings";
+import { SeasonalParticles } from "../effects/SeasonalParticles";
 
 interface HeroBannerProps {
   onSearch: (query: string, filters: {
@@ -13,14 +17,41 @@ interface HeroBannerProps {
   } | null) => void;
 }
 
+// Time-appropriate icon component
+function TimeIcon({ timeOfDay }: { timeOfDay: string }) {
+  const iconClass = "w-6 h-6 md:w-8 md:h-8 text-white/80";
+
+  switch (timeOfDay) {
+    case "morning":
+      return <Sunrise className={iconClass} />;
+    case "afternoon":
+      return <Sun className={iconClass} />;
+    case "evening":
+      return <Sunset className={iconClass} />;
+    case "night":
+      return <Moon className={iconClass} />;
+    default:
+      return <Sun className={iconClass} />;
+  }
+}
+
 export function HeroBanner({ onSearch }: HeroBannerProps) {
+  const { timeOfDay, isReducedMotion } = useTemporalContext();
+  const greeting = getGreeting(timeOfDay);
+
+  // Dynamic gradient classes based on time of day
+  const gradientClass = `${greeting.gradientFrom} ${greeting.gradientVia} ${greeting.gradientTo}`;
+
   return (
     <section className="relative overflow-hidden">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700" />
+      {/* Background gradient - changes with time of day */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} transition-colors duration-1000`} />
 
       {/* Decorative elements */}
       <div className="absolute inset-0 overflow-hidden">
+        {/* Seasonal particles - leaves, snow, petals, or fireflies */}
+        {!isReducedMotion && <SeasonalParticles />}
+
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl" />
@@ -70,16 +101,28 @@ export function HeroBanner({ onSearch }: HeroBannerProps) {
           <TrustBadgesDark className="justify-center" />
         </div>
 
-        {/* Main headline */}
+        {/* Main headline - changes with time of day */}
         <div className="text-center mb-10 md:mb-12">
+          {/* Time indicator */}
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <TimeIcon timeOfDay={timeOfDay} />
+          </div>
+
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 md:mb-6 leading-tight">
-            Book Directly With
-            <span className="block bg-gradient-to-r from-amber-300 to-orange-300 bg-clip-text text-transparent">
-              Top-Rated Campgrounds
-            </span>
+            {greeting.headline.split(",")[0]}
+            {greeting.headline.includes(",") && (
+              <span className={`block bg-gradient-to-r ${greeting.accentFrom} ${greeting.accentTo} bg-clip-text text-transparent`}>
+                {greeting.headline.split(",")[1]?.trim() || "Top-Rated Campgrounds"}
+              </span>
+            )}
+            {!greeting.headline.includes(",") && (
+              <span className={`block bg-gradient-to-r ${greeting.accentFrom} ${greeting.accentTo} bg-clip-text text-transparent`}>
+                Find Your Perfect Campsite
+              </span>
+            )}
           </h1>
           <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto">
-            Real photos. Real availability. Transparent pricing. Instant confirmation.
+            {greeting.subheadline}
           </p>
         </div>
 

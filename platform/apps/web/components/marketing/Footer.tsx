@@ -1,7 +1,9 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone } from 'lucide-react';
+import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone, Heart } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const navigation = {
   product: [
@@ -53,6 +55,28 @@ const social = [
 ];
 
 export function Footer() {
+  const [copyrightClicks, setCopyrightClicks] = useState(0);
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
+
+  const handleCopyrightClick = useCallback(() => {
+    const newClicks = copyrightClicks + 1;
+    setCopyrightClicks(newClicks);
+
+    if (newClicks >= 5 && !showEasterEgg) {
+      setShowEasterEgg(true);
+      // Reset after showing
+      setTimeout(() => {
+        setShowEasterEgg(false);
+        setCopyrightClicks(0);
+      }, 5000);
+    }
+
+    // Reset clicks if they stop clicking
+    setTimeout(() => {
+      setCopyrightClicks((current) => (current === newClicks ? 0 : current));
+    }, 2000);
+  }, [copyrightClicks, showEasterEgg]);
+
   return (
     <footer className="bg-slate-900 text-slate-300">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -162,10 +186,20 @@ export function Footer() {
         {/* Bottom Footer */}
         <div className="border-t border-slate-800 py-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            {/* Copyright */}
-            <p className="text-sm text-slate-400">
-              © {new Date().getFullYear()} Camp Everyday Host. All rights reserved.
-            </p>
+            {/* Made with love message */}
+            <div className="flex items-center gap-1 text-sm text-slate-400">
+              <span>Made with</span>
+              <Heart className="h-4 w-4 text-rose-400 fill-rose-400 animate-pulse" />
+              <span>and s'mores in Austin, Texas</span>
+            </div>
+
+            {/* Copyright with easter egg */}
+            <button
+              onClick={handleCopyrightClick}
+              className="text-sm text-slate-500 hover:text-slate-400 transition-colors cursor-default select-none"
+            >
+              Keep the campfire burning - {new Date().getFullYear()} Camp Everyday
+            </button>
 
             {/* Social Links */}
             <div className="flex items-center gap-4">
@@ -184,6 +218,22 @@ export function Footer() {
               })}
             </div>
           </div>
+
+          {/* Easter egg message */}
+          <AnimatePresence>
+            {showEasterEgg && (
+              <motion.div
+                className="mt-4 text-center"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <p className="text-sm text-emerald-400">
+                  You found a secret! Thanks for exploring every corner of our site.
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </footer>

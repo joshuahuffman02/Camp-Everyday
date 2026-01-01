@@ -138,6 +138,101 @@ const config: Config = {
         "float-fast": {
           "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
           "50%": { transform: "translateY(-6px) rotate(2deg)" }
+        },
+        // Seasonal particle animations
+        "fall-leaf": {
+          "0%": { transform: "translateY(-10px) rotate(0deg)", opacity: "0" },
+          "10%": { opacity: "1" },
+          "90%": { opacity: "1" },
+          "100%": { transform: "translateY(100vh) rotate(720deg)", opacity: "0" }
+        },
+        "snowfall": {
+          "0%": { transform: "translateY(-10px) translateX(0)", opacity: "0" },
+          "10%": { opacity: "0.8" },
+          "90%": { opacity: "0.8" },
+          "100%": { transform: "translateY(100vh) translateX(20px)", opacity: "0" }
+        },
+        "petal-fall": {
+          "0%": { transform: "translateY(-10px) rotate(0deg) translateX(0)", opacity: "0" },
+          "10%": { opacity: "0.9" },
+          "50%": { transform: "translateY(50vh) rotate(180deg) translateX(30px)" },
+          "90%": { opacity: "0.9" },
+          "100%": { transform: "translateY(100vh) rotate(360deg) translateX(-10px)", opacity: "0" }
+        },
+        "firefly": {
+          "0%, 100%": { opacity: "0.2", transform: "translateY(0) translateX(0)" },
+          "25%": { opacity: "1", transform: "translateY(-20px) translateX(10px)" },
+          "50%": { opacity: "0.3", transform: "translateY(-10px) translateX(-15px)" },
+          "75%": { opacity: "0.9", transform: "translateY(-30px) translateX(5px)" }
+        },
+        // Loading state animations
+        "campfire-flicker": {
+          "0%, 100%": { transform: "scaleY(1) scaleX(1)", opacity: "1" },
+          "25%": { transform: "scaleY(1.1) scaleX(0.95)", opacity: "0.9" },
+          "50%": { transform: "scaleY(0.95) scaleX(1.05)", opacity: "1" },
+          "75%": { transform: "scaleY(1.05) scaleX(0.98)", opacity: "0.95" }
+        },
+        "tent-bounce": {
+          "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
+          "25%": { transform: "translateY(-8px) rotate(-2deg)" },
+          "50%": { transform: "translateY(0) rotate(0deg)" },
+          "75%": { transform: "translateY(-4px) rotate(1deg)" }
+        },
+        // Micro-interactions
+        "breathe": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.02)" }
+        },
+        "bounce-in": {
+          "0%": { transform: "scale(1)" },
+          "25%": { transform: "scale(1.15)" },
+          "50%": { transform: "scale(0.95)" },
+          "75%": { transform: "scale(1.05)" },
+          "100%": { transform: "scale(1)" }
+        },
+        "compass-spin": {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" }
+        },
+        // Celebration animations
+        "confetti-fall": {
+          "0%": { transform: "translateY(-100%) rotate(0deg)", opacity: "1" },
+          "100%": { transform: "translateY(100vh) rotate(720deg)", opacity: "0" }
+        },
+        "star-burst": {
+          "0%": { transform: "scale(0) rotate(0deg)", opacity: "0" },
+          "50%": { transform: "scale(1.2) rotate(180deg)", opacity: "1" },
+          "100%": { transform: "scale(0) rotate(360deg)", opacity: "0" }
+        },
+        "heart-float": {
+          "0%": { transform: "translateY(0) scale(1)", opacity: "1" },
+          "100%": { transform: "translateY(-100px) scale(0.5)", opacity: "0" }
+        },
+        // Scroll progress
+        "climb-mountain": {
+          "0%": { transform: "translateY(100%)" },
+          "100%": { transform: "translateY(0%)" }
+        },
+        // Easter egg animations
+        "smore-dance": {
+          "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
+          "25%": { transform: "translateY(-15px) rotate(-10deg)" },
+          "50%": { transform: "translateY(0) rotate(0deg)" },
+          "75%": { transform: "translateY(-10px) rotate(10deg)" }
+        },
+        "wiggle": {
+          "0%, 100%": { transform: "rotate(0deg)" },
+          "25%": { transform: "rotate(-5deg)" },
+          "75%": { transform: "rotate(5deg)" }
+        },
+        // Activity feed
+        "slide-in-left": {
+          "0%": { transform: "translateX(-100%)", opacity: "0" },
+          "100%": { transform: "translateX(0)", opacity: "1" }
+        },
+        "slide-out-left": {
+          "0%": { transform: "translateX(0)", opacity: "1" },
+          "100%": { transform: "translateX(-100%)", opacity: "0" }
         }
       },
       animation: {
@@ -148,7 +243,29 @@ const config: Config = {
         "fade-in-up": "fade-in-up 0.5s ease-out",
         "float-slow": "float-slow 6s ease-in-out infinite",
         "float-medium": "float-medium 4s ease-in-out infinite",
-        "float-fast": "float-fast 3s ease-in-out infinite"
+        "float-fast": "float-fast 3s ease-in-out infinite",
+        // Seasonal
+        "fall-leaf": "fall-leaf 8s linear infinite",
+        "snowfall": "snowfall 10s linear infinite",
+        "petal-fall": "petal-fall 12s ease-in-out infinite",
+        "firefly": "firefly 4s ease-in-out infinite",
+        // Loading
+        "campfire-flicker": "campfire-flicker 0.5s ease-in-out infinite",
+        "tent-bounce": "tent-bounce 1.5s ease-in-out infinite",
+        // Micro-interactions
+        "breathe": "breathe 3s ease-in-out infinite",
+        "bounce-in": "bounce-in 0.4s ease-out",
+        "compass-spin": "compass-spin 0.6s ease-out",
+        // Celebrations
+        "confetti-fall": "confetti-fall 3s linear forwards",
+        "star-burst": "star-burst 2.5s ease-out forwards",
+        "heart-float": "heart-float 3s ease-out forwards",
+        // Other
+        "climb-mountain": "climb-mountain 0.3s ease-out",
+        "smore-dance": "smore-dance 0.8s ease-in-out infinite",
+        "wiggle": "wiggle 0.5s ease-in-out",
+        "slide-in-left": "slide-in-left 0.3s ease-out",
+        "slide-out-left": "slide-out-left 0.3s ease-out"
       }
     }
   },

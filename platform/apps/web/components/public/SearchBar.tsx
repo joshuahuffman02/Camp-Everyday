@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Compass } from "lucide-react";
 
 interface SearchBarProps {
     onSearch: (query: string, filters: SearchFilters) => void;
@@ -19,14 +21,22 @@ export function SearchBar({ onSearch }: SearchBarProps) {
     const [checkOut, setCheckOut] = useState("");
     const [guests, setGuests] = useState(2);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+    const prefersReducedMotion = useReducedMotion();
 
-    const handleSearch = () => {
+    const handleSearch = useCallback(() => {
+        // Trigger compass spin animation
+        if (!prefersReducedMotion) {
+            setIsSearching(true);
+            setTimeout(() => setIsSearching(false), 600);
+        }
+
         onSearch(query, {
             location,
             dates: { checkIn, checkOut },
             guests
         });
-    };
+    }, [query, location, checkIn, checkOut, guests, onSearch, prefersReducedMotion]);
 
     return (
         <div className="w-full max-w-4xl mx-auto px-4 sm:px-0">
@@ -62,15 +72,18 @@ export function SearchBar({ onSearch }: SearchBarProps) {
                         Filters
                     </button>
 
-                    {/* Search button */}
+                    {/* Search button with compass spin */}
                     <button
                         onClick={handleSearch}
                         className="w-full sm:w-auto m-0 sm:m-2 px-5 sm:px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-500 hover:to-teal-500 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 flex items-center justify-center gap-2 group"
                     >
-                        <span>Explore</span>
-                        <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                        </svg>
+                        <span>Find Your Spot</span>
+                        <motion.div
+                            animate={isSearching ? { rotate: 360 } : { rotate: 0 }}
+                            transition={{ duration: 0.6, ease: "easeOut" }}
+                        >
+                            <Compass className="w-4 h-4" />
+                        </motion.div>
                     </button>
                 </div>
 
