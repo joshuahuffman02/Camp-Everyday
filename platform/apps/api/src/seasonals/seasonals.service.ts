@@ -408,12 +408,15 @@ export class SeasonalsService {
           coiExpiresAt: { lt: now },
         },
       }),
-      // Pending renewals
+      // Pending renewals (null or undecided)
       this.prisma.seasonalGuest.count({
         where: {
           campgroundId,
           status: SeasonalStatus.active,
-          renewalIntent: { in: [null, RenewalIntent.undecided] },
+          OR: [
+            { renewalIntent: null },
+            { renewalIntent: RenewalIntent.undecided },
+          ],
         },
       }),
       // Waitlist count
