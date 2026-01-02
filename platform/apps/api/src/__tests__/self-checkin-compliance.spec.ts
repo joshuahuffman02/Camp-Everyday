@@ -6,6 +6,9 @@ describe("SelfCheckinService compliance enforcement", () => {
   let signatures: any;
   let audit: any;
   let access: any;
+  let stripe: any;
+  let gatewayConfig: any;
+  let policies: any;
   let service: SelfCheckinService;
 
   const baseReservation = {
@@ -40,7 +43,10 @@ describe("SelfCheckinService compliance enforcement", () => {
     signatures = { autoSendForReservation: jest.fn() };
     audit = { record: jest.fn() };
     access = { autoGrantForReservation: jest.fn(), revokeAllForReservation: jest.fn() };
-    service = new SelfCheckinService(prisma as any, signatures as any, audit as any, access as any);
+    stripe = { createPaymentIntent: jest.fn(), isConfigured: jest.fn() };
+    gatewayConfig = { getConfig: jest.fn() };
+    policies = { getPendingPolicyCompliance: jest.fn().mockResolvedValue({ ok: true }) };
+    service = new SelfCheckinService(prisma as any, signatures as any, audit as any, access as any, stripe as any, gatewayConfig as any, policies as any);
   });
 
   it("blocks check-in until waiver is signed and returns signing URL", async () => {
@@ -77,16 +83,17 @@ describe("SelfCheckinService compliance enforcement", () => {
       selfCheckInAt: new Date()
     });
 
-    const result = await service.selfCheckin("res1", { override: true, overrideReason: "staff override", actorId: "staff1" });
+    // Use the correct guest ID to pass validation
+    const result = await service.selfCheckin("res1", { override: true, overrideReason: "staff override", actorId: "guest1" });
 
     expect(result.status).toBe("completed");
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "checkin.override",
-        actorId: "staff1",
+        actorId: "guest1",
         entityId: "res1"
       })
     );
-    expect(access.autoGrantForReservation).toHaveBeenCalledWith("res1", "staff1");
+    expect(access.autoGrantForReservation).toHaveBeenCalledWith("res1", "guest1");
   });
 });

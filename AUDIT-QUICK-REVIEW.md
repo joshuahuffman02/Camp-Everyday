@@ -346,19 +346,21 @@ Scope: Targeted review of public payment confirmation, public reservation access
 
 ### Low / Best Practice
 
-#### UPLOAD-LOW-001: Uploads default to public-read ACL
+#### UPLOAD-LOW-001: Uploads default to public-read ACL [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/uploads/uploads.service.ts:24`
 - Problem: When not using R2, uploads default to `public-read`.
 - Impact: Sensitive documents could become publicly accessible if misused.
 - Fix: Default to private ACL and issue signed URLs for access.
 - Tests: Uploads are not publicly readable by default.
+- **Resolution**: Changed default ACL from "public-read" to "private" in getAcl() method. Added comprehensive documentation explaining security implications. Added new getSignedUrl() method to generate time-limited signed URLs for secure file access (default 1 hour expiration).
 
-#### AUTH-LOW-002: Shared analytics link password hashing uses low iteration count
+#### AUTH-LOW-002: Shared analytics link password hashing uses low iteration count [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/admin/analytics-share.service.ts:273`
 - Problem: PBKDF2 uses 1,000 iterations.
 - Impact: Weakens protection if share links are guessed and passwords leaked.
 - Fix: Increase iterations or use a modern hash (bcrypt/argon2).
 - Tests: Password verification still succeeds with updated hash parameters.
+- **Resolution**: Increased PBKDF2-SHA512 iterations from 1,000 to 600,000 (OWASP 2023 recommendation). New hash format includes iteration count (iterations:salt:hash) to support future increases. Added backwards compatibility for legacy 1,000-iteration hashes (salt:hash format). Verified with test script that both legacy and modern hashes verify correctly.
 
 ## Full Audit Decisions Needed
 - Should `/public/reservations` be split from developer API routes to avoid collisions?
@@ -539,11 +541,12 @@ Scope: Targeted review of public payment confirmation, public reservation access
 
 ### Low / Best Practice
 
-#### UI-LOW-001: Public layout forces portrait bias on landscape devices
-- Files: `platform/apps/web/app/(public)/globals.css:1`
+#### UI-LOW-001: Public layout forces portrait bias on landscape devices [FIXED 2026-01-01]
+- Files: `platform/apps/web/app/(public)/globals.css:1`, `platform/apps/web/app/(public)/client.tsx:345`
 - Problem: Landscape view constrains body width to 480px and sets `touch-action: pan-y`.
 - Impact: Reduced usability for landscape browsing, maps, and kiosk views.
 - Fix: Revisit the rule or scope it to specific pages/components.
+- **Resolution**: Removed landscape orientation constraint from globals.css (removed max-width: 480px, overflow-x: hidden, touch-action: pan-y media query). Also removed max-w-[480px] constraint from homepage client component. Layout now respects full viewport width on landscape tablets and devices, allowing maps and wide content to display properly.
 
 #### UI-LOW-002: Sentiment metrics inferred from ratings without explicit labeling
 - Files: `platform/apps/web/components/reports/definitions/GuestFeedbackReport.tsx:58`, `platform/apps/web/components/reports/definitions/GuestFeedbackReport.tsx:182`

@@ -20,7 +20,7 @@ export class DeveloperApiClient {
   }
 
   private async authenticate() {
-    const res = await fetch(`${this.baseUrl}/oauth/token`, {
+    const res = await fetch(`${this.baseUrl}/developer/oauth/token`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -80,69 +80,69 @@ export class DeveloperApiClient {
 
   // Reservations
   listReservations() {
-    return this.request(`/public/reservations`, "GET");
+    return this.request(`/developer/reservations`, "GET");
   }
 
   getReservation(id: string) {
-    return this.request(`/public/reservations/${id}`, "GET");
+    return this.request(`/developer/reservations/${id}`, "GET");
   }
 
   createReservation(payload: ReservationPayload) {
-    return this.request(`/public/reservations`, "POST", payload);
+    return this.request(`/developer/reservations`, "POST", payload);
   }
 
   updateReservation(id: string, payload: Partial<ReservationPayload>) {
-    return this.request(`/public/reservations/${id}`, "PATCH", payload);
+    return this.request(`/developer/reservations/${id}`, "PATCH", payload);
   }
 
   deleteReservation(id: string) {
-    return this.request(`/public/reservations/${id}`, "DELETE");
+    return this.request(`/developer/reservations/${id}`, "DELETE");
   }
 
   recordPayment(id: string, amountCents: number, method = "card") {
-    return this.request(`/public/reservations/${id}/payments`, "POST", { amountCents, method });
+    return this.request(`/developer/reservations/${id}/payments`, "POST", { amountCents, method });
   }
 
   // Guests
   listGuests() {
-    return this.request(`/public/guests`, "GET");
+    return this.request(`/developer/guests`, "GET");
   }
 
   getGuest(id: string) {
-    return this.request(`/public/guests/${id}`, "GET");
+    return this.request(`/developer/guests/${id}`, "GET");
   }
 
   createGuest(payload: GuestPayload) {
-    return this.request(`/public/guests`, "POST", payload);
+    return this.request(`/developer/guests`, "POST", payload);
   }
 
   updateGuest(id: string, payload: Partial<GuestPayload>) {
-    return this.request(`/public/guests/${id}`, "PATCH", payload);
+    return this.request(`/developer/guests/${id}`, "PATCH", payload);
   }
 
   deleteGuest(id: string) {
-    return this.request(`/public/guests/${id}`, "DELETE");
+    return this.request(`/developer/guests/${id}`, "DELETE");
   }
 
   // Sites
   listSites() {
-    return this.request(`/public/sites`, "GET");
+    return this.request(`/developer/sites`, "GET");
   }
 
   getSite(id: string) {
-    return this.request(`/public/sites/${id}`, "GET");
+    return this.request(`/developer/sites/${id}`, "GET");
   }
 
   createSite(payload: SitePayload) {
-    return this.request(`/public/sites`, "POST", payload);
+    return this.request(`/developer/sites`, "POST", payload);
   }
 
   updateSite(id: string, payload: Partial<SitePayload>) {
-    return this.request(`/public/sites/${id}`, "PATCH", payload);
+    return this.request(`/developer/sites/${id}`, "PATCH", payload);
   }
 
   deleteSite(id: string) {
-    return this.request(`/public/sites/${id}`, "DELETE");
+    return this.request(`/developer/sites/${id}`, "DELETE");
   }
 
   static createMock() {

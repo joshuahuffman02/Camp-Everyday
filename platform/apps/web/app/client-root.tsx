@@ -18,7 +18,7 @@ interface WindowWithSW extends Window {
 export default function ClientRoot({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const [pendingUpdate, setPendingUpdate] = useState<string | null>(null);
-  const reloadTimer = useRef<number | null>(null);
+  const updateToastId = useRef<string | null>(null);
 
   // Prompt reload when the service worker broadcasts activation.
   useEffect(() => {
@@ -30,22 +30,20 @@ export default function ClientRoot({ children }: { children: ReactNode }) {
       if (event.data?.type === "SW_ACTIVATED") {
         const version = event.data?.version ?? "latest";
         setPendingUpdate(version);
-        if (reloadTimer.current) {
-          window.clearTimeout(reloadTimer.current);
-        }
-        // Auto-reload after a short delay if the user doesn't click.
-        reloadTimer.current = window.setTimeout(() => {
-          window.location.reload();
-        }, 10000);
-        toast({
-          title: "Update ready",
-          description: "A new offline update is available. Reload to apply.",
+
+        // Show persistent toast that requires user action - no auto-reload
+        // This prevents interrupting forms, kiosk flows, and active work
+        const { id } = toast({
+          title: "Update available",
+          description: "A new version is ready. Click to update when convenient.",
+          duration: Infinity, // Persistent until dismissed or action taken
           action: (
             <ToastAction altText="Reload now" onClick={() => window.location.reload()}>
-              Reload
+              Update Now
             </ToastAction>
           ),
         });
+        updateToastId.current = id;
       }
       if (event.data === "SKIP_WAITING_ACK") {
         window.location.reload();

@@ -182,6 +182,7 @@ export function GuestFeedbackReport({ campgroundId, dateRange }: GuestFeedbackRe
                 <Card className="p-4">
                     <CardHeader>
                         <CardTitle>Sentiment Breakdown</CardTitle>
+                        <p className="text-xs text-muted-foreground mt-1">Estimated from review scores</p>
                     </CardHeader>
                     <div className="h-[300px] w-full mt-4">
                         <ResponsiveContainer width="100%" height="100%">

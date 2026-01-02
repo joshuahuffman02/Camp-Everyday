@@ -342,7 +342,7 @@ export function HomeClient() {
     const prefersReducedMotion = useReducedMotion();
 
     return (
-        <div className="min-h-screen max-w-[480px] mx-auto sm:max-w-none sm:mx-0">
+        <div className="min-h-screen">
             {/* Hero Section with Hormozi-style messaging */}
             <HeroBanner onSearch={handleSearch} />
 

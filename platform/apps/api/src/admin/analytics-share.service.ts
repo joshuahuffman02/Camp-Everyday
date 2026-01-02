@@ -274,21 +274,65 @@ export class AnalyticsShareService {
     return crypto.randomBytes(32).toString("hex");
   }
 
+  /**
+   * Hash password using PBKDF2-SHA512 with 600,000 iterations.
+   *
+   * Security rationale:
+   * - OWASP (2023) recommends 600,000 iterations for PBKDF2-SHA512
+   * - NIST SP 800-63B recommends at least 10,000 iterations
+   * - Higher iteration counts increase computational cost of brute-force attacks
+   * - 600,000 iterations provides strong protection against GPU/ASIC attacks
+   *
+   * Format: iterations:salt:hash
+   * The iteration count is stored in the hash to support future increases
+   * and backwards compatibility with legacy 1,000-iteration hashes.
+   */
   private async hashPassword(password: string): Promise<string> {
+    const iterations = 600000; // OWASP 2023 recommendation for PBKDF2-SHA512
     const salt = crypto.randomBytes(16).toString("hex");
     const hash = crypto
-      .pbkdf2Sync(password, salt, 1000, 64, "sha512")
+      .pbkdf2Sync(password, salt, iterations, 64, "sha512")
       .toString("hex");
-    return `${salt}:${hash}`;
+    return `${iterations}:${salt}:${hash}`;
   }
 
+  /**
+   * Verify password against stored hash with backwards compatibility.
+   *
+   * Supports both:
+   * - Legacy format: salt:hash (1,000 iterations assumed)
+   * - Modern format: iterations:salt:hash
+   *
+   * If a legacy hash is successfully verified, it should be upgraded
+   * to the modern format on the next password change.
+   */
   private async verifyPassword(
     password: string,
     storedHash: string
   ): Promise<boolean> {
-    const [salt, hash] = storedHash.split(":");
+    const parts = storedHash.split(":");
+
+    let iterations: number;
+    let salt: string;
+    let hash: string;
+
+    if (parts.length === 3) {
+      // Modern format: iterations:salt:hash
+      iterations = parseInt(parts[0], 10);
+      salt = parts[1];
+      hash = parts[2];
+    } else if (parts.length === 2) {
+      // Legacy format: salt:hash (assumes 1,000 iterations)
+      iterations = 1000;
+      salt = parts[0];
+      hash = parts[1];
+    } else {
+      // Invalid hash format
+      return false;
+    }
+
     const verifyHash = crypto
-      .pbkdf2Sync(password, salt, 1000, 64, "sha512")
+      .pbkdf2Sync(password, salt, iterations, 64, "sha512")
       .toString("hex");
     return hash === verifyHash;
   }

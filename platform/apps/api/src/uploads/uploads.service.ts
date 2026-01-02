@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
@@ -31,6 +31,15 @@ export class UploadsService {
     }
   }
 
+  /**
+   * Returns the ACL to use for S3 uploads.
+   *
+   * SECURITY: Defaults to "private" to prevent unauthorized access to uploaded files.
+   * Files should be accessed via signed URLs (see getSignedUrl method).
+   * Set UPLOADS_S3_ACL env var to override if public access is explicitly required.
+   *
+   * Cloudflare R2 does not support ACLs, so we return undefined for R2 endpoints.
+   */
   private getAcl() {
     const explicit = process.env.UPLOADS_S3_ACL?.trim();
     if (explicit === "none" || explicit === "disabled") return undefined;
@@ -39,7 +48,8 @@ export class UploadsService {
     if (endpoint.includes("r2.cloudflarestorage.com") || endpoint.includes("cloudflarestorage.com")) {
       return undefined;
     }
-    return "public-read";
+    // SECURITY: Default to private ACL. Use signed URLs for access.
+    return "private";
   }
 
   private isAclUnsupportedError(err: unknown) {
@@ -67,6 +77,25 @@ export class UploadsService {
     const uploadUrl = await getSignedUrl(this.s3!, command, { expiresIn: 300 });
     const publicUrl = this.cdnBase ? `${this.cdnBase.replace(/\/$/, "")}/${key}` : `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
     return { uploadUrl, publicUrl, key };
+  }
+
+  /**
+   * Generate a signed URL for secure access to a private file.
+   *
+   * SECURITY: Use this method to provide temporary access to files stored with private ACL.
+   * The signed URL expires after the specified duration (default: 1 hour).
+   *
+   * @param key - The S3 object key (e.g., "uploads/abc123.pdf")
+   * @param expiresIn - URL expiration time in seconds (default: 3600 = 1 hour)
+   * @returns A time-limited signed URL for accessing the file
+   */
+  async getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+    this.ensureEnabled();
+    const command = new GetObjectCommand({
+      Bucket: this.bucket!,
+      Key: key,
+    });
+    return getSignedUrl(this.s3!, command, { expiresIn });
   }
 
   /**

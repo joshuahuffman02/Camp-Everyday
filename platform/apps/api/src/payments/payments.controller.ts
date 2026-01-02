@@ -584,7 +584,10 @@ export class PaymentsController {
     @Body() body: { reservationId: string },
     @Req() req: any
   ) {
-    const idempotencyKey = req.headers["idempotency-key"] || `confirm-${paymentIntentId}-${Date.now()}`;
+    // IDEMPOTENCY FIX (PAY-LOW-002): Use stable key derived from paymentIntentId + reservationId
+    // Never use Date.now() as it creates different keys on retries, defeating idempotency
+    // paymentIntentId is unique per payment attempt, combined with reservationId ensures stability
+    const idempotencyKey = req.headers["idempotency-key"] || `confirm-${paymentIntentId}-${body.reservationId}`;
 
     // Check if already processed (idempotency)
     const existing = await this.idempotency.start(idempotencyKey, { paymentIntentId, ...body }, null, {

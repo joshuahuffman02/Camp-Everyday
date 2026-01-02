@@ -233,6 +233,17 @@ export class SelfCheckinService {
     reservationId: string,
     options?: { lateArrival?: boolean; override?: boolean; overrideReason?: string; actorId?: string | null },
   ): Promise<CheckinResult> {
+    // Security: validate guest ownership if actorId is provided
+    if (options?.actorId) {
+      const reservation = await this.prisma.reservation.findUnique({
+        where: { id: reservationId },
+        select: { guestId: true },
+      });
+      if (reservation && reservation.guestId !== options.actorId) {
+        throw new BadRequestException('Access denied: reservation does not belong to this guest');
+      }
+    }
+
     const validation = await this.validateCheckinPrerequisites(reservationId);
     const isOverride = Boolean(options?.override);
 
@@ -367,6 +378,11 @@ export class SelfCheckinService {
       return { status: 'failed', reason: 'reservation_not_found' };
     }
 
+    // Security: validate guest ownership if actorId is provided
+    if (options?.actorId && reservation.guestId !== options.actorId) {
+      throw new BadRequestException('Access denied: reservation does not belong to this guest');
+    }
+
     // Check for pending balance
     if (reservation.balanceAmount > 0 && !options?.override) {
       // Attempt to capture remaining balance using saved payment method
@@ -447,11 +463,12 @@ export class SelfCheckinService {
   /**
    * Get check-in/out status for a reservation
    */
-  async getStatus(reservationId: string) {
+  async getStatus(reservationId: string, guestId?: string) {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
       select: {
         id: true,
+        guestId: true,
         checkInStatus: true,
         checkOutStatus: true,
         siteReady: true,
@@ -469,6 +486,11 @@ export class SelfCheckinService {
 
     if (!reservation) {
       throw new BadRequestException('Reservation not found');
+    }
+
+    // Security: validate guest ownership if guestId is provided
+    if (guestId && reservation.guestId !== guestId) {
+      throw new BadRequestException('Access denied: reservation does not belong to this guest');
     }
 
     return reservation;

@@ -19,7 +19,7 @@ class UpdateGuestBody {
   @IsString() @IsOptional() phone?: string;
 }
 
-@Controller("public/guests")
+@Controller("developer/guests")
 @UseGuards(ApiTokenGuard, ApiScopeGuard)
 export class PublicGuestsController {
   constructor(private readonly api: PublicApiService) { }

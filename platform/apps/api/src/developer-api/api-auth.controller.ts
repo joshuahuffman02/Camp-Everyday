@@ -24,7 +24,7 @@ class TokenRequestDto {
   refresh_token?: string;
 }
 
-@Controller("oauth")
+@Controller("developer/oauth")
 export class ApiAuthController {
   constructor(private readonly apiAuth: ApiAuthService) { }
 

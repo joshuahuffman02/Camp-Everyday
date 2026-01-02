@@ -41,7 +41,7 @@ class UpdateSiteBody {
 }
 
 @ApiTags("Sites")
-@Controller("public/sites")
+@Controller("developer/sites")
 @UseGuards(ApiTokenGuard, ApiScopeGuard)
 export class PublicSitesController {
   constructor(private readonly api: PublicApiService) { }

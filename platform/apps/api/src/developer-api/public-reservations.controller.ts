@@ -74,7 +74,7 @@ class PaymentBody {
 
 @ApiTags("Reservations")
 @ApiBearerAuth("bearer")
-@Controller("public/reservations")
+@Controller("developer/reservations")
 @UseGuards(ApiTokenGuard, ApiScopeGuard)
 export class PublicReservationsController {
   constructor(private readonly api: PublicApiService) { }
