@@ -148,7 +148,12 @@ export function TopSpendersReport({ campgroundId, dateRange }: TopSpendersReport
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={reportData.chartData} layout="vertical">
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis type="number" stroke="#64748b" fontSize={12} tickFormatter={(v) => `$${v}`} />
+                                <XAxis
+                                    type="number"
+                                    stroke="#64748b"
+                                    fontSize={12}
+                                    tickFormatter={(v: number | string) => `$${v}`}
+                                />
                                 <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={12} width={60} />
                                 <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, 'Spent']} />
                                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
