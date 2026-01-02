@@ -194,7 +194,7 @@ export default function PricingRulesV2Page() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Parameters<typeof apiClient.updatePricingRuleV2>[1] }) =>
-      apiClient.updatePricingRuleV2(id, data),
+      apiClient.updatePricingRuleV2(id, data, campgroundId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pricing-rules-v2", campgroundId] });
       closeModal();
@@ -202,7 +202,7 @@ export default function PricingRulesV2Page() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiClient.deletePricingRuleV2(id),
+    mutationFn: (id: string) => apiClient.deletePricingRuleV2(id, campgroundId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pricing-rules-v2", campgroundId] });
     },

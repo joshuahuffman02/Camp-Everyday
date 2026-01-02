@@ -35,13 +35,15 @@ export class PricingService {
     return rule;
   }
 
-  async update(id: string, dto: Partial<CreatePricingRuleDto>) {
-    const exists = await this.prisma.pricingRule.findUnique({ where: { id } });
+  async update(campgroundId: string, id: string, dto: Partial<CreatePricingRuleDto>) {
+    const exists = await this.prisma.pricingRule.findFirst({ where: { id, campgroundId } });
     if (!exists) throw new NotFoundException("Pricing rule not found");
+    const { campgroundId: _campgroundId, ...rest } =
+      dto as Partial<CreatePricingRuleDto> & { campgroundId?: string };
     const rule = await this.prisma.pricingRule.update({
       where: { id },
       data: {
-        ...dto,
+        ...rest,
         siteClassId: dto.siteClassId === undefined ? undefined : dto.siteClassId || null,
         startDate: dto.startDate === undefined ? undefined : dto.startDate ? new Date(dto.startDate) : null,
         endDate: dto.endDate === undefined ? undefined : dto.endDate ? new Date(dto.endDate) : null
@@ -58,9 +60,12 @@ export class PricingService {
     return rule;
   }
 
-  remove(id: string) {
+  remove(campgroundId: string, id: string) {
     return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.pricingRule.findUnique({ where: { id } });
+      const existing = await tx.pricingRule.findFirst({ where: { id, campgroundId } });
+      if (!existing) {
+        throw new NotFoundException("Pricing rule not found");
+      }
       const res = await tx.pricingRule.delete({ where: { id } });
       if (existing?.campgroundId) {
         await tx.analyticsEvent.create({

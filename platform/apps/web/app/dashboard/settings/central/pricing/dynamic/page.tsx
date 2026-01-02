@@ -141,7 +141,7 @@ export default function DynamicPricingPage() {
         };
 
         if (existing) {
-          await apiClient.updatePricingRuleV2(existing.id, payload);
+          await apiClient.updatePricingRuleV2(existing.id, payload, campgroundId);
         } else if (adjustmentValue !== 0) {
           await apiClient.createPricingRuleV2(campgroundId, payload);
         }

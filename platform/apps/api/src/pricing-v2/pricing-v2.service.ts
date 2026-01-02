@@ -215,20 +215,22 @@ export class PricingV2Service {
     return rule;
   }
 
-  async update(id: string, dto: UpdatePricingRuleV2Dto, actorId?: string | null) {
-    const existing = await this.prisma.pricingRuleV2.findUnique({ where: { id } });
+  async update(campgroundId: string, id: string, dto: UpdatePricingRuleV2Dto, actorId?: string | null) {
+    const existing = await this.prisma.pricingRuleV2.findFirst({ where: { id, campgroundId } });
     if (!existing) throw new NotFoundException("Pricing rule not found");
+    const { campgroundId: _campgroundId, ...rest } =
+      dto as UpdatePricingRuleV2Dto & { campgroundId?: string };
     const existingForValidation = {
       ...existing,
       adjustmentValue: Number(existing.adjustmentValue),
       startDate: existing.startDate?.toISOString() ?? null,
       endDate: existing.endDate?.toISOString() ?? null,
     };
-    await this.validateRule(existing.campgroundId, { ...existingForValidation, ...dto });
+    await this.validateRule(existing.campgroundId, { ...existingForValidation, ...rest });
     const updated = await this.prisma.pricingRuleV2.update({
       where: { id },
       data: {
-        ...dto,
+        ...rest,
         siteClassId: dto.siteClassId === undefined ? undefined : dto.siteClassId ?? null,
         calendarRefId: dto.calendarRefId === undefined ? undefined : dto.calendarRefId ?? null,
         demandBandId: dto.demandBandId === undefined ? undefined : dto.demandBandId ?? null,
@@ -251,8 +253,8 @@ export class PricingV2Service {
     return updated;
   }
 
-  async remove(id: string, actorId?: string | null) {
-    const existing = await this.prisma.pricingRuleV2.findUnique({ where: { id } });
+  async remove(campgroundId: string, id: string, actorId?: string | null) {
+    const existing = await this.prisma.pricingRuleV2.findFirst({ where: { id, campgroundId } });
     if (!existing) throw new NotFoundException("Pricing rule not found");
     await this.prisma.pricingRuleV2.delete({ where: { id } });
 

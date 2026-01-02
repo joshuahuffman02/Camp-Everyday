@@ -159,7 +159,7 @@ export default function RateGroupsPage() {
       await apiClient.updateSeasonalRate(id, {
         name: updates.name,
         isActive: updates.isActive,
-      });
+      }, campgroundId);
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
@@ -180,7 +180,7 @@ export default function RateGroupsPage() {
 
     setSaving(true);
     try {
-      await apiClient.deleteSeasonalRate(id);
+      await apiClient.deleteSeasonalRate(id, campgroundId);
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
@@ -250,7 +250,7 @@ export default function RateGroupsPage() {
       await apiClient.updateSeasonalRate(editingRate.id, {
         startDate: editStartDate || undefined,
         endDate: editEndDate || undefined,
-      });
+      }, campgroundId);
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);

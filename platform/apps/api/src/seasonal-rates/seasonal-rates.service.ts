@@ -38,16 +38,16 @@ export class SeasonalRatesService {
         });
     }
 
-    async findOne(id: string) {
-        const rate = await this.prisma.seasonalRate.findUnique({
-            where: { id },
+    async findOne(campgroundId: string, id: string) {
+        const rate = await this.prisma.seasonalRate.findFirst({
+            where: { id, campgroundId },
             include: { siteClass: true },
         });
         if (!rate) throw new NotFoundException('Seasonal rate not found');
         return rate;
     }
 
-    async update(id: string, data: Partial<{
+    async update(campgroundId: string, id: string, data: Partial<{
         name: string;
         rateType: RateType;
         amount: number;
@@ -56,13 +56,17 @@ export class SeasonalRatesService {
         endDate: Date;
         isActive: boolean;
     }>) {
+        await this.findOne(campgroundId, id);
+        const { campgroundId: _campgroundId, ...rest } =
+            data as Partial<{ campgroundId?: string }>;
         return this.prisma.seasonalRate.update({
             where: { id },
-            data,
+            data: rest,
         });
     }
 
-    async remove(id: string) {
+    async remove(campgroundId: string, id: string) {
+        await this.findOne(campgroundId, id);
         return this.prisma.seasonalRate.delete({ where: { id } });
     }
 

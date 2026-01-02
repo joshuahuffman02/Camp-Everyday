@@ -3639,8 +3639,13 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return PricingRuleSchema.parse(data);
   },
-  async updatePricingRule(id: string, payload: Partial<z.input<typeof PricingRuleSchema>>) {
-    const res = await fetch(`${API_BASE}/pricing-rules/${id}`, {
+  async updatePricingRule(
+    id: string,
+    payload: Partial<z.input<typeof PricingRuleSchema>>,
+    campgroundId?: string
+  ) {
+    const path = withCampgroundId(`/pricing-rules/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -3648,8 +3653,9 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return PricingRuleSchema.parse(data);
   },
-  async deletePricingRule(id: string) {
-    const res = await fetch(`${API_BASE}/pricing-rules/${id}`, { method: "DELETE", headers: scopedHeaders() });
+  async deletePricingRule(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/pricing-rules/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: scopedHeaders() });
     if (!res.ok) throw new Error("Failed to delete pricing rule");
     return true;
   },
@@ -5883,16 +5889,18 @@ export const apiClient = {
     offseasonInterval: number;
     offseasonAmount: number;
     prorateExcess: boolean;
-  }>) {
-    const res = await fetch(`${API_BASE}/seasonal-rates/${id}`, {
+  }>, campgroundId?: string) {
+    const path = withCampgroundId(`/seasonal-rates/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
     });
     return parseResponse<{ id: string }>(res);
   },
-  async deleteSeasonalRate(id: string) {
-    const res = await fetch(`${API_BASE}/seasonal-rates/${id}`, {
+  async deleteSeasonalRate(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/seasonal-rates/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "DELETE",
       headers: scopedHeaders()
     });
@@ -7581,16 +7589,18 @@ export const apiClient = {
     minRateCap: number | null;
     maxRateCap: number | null;
     active: boolean;
-  }>) {
-    const res = await fetch(`${API_BASE}/pricing-rules/v2/${id}`, {
+  }>, campgroundId?: string) {
+    const path = withCampgroundId(`/pricing-rules/v2/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload),
     });
     return parseResponse<unknown>(res);
   },
-  async deletePricingRuleV2(id: string) {
-    const res = await fetch(`${API_BASE}/pricing-rules/v2/${id}`, {
+  async deletePricingRuleV2(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/pricing-rules/v2/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "DELETE",
       headers: scopedHeaders(),
     });

@@ -184,7 +184,7 @@ export default function SeasonalRatesSettingsPage() {
             };
 
             if (editingRate) {
-                await apiClient.updateSeasonalRate(editingRate.id, payload);
+                await apiClient.updateSeasonalRate(editingRate.id, payload, campgroundId);
             } else {
                 await apiClient.createSeasonalRate({ campgroundId, ...payload });
             }
@@ -199,7 +199,7 @@ export default function SeasonalRatesSettingsPage() {
 
     const handleDelete = async (id: string) => {
         try {
-            await apiClient.deleteSeasonalRate(id);
+            await apiClient.deleteSeasonalRate(id, campgroundId ?? undefined);
             if (campgroundId) loadData(campgroundId);
         } catch (err) {
             console.error(err);
@@ -208,7 +208,7 @@ export default function SeasonalRatesSettingsPage() {
 
     const toggleActive = async (rate: SeasonalRate) => {
         try {
-            await apiClient.updateSeasonalRate(rate.id, { isActive: !rate.isActive });
+            await apiClient.updateSeasonalRate(rate.id, { isActive: !rate.isActive }, campgroundId ?? undefined);
             if (campgroundId) loadData(campgroundId);
         } catch (err) {
             console.error(err);
