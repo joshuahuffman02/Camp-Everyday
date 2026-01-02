@@ -303,7 +303,7 @@ export default function IntegrationsSettingsPage() {
             >
                 <div className="space-y-1">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-status-info/15 text-status-info">
                             <Plug className="h-5 w-5" />
                         </div>
                         <div>
@@ -474,10 +474,10 @@ export default function IntegrationsSettingsPage() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ ...SPRING_CONFIG, delay: 0.3 }}
-                        className="mt-8 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 p-6 text-center"
+                        className="mt-8 rounded-xl bg-status-info/10 border border-status-info/20 p-6 text-center"
                     >
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50 mx-auto mb-4">
-                            <Sparkles className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-status-info/15 mx-auto mb-4">
+                            <Sparkles className="h-6 w-6 text-status-info" />
                         </div>
                         <h3 className="text-lg font-semibold text-foreground">
                             Connect your first integration

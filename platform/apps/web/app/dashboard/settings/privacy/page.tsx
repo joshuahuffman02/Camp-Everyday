@@ -138,16 +138,16 @@ export default function PrivacySettingsPage() {
         <Breadcrumbs items={[{ label: "Settings" }, { label: "Privacy & PII" }]} />
 
         {/* Overview Section */}
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-4">
+        <div className="bg-status-success/10 border border-status-success/20 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
-              <svg className="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-status-success/15">
+              <svg className="h-5 w-5 text-status-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
             <div className="space-y-2">
-              <h4 className="font-semibold text-emerald-900">Privacy & Data Protection</h4>
-              <div className="text-sm text-slate-700 space-y-1">
+              <h4 className="font-semibold text-foreground">Privacy & Data Protection</h4>
+              <div className="text-sm text-muted-foreground space-y-1">
                 <p><strong>DSR Export:</strong> Generate Data Subject Request exports for GDPR/CCPA compliance. Downloads all PII rules and consent records for a guest or campground.</p>
                 <p><strong>Redaction Dashboard:</strong> Test how your PII rules work by running sample data through the redaction engine to verify your privacy setup.</p>
                 <p><strong>Privacy Defaults:</strong> Enable/disable PII redaction in logs, require consent for communications, and set backup retention windows.</p>
@@ -475,4 +475,3 @@ export default function PrivacySettingsPage() {
       </div>
   );
 }
-

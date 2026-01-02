@@ -105,8 +105,8 @@ export default function AccessControlSettingsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Access Control</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-xl font-semibold text-foreground">Access Control</h1>
+          <p className="text-sm text-muted-foreground">
             Configure gate/lock providers (Kisi, Brivo, CloudKey), credentials, and webhook secrets per campground.
           </p>
         </div>
@@ -121,18 +121,18 @@ export default function AccessControlSettingsPage() {
       </div>
 
       {/* How It Works Section */}
-      <Card className="bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 mb-4">
+      <Card className="bg-status-info/10 border-status-info/20 mb-4">
         <CardContent className="py-4">
           <div className="flex items-start gap-3">
-            <DoorOpen className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <DoorOpen className="w-5 h-5 text-status-info mt-0.5 flex-shrink-0" />
             <div className="space-y-2">
-              <h4 className="font-semibold text-blue-900">How Access Control Works</h4>
-              <div className="text-sm text-slate-700 space-y-1">
+              <h4 className="font-semibold text-foreground">How Access Control Works</h4>
+              <div className="text-sm text-muted-foreground space-y-1">
                 <p><strong>Supported Providers:</strong> We integrate with Kisi, Brivo, and CloudKey gate/lock systems. Select your provider from the dropdown.</p>
                 <p><strong>Credentials:</strong> Enter your provider's API credentials (keys, org IDs, etc.) in the JSON field. These are securely stored and used to communicate with your gate system.</p>
                 <p><strong>Webhook Setup:</strong> Configure your provider to send events to our webhook endpoint. Use the webhook secret to verify signatures.</p>
                 <p><strong>How It Works:</strong> When a guest checks in, we send unlock commands to your gate system. Gate events (open/close) are logged for security audits.</p>
-                <p className="text-blue-700"><em>Note: This feature requires a compatible gate/lock provider. Contact us if you need help with integration.</em></p>
+                <p className="text-status-info"><em>Note: This feature requires a compatible gate/lock provider. Contact us if you need help with integration.</em></p>
               </div>
             </div>
           </div>
