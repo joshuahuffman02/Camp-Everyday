@@ -224,7 +224,7 @@ export default function DevelopersSettingsPage() {
             >
                 <div className="space-y-1">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/25">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-status-info/15 text-status-info">
                             <Code2 className="h-5 w-5" />
                         </div>
                         <div>
@@ -251,7 +251,7 @@ export default function DevelopersSettingsPage() {
                             <Button
                                 onClick={() => setIsCreateOpen(true)}
                                 disabled={!campgroundId}
-                                className="gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30"
+                                className="gap-2 bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover shadow-sm transition-colors"
                             >
                                 <Plus className="h-4 w-4" />
                                 Create API Key
@@ -470,16 +470,16 @@ export default function DevelopersSettingsPage() {
                         exit={{ opacity: 0, height: 0 }}
                         className="overflow-hidden"
                     >
-                        <div className="rounded-xl border bg-gradient-to-br from-slate-50 to-slate-100 p-6 dark:from-slate-900 dark:to-slate-800">
+                        <div className="rounded-xl border border-border bg-card p-6">
                             <div className="mb-4 flex items-center justify-between">
                                 <h3 className="flex items-center gap-2 text-lg font-semibold">
-                                    <Terminal className="h-5 w-5 text-violet-600" />
+                                    <Terminal className="h-5 w-5 text-status-info" />
                                     Quick Start Guide
                                 </h3>
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="gap-2 text-violet-600 hover:text-violet-700"
+                                    className="gap-2 text-action-primary hover:text-action-primary-hover"
                                     asChild
                                 >
                                     <a href="https://docs.campreserv.com/api" target="_blank" rel="noopener noreferrer">
@@ -491,7 +491,7 @@ export default function DevelopersSettingsPage() {
 
                             <div className="grid gap-6 md:grid-cols-2">
                                 <div>
-                                    <h4 className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    <h4 className="mb-2 text-sm font-medium text-muted-foreground">
                                         Authentication
                                     </h4>
                                     <pre className="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs text-slate-100">
@@ -499,7 +499,7 @@ export default function DevelopersSettingsPage() {
                                     </pre>
                                 </div>
                                 <div className="space-y-4">
-                                    <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    <h4 className="text-sm font-medium text-muted-foreground">
                                         Available Endpoints
                                     </h4>
                                     <div className="space-y-2">
@@ -517,9 +517,9 @@ export default function DevelopersSettingsPage() {
                                                 }`}>
                                                     {endpoint.method}
                                                 </span>
-                                                <code className="text-slate-600 dark:text-slate-400">{endpoint.path}</code>
-                                                <span className="text-slate-400">—</span>
-                                                <span className="text-slate-500">{endpoint.desc}</span>
+                                                <code className="text-muted-foreground">{endpoint.path}</code>
+                                                <span className="text-muted-foreground">—</span>
+                                                <span className="text-muted-foreground">{endpoint.desc}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -533,7 +533,7 @@ export default function DevelopersSettingsPage() {
             {/* Empty State or Table */}
             {isLoading ? (
                 <div className="flex items-center justify-center py-16">
-                    <RefreshCw className="h-6 w-6 animate-spin text-slate-400" />
+                    <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
             ) : clients?.length === 0 ? (
                 /* Empty State */
@@ -541,16 +541,16 @@ export default function DevelopersSettingsPage() {
                     variants={containerVariants}
                     initial="hidden"
                     animate="visible"
-                    className="rounded-xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-white to-slate-50 p-12 text-center dark:border-slate-700 dark:from-slate-900 dark:to-slate-800"
+                    className="rounded-xl border border-dashed border-border bg-card p-12 text-center"
                 >
-                    <motion.div variants={itemVariants} className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-xl shadow-violet-500/25">
+                    <motion.div variants={itemVariants} className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-status-info/15 text-status-info">
                         <Code2 className="h-8 w-8" />
                     </motion.div>
 
                     <motion.h2 variants={itemVariants} className="mb-2 text-xl font-semibold">
                         Build Something Amazing
                     </motion.h2>
-                    <motion.p variants={itemVariants} className="mx-auto mb-8 max-w-md text-slate-500">
+                    <motion.p variants={itemVariants} className="mx-auto mb-8 max-w-md text-muted-foreground">
                         Create your first API key to start building custom integrations,
                         automate workflows, or connect third-party apps.
                     </motion.p>
@@ -559,11 +559,11 @@ export default function DevelopersSettingsPage() {
                         {features.map((feature) => (
                             <div
                                 key={feature.title}
-                                className="rounded-lg border bg-white p-4 text-left transition-shadow hover:shadow-md dark:bg-slate-800"
+                                className="rounded-lg border border-border bg-card p-4 text-left transition-shadow hover:shadow-md"
                             >
-                                <feature.icon className="mb-2 h-5 w-5 text-violet-600" />
+                                <feature.icon className="mb-2 h-5 w-5 text-status-info" />
                                 <h3 className="mb-1 font-medium">{feature.title}</h3>
-                                <p className="text-sm text-slate-500">{feature.description}</p>
+                                <p className="text-sm text-muted-foreground">{feature.description}</p>
                             </div>
                         ))}
                     </motion.div>
@@ -573,7 +573,7 @@ export default function DevelopersSettingsPage() {
                             size="lg"
                             onClick={() => setIsCreateOpen(true)}
                             disabled={!campgroundId}
-                            className="gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-lg shadow-violet-500/25"
+                            className="gap-2 bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover shadow-sm"
                         >
                             <Key className="h-4 w-4" />
                             Create Your First API Key
