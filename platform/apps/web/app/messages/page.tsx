@@ -766,7 +766,7 @@ export default function MessagesPage() {
                     className="flex items-center justify-between mb-2"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-status-info/15 text-status-info">
                             <MessageSquare className="h-5 w-5" />
                         </div>
                         <h1 className="text-2xl font-bold text-foreground">Messages</h1>
@@ -1058,7 +1058,7 @@ export default function MessagesPage() {
                                 />
                                 {searchTerm && (
                                     <button
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                         onClick={() => setSearchTerm("")}
                                         aria-label="Clear search"
                                     >

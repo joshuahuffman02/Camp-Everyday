@@ -40,20 +40,16 @@ const statusOptions = [
 function EmptyChannelsState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
     <div className="col-span-full">
-      <div className="relative overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white p-12 text-center">
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-100/50 to-indigo-100/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-br from-emerald-100/50 to-teal-100/50 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-
+      <div className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card p-12 text-center">
         <div className="relative">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-600 mb-6">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-status-info/15 text-status-info mb-6">
             <Globe className="h-10 w-10" />
           </div>
 
-          <h3 className="text-2xl font-bold text-slate-900 mb-3">
+          <h3 className="text-2xl font-bold text-foreground mb-3">
             Connect Your First Channel
           </h3>
-          <p className="text-slate-600 max-w-md mx-auto mb-8">
+          <p className="text-muted-foreground max-w-md mx-auto mb-8">
             Sync your availability with Hipcamp, Airbnb, and other booking platforms.
             Never worry about double bookings again.
           </p>
@@ -62,7 +58,7 @@ function EmptyChannelsState({ onCreateClick }: { onCreateClick: () => void }) {
             <Button
               size="lg"
               onClick={onCreateClick}
-              className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5"
+              className="bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover shadow-sm"
             >
               <Plus className="h-5 w-5 mr-2" />
               Add Channel
@@ -70,17 +66,17 @@ function EmptyChannelsState({ onCreateClick }: { onCreateClick: () => void }) {
           </div>
 
           {/* Trust signals */}
-          <div className="flex flex-wrap justify-center gap-6 text-sm text-slate-500">
+          <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-emerald-500" />
+              <Shield className="h-4 w-4 text-status-success" />
               <span>Secure API connections</span>
             </div>
             <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-amber-500" />
+              <Zap className="h-4 w-4 text-status-warning" />
               <span>Real-time sync</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-blue-500" />
+              <CheckCircle2 className="h-4 w-4 text-status-info" />
               <span>No double bookings</span>
             </div>
           </div>
@@ -106,15 +102,15 @@ function FirstChannelCelebration({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 text-center motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:fade-in duration-300 max-w-md mx-4">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 text-white mb-4">
+      <div className="bg-card rounded-2xl shadow-2xl p-8 text-center motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:fade-in duration-300 max-w-md mx-4">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-status-info/15 text-status-info mb-4">
           <CheckCircle2 className="h-8 w-8" />
         </div>
-        <h3 className="text-xl font-bold text-slate-900 mb-2">
+        <h3 className="text-xl font-bold text-foreground mb-2">
           Channel Created!
         </h3>
-        <p className="text-slate-600 mb-6">
-          <span className="font-medium text-blue-600">{channelName}</span> has been set up.
+        <p className="text-muted-foreground mb-6">
+          <span className="font-medium text-status-info">{channelName}</span> has been set up.
           Now let's connect it to {provider}.
         </p>
 
@@ -139,13 +135,13 @@ function FirstChannelCelebration({
           </ol>
         </div>
 
-        <p className="text-xs text-slate-500 mb-4">
+        <p className="text-xs text-muted-foreground mb-4">
           The channel won't sync until you add at least one mapping with an iCal URL.
         </p>
 
         <Button
           onClick={onClose}
-          className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
+          className="bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover"
         >
           Got it, let's set up mappings
         </Button>
@@ -180,13 +176,13 @@ function ChannelCard({
         }
       }}
       className={cn(
-        "w-full text-left p-4 rounded-xl border-2 transition-all duration-200",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+        "w-full text-left p-4 rounded-xl border transition-all duration-200",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2",
         isSelected
-          ? "border-blue-500 bg-blue-50 shadow-md"
+          ? "border-status-info/40 bg-status-info/10 shadow-sm"
           : needsSetup
-            ? "border-amber-300 bg-amber-50/50 hover:border-amber-400"
-            : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+            ? "border-status-warning/40 bg-status-warning/10 hover:border-status-warning/60"
+            : "border-border bg-card hover:border-border/80 hover:shadow-sm"
       )}
       aria-pressed={isSelected}
       aria-label={`${channel.name} channel, ${channel.status === "two_way" ? "two-way sync" : channel.status === "pull" ? "pull only" : "disabled"}${needsSetup ? ", needs setup" : ""}`}
@@ -195,13 +191,13 @@ function ChannelCard({
         <div className="flex items-center gap-3">
           <div className={cn(
             "w-12 h-12 rounded-xl flex items-center justify-center text-2xl",
-            isSelected ? "bg-status-info/15" : needsSetup ? "bg-status-warning/15" : "bg-slate-100"
+            isSelected ? "bg-status-info/15" : needsSetup ? "bg-status-warning/15" : "bg-muted"
           )}>
             {provider?.icon || "🔗"}
           </div>
           <div>
-            <h4 className="font-semibold text-slate-900">{channel.name}</h4>
-            <p className="text-sm text-slate-500">{channel.provider}</p>
+            <h4 className="font-semibold text-foreground">{channel.name}</h4>
+            <p className="text-sm text-muted-foreground">{channel.provider}</p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -214,7 +210,7 @@ function ChannelCard({
             <StatusBadge status={channel.status} />
           )}
           {errorCount > 0 && (
-            <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50">
+            <Badge variant="outline" className="text-status-warning-text border-status-warning-border bg-status-warning-bg">
               <AlertCircle className="h-3 w-3 mr-1" />
               {errorCount} errors
             </Badge>
@@ -743,13 +739,13 @@ export default function OtaSettingsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" data-testid="ota-header">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 text-white shadow-lg shadow-blue-500/25">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-status-info/15 text-status-info">
               <Globe className="h-5 w-5" />
             </span>
             OTA Channels
           </h1>
-          <p className="text-slate-600 mt-1">
+          <p className="text-muted-foreground mt-1">
             Connect with booking platforms to sync availability and reservations
           </p>
         </div>
@@ -773,7 +769,7 @@ export default function OtaSettingsPage() {
           {hasChannels && (
             <Button
               onClick={() => setShowCreateForm(true)}
-              className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 gap-2"
+              className="bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover gap-2"
             >
               <Plus className="h-4 w-4" />
               Add Channel
@@ -791,12 +787,12 @@ export default function OtaSettingsPage() {
 
       {/* Quick status cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="bg-status-info/10 border-status-info/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-700">Connected Channels</p>
-                <p className="text-2xl font-bold text-blue-900">
+                <p className="text-sm font-medium text-muted-foreground">Connected Channels</p>
+                <p className="text-2xl font-bold text-foreground">
                   {channelsQuery.data?.length ?? 0}
                 </p>
               </div>
@@ -807,11 +803,11 @@ export default function OtaSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+        <Card className="bg-status-success/10 border-status-success/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-emerald-700">Sync Status</p>
+                <p className="text-sm font-medium text-muted-foreground">Sync Status</p>
                 <div className="mt-1">
                   <SyncBadge status={syncStatus?.lastSyncStatus} />
                 </div>
@@ -823,12 +819,12 @@ export default function OtaSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+        <Card className="bg-status-warning/10 border-status-warning/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-amber-700">Pending Syncs</p>
-                <p className="text-2xl font-bold text-amber-900">
+                <p className="text-sm font-medium text-muted-foreground">Pending Syncs</p>
+                <p className="text-2xl font-bold text-foreground">
                   {syncStatus?.pendingSyncs ?? 0}
                 </p>
               </div>
@@ -1045,7 +1041,7 @@ export default function OtaSettingsPage() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-3xl">
+                        <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center text-3xl">
                           {providerOptions.find(p => p.value === selectedChannel.provider)?.icon || "🔗"}
                         </div>
                         <div>
