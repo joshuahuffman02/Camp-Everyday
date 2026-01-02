@@ -194,15 +194,15 @@ export default function NotificationTriggersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Notification Triggers</h1>
-          <p className="text-slate-500 mt-1">Automate emails and SMS based on events</p>
+          <h1 className="text-2xl font-bold text-foreground">Notification Triggers</h1>
+          <p className="text-muted-foreground mt-1">Automate emails and SMS based on events</p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-violet-600 text-white rounded-lg font-medium
-            hover:bg-violet-700 active:scale-[0.98]
+          className="px-4 py-2 bg-action-primary text-action-primary-foreground rounded-lg font-medium
+            hover:bg-action-primary-hover active:scale-[0.98]
             transition-all duration-150 ease-out
-            focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2
+            focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2
             flex items-center gap-2"
         >
           <Plus className="h-4 w-4" /> New Trigger
@@ -211,16 +211,16 @@ export default function NotificationTriggersPage() {
 
       {/* Empty State */}
       {triggers.length === 0 && !triggersQuery.isLoading && (
-        <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl p-8 text-center border border-violet-100 mb-8">
+        <div className="bg-status-info/10 rounded-2xl p-8 text-center border border-status-info/20 mb-8">
           <div className="flex justify-center mb-4">
-            <div className="p-4 bg-violet-100 rounded-full">
-              <Rocket className="h-10 w-10 text-violet-600" />
+            <div className="p-4 bg-status-info/15 rounded-full">
+              <Rocket className="h-10 w-10 text-status-info" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">
+          <h2 className="text-2xl font-bold text-foreground mb-2">
             Automate Your Guest Communication
           </h2>
-          <p className="text-slate-600 mb-6 max-w-md mx-auto">
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
             Set up triggers to automatically send emails and SMS when important events happen—
             like booking confirmations, check-in reminders, and payment receipts.
           </p>

@@ -178,13 +178,13 @@ export default function SecuritySettingsPage() {
         </div>
 
         {/* How It Works Section */}
-        <Card className="bg-gradient-to-r from-violet-50 to-indigo-50 border-violet-200">
+        <Card className="bg-status-info/10 border-status-info/20">
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
-              <Shield className="w-5 h-5 text-violet-600 mt-0.5 flex-shrink-0" />
+              <Shield className="w-5 h-5 text-status-info mt-0.5 flex-shrink-0" />
               <div className="space-y-2">
-                <h4 className="font-semibold text-violet-900">How Security Settings Work</h4>
-                <div className="text-sm text-slate-700 space-y-1">
+                <h4 className="font-semibold text-foreground">How Security Settings Work</h4>
+                <div className="text-sm text-muted-foreground space-y-1">
                   <p><strong>Privacy Defaults:</strong> Control how PII (Personally Identifiable Information) is handled across your campground. Toggle redaction to mask sensitive data in logs, and require consent before sending communications.</p>
                   <p><strong>PII Tags:</strong> Track which data fields contain sensitive information. These tags determine what gets masked or removed when redaction is enabled.</p>
                   <p><strong>Backup & DR:</strong> View your backup status and retention window. Use "Simulate restore" to run disaster recovery drills (no actual data is moved).</p>
@@ -406,4 +406,3 @@ export default function SecuritySettingsPage() {
       </div>
   );
 }
-
