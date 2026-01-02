@@ -463,7 +463,7 @@ export default function ReservationDetailPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {/* STICKY HEADER - Always visible with key info and actions */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-40 -mx-4 -mt-4 mb-6 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-4 py-4 shadow-sm">
+      <div className="sticky top-0 z-40 -mx-4 -mt-4 mb-6 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-4 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           {/* Left: Back button + Guest info */}
           <div className="flex items-center gap-3">
@@ -472,18 +472,18 @@ export default function ReservationDetailPage() {
             </Button>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-bold text-slate-900 truncate">{guestName}</h1>
+                <h1 className="text-xl font-bold text-foreground truncate">{guestName}</h1>
                 <Badge className={cn("capitalize", status.bg, status.text, status.border)}>
                   {reservation.status?.replace("_", " ") || "pending"}
                 </Badge>
               </div>
-              <div className="text-sm text-slate-500 flex items-center gap-2 flex-wrap">
+              <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
                 <span>{formatDate(reservation.arrivalDate)} - {formatDate(reservation.departureDate)}</span>
-                <span className="text-slate-300">|</span>
+                <span className="text-muted-foreground/60">|</span>
                 <span>{siteLabel}</span>
                 {siteClassName && (
                   <>
-                    <span className="text-slate-300">|</span>
+                    <span className="text-muted-foreground/60">|</span>
                     <span>{siteClassName}</span>
                   </>
                 )}
@@ -499,22 +499,22 @@ export default function ReservationDetailPage() {
                 onClick={() => setPaymentModalOpen(true)}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-lg transition-all",
-                  "bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300",
-                  "hover:border-amber-400 hover:shadow-md cursor-pointer group"
+                  "bg-status-warning/10 border border-status-warning/40",
+                  "hover:border-status-warning/60 hover:shadow-sm cursor-pointer group"
                 )}
               >
-                <DollarSign className="h-5 w-5 text-amber-600 group-hover:scale-110 transition-transform" />
+                <DollarSign className="h-5 w-5 text-status-warning group-hover:scale-110 transition-transform" />
                 <div className="text-left">
                   <div className="text-xs text-status-warning font-medium">Balance Due</div>
-                  <div className="text-lg font-bold text-amber-900">{formatCurrency(balanceCents)}</div>
+                  <div className="text-lg font-bold text-status-warning-text">{formatCurrency(balanceCents)}</div>
                 </div>
               </button>
             ) : (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-status-success/15 border border-status-success/20">
-                <CheckCircle className="h-5 w-5 text-emerald-600" />
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-status-success/10 border border-status-success/30">
+                <CheckCircle className="h-5 w-5 text-status-success" />
                 <div className="text-left">
                   <div className="text-xs text-status-success font-medium">Paid in Full</div>
-                  <div className="text-lg font-bold text-emerald-900">{formatCurrency(total * 100)}</div>
+                  <div className="text-lg font-bold text-status-success-text">{formatCurrency(total * 100)}</div>
                 </div>
               </div>
             )}
@@ -666,7 +666,7 @@ export default function ReservationDetailPage() {
             </Button>
 
             {balance > 0 && (
-              <Button onClick={() => setPaymentModalOpen(true)} className="bg-emerald-600 hover:bg-emerald-700">
+              <Button onClick={() => setPaymentModalOpen(true)} className="bg-action-primary hover:bg-action-primary-hover text-action-primary-foreground">
                 <CreditCard className="h-4 w-4 mr-2" />
                 Collect Payment
               </Button>
@@ -684,14 +684,14 @@ export default function ReservationDetailPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mb-6 p-6 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-300"
+            className="mb-6 p-6 rounded-xl bg-status-success/10 border border-status-success/30"
           >
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-full bg-status-success/15 flex items-center justify-center">
                 <PartyPopper className="h-6 w-6 text-status-success" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-emerald-900">Welcome!</h3>
+                <h3 className="text-lg font-bold text-foreground">Welcome!</h3>
                 <p className="text-status-success">{guestName} is now checked in to {siteLabel}</p>
               </div>
             </div>
@@ -705,14 +705,14 @@ export default function ReservationDetailPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mb-6 p-6 rounded-xl bg-gradient-to-r from-blue-50 to-sky-50 border-2 border-blue-300"
+            className="mb-6 p-6 rounded-xl bg-status-info/10 border border-status-info/30"
           >
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-full bg-status-info/15 flex items-center justify-center">
                 <CheckCircle className="h-6 w-6 text-status-info" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-blue-900">Check-out Complete</h3>
+                <h3 className="text-lg font-bold text-foreground">Check-out Complete</h3>
                 <p className="text-status-info">Site {siteLabel} has been marked for housekeeping</p>
               </div>
             </div>
@@ -818,8 +818,8 @@ export default function ReservationDetailPage() {
                   )}
                   {reservation.notes && (
                     <div className="sm:col-span-2 space-y-1">
-                      <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Notes</div>
-                      <div className="text-sm text-slate-700 whitespace-pre-line bg-slate-50 rounded-lg p-3 border border-slate-200">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notes</div>
+                      <div className="text-sm text-foreground whitespace-pre-line bg-muted rounded-lg p-3 border border-border">
                         {reservation.notes}
                       </div>
                     </div>
@@ -833,7 +833,7 @@ export default function ReservationDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-emerald-600" />
+                    <DollarSign className="h-5 w-5 text-status-success" />
                     Financial
                   </span>
                   {balance > 0 && (
@@ -846,19 +846,19 @@ export default function ReservationDetailPage() {
               <CardContent className="space-y-4">
                 {/* Primary action area */}
                 <div className={cn(
-                  "p-4 rounded-lg border-2 space-y-3",
+                  "p-4 rounded-lg border space-y-3",
                   balance > 0
-                    ? "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200"
-                    : "bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200"
+                    ? "bg-status-warning/10 border-status-warning/30"
+                    : "bg-status-success/10 border-status-success/30"
                 )}>
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-slate-600">
+                      <div className="text-sm text-muted-foreground">
                         {balance > 0 ? "Amount Due" : "Total Paid"}
                       </div>
                       <div className={cn(
                         "text-2xl font-bold",
-                        balance > 0 ? "text-amber-900" : "text-emerald-900"
+                        balance > 0 ? "text-status-warning-text" : "text-status-success-text"
                       )}>
                         {formatCurrency(balance > 0 ? balanceCents : total * 100)}
                       </div>
@@ -866,23 +866,23 @@ export default function ReservationDetailPage() {
                     {balance > 0 ? (
                       <Button
                         onClick={() => setPaymentModalOpen(true)}
-                        className="bg-emerald-600 hover:bg-emerald-700 shadow-lg hover:shadow-emerald-500/30"
+                        className="bg-action-primary hover:bg-action-primary-hover text-action-primary-foreground shadow-sm"
                       >
                         <CreditCard className="h-4 w-4 mr-2" />
                         Collect
                       </Button>
                     ) : (
-                      <CheckCircle className="h-8 w-8 text-emerald-600" />
+                      <CheckCircle className="h-8 w-8 text-status-success" />
                     )}
                   </div>
-                  <div className="flex items-center justify-between text-sm text-slate-600 pt-2 border-t border-slate-200/50">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 border-t border-border/60">
                     <span>Total: {formatCurrency(total * 100)}</span>
                     <span>Paid: {formatCurrency(paid * 100)}</span>
                   </div>
                 </div>
 
                 {/* Payment count */}
-                <div className="text-sm text-slate-500">
+                <div className="text-sm text-muted-foreground">
                   {payments.length} payment{payments.length !== 1 ? "s" : ""} recorded
                 </div>
               </CardContent>

@@ -2840,24 +2840,24 @@ export default function ReservationsPage() {
                         })()}
                       </div>
 
-                      <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1 text-sm">
-                        <div className="text-xs font-semibold text-slate-700">Payments / Ledger</div>
-                        <div className="text-xs text-slate-600">
+                      <div className="mt-2 rounded-lg border border-border bg-muted p-3 space-y-1 text-sm">
+                        <div className="text-xs font-semibold text-foreground">Payments / Ledger</div>
+                        <div className="text-xs text-muted-foreground">
                           Promo {res.promoCode || "n/a"} • Source {res.source || "n/a"}
                           {res.checkInWindowStart || res.checkInWindowEnd
                             ? ` • Check-in window ${res.checkInWindowStart || "n/a"} - ${res.checkInWindowEnd || "n/a"}`
                             : ""}
                         </div>
                         {(res.vehiclePlate || res.vehicleState || res.rigType || res.rigLength) && (
-                          <div className="text-xs text-slate-600">
+                          <div className="text-xs text-muted-foreground">
                             Vehicle {res.vehiclePlate || "n/a"} {res.vehicleState ? `(${res.vehicleState})` : ""} • Rig{" "}
                             {res.rigType || "n/a"} {res.rigLength ? `• ${res.rigLength}ft` : ""}
                           </div>
                         )}
-                        {resQuoteLoading[res.id] && <div className="text-xs text-slate-500">Loading pricing breakdown…</div>}
+                        {resQuoteLoading[res.id] && <div className="text-xs text-muted-foreground">Loading pricing breakdown…</div>}
                         {resQuoteErrors[res.id] && <div className="text-xs text-status-warning">{resQuoteErrors[res.id]}</div>}
                         {resQuotes[res.id] && (
-                          <div className="text-xs text-slate-600">
+                          <div className="text-xs text-muted-foreground">
                             Base ${(resQuotes[res.id].baseSubtotalCents / 100).toFixed(2)} • Rules{" "}
                             {resQuotes[res.id].rulesDeltaCents >= 0 ? "+" : "-"}$
                             {Math.abs(resQuotes[res.id].rulesDeltaCents / 100).toFixed(2)} • Total $
@@ -2865,14 +2865,14 @@ export default function ReservationsPage() {
                           </div>
                         )}
                         {(feesAmount || taxesAmount || discountsAmount) > 0 && (
-                          <div className="text-xs text-slate-600">
+                          <div className="text-xs text-muted-foreground">
                             Fees ${feesAmount.toFixed(2)} • Taxes ${taxesAmount.toFixed(2)} • Discounts ${discountsAmount.toFixed(2)}
                           </div>
                         )}
-                        {ledgerLoading[res.id] && <div className="text-xs text-slate-600">Loading ledger…</div>}
+                        {ledgerLoading[res.id] && <div className="text-xs text-muted-foreground">Loading ledger…</div>}
                         {ledgerErrors[res.id] && <div className="text-xs text-status-warning">{ledgerErrors[res.id]}</div>}
                         {!ledgerLoading[res.id] && ledgerByRes[res.id] && ledgerByRes[res.id].length === 0 && (
-                          <div className="overflow-hidden rounded border border-slate-200 bg-white">
+                          <div className="overflow-hidden rounded border border-border bg-card">
                             <table className="w-full text-sm">
                               <tbody>
                                 <TableEmpty>No ledger entries yet.</TableEmpty>
@@ -2882,11 +2882,11 @@ export default function ReservationsPage() {
                         )}
                         {!ledgerLoading[res.id] &&
                           (ledgerByRes[res.id] || []).map((row) => (
-                            <div key={row.id} className="flex flex-wrap items-center gap-2 text-xs text-slate-700">
-                              <span className="text-slate-500">{new Date(row.occurredAt).toLocaleDateString()}</span>
+                            <div key={row.id} className="flex flex-wrap items-center gap-2 text-xs text-foreground">
+                              <span className="text-muted-foreground">{new Date(row.occurredAt).toLocaleDateString()}</span>
                               <span>{row.direction === "credit" ? "+" : "-"}${(row.amountCents / 100).toFixed(2)}</span>
-                              <span className="text-slate-500">{row.glCode || "GL n/a"}</span>
-                              <span className="text-slate-500">{row.description || "Ledger entry"}</span>
+                              <span className="text-muted-foreground">{row.glCode || "GL n/a"}</span>
+                              <span className="text-muted-foreground">{row.description || "Ledger entry"}</span>
                             </div>
                           ))}
                       </div>
@@ -2896,10 +2896,10 @@ export default function ReservationsPage() {
               );
             })}
             {!reservationsQuery.isLoading && reservationsQuery.data?.length && !filteredReservations.length && (
-              <div className="rounded-lg border border-slate-200 bg-white py-12 px-4 text-center">
+              <div className="rounded-lg border border-border bg-card py-12 px-4 text-center">
                 <div className="flex flex-col items-center gap-4">
-                  <div className="h-16 w-16 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
-                    <CalendarDays className="h-8 w-8 text-slate-500" />
+                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                    <CalendarDays className="h-8 w-8 text-muted-foreground" />
                   </div>
                   <div className="space-y-2">
                     <p className="text-lg font-semibold text-foreground">No reservations match your filters</p>
@@ -2923,10 +2923,10 @@ export default function ReservationsPage() {
               </div>
             )}
             {!reservationsQuery.isLoading && !reservationsQuery.data?.length && (
-              <div className="rounded-lg border border-slate-200 bg-white py-16 px-4 text-center">
+              <div className="rounded-lg border border-border bg-card py-16 px-4 text-center">
                 <div className="flex flex-col items-center gap-4">
-                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
-                    <CalendarDays className="h-10 w-10 text-blue-600" />
+                  <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center">
+                    <CalendarDays className="h-10 w-10 text-status-info" />
                   </div>
                   <div className="space-y-2">
                     <p className="text-lg font-semibold text-foreground">No reservations yet</p>
