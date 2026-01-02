@@ -214,14 +214,14 @@ export default function NpsAnalyticsPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground dark:text-white">NPS Analytics</h1>
+            <h1 className="text-2xl font-bold text-foreground">NPS Analytics</h1>
             {isUsingMockData && (
-              <Badge className="bg-amber-100 dark:bg-amber-600/20 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-600/50">
+              <Badge className="bg-amber-100 text-amber-700 border border-amber-300">
                 Demo Data
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground dark:text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1">
             Net Promoter Score tracking and guest sentiment analysis
           </p>
         </div>
@@ -238,47 +238,47 @@ export default function NpsAnalyticsPage() {
           loading={loading}
         />
 
-        <Card className="border-border dark:border-border">
+        <Card className="border-border">
           <CardContent className="p-6">
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <ThumbsUp className="h-5 w-5 text-green-500 dark:text-green-400" />
+                  <ThumbsUp className="h-5 w-5 text-green-500" />
                 </div>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{data.overview.promoters}</p>
-                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Promoters</p>
-                <p className="text-sm text-green-600 dark:text-green-400">{data.overview.promoterPercentage.toFixed(0)}%</p>
+                <p className="text-2xl font-bold text-green-600">{data.overview.promoters}</p>
+                <p className="text-xs text-muted-foreground">Promoters</p>
+                <p className="text-sm text-green-600">{data.overview.promoterPercentage.toFixed(0)}%</p>
               </div>
               <div>
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <Minus className="h-5 w-5 text-amber-500 dark:text-amber-400" />
+                  <Minus className="h-5 w-5 text-amber-500" />
                 </div>
-                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{data.overview.passives}</p>
-                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Passives</p>
-                <p className="text-sm text-amber-600 dark:text-amber-400">{data.overview.passivePercentage.toFixed(0)}%</p>
+                <p className="text-2xl font-bold text-amber-600">{data.overview.passives}</p>
+                <p className="text-xs text-muted-foreground">Passives</p>
+                <p className="text-sm text-amber-600">{data.overview.passivePercentage.toFixed(0)}%</p>
               </div>
               <div>
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <ThumbsDown className="h-5 w-5 text-red-500 dark:text-red-400" />
+                  <ThumbsDown className="h-5 w-5 text-red-500" />
                 </div>
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{data.overview.detractors}</p>
-                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Detractors</p>
-                <p className="text-sm text-red-600 dark:text-red-400">{data.overview.detractorPercentage.toFixed(0)}%</p>
+                <p className="text-2xl font-bold text-red-600">{data.overview.detractors}</p>
+                <p className="text-xs text-muted-foreground">Detractors</p>
+                <p className="text-sm text-red-600">{data.overview.detractorPercentage.toFixed(0)}%</p>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-border dark:border-border">
+            <div className="mt-4 pt-4 border-t border-border">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground dark:text-muted-foreground">Total Responses</span>
-                <span className="text-foreground dark:text-white font-medium">{data.overview.totalResponses.toLocaleString()}</span>
+                <span className="text-muted-foreground">Total Responses</span>
+                <span className="text-foreground font-medium">{data.overview.totalResponses.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-sm mt-2">
-                <span className="text-muted-foreground dark:text-muted-foreground">Response Rate</span>
-                <span className="text-foreground dark:text-white font-medium">{data.overview.responseRate.toFixed(1)}%</span>
+                <span className="text-muted-foreground">Response Rate</span>
+                <span className="text-foreground font-medium">{data.overview.responseRate.toFixed(1)}%</span>
               </div>
               {data.overview.yoyResponses !== null && data.overview.yoyResponses !== undefined && (
                 <div className="flex justify-between text-sm mt-2">
-                  <span className="text-muted-foreground dark:text-muted-foreground">YoY Response Growth</span>
-                  <span className={data.overview.yoyResponsesChange !== null && data.overview.yoyResponsesChange >= 0 ? "text-green-600 dark:text-green-400 font-medium" : "text-red-600 dark:text-red-400 font-medium"}>
+                  <span className="text-muted-foreground">YoY Response Growth</span>
+                  <span className={data.overview.yoyResponsesChange !== null && data.overview.yoyResponsesChange >= 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
                     {data.overview.yoyResponsesChange !== null && data.overview.yoyResponsesChange > 0 ? "+" : ""}{data.overview.yoyResponsesChange?.toFixed(1)}%
                   </span>
                 </div>
@@ -390,13 +390,13 @@ export default function NpsAnalyticsPage() {
 
       {/* Needs Attention - Worst Performing */}
       {data.worstCampgrounds && data.worstCampgrounds.length > 0 && (
-        <Card className="bg-red-50 dark:bg-red-500/5 border-red-200 dark:border-red-500/20">
+        <Card className="bg-red-50 border-red-200">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Frown className="h-5 w-5 text-red-500 dark:text-red-400" />
-              <CardTitle className="text-lg text-foreground dark:text-white">Needs Attention</CardTitle>
+              <Frown className="h-5 w-5 text-red-500" />
+              <CardTitle className="text-lg text-foreground">Needs Attention</CardTitle>
             </div>
-            <p className="text-sm text-muted-foreground dark:text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Campgrounds with lowest NPS scores - prioritize for improvement
             </p>
           </CardHeader>
@@ -404,25 +404,25 @@ export default function NpsAnalyticsPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-red-200 dark:border-border">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Campground</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">NPS</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Responses</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Detractors</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Top Issues</th>
+                  <tr className="border-b border-red-200">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Campground</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">NPS</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Responses</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Detractors</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Top Issues</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.worstCampgrounds.map((cg, idx) => (
-                    <tr key={cg.campgroundId} className={idx % 2 === 0 ? "bg-red-100/50 dark:bg-muted/30" : ""}>
-                      <td className="py-3 px-4 text-sm text-foreground dark:text-white">{cg.campgroundName}</td>
+                    <tr key={cg.campgroundId} className={idx % 2 === 0 ? "bg-red-100/50" : ""}>
+                      <td className="py-3 px-4 text-sm text-foreground">{cg.campgroundName}</td>
                       <td className={`py-3 px-4 text-sm text-right font-semibold ${getNpsColor(cg.score)}`}>
                         {cg.score}
                       </td>
-                      <td className="py-3 px-4 text-sm text-right text-foreground dark:text-muted-foreground">
+                      <td className="py-3 px-4 text-sm text-right text-foreground">
                         {cg.responses.toLocaleString()}
                       </td>
-                      <td className="py-3 px-4 text-sm text-right text-red-600 dark:text-red-400 font-medium">
+                      <td className="py-3 px-4 text-sm text-right text-red-600 font-medium">
                         {cg.detractorPercentage}%
                       </td>
                       <td className="py-3 px-4">
@@ -430,7 +430,7 @@ export default function NpsAnalyticsPage() {
                           {cg.topIssues?.map((issue, i) => (
                             <Badge
                               key={i}
-                              className="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 border-red-300 dark:border-red-500/30 text-xs"
+                              className="bg-red-100 text-red-700 border-red-300 text-xs"
                             >
                               {issue}
                             </Badge>
@@ -537,7 +537,7 @@ export default function NpsAnalyticsPage() {
             </div>
             {data.bySeason && data.bySeason.length > 0 && (
               <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                <p className="text-sm text-amber-300">
+                <p className="text-sm text-amber-800">
                   <strong>Peak Season Impact:</strong> Summer has the most responses but{" "}
                   {data.bySeason.find(s => s.season === "Summer")?.score || 0 <
                    Math.max(...data.bySeason.map(s => s.score))

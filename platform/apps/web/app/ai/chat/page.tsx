@@ -321,9 +321,9 @@ Type \`help\` to see all available commands, or just ask me anything!`,
                 AI Assistant
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-600">
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
               <p>Select a campground to start using your AI assistant.</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 The AI can help with guest replies, pricing suggestions, occupancy insights, and more.
               </p>
             </CardContent>
@@ -354,7 +354,7 @@ Type \`help\` to see all available commands, or just ask me anything!`,
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-status-success-bg text-status-success-text border border-status-success-border shadow-sm">
                 <Brain className="h-6 w-6" />
               </div>
               <div>
@@ -392,8 +392,8 @@ Type \`help\` to see all available commands, or just ask me anything!`,
                     onClick={() => handleQuickAction(action.prompt)}
                     className={cn(
                       "flex flex-col items-start gap-2 rounded-lg border border-border bg-card p-4 text-left transition-all",
-                      "hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:shadow-md",
-                      "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                      "hover:border-status-success-border hover:bg-status-success-bg hover:shadow-md",
+                      "focus:outline-none focus:ring-2 focus:ring-action-primary/20 focus:border-action-primary"
                     )}
                     whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
                     whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
@@ -444,15 +444,15 @@ Type \`help\` to see all available commands, or just ask me anything!`,
                       transition={prefersReducedMotion ? undefined : { delay: index * 0.05, ...SPRING_CONFIG }}
                     >
                       {msg.role === "assistant" && (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50 flex-shrink-0">
-                          <Bot className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-status-success-bg border border-status-success-border flex-shrink-0">
+                          <Bot className="h-4 w-4 text-status-success-text" />
                         </div>
                       )}
                       <div
                         className={cn(
                           "max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm",
                           msg.role === "user"
-                            ? "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"
+                            ? "bg-action-primary text-action-primary-foreground"
                             : "bg-muted text-foreground border border-border"
                         )}
                       >
@@ -480,8 +480,8 @@ Type \`help\` to see all available commands, or just ask me anything!`,
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                     >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50">
-                        <Bot className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-status-success-bg border border-status-success-border">
+                        <Bot className="h-4 w-4 text-status-success-text" />
                       </div>
                       <div className="rounded-2xl bg-muted border border-border px-4 py-3 shadow-sm">
                         <div className="flex gap-1">
@@ -503,7 +503,7 @@ Type \`help\` to see all available commands, or just ask me anything!`,
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask me anything about your campground, guests, pricing, or operations..."
-                  className="min-h-[100px] bg-background border-border focus:border-emerald-400 focus:ring-emerald-400/20"
+                  className="min-h-[100px] bg-background border-border focus:border-action-primary focus:ring-action-primary/20"
                   disabled={chatMutation.isPending}
                 />
                 <div className="mt-3 flex items-center justify-between">
@@ -512,7 +512,7 @@ Type \`help\` to see all available commands, or just ask me anything!`,
                   </span>
                   <Button
                     size="sm"
-                    className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-md"
+                    className="gap-2 bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover shadow-sm"
                     onClick={handleSend}
                     disabled={!input.trim() || chatMutation.isPending}
                   >

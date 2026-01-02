@@ -72,26 +72,26 @@ function getInsightIcon(type: string) {
 function getInsightColor(type: string) {
   switch (type) {
     case "revenue_gap":
-      return "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30";
+      return "text-status-error-text bg-status-error-bg border border-status-error-border";
     case "underutilized_site":
-      return "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30";
+      return "text-status-warning-text bg-status-warning-bg border border-status-warning-border";
     case "missed_upsell":
-      return "text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30";
+      return "text-status-info-text bg-status-info-bg border border-status-info-border";
     case "pricing_opportunity":
-      return "text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30";
+      return "text-status-success-text bg-status-success-bg border border-status-success-border";
     default:
-      return "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30";
+      return "text-status-info-text bg-status-info-bg border border-status-info-border";
   }
 }
 
 function getDifficultyBadge(difficulty: string) {
   switch (difficulty) {
     case "easy":
-      return <Badge className="bg-emerald-500">Easy Win</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground">Easy Win</Badge>;
     case "medium":
-      return <Badge className="bg-amber-500">Medium Effort</Badge>;
+      return <Badge className="bg-status-warning text-status-warning-foreground">Medium Effort</Badge>;
     case "hard":
-      return <Badge className="bg-red-500">Significant Effort</Badge>;
+      return <Badge className="bg-status-error text-status-error-foreground">Significant Effort</Badge>;
     default:
       return <Badge variant="secondary">{difficulty}</Badge>;
   }
@@ -183,7 +183,7 @@ export default function AIRevenuePage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-status-info-bg text-status-info-text border border-status-info-border shadow-sm">
               <TrendingUp className="h-6 w-6" />
             </div>
             <div>
@@ -206,13 +206,13 @@ export default function AIRevenuePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SPRING_CONFIG, delay: 0.05 }}
           >
-            <Card className="border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+            <Card className="border-status-info-border bg-status-info-bg">
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Estimated Revenue Opportunity</p>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-4xl font-bold text-blue-600 dark:text-blue-400">
+                      <span className="text-4xl font-bold text-status-info-text">
                         ${(totalOpportunity / 100).toLocaleString()}
                       </span>
                       <span className="text-sm text-muted-foreground">/month</span>
@@ -222,14 +222,14 @@ export default function AIRevenuePage() {
                     </p>
                   </div>
                   {easyWins.length > 0 && (
-                    <div className="p-4 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                    <div className="p-4 bg-status-success-bg border border-status-success-border rounded-lg">
                       <div className="flex items-center gap-2 mb-1">
-                        <Lightbulb className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        <span className="font-medium text-emerald-800 dark:text-emerald-300">
+                        <Lightbulb className="h-4 w-4 text-status-success-text" />
+                        <span className="font-medium text-status-success-text">
                           {easyWins.length} Easy Wins Available
                         </span>
                       </div>
-                      <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                      <p className="text-sm text-status-success-text">
                         Quick actions worth ${(easyWins.reduce((a, i) => a + i.impactCents, 0) / 100).toLocaleString()}
                       </p>
                     </div>
@@ -250,7 +250,7 @@ export default function AIRevenuePage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Target className="h-5 w-5 text-amber-500" />
+                <Target className="h-5 w-5 text-status-warning-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">{newCount}</div>
               <p className="text-xs text-muted-foreground">New Insights</p>
@@ -260,7 +260,7 @@ export default function AIRevenuePage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Play className="h-5 w-5 text-blue-500" />
+                <Play className="h-5 w-5 text-status-info-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {(insights as RevenueInsight[]).filter(i => i.status === "in_progress").length}
@@ -272,7 +272,7 @@ export default function AIRevenuePage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <CheckCircle2 className="h-5 w-5 text-status-success-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {(insights as RevenueInsight[]).filter(i => i.status === "completed").length}
@@ -284,7 +284,7 @@ export default function AIRevenuePage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Lightbulb className="h-5 w-5 text-violet-500" />
+                <Lightbulb className="h-5 w-5 text-primary" />
               </div>
               <div className="text-2xl font-bold text-foreground">{easyWins.length}</div>
               <p className="text-xs text-muted-foreground">Easy Wins</p>
@@ -398,8 +398,8 @@ export default function AIRevenuePage() {
                               <div className="text-right">
                                 <p className="text-xs text-muted-foreground">Potential Impact</p>
                                 <div className="flex items-center gap-1">
-                                  <ArrowUpRight className="h-4 w-4 text-emerald-500" />
-                                  <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                                  <ArrowUpRight className="h-4 w-4 text-status-success" />
+                                  <span className="text-xl font-bold text-status-success-text">
                                     ${(insight.impactCents / 100).toLocaleString()}
                                   </span>
                                   <span className="text-xs text-muted-foreground">/mo</span>
@@ -423,7 +423,7 @@ export default function AIRevenuePage() {
                                   size="sm"
                                   onClick={() => completeMutation.mutate(insight.id)}
                                   disabled={completeMutation.isPending}
-                                  className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+                                  className="gap-1 bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover"
                                 >
                                   <CheckCircle2 className="h-4 w-4" />
                                   Complete

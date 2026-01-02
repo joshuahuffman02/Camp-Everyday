@@ -211,14 +211,14 @@ export default function PlatformGrowthPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground dark:text-white">Platform Growth</h1>
+            <h1 className="text-2xl font-bold text-foreground">Platform Growth</h1>
             {isUsingMockData && (
-              <Badge className="bg-amber-100 dark:bg-amber-600/20 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-600/50">
+              <Badge className="bg-amber-100 text-amber-700 border border-amber-300">
                 Demo Data
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground dark:text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1">
             Track campground signups, retention, and business health
           </p>
         </div>
@@ -228,7 +228,7 @@ export default function PlatformGrowthPage() {
             variant="outline"
             size="sm"
             onClick={() => window.location.reload()}
-            className="border-border dark:border-border text-foreground dark:text-muted-foreground hover:bg-muted dark:hover:bg-muted"
+            className="border-border text-foreground hover:bg-muted"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -241,28 +241,28 @@ export default function PlatformGrowthPage() {
         <CardContent className="py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-amber-200 dark:bg-amber-500/20 rounded-xl">
-                <Award className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+              <div className="p-3 bg-amber-200 rounded-xl">
+                <Award className="h-8 w-8 text-amber-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-foreground dark:text-white">Founding Members</h2>
-                <p className="text-amber-700/70 dark:text-amber-200/70 text-sm">
+                <h2 className="text-lg font-bold text-foreground">Founding Members</h2>
+                <p className="text-amber-700/70 text-sm">
                   Your original 45 campgrounds who believed in Camp Everyday from the start
                 </p>
               </div>
             </div>
             <div className="flex gap-8">
               <div className="text-center">
-                <p className="text-4xl font-bold text-amber-600 dark:text-amber-400">{data.overview.foundingMembersActive}</p>
-                <p className="text-sm text-amber-700/60 dark:text-amber-200/60">Still Active</p>
+                <p className="text-4xl font-bold text-amber-600">{data.overview.foundingMembersActive}</p>
+                <p className="text-sm text-amber-700/60">Still Active</p>
               </div>
               <div className="text-center">
-                <p className="text-4xl font-bold text-foreground dark:text-white">{data.overview.foundingMembers - data.overview.foundingMembersActive}</p>
-                <p className="text-sm text-muted-foreground dark:text-muted-foreground">Churned</p>
+                <p className="text-4xl font-bold text-foreground">{data.overview.foundingMembers - data.overview.foundingMembersActive}</p>
+                <p className="text-sm text-muted-foreground">Churned</p>
               </div>
               <div className="text-center">
-                <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{foundingRetentionRate}%</p>
-                <p className="text-sm text-emerald-700/60 dark:text-emerald-200/60">Retention Rate</p>
+                <p className="text-4xl font-bold text-emerald-600">{foundingRetentionRate}%</p>
+                <p className="text-sm text-emerald-700/60">Retention Rate</p>
               </div>
             </div>
           </div>
@@ -383,13 +383,13 @@ export default function PlatformGrowthPage() {
       />
 
       {/* Founding Members Table */}
-      <Card className="border-border dark:border-border">
+      <Card className="border-border">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Award className="h-5 w-5 text-amber-500 dark:text-amber-400" />
-            <CardTitle className="text-lg text-foreground dark:text-white">Founding Members Status</CardTitle>
+            <Award className="h-5 w-5 text-amber-500" />
+            <CardTitle className="text-lg text-foreground">Founding Members Status</CardTitle>
           </div>
-          <p className="text-sm text-muted-foreground dark:text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Tracking the 45 original campgrounds who joined during launch
           </p>
         </CardHeader>
@@ -397,26 +397,26 @@ export default function PlatformGrowthPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-border dark:border-border">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Campground</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Joined</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Status</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Months Active</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground dark:text-muted-foreground">Last Activity</th>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Campground</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Joined</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Months Active</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Last Activity</th>
                 </tr>
               </thead>
               <tbody>
                 {data.foundingMembers.map((member, idx) => (
-                  <tr key={idx} className="border-b border-border dark:border-border/50 hover:bg-muted dark:hover:bg-muted/30">
-                    <td className="py-3 px-4 text-sm text-foreground dark:text-white font-medium">{member.name}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground dark:text-muted-foreground">
+                  <tr key={idx} className="border-b border-border hover:bg-muted">
+                    <td className="py-3 px-4 text-sm text-foreground font-medium">{member.name}</td>
+                    <td className="py-3 px-4 text-sm text-muted-foreground">
                       {new Date(member.signupDate).toLocaleDateString()}
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge status={member.status} />
                     </td>
-                    <td className="py-3 px-4 text-sm text-foreground dark:text-muted-foreground text-right">{member.monthsActive}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground dark:text-muted-foreground">
+                    <td className="py-3 px-4 text-sm text-foreground text-right">{member.monthsActive}</td>
+                    <td className="py-3 px-4 text-sm text-muted-foreground">
                       {new Date(member.lastActivity).toLocaleDateString()}
                     </td>
                   </tr>
@@ -475,26 +475,26 @@ export default function PlatformGrowthPage() {
       />
 
       {/* Quick Stats Footer */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border dark:border-border">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border">
         <div className="text-center">
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{foundingRetentionRate}%</p>
-          <p className="text-sm text-muted-foreground dark:text-muted-foreground">Founding Retention</p>
+          <p className="text-2xl font-bold text-emerald-600">{foundingRetentionRate}%</p>
+          <p className="text-sm text-muted-foreground">Founding Retention</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-foreground dark:text-white">{overallRetentionRate}%</p>
-          <p className="text-sm text-muted-foreground dark:text-muted-foreground">Overall Retention</p>
+          <p className="text-2xl font-bold text-foreground">{overallRetentionRate}%</p>
+          <p className="text-sm text-muted-foreground">Overall Retention</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+          <p className="text-2xl font-bold text-blue-600">
             {Math.round(data.overview.mrr / data.overview.activeCampgrounds)}
           </p>
-          <p className="text-sm text-muted-foreground dark:text-muted-foreground">ARPU ($/mo)</p>
+          <p className="text-sm text-muted-foreground">ARPU ($/mo)</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+          <p className="text-2xl font-bold text-purple-600">
             {Math.round((data.overview.signupsThisMonth - data.overview.churnedThisMonth) / data.overview.activeCampgrounds * 100)}%
           </p>
-          <p className="text-sm text-muted-foreground dark:text-muted-foreground">Net Growth Rate</p>
+          <p className="text-sm text-muted-foreground">Net Growth Rate</p>
         </div>
       </div>
     </div>

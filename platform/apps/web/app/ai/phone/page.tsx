@@ -100,13 +100,13 @@ function getStatusIcon(status: string) {
 function getStatusColor(status: string) {
   switch (status) {
     case "in_progress":
-      return "text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30";
+      return "text-status-success-text bg-status-success-bg border border-status-success-border";
     case "completed":
-      return "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30";
+      return "text-status-info-text bg-status-info-bg border border-status-info-border";
     case "transferred":
-      return "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30";
+      return "text-status-warning-text bg-status-warning-bg border border-status-warning-border";
     default:
-      return "text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900/30";
+      return "text-muted-foreground bg-muted border border-border";
   }
 }
 
@@ -195,7 +195,7 @@ export default function AIPhonePage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm">
               <Phone className="h-6 w-6" />
             </div>
             <div>
@@ -207,7 +207,7 @@ export default function AIPhonePage() {
           </div>
           <div className="flex items-center gap-2">
             {autopilotConfig?.phoneAgentEnabled ? (
-              <Badge variant="default" className="gap-1 bg-emerald-500">
+              <Badge variant="default" className="gap-1 bg-status-success text-status-success-foreground">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
@@ -233,18 +233,18 @@ export default function AIPhonePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SPRING_CONFIG, delay: 0.05 }}
           >
-            <Card className="border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30">
+            <Card className="border-primary/20 bg-primary/5">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-violet-500/20 flex items-center justify-center">
-                      <Bot className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+                    <div className="h-12 w-12 rounded-full bg-card border border-border flex items-center justify-center">
+                      <Bot className="h-6 w-6 text-primary" />
                     </div>
                     <div>
                       <p className="font-semibold text-foreground">AI Phone Agent Active</p>
                       <p className="text-sm text-muted-foreground">
                         Answering calls at{" "}
-                        <span className="font-mono font-semibold text-violet-600 dark:text-violet-400">
+                        <span className="font-mono font-semibold text-primary">
                           {formatPhoneNumber(autopilotConfig.phoneAgentNumber)}
                         </span>
                       </p>
@@ -260,7 +260,7 @@ export default function AIPhonePage() {
                       </div>
                     )}
                     {activeCalls.length > 0 && (
-                      <Badge variant="default" className="bg-emerald-500 animate-pulse">
+                      <Badge variant="default" className="bg-status-success text-status-success-foreground animate-pulse">
                         {activeCalls.length} Active Call{activeCalls.length > 1 ? "s" : ""}
                       </Badge>
                     )}
@@ -281,7 +281,7 @@ export default function AIPhonePage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <PhoneCall className="h-5 w-5 text-violet-500" />
+                <PhoneCall className="h-5 w-5 text-primary" />
                 <Badge variant="outline" className="text-xs">Today</Badge>
               </div>
               <div className="text-2xl font-bold text-foreground">
@@ -294,7 +294,7 @@ export default function AIPhonePage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <CheckCircle2 className="h-5 w-5 text-status-success-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {loadingSummary ? <Loader2 className="h-5 w-5 animate-spin" /> : summary?.callsHandled || 0}
@@ -306,7 +306,7 @@ export default function AIPhonePage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Clock className="h-5 w-5 text-blue-500" />
+                <Clock className="h-5 w-5 text-status-info-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {avgDuration > 0 ? `${Math.floor(avgDuration / 60)}:${(avgDuration % 60).toString().padStart(2, "0")}` : "0:00"}
@@ -318,7 +318,7 @@ export default function AIPhonePage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <DollarSign className="h-5 w-5 text-amber-500" />
+                <DollarSign className="h-5 w-5 text-status-warning-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 ${((summary?.totalCostCents || 0) / 100).toFixed(2)}
@@ -335,7 +335,7 @@ export default function AIPhonePage() {
               <PhoneCall className="h-4 w-4" />
               Call History
               {activeCalls.length > 0 && (
-                <Badge variant="secondary" className="ml-1 bg-emerald-500 text-white">
+                <Badge variant="secondary" className="ml-1 bg-status-success text-status-success-foreground">
                   {activeCalls.length}
                 </Badge>
               )}
@@ -383,8 +383,8 @@ export default function AIPhonePage() {
                         <Card
                           className={cn(
                             "cursor-pointer transition-all hover:shadow-md",
-                            selectedSession?.id === session.id && "ring-2 ring-violet-500",
-                            session.status === "in_progress" && "border-l-4 border-l-emerald-500"
+                            selectedSession?.id === session.id && "ring-2 ring-primary",
+                            session.status === "in_progress" && "border-l-4 border-l-status-success"
                           )}
                           onClick={() => setSelectedSession(session)}
                         >
@@ -552,11 +552,11 @@ export default function AIPhonePage() {
                 )}
 
                 {selectedSession.transferReason && (
-                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                    <p className="text-xs text-amber-800 dark:text-amber-400 font-medium mb-1">
+                  <div className="p-3 bg-status-warning-bg rounded-lg border border-status-warning-border">
+                    <p className="text-xs text-status-warning-text font-medium mb-1">
                       Transferred to Staff
                     </p>
-                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                    <p className="text-sm text-status-warning-text">
                       {selectedSession.transferReason}
                     </p>
                   </div>

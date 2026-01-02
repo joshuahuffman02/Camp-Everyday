@@ -75,28 +75,28 @@ function getNpsInterpretation(score: number) {
     return {
       label: "Excellent",
       variant: "success" as const,
-      color: "text-emerald-600 dark:text-emerald-400",
+      color: "text-emerald-600",
       description: "Your guests love you! This is world-class service."
     };
   } else if (score >= 50) {
     return {
       label: "Good",
       variant: "warning" as const,
-      color: "text-yellow-600 dark:text-yellow-400",
+      color: "text-yellow-600",
       description: "Good performance, but there's room for improvement."
     };
   } else if (score >= 30) {
     return {
       label: "Needs Improvement",
       variant: "warning" as const,
-      color: "text-orange-600 dark:text-orange-400",
+      color: "text-orange-600",
       description: "Guest satisfaction needs attention. Review feedback to identify issues."
     };
   } else {
     return {
       label: "Critical",
       variant: "error" as const,
-      color: "text-red-600 dark:text-red-400",
+      color: "text-red-600",
       description: "Urgent action needed. Guest experience is suffering significantly."
     };
   }
@@ -138,10 +138,10 @@ function SkeletonCard() {
       "bg-muted border-border"
     )}>
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-lg bg-muted dark:bg-muted" />
+        <div className="h-10 w-10 rounded-lg bg-muted" />
         <div className="space-y-2 flex-1">
-          <div className="h-3 w-16 bg-muted dark:bg-muted rounded" />
-          <div className="h-6 w-12 bg-muted dark:bg-muted rounded" />
+          <div className="h-3 w-16 bg-muted rounded" />
+          <div className="h-6 w-12 bg-muted rounded" />
         </div>
       </div>
     </div>
@@ -163,16 +163,16 @@ function ErrorState({
       className={cn(
         "rounded-xl p-6 space-y-4",
         "bg-red-50 border-2 border-red-200",
-        "dark:bg-red-950/30 dark:border-red-800"
+        ""
       )}
     >
       <div className="flex items-center gap-3">
-        <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-        <h3 className="font-semibold text-red-900 dark:text-red-200">
+        <AlertCircle className="h-5 w-5 text-red-600" />
+        <h3 className="font-semibold text-red-900">
           Unable to load data
         </h3>
       </div>
-      <p className="text-sm text-red-700 dark:text-red-300">
+      <p className="text-sm text-red-700">
         {message || "Please check your connection and try again."}
       </p>
       <button
@@ -212,7 +212,7 @@ function TodaysWins({
     if (outstandingBalanceCents === 0 && reservationsCount > 0) {
       list.push({
         id: "paid",
-        icon: <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />,
+        icon: <DollarSign className="h-4 w-4 text-emerald-600" />,
         text: "All payments collected"
       });
     }
@@ -220,13 +220,13 @@ function TodaysWins({
     if (occupancyRate >= 90) {
       list.push({
         id: "busy",
-        icon: <Tent className="h-4 w-4 text-purple-600 dark:text-purple-400" />,
+        icon: <Tent className="h-4 w-4 text-purple-600" />,
         text: `${occupancyRate}% occupancy - Nearly full!`
       });
     } else if (occupancyRate >= 70) {
       list.push({
         id: "good-occ",
-        icon: <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />,
+        icon: <TrendingUp className="h-4 w-4 text-emerald-600" />,
         text: `${occupancyRate}% occupancy - Great day!`
       });
     }
@@ -234,7 +234,7 @@ function TodaysWins({
     if (todayArrivals.length >= 5) {
       list.push({
         id: "busy-arrivals",
-        icon: <PartyPopper className="h-4 w-4 text-amber-600 dark:text-amber-400" />,
+        icon: <PartyPopper className="h-4 w-4 text-amber-600" />,
         text: `${todayArrivals.length} arrivals today`
       });
     }
@@ -242,7 +242,7 @@ function TodaysWins({
     if (todayArrivals.length === todayDepartures.length && todayArrivals.length > 0) {
       list.push({
         id: "balanced",
-        icon: <Scale className="h-4 w-4 text-blue-600 dark:text-blue-400" />,
+        icon: <Scale className="h-4 w-4 text-blue-600" />,
         text: "Balanced arrivals & departures"
       });
     }
@@ -259,16 +259,16 @@ function TodaysWins({
       transition={{ ...SPRING_CONFIG, delay: 0.15 }}
       className={cn(
         "rounded-xl p-4",
-        "bg-emerald-50 dark:bg-emerald-950/30",
-        "border border-emerald-200 dark:border-emerald-800"
+        "bg-emerald-50",
+        "border border-emerald-200"
       )}
     >
       <div className="flex items-center gap-2 mb-3">
-        <Trophy className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+        <Trophy className="h-4 w-4 text-emerald-600" />
+        <span className="text-sm font-semibold text-emerald-700">
           Today's Wins
         </span>
-        <span className="text-xs text-emerald-600 dark:text-emerald-500">
+        <span className="text-xs text-emerald-600">
           {achievements.length} achievement{achievements.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -281,8 +281,8 @@ function TodaysWins({
             transition={{ ...SPRING_CONFIG, delay: 0.2 + (i * 0.1) }}
             className={cn(
               "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm",
-              "bg-card dark:bg-muted",
-              "border border-emerald-200 dark:border-emerald-700",
+              "bg-card",
+              "border border-emerald-200",
               "shadow-sm"
             )}
           >
@@ -883,7 +883,7 @@ export default function Dashboard() {
             <Link href="/calendar" className={cn(
               "inline-flex items-center gap-1 rounded px-3 py-1.5 transition-colors",
               "border border-border bg-card hover:border-emerald-300 hover:text-emerald-600",
-              "dark:hover:border-emerald-700 dark:hover:text-emerald-400",
+              "",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
             )}>
               <Calendar className="h-3 w-3" /> Jump to today
@@ -891,7 +891,7 @@ export default function Dashboard() {
             <Link href="/check-in-out" className={cn(
               "inline-flex items-center gap-1 rounded px-3 py-1.5 transition-colors",
               "border border-border bg-card hover:border-emerald-300 hover:text-emerald-600",
-              "dark:hover:border-emerald-700 dark:hover:text-emerald-400",
+              "",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
             )}>
               <UserCheck className="h-3 w-3" /> Today's arrivals/departures
@@ -899,7 +899,7 @@ export default function Dashboard() {
             <Link href={`/reservations?focus=today`} className={cn(
               "inline-flex items-center gap-1 rounded px-3 py-1.5 transition-colors",
               "border border-border bg-card hover:border-emerald-300 hover:text-emerald-600",
-              "dark:hover:border-emerald-700 dark:hover:text-emerald-400",
+              "",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
             )}>
               <ClipboardList className="h-3 w-3" /> View reservations list
@@ -937,8 +937,8 @@ export default function Dashboard() {
             "rounded-xl p-5 space-y-4 backdrop-blur-sm transition-colors",
             "border-2 bg-card",
             attentionList.length > 0
-              ? "border-amber-200 dark:border-amber-700/50"
-              : "border-emerald-200 dark:border-emerald-700/50"
+              ? "border-amber-200"
+              : "border-emerald-200"
           )}>
             <div className="flex items-center justify-between">
               <div>
@@ -969,7 +969,7 @@ export default function Dashboard() {
                 className={cn(
                   "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-lg px-4 py-4",
                   "border-2 border-emerald-300 bg-emerald-50",
-                  "dark:border-emerald-700 dark:bg-emerald-950/30"
+                  ""
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -980,13 +980,13 @@ export default function Dashboard() {
                     }}
                     transition={{ duration: 0.6 }}
                   >
-                    <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <CheckCircle className="h-5 w-5 text-emerald-600" />
                   </motion.div>
                   <div>
-                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <p className="text-sm font-semibold text-emerald-700">
                       All clear - no outstanding balances!
                     </p>
-                    <p className="text-xs text-emerald-600 dark:text-emerald-500">
+                    <p className="text-xs text-emerald-600">
                       You're on top of collections. Keep it up!
                     </p>
                   </div>
@@ -996,7 +996,7 @@ export default function Dashboard() {
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap",
                     "border border-emerald-300 bg-card text-emerald-700 hover:bg-emerald-100",
-                    "dark:border-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-300 dark:hover:bg-emerald-800/50",
+                    "",
                     "shadow-sm transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                   )}
@@ -1017,8 +1017,8 @@ export default function Dashboard() {
                       "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3",
                       "rounded-lg px-3 py-2.5 shadow-sm",
                       "border border-amber-200 bg-amber-50/50",
-                      "dark:border-amber-800 dark:bg-amber-950/20",
-                      "hover:border-amber-300 dark:hover:border-amber-700",
+                      "",
+                      "hover:border-amber-300",
                       "hover:shadow-md transition-all duration-200"
                     )}
                   >
@@ -1037,7 +1037,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                      <span className="text-sm font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                      <span className="text-sm font-bold text-amber-600 whitespace-nowrap">
                         {formatMoney(r.balance)}
                       </span>
                       <motion.div
@@ -1072,7 +1072,7 @@ export default function Dashboard() {
           className={cn(
             "rounded-2xl p-5 space-y-3 shadow-lg transition-colors",
             "bg-card border-2 border-emerald-200",
-            "dark:border-emerald-700/50"
+            ""
           )}
           {...motionProps}
           transition={{ ...SPRING_CONFIG, delay: 0.2 }}
@@ -1180,7 +1180,7 @@ export default function Dashboard() {
           <div className={cn(
             "rounded-xl p-5 space-y-3 backdrop-blur-sm transition-colors",
             "bg-card border border-border",
-            "dark:bg-muted/50"
+            ""
           )}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Alerts</h3>
@@ -1190,7 +1190,7 @@ export default function Dashboard() {
               <div className={cn(
                 "rounded-lg border-2 border-dashed px-4 py-3 text-sm flex items-center gap-2",
                 "border-emerald-200 bg-emerald-50 text-emerald-700",
-                "dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400"
+                ""
               )}>
                 <CheckCircle className="h-4 w-4" />
                 All clear — nothing needs your attention!
@@ -1209,7 +1209,7 @@ export default function Dashboard() {
                       className={cn(
                         "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all",
                         "border border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:shadow-sm",
-                        "dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:border-amber-700",
+                        "",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                       )}
                     >
@@ -1289,7 +1289,7 @@ export default function Dashboard() {
           <div className={cn(
             "rounded-xl p-5 space-y-3 xl:col-span-2 backdrop-blur-sm transition-colors",
             "bg-card border border-border",
-            "dark:bg-muted/50"
+            ""
           )}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">14-day occupancy</h3>
@@ -1347,7 +1347,7 @@ export default function Dashboard() {
                       className={cn(
                         "flex flex-col gap-1 rounded-lg px-3 py-2 transition-all hover:shadow-md",
                         "border border-border bg-card",
-                        "hover:border-emerald-300 dark:hover:border-emerald-700",
+                        "hover:border-emerald-300",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                       )}
                     >
@@ -1378,7 +1378,7 @@ export default function Dashboard() {
           className={cn(
             "rounded-xl p-5 space-y-3 backdrop-blur-sm transition-colors",
             "bg-card border border-border",
-            "dark:bg-muted/50"
+            ""
           )}
           {...motionProps}
           transition={{ ...SPRING_CONFIG, delay: 0.35 }}
@@ -1392,7 +1392,7 @@ export default function Dashboard() {
               "w-full rounded-lg px-4 py-2.5 text-sm transition-all duration-200",
               "border-2 border-border bg-background text-foreground placeholder:text-muted-foreground",
               "focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10",
-              "dark:focus:border-emerald-400 dark:focus:ring-emerald-400/10"
+              ""
             )}
             placeholder="Search guest, site, reservation…"
             value={search}
@@ -1419,7 +1419,7 @@ export default function Dashboard() {
                     className={cn(
                       "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all",
                       "border border-border bg-card hover:border-emerald-300 hover:shadow-sm",
-                      "dark:hover:border-emerald-700",
+                      "",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                     )}
                   >
@@ -1444,7 +1444,7 @@ export default function Dashboard() {
           className={cn(
             "rounded-xl p-5 space-y-3 backdrop-blur-sm transition-colors",
             "bg-card border border-border",
-            "dark:bg-muted/50"
+            ""
           )}
           {...motionProps}
           transition={{ ...SPRING_CONFIG, delay: 0.4 }}
@@ -1457,7 +1457,7 @@ export default function Dashboard() {
             <Link
               href="/reservations"
               className={cn(
-                "text-sm font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300 flex items-center gap-1",
+                "text-sm font-semibold text-emerald-600 hover:text-emerald-500 flex items-center gap-1",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded"
               )}
             >
@@ -1497,27 +1497,12 @@ function OpsCard({
 }) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const toneMap: Record<typeof tone, { light: string; dark: string }> = {
-    emerald: {
-      light: "bg-emerald-50 text-emerald-800 border-emerald-200",
-      dark: "dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800"
-    },
-    amber: {
-      light: "bg-amber-50 text-amber-800 border-amber-200",
-      dark: "dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800"
-    },
-    blue: {
-      light: "bg-blue-50 text-blue-800 border-blue-200",
-      dark: "dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800"
-    },
-    purple: {
-      light: "bg-purple-50 text-purple-800 border-purple-200",
-      dark: "dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800"
-    },
-    rose: {
-      light: "bg-rose-50 text-rose-800 border-rose-200",
-      dark: "dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
-    }
+  const toneMap: Record<typeof tone, string> = {
+    emerald: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    amber: "bg-amber-50 text-amber-800 border-amber-200",
+    blue: "bg-blue-50 text-blue-800 border-blue-200",
+    purple: "bg-purple-50 text-purple-800 border-purple-200",
+    rose: "bg-rose-50 text-rose-800 border-rose-200",
   };
 
   return (
@@ -1533,11 +1518,10 @@ function OpsCard({
       <Link
         href={href}
         aria-label={`${label}: ${value}`}
-        className={cn(
+          className={cn(
           "flex items-center justify-between gap-3 rounded-xl border p-4 transition-all hover:shadow-lg hover:shadow-emerald-500/10",
-          toneMap[tone].light,
-          toneMap[tone].dark,
-          celebrate && "ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-background",
+          toneMap[tone],
+          celebrate && "ring-2 ring-emerald-500 ring-offset-2",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
         )}
       >
@@ -1546,7 +1530,7 @@ function OpsCard({
             className={cn(
               "rounded-lg p-2",
               "bg-card/70 text-foreground",
-              "dark:bg-card/10 dark:text-muted-foreground"
+              ""
             )}
             animate={isHovered && !prefersReducedMotion ? {
               rotate: [0, -10, 10, -10, 0],
@@ -1566,10 +1550,10 @@ function OpsCard({
                     key={idx}
                     className={cn(
                       "inline-flex items-center gap-1 px-1.5 py-0.5 rounded",
-                      item.tone === "danger" && "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400",
-                      item.tone === "warning" && "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
-                      item.tone === "success" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
-                      !item.tone && "bg-muted text-foreground dark:bg-muted dark:text-muted-foreground"
+                      item.tone === "danger" && "bg-red-100 text-red-700",
+                      item.tone === "warning" && "bg-amber-100 text-amber-700",
+                      item.tone === "success" && "bg-emerald-100 text-emerald-700",
+                      !item.tone && "bg-muted text-foreground"
                     )}
                   >
                     <span className="font-semibold">{item.value}</span>
@@ -1617,8 +1601,8 @@ function BoardCard({
   isLoading?: boolean;
 }) {
   const colorClasses = tone === "emerald"
-    ? "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/50"
-    : "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/50";
+    ? "text-emerald-600 bg-emerald-50"
+    : "text-amber-600 bg-amber-50";
 
   return (
     <motion.div
@@ -1628,7 +1612,7 @@ function BoardCard({
       className={cn(
         "rounded-xl p-5 space-y-3 backdrop-blur-sm transition-colors",
         "bg-card border border-border",
-        "dark:bg-muted/50"
+        ""
       )}
     >
       <div className="flex items-center justify-between">
@@ -1710,7 +1694,7 @@ function BoardCard({
               className={cn(
                 "flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors",
                 "border border-border bg-card",
-                "hover:border-emerald-300 dark:hover:border-emerald-700"
+                "hover:border-emerald-300"
               )}
             >
               <div className="flex items-center gap-3">
@@ -1742,7 +1726,7 @@ function BoardCard({
       <Link
         href={ctaHref}
         className={cn(
-          "inline-flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300",
+          "inline-flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-500",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded"
         )}
       >
@@ -1769,31 +1753,26 @@ function QuickActionButton({
 }) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const toneMap: Record<typeof tone, { light: string; dark: string; icon: string }> = {
+  const toneMap: Record<typeof tone, { shell: string; icon: string }> = {
     emerald: {
-      light: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300",
-      dark: "dark:bg-emerald-950/30 dark:border-emerald-800 dark:hover:bg-emerald-900/40 dark:hover:border-emerald-700",
-      icon: "text-emerald-600 dark:text-emerald-400"
+      shell: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300",
+      icon: "text-emerald-600"
     },
     blue: {
-      light: "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300",
-      dark: "dark:bg-blue-950/30 dark:border-blue-800 dark:hover:bg-blue-900/40 dark:hover:border-blue-700",
-      icon: "text-blue-600 dark:text-blue-400"
+      shell: "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300",
+      icon: "text-blue-600"
     },
     purple: {
-      light: "bg-purple-50 border-purple-200 hover:bg-purple-100 hover:border-purple-300",
-      dark: "dark:bg-purple-950/30 dark:border-purple-800 dark:hover:bg-purple-900/40 dark:hover:border-purple-700",
-      icon: "text-purple-600 dark:text-purple-400"
+      shell: "bg-purple-50 border-purple-200 hover:bg-purple-100 hover:border-purple-300",
+      icon: "text-purple-600"
     },
     amber: {
-      light: "bg-amber-50 border-amber-200 hover:bg-amber-100 hover:border-amber-300",
-      dark: "dark:bg-amber-950/30 dark:border-amber-800 dark:hover:bg-amber-900/40 dark:hover:border-amber-700",
-      icon: "text-amber-600 dark:text-amber-400"
+      shell: "bg-amber-50 border-amber-200 hover:bg-amber-100 hover:border-amber-300",
+      icon: "text-amber-600"
     },
     slate: {
-      light: "bg-muted border-border hover:bg-muted hover:border-border",
-      dark: "dark:bg-muted/30 dark:border-border dark:hover:bg-muted/40 dark:hover:border-border",
-      icon: "text-muted-foreground dark:text-muted-foreground"
+      shell: "bg-muted border-border hover:bg-muted hover:border-border",
+      icon: "text-muted-foreground"
     }
   };
 
@@ -1814,8 +1793,7 @@ function QuickActionButton({
         aria-label={label}
         className={cn(
           "flex flex-col items-center justify-center gap-2 rounded-xl border-2 px-4 py-5 text-center transition-all shadow-sm hover:shadow-lg",
-          colors.light,
-          colors.dark,
+          colors.shell,
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
         )}
       >
@@ -1876,8 +1854,8 @@ function ActivityList({
   prefersReducedMotion: boolean | null;
 }) {
   const accent = tone === "emerald"
-    ? "text-emerald-600 dark:text-emerald-400"
-    : "text-amber-600 dark:text-amber-400";
+    ? "text-emerald-600"
+    : "text-amber-600";
 
   return (
     <div className={cn(

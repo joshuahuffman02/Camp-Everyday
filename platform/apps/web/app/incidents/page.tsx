@@ -53,28 +53,28 @@ type Reservation = { id: string; arrivalDate?: string; departureDate?: string; g
 
 // Incident type configuration
 const incidentTypes = [
-  { value: "injury", label: "Injury", icon: <Stethoscope className="h-5 w-5" />, color: "text-red-600 dark:text-red-400" },
-  { value: "property_damage", label: "Property Damage", icon: <Wrench className="h-5 w-5" />, color: "text-orange-600 dark:text-orange-400" },
-  { value: "safety", label: "Safety Issue", icon: <AlertTriangle className="h-5 w-5" />, color: "text-yellow-600 dark:text-yellow-400" },
-  { value: "near_miss", label: "Near Miss", icon: <Eye className="h-5 w-5" />, color: "text-blue-600 dark:text-blue-400" },
-  { value: "environmental", label: "Environmental", icon: <Leaf className="h-5 w-5" />, color: "text-green-600 dark:text-green-400" },
-  { value: "other", label: "Other", icon: <ClipboardList className="h-5 w-5" />, color: "text-muted-foreground dark:text-muted-foreground" },
+  { value: "injury", label: "Injury", icon: <Stethoscope className="h-5 w-5" />, color: "text-red-600" },
+  { value: "property_damage", label: "Property Damage", icon: <Wrench className="h-5 w-5" />, color: "text-orange-600" },
+  { value: "safety", label: "Safety Issue", icon: <AlertTriangle className="h-5 w-5" />, color: "text-yellow-600" },
+  { value: "near_miss", label: "Near Miss", icon: <Eye className="h-5 w-5" />, color: "text-blue-600" },
+  { value: "environmental", label: "Environmental", icon: <Leaf className="h-5 w-5" />, color: "text-green-600" },
+  { value: "other", label: "Other", icon: <ClipboardList className="h-5 w-5" />, color: "text-muted-foreground" },
 ];
 
 // Severity configuration
 const severityConfig: Record<string, { color: string; bgColor: string; label: string }> = {
-  low: { color: "text-blue-700 dark:text-blue-400", bgColor: "bg-blue-100 dark:bg-blue-900/50", label: "Low" },
-  medium: { color: "text-amber-700 dark:text-amber-400", bgColor: "bg-amber-100 dark:bg-amber-900/50", label: "Medium" },
-  high: { color: "text-orange-700 dark:text-orange-400", bgColor: "bg-orange-100 dark:bg-orange-900/50", label: "High" },
-  critical: { color: "text-red-700 dark:text-red-400", bgColor: "bg-red-100 dark:bg-red-900/50", label: "Critical" },
+  low: { color: "text-blue-700", bgColor: "bg-blue-100", label: "Low" },
+  medium: { color: "text-amber-700", bgColor: "bg-amber-100", label: "Medium" },
+  high: { color: "text-orange-700", bgColor: "bg-orange-100", label: "High" },
+  critical: { color: "text-red-700", bgColor: "bg-red-100", label: "Critical" },
 };
 
 // Status configuration
 const statusConfig: Record<string, { color: string; bgColor: string; icon: React.ReactNode }> = {
-  open: { color: "text-amber-700 dark:text-amber-400", bgColor: "bg-amber-100 dark:bg-amber-900/50", icon: <AlertTriangle className="h-3 w-3" /> },
-  investigating: { color: "text-blue-700 dark:text-blue-400", bgColor: "bg-blue-100 dark:bg-blue-900/50", icon: <Search className="h-3 w-3" /> },
-  resolved: { color: "text-emerald-700 dark:text-emerald-400", bgColor: "bg-emerald-100 dark:bg-emerald-900/50", icon: <CheckCircle2 className="h-3 w-3" /> },
-  closed: { color: "text-foreground dark:text-muted-foreground", bgColor: "bg-muted dark:bg-muted", icon: <CheckCircle2 className="h-3 w-3" /> },
+  open: { color: "text-amber-700", bgColor: "bg-amber-100", icon: <AlertTriangle className="h-3 w-3" /> },
+  investigating: { color: "text-blue-700", bgColor: "bg-blue-100", icon: <Search className="h-3 w-3" /> },
+  resolved: { color: "text-emerald-700", bgColor: "bg-emerald-100", icon: <CheckCircle2 className="h-3 w-3" /> },
+  closed: { color: "text-foreground", bgColor: "bg-muted", icon: <CheckCircle2 className="h-3 w-3" /> },
 };
 
 export default function IncidentsPage() {
@@ -341,8 +341,8 @@ export default function IncidentsPage() {
                   <div className="text-3xl font-bold text-foreground">{openIncidents}</div>
                   <div className="text-sm text-muted-foreground">Open Cases</div>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
-                  <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center">
+                  <AlertTriangle className="h-6 w-6 text-amber-600" />
                 </div>
               </div>
             </CardContent>
@@ -355,8 +355,8 @@ export default function IncidentsPage() {
                   <div className="text-3xl font-bold text-foreground">{highPriorityIncidents}</div>
                   <div className="text-sm text-muted-foreground">High Priority</div>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
-                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
+                  <AlertTriangle className="h-6 w-6 text-red-600" />
                 </div>
               </div>
             </CardContent>
@@ -391,18 +391,18 @@ export default function IncidentsPage() {
                       className={cn(
                         "flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all text-sm font-medium text-left",
                         form.type === type.value
-                          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                          ? "border-emerald-500 bg-emerald-50"
                           : "border-border hover:border-muted-foreground/30 hover:bg-muted/50"
                       )}
                       whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
                       whileTap={prefersReducedMotion ? {} : { scale: 0.98 }}
                     >
                       <span className={cn(form.type === type.value ? type.color : "text-muted-foreground")}>{type.icon}</span>
-                      <span className={cn("flex-1", form.type === type.value ? "text-emerald-700 dark:text-emerald-400" : "text-foreground")}>
+                      <span className={cn("flex-1", form.type === type.value ? "text-emerald-700" : "text-foreground")}>
                         {type.label}
                       </span>
                       {form.type === type.value && (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       )}
                     </motion.button>
                   ))}
@@ -780,9 +780,9 @@ export default function IncidentsPage() {
                     <motion.div
                       animate={{ y: [0, -8, 0] }}
                       transition={{ duration: 2, repeat: Infinity }}
-                      className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center mb-4"
+                      className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4"
                     >
-                      <Shield className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                      <Shield className="h-8 w-8 text-emerald-600" />
                     </motion.div>
                     <p className="text-lg font-medium text-foreground">All Clear!</p>
                     <p className="text-sm text-muted-foreground mt-1">
@@ -812,7 +812,7 @@ export default function IncidentsPage() {
                           className={cn(
                             "border-2 rounded-xl p-4 cursor-pointer transition-all",
                             isSelected
-                              ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-md"
+                              ? "border-emerald-500 bg-emerald-50/50 shadow-md"
                               : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"
                           )}
                         >
@@ -836,13 +836,13 @@ export default function IncidentsPage() {
                                 {(incident.claimId || incident.reminderAt) && (
                                   <div className="flex flex-wrap gap-2 mt-2">
                                     {incident.claimId && (
-                                      <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
+                                      <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded">
                                         <LinkIcon className="h-3 w-3" />
                                         Claim: {incident.claimId}
                                       </span>
                                     )}
                                     {incident.reminderAt && (
-                                      <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded">
+                                      <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded">
                                         <Clock className="h-3 w-3" />
                                         Reminder set
                                       </span>

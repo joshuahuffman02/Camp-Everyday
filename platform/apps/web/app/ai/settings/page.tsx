@@ -172,7 +172,7 @@ export default function AISettingsPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-slate-500 to-gray-600 text-white shadow-lg">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground border border-border shadow-sm">
               <Settings className="h-6 w-6" />
             </div>
             <div>
@@ -227,8 +227,8 @@ export default function AISettingsPage() {
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <MessageSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div className="h-10 w-10 rounded-lg bg-status-info-bg border border-status-info-border flex items-center justify-center">
+                      <MessageSquare className="h-5 w-5 text-status-info-text" />
                     </div>
                     <div>
                       <p className="font-medium text-foreground">Auto-Reply Suggestions</p>
@@ -243,8 +243,8 @@ export default function AISettingsPage() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                      <Users className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <p className="font-medium text-foreground">Smart Waitlist</p>
@@ -259,8 +259,8 @@ export default function AISettingsPage() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                      <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    <div className="h-10 w-10 rounded-lg bg-status-warning-bg border border-status-warning-border flex items-center justify-center">
+                      <AlertTriangle className="h-5 w-5 text-status-warning-text" />
                     </div>
                     <div>
                       <p className="font-medium text-foreground">Anomaly Detection</p>
@@ -275,8 +275,8 @@ export default function AISettingsPage() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                      <Calendar className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    <div className="h-10 w-10 rounded-lg bg-status-warning-bg border border-status-warning-border flex items-center justify-center">
+                      <Calendar className="h-5 w-5 text-status-warning-text" />
                     </div>
                     <div>
                       <p className="font-medium text-foreground">No-Show Prediction</p>
@@ -291,8 +291,8 @@ export default function AISettingsPage() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                      <Wrench className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <div className="h-10 w-10 rounded-lg bg-status-warning-bg border border-status-warning-border flex items-center justify-center">
+                      <Wrench className="h-5 w-5 text-status-warning-text" />
                     </div>
                     <div>
                       <p className="font-medium text-foreground">Predictive Maintenance</p>
@@ -307,8 +307,8 @@ export default function AISettingsPage() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center">
-                      <CloudSun className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+                    <div className="h-10 w-10 rounded-lg bg-status-info-bg border border-status-info-border flex items-center justify-center">
+                      <CloudSun className="h-5 w-5 text-status-info-text" />
                     </div>
                     <div>
                       <p className="font-medium text-foreground">Weather Alerts</p>
@@ -326,10 +326,10 @@ export default function AISettingsPage() {
 
           {/* Autonomous Settings */}
           <TabsContent value="autonomous" className="space-y-4">
-            <Card className="border-amber-200 dark:border-amber-800">
+            <Card className="border-status-warning-border">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-amber-500" />
+                  <Zap className="h-5 w-5 text-status-warning-text" />
                   <CardTitle>Autonomous Mode</CardTitle>
                 </div>
                 <CardDescription>
@@ -337,12 +337,12 @@ export default function AISettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="p-4 bg-status-warning-bg rounded-lg border border-status-warning-border">
                   <div className="flex items-start gap-3">
-                    <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    <Shield className="h-5 w-5 text-status-warning-text mt-0.5" />
                     <div>
-                      <p className="font-medium text-amber-800 dark:text-amber-300">Safety First</p>
-                      <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                      <p className="font-medium text-status-warning-text">Safety First</p>
+                      <p className="text-sm text-status-warning-text mt-1">
                         All autonomous actions are logged and can be reversed. Start with conservative settings and increase as you build confidence.
                       </p>
                     </div>

@@ -41,17 +41,17 @@ export function DivergingBar({
 
   if (loading) {
     return (
-      <Card className="border-border dark:border-border">
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="text-lg text-foreground dark:text-white">{title}</CardTitle>
-          {description && <p className="text-sm text-muted-foreground dark:text-muted-foreground">{description}</p>}
+          <CardTitle className="text-lg text-foreground">{title}</CardTitle>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="flex items-center gap-4">
-                <div className="w-24 h-4 bg-muted dark:bg-muted rounded" />
-                <div className="flex-1 h-6 bg-muted dark:bg-muted rounded" />
+                <div className="w-24 h-4 bg-muted rounded" />
+                <div className="flex-1 h-6 bg-muted rounded" />
               </div>
             ))}
           </div>
@@ -61,25 +61,25 @@ export function DivergingBar({
   }
 
   return (
-    <Card className="border-border dark:border-border">
+    <Card className="border-border">
       <CardHeader>
-        <CardTitle className="text-lg text-foreground dark:text-white">{title}</CardTitle>
-        {description && <p className="text-sm text-muted-foreground dark:text-muted-foreground">{description}</p>}
+        <CardTitle className="text-lg text-foreground">{title}</CardTitle>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </CardHeader>
       <CardContent>
         {/* Legend */}
         <div className="flex items-center justify-center gap-6 mb-6 text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-green-500" />
-            <span className="text-muted-foreground dark:text-muted-foreground">{positiveLabel}</span>
+            <div className="w-4 h-4 rounded bg-status-success" />
+            <span className="text-muted-foreground">{positiveLabel}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-amber-500" />
-            <span className="text-muted-foreground dark:text-muted-foreground">{neutralLabel}</span>
+            <div className="w-4 h-4 rounded bg-status-warning" />
+            <span className="text-muted-foreground">{neutralLabel}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-red-500" />
-            <span className="text-muted-foreground dark:text-muted-foreground">{negativeLabel}</span>
+            <div className="w-4 h-4 rounded bg-status-error" />
+            <span className="text-muted-foreground">{negativeLabel}</span>
           </div>
         </div>
 
@@ -94,15 +94,15 @@ export function DivergingBar({
               <div key={idx} className="flex items-center gap-3">
                 {/* Label */}
                 <div className="w-28 flex-shrink-0 text-right">
-                  <span className="text-sm font-medium text-foreground dark:text-muted-foreground truncate block">
+                  <span className="text-sm font-medium text-foreground truncate block">
                     {item.label}
                   </span>
                   {showScore && item.score !== undefined && (
                     <span className={cn(
                       "text-xs font-semibold",
-                      item.score >= 50 ? "text-green-600 dark:text-green-400" :
-                      item.score >= 0 ? "text-amber-600 dark:text-amber-400" :
-                      "text-red-600 dark:text-red-400"
+                      item.score >= 50 ? "text-status-success-text" :
+                      item.score >= 0 ? "text-status-warning-text" :
+                      "text-status-error-text"
                     )}>
                       NPS: {item.score}
                     </span>
@@ -114,7 +114,7 @@ export function DivergingBar({
                   {/* Negative side (detractors) - right aligned */}
                   <div className="w-1/2 flex justify-end">
                     <div
-                      className="h-7 bg-red-500 rounded-l-md transition-all duration-500 flex items-center justify-start pl-2"
+                      className="h-7 bg-status-error rounded-l-md transition-all duration-500 flex items-center justify-start pl-2"
                       style={{ width: `${negativeWidth}%`, minWidth: item.negative > 0 ? '24px' : '0' }}
                     >
                       {negativeWidth > 15 && (
@@ -124,12 +124,12 @@ export function DivergingBar({
                   </div>
 
                   {/* Center line */}
-                  <div className="w-px h-8 bg-muted dark:bg-muted" />
+                  <div className="w-px h-8 bg-muted" />
 
                   {/* Positive side (promoters) - left aligned */}
                   <div className="w-1/2 flex justify-start">
                     <div
-                      className="h-7 bg-green-500 rounded-r-md transition-all duration-500 flex items-center justify-end pr-2"
+                      className="h-7 bg-status-success rounded-r-md transition-all duration-500 flex items-center justify-end pr-2"
                       style={{ width: `${positiveWidth}%`, minWidth: item.positive > 0 ? '24px' : '0' }}
                     >
                       {positiveWidth > 15 && (
@@ -144,7 +144,7 @@ export function DivergingBar({
         </div>
 
         {/* Axis labels */}
-        <div className="flex items-center mt-4 text-xs text-muted-foreground dark:text-muted-foreground">
+        <div className="flex items-center mt-4 text-xs text-muted-foreground">
           <div className="w-28 flex-shrink-0" />
           <div className="flex-1 flex justify-between px-2">
             <span>{negativeLabel}</span>

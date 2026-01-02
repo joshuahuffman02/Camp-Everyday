@@ -19,7 +19,7 @@ const defaultStats: Stat[] = [
 interface SocialProofStripProps {
   stats?: Stat[];
   className?: string;
-  variant?: "light" | "dark" | "gradient";
+  variant?: "light" | "tint";
 }
 
 export function SocialProofStrip({
@@ -29,8 +29,7 @@ export function SocialProofStrip({
 }: SocialProofStripProps) {
   const variantStyles = {
     light: "bg-card border-y border-border",
-    dark: "bg-muted text-foreground",
-    gradient: "bg-gradient-to-r from-emerald-50 to-teal-50 border-y border-emerald-100",
+    tint: "bg-emerald-50 border-y border-emerald-100",
   };
 
   const textStyles = {
@@ -39,12 +38,7 @@ export function SocialProofStrip({
       label: "text-muted-foreground",
       icon: "text-emerald-600",
     },
-    dark: {
-      value: "text-white",
-      label: "text-muted-foreground",
-      icon: "text-emerald-400",
-    },
-    gradient: {
+    tint: {
       value: "text-foreground",
       label: "text-muted-foreground",
       icon: "text-emerald-600",

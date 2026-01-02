@@ -50,13 +50,13 @@ function CampgroundsPageContent() {
               <div key={i} className="card p-4 animate-pulse">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 space-y-2">
-                    <div className="h-6 bg-muted dark:bg-muted rounded w-48" />
-                    <div className="h-4 bg-muted dark:bg-muted rounded w-32" />
+                    <div className="h-6 bg-muted rounded w-48" />
+                    <div className="h-4 bg-muted rounded w-32" />
                   </div>
                   <div className="flex gap-2">
-                    <div className="h-9 w-16 bg-muted dark:bg-muted rounded" />
-                    <div className="h-9 w-20 bg-muted dark:bg-muted rounded" />
-                    <div className="h-9 w-24 bg-muted dark:bg-muted rounded" />
+                    <div className="h-9 w-16 bg-muted rounded" />
+                    <div className="h-9 w-20 bg-muted rounded" />
+                    <div className="h-9 w-24 bg-muted rounded" />
                   </div>
                 </div>
               </div>
@@ -129,20 +129,20 @@ export default function CampgroundsPage() {
         <div className="space-y-4">
           <Breadcrumbs items={[{ label: "Campgrounds" }]} />
           <div className="flex items-center justify-between">
-            <div className="h-7 w-40 bg-muted dark:bg-muted rounded animate-pulse" />
+            <div className="h-7 w-40 bg-muted rounded animate-pulse" />
           </div>
           <div className="grid gap-3">
             {[...Array(2)].map((_, i) => (
               <div key={i} className="card p-4 animate-pulse">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 space-y-2">
-                    <div className="h-6 bg-muted dark:bg-muted rounded w-48" />
-                    <div className="h-4 bg-muted dark:bg-muted rounded w-32" />
+                    <div className="h-6 bg-muted rounded w-48" />
+                    <div className="h-4 bg-muted rounded w-32" />
                   </div>
                   <div className="flex gap-2">
-                    <div className="h-9 w-16 bg-muted dark:bg-muted rounded" />
-                    <div className="h-9 w-20 bg-muted dark:bg-muted rounded" />
-                    <div className="h-9 w-24 bg-muted dark:bg-muted rounded" />
+                    <div className="h-9 w-16 bg-muted rounded" />
+                    <div className="h-9 w-20 bg-muted rounded" />
+                    <div className="h-9 w-24 bg-muted rounded" />
                   </div>
                 </div>
               </div>

@@ -194,7 +194,7 @@ export default function ReferralsPage() {
                     <div className="mt-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                         <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                                <Megaphone className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                <Megaphone className="h-6 w-6 text-emerald-600" />
                                 <h1 className="text-2xl font-bold text-foreground">Marketing & Referrals</h1>
                             </div>
                             <p className="text-muted-foreground">
@@ -258,8 +258,8 @@ export default function ReferralsPage() {
                     <Card className="border-border bg-card">
                         <CardContent className="pt-6">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                                    <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+                                    <TrendingUp className="h-5 w-5 text-emerald-600" />
                                 </div>
                                 <div>
                                     <p className="text-2xl font-bold text-foreground">
@@ -273,8 +273,8 @@ export default function ReferralsPage() {
                     <Card className="border-border bg-card">
                         <CardContent className="pt-6">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                                    <Gift className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+                                    <Gift className="h-5 w-5 text-purple-600" />
                                 </div>
                                 <div>
                                     <p className="text-2xl font-bold text-foreground">
@@ -295,11 +295,11 @@ export default function ReferralsPage() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -20 }}
                         >
-                            <Card className="border-emerald-200 dark:border-emerald-800 bg-card">
+                            <Card className="border-emerald-200 bg-card">
                                 <CardHeader className="bg-status-success/10">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <Zap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                            <Zap className="h-5 w-5 text-emerald-600" />
                                             <CardTitle className="text-foreground">Create Referral Code</CardTitle>
                                         </div>
                                         <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}>
@@ -327,7 +327,7 @@ export default function ReferralsPage() {
                                                 placeholder="summer-special"
                                             />
                                             {form.linkSlug && (
-                                                <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                                <p className="text-xs text-emerald-600 flex items-center gap-1">
                                                     <Link2 className="h-3 w-3" />
                                                     {referralBaseUrl}/r/{form.linkSlug}
                                                 </p>
@@ -437,7 +437,7 @@ export default function ReferralsPage() {
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                    <Target className="h-5 w-5 text-emerald-600" />
                                     <CardTitle className="text-foreground">Referral Programs</CardTitle>
                                 </div>
                                 <Button
@@ -490,7 +490,7 @@ export default function ReferralsPage() {
                                                 )}>
                                                     <Gift className={cn(
                                                         "h-5 w-5",
-                                                        program.isActive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                                                        program.isActive ? "text-emerald-600" : "text-muted-foreground"
                                                     )} />
                                                 </div>
                                                 <div className="min-w-0">
@@ -566,7 +566,7 @@ export default function ReferralsPage() {
                         <Card className="border-border bg-card">
                             <CardHeader>
                                 <div className="flex items-center gap-2">
-                                    <BarChart3 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                    <BarChart3 className="h-5 w-5 text-emerald-600" />
                                     <CardTitle className="text-foreground">Performance by Program</CardTitle>
                                 </div>
                             </CardHeader>
@@ -611,7 +611,7 @@ export default function ReferralsPage() {
                     <Card className="border-border bg-card">
                         <CardHeader>
                             <div className="flex items-center gap-2">
-                                <MessageSquare className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                <MessageSquare className="h-5 w-5 text-emerald-600" />
                                 <div>
                                     <CardTitle className="text-foreground">Why Guests Choose You</CardTitle>
                                     <CardDescription className="text-muted-foreground">

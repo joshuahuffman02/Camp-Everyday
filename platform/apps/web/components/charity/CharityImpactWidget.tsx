@@ -118,16 +118,16 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
   // Only show full skeleton while initial settings load
   if (loadingSettings && !charitySettings) {
     return (
-      <div className="rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-950/30 dark:to-amber-950/20 border border-rose-100 dark:border-rose-900/50 p-6">
+      <div className="rounded-2xl bg-rose-50 border border-rose-100 p-6">
         <div className="animate-pulse space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-rose-200 dark:bg-rose-800" />
+            <div className="w-12 h-12 rounded-xl bg-rose-200" />
             <div className="flex-1">
-              <div className="h-5 w-32 bg-rose-200 dark:bg-rose-800 rounded" />
-              <div className="h-4 w-24 bg-rose-100 dark:bg-rose-900 rounded mt-1" />
+              <div className="h-5 w-32 bg-rose-200 rounded" />
+              <div className="h-4 w-24 bg-rose-100 rounded mt-1" />
             </div>
           </div>
-          <div className="h-16 bg-rose-100 dark:bg-rose-900 rounded-xl" />
+          <div className="h-16 bg-rose-100 rounded-xl" />
         </div>
       </div>
     );
@@ -140,17 +140,17 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-950/30 dark:to-amber-950/20 border border-rose-100 dark:border-rose-900/50 p-6"
+        className="rounded-2xl bg-rose-50 border border-rose-100 p-6"
       >
         <div className="flex items-start gap-4">
-          <div className="p-3 rounded-xl bg-rose-100 dark:bg-rose-900/50">
+          <div className="p-3 rounded-xl bg-rose-100">
             <Heart className="h-6 w-6 text-rose-500" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-foreground dark:text-white mb-1">
+            <h3 className="font-semibold text-foreground mb-1">
               Give Back with Round-Up
             </h3>
-            <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-4">
+            <p className="text-sm text-muted-foreground mb-4">
               Let your guests round up payments to donate to a charity of your choice.
               It's a small gesture with a big impact!
             </p>
@@ -175,7 +175,7 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-950/30 dark:to-amber-950/20 border border-rose-100 dark:border-rose-900/50 p-6 relative overflow-hidden"
+      className="rounded-2xl bg-rose-50 border border-rose-100 p-6 relative overflow-hidden"
     >
       {/* Decorative sparkle */}
       <motion.div
@@ -189,23 +189,23 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
       {/* Header */}
       <div className="flex items-start gap-4 mb-4">
         <motion.div
-          className="p-3 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 shadow-lg shadow-rose-500/25"
-          animate={!prefersReducedMotion && hasAnimated ? { scale: [1, 1.1, 1] } : {}}
-          transition={{ duration: 0.5, delay: 1.5 }}
-        >
-          <Heart className="h-6 w-6 text-white fill-white" />
-        </motion.div>
-        <div className="flex-1">
-          <h3 className="font-semibold text-foreground dark:text-white">
+        className="p-3 rounded-xl bg-rose-500 shadow-sm"
+        animate={!prefersReducedMotion && hasAnimated ? { scale: [1, 1.1, 1] } : {}}
+        transition={{ duration: 0.5, delay: 1.5 }}
+      >
+        <Heart className="h-6 w-6 text-white fill-white" />
+      </motion.div>
+      <div className="flex-1">
+          <h3 className="font-semibold text-foreground">
             Your Impact
           </h3>
-          <p className="text-sm text-muted-foreground dark:text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Donations to {charityName}
           </p>
         </div>
         <Link
           href="/dashboard/settings/charity"
-          className="text-muted-foreground hover:text-muted-foreground dark:hover:text-muted-foreground transition-colors"
+          className="text-muted-foreground hover:text-foreground transition-colors"
           title="Charity settings"
         >
           <Settings className="h-4 w-4" />
@@ -213,17 +213,17 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
       </div>
 
       {/* Main Stat */}
-      <div className="bg-card/60 dark:bg-muted/60 rounded-xl p-4 mb-4">
+      <div className="bg-card/60 rounded-xl p-4 mb-4">
         {loadingStats && !stats ? (
           <div className="animate-pulse">
-            <div className="h-4 w-20 bg-rose-100 dark:bg-rose-900 rounded mb-2" />
-            <div className="h-8 w-24 bg-rose-200 dark:bg-rose-800 rounded" />
+            <div className="h-4 w-20 bg-rose-100 rounded mb-2" />
+            <div className="h-8 w-24 bg-rose-200 rounded" />
           </div>
         ) : (
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-1">Total Raised</p>
-              <p className="text-3xl font-bold text-rose-600 dark:text-rose-400">
+              <p className="text-sm text-muted-foreground mb-1">Total Raised</p>
+              <p className="text-3xl font-bold text-rose-600">
                 {formatDollars(animatedTotal)}
               </p>
             </div>
@@ -232,7 +232,7 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.5 }}
-                className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-sm font-medium"
+                className="flex items-center gap-1 text-emerald-600 text-sm font-medium"
               >
                 <TrendingUp className="h-4 w-4" />
                 {getEncouragingMessage(stats.totalAmountCents, optInRate)}
@@ -244,40 +244,40 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
 
       {/* Secondary Stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-card/40 dark:bg-muted/40 rounded-lg p-3 text-center">
-          <div className="flex items-center justify-center gap-1 text-blue-600 dark:text-blue-400 mb-1">
+        <div className="bg-card/40 rounded-lg p-3 text-center">
+          <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
             <Users className="h-4 w-4" />
           </div>
           {loadingStats && !stats ? (
             <div className="animate-pulse">
-              <div className="h-6 w-8 bg-muted dark:bg-muted rounded mx-auto mb-1" />
-              <div className="h-3 w-12 bg-muted dark:bg-muted rounded mx-auto" />
+              <div className="h-6 w-8 bg-muted rounded mx-auto mb-1" />
+              <div className="h-3 w-12 bg-muted rounded mx-auto" />
             </div>
           ) : (
             <>
-              <p className="text-xl font-bold text-foreground dark:text-white">
+              <p className="text-xl font-bold text-foreground">
                 {animatedDonations}
               </p>
-              <p className="text-xs text-muted-foreground dark:text-muted-foreground">donations</p>
+              <p className="text-xs text-muted-foreground">donations</p>
             </>
           )}
         </div>
 
-        <div className="bg-card/40 dark:bg-muted/40 rounded-lg p-3 text-center">
-          <div className="flex items-center justify-center gap-1 text-purple-600 dark:text-purple-400 mb-1">
+        <div className="bg-card/40 rounded-lg p-3 text-center">
+          <div className="flex items-center justify-center gap-1 text-purple-600 mb-1">
             <Heart className="h-4 w-4" />
           </div>
           {loadingStats && !stats ? (
             <div className="animate-pulse">
-              <div className="h-6 w-10 bg-muted dark:bg-muted rounded mx-auto mb-1" />
-              <div className="h-3 w-14 bg-muted dark:bg-muted rounded mx-auto" />
+              <div className="h-6 w-10 bg-muted rounded mx-auto mb-1" />
+              <div className="h-3 w-14 bg-muted rounded mx-auto" />
             </div>
           ) : (
             <>
-              <p className="text-xl font-bold text-foreground dark:text-white">
+              <p className="text-xl font-bold text-foreground">
                 {optInRate.toFixed(0)}%
               </p>
-              <p className="text-xs text-muted-foreground dark:text-muted-foreground">opt-in rate</p>
+              <p className="text-xs text-muted-foreground">opt-in rate</p>
             </>
           )}
         </div>
@@ -288,9 +288,9 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="mt-4 p-3 rounded-lg bg-gradient-to-r from-amber-100 to-rose-100 dark:from-amber-900/30 dark:to-rose-900/30 text-center"
+          className="mt-4 p-3 rounded-lg bg-amber-100 text-center"
         >
-          <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+          <p className="text-sm font-medium text-amber-700">
             You just crossed $100 in donations!
           </p>
         </motion.div>

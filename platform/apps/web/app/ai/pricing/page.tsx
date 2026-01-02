@@ -71,13 +71,13 @@ function getRecommendationIcon(type: string) {
 function getRecommendationColor(type: string) {
   switch (type) {
     case "underpriced":
-      return "text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30";
+      return "text-status-success-text bg-status-success-bg border border-status-success-border";
     case "overpriced":
-      return "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30";
+      return "text-status-warning-text bg-status-warning-bg border border-status-warning-border";
     case "event_opportunity":
-      return "text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30";
+      return "text-status-info-text bg-status-info-bg border border-status-info-border";
     default:
-      return "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30";
+      return "text-status-info-text bg-status-info-bg border border-status-info-border";
   }
 }
 
@@ -163,7 +163,7 @@ export default function AIPricingPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-status-success-bg text-status-success-text border border-status-success-border shadow-sm">
               <DollarSign className="h-6 w-6" />
             </div>
             <div>
@@ -189,7 +189,7 @@ export default function AIPricingPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Target className="h-5 w-5 text-amber-500" />
+                <Target className="h-5 w-5 text-status-warning-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">{pendingCount}</div>
               <p className="text-xs text-muted-foreground">Pending Recommendations</p>
@@ -199,7 +199,7 @@ export default function AIPricingPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <TrendingUp className="h-5 w-5 text-emerald-500" />
+                <TrendingUp className="h-5 w-5 text-status-success-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 ${(totalPotentialRevenue / 100).toLocaleString()}
@@ -211,7 +211,7 @@ export default function AIPricingPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Check className="h-5 w-5 text-blue-500" />
+                <Check className="h-5 w-5 text-status-info-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {(recommendations as PricingRecommendation[]).filter(r => r.status === "applied").length}
@@ -223,7 +223,7 @@ export default function AIPricingPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <BarChart3 className="h-5 w-5 text-violet-500" />
+                <BarChart3 className="h-5 w-5 text-primary" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {(recommendations as PricingRecommendation[]).length > 0
@@ -299,10 +299,12 @@ export default function AIPricingPage() {
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ delay: index * 0.02, ...SPRING_CONFIG }}
                     >
-                      <Card className={cn(
-                        "transition-all hover:shadow-md",
-                        rec.status === "pending" && "border-l-4 border-l-amber-500"
-                      )}>
+                      <Card
+                        className={cn(
+                          "transition-all hover:shadow-md",
+                          rec.status === "pending" && "border-l-4 border-l-status-warning"
+                        )}
+                      >
                         <CardContent className="p-5">
                           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                             <div className={cn("flex h-12 w-12 items-center justify-center rounded-xl flex-shrink-0", colorClass)}>
@@ -341,19 +343,26 @@ export default function AIPricingPage() {
 
                               <div className="text-center">
                                 <p className="text-xs text-muted-foreground mb-1">Suggested</p>
-                                <p className={cn(
-                                  "text-lg font-bold",
-                                  isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
-                                )}>
+                                <p
+                                  className={cn(
+                                    "text-lg font-bold",
+                                    isPositive ? "text-status-success-text" : "text-status-warning-text"
+                                  )}
+                                >
                                   ${(rec.suggestedPriceCents / 100).toFixed(0)}
                                 </p>
                               </div>
 
                               <div className="text-center">
                                 <p className="text-xs text-muted-foreground mb-1">Change</p>
-                                <Badge variant={isPositive ? "default" : "secondary"} className={cn(
-                                  isPositive ? "bg-emerald-500" : "bg-amber-500"
-                                )}>
+                                <Badge
+                                  variant={isPositive ? "default" : "secondary"}
+                                  className={cn(
+                                    isPositive
+                                      ? "bg-status-success text-status-success-foreground"
+                                      : "bg-status-warning text-status-warning-foreground"
+                                  )}
+                                >
                                   {isPositive ? "+" : ""}{rec.adjustmentPercent.toFixed(0)}%
                                 </Badge>
                               </div>
@@ -373,7 +382,7 @@ export default function AIPricingPage() {
                                   size="sm"
                                   onClick={() => applyMutation.mutate(rec.id)}
                                   disabled={applyMutation.isPending}
-                                  className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+                                  className="gap-1 bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover"
                                 >
                                   <Check className="h-4 w-4" />
                                   Apply

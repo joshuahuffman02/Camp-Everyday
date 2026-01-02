@@ -112,7 +112,7 @@ const typeConfig: Record<NotificationType, { icon: React.ReactNode; color: strin
   },
   message_received: {
     icon: <MessageSquare className="h-4 w-4" />,
-    color: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400",
+    color: "bg-purple-100 text-purple-700",
     label: "Message",
     href: () => "/messages"
   },
@@ -252,7 +252,7 @@ export default function NotificationsPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className={cn("border-border", unreadCount > 0 ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-card")}>
+          <Card className={cn("border-border", unreadCount > 0 ? "bg-emerald-50" : "bg-card")}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -261,9 +261,9 @@ export default function NotificationsPage() {
                 </div>
                 <div className={cn(
                   "h-12 w-12 rounded-full flex items-center justify-center",
-                  unreadCount > 0 ? "bg-emerald-100 dark:bg-emerald-900/50" : "bg-muted"
+                  unreadCount > 0 ? "bg-emerald-100" : "bg-muted"
                 )}>
-                  <Bell className={cn("h-6 w-6", unreadCount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")} />
+                  <Bell className={cn("h-6 w-6", unreadCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
                 </div>
               </div>
             </CardContent>
@@ -371,7 +371,7 @@ export default function NotificationsPage() {
                         transition={{ ...SPRING_CONFIG, delay: getStaggerDelay(index) }}
                         className={cn(
                           "flex items-start gap-4 p-4 transition-colors",
-                          isUnread ? "bg-emerald-50/50 dark:bg-emerald-950/20" : "hover:bg-muted/50"
+                          isUnread ? "bg-emerald-50/50" : "hover:bg-muted/50"
                         )}
                       >
                         {/* Icon */}
@@ -406,7 +406,7 @@ export default function NotificationsPage() {
                             {href && (
                               <Link
                                 href={href}
-                                className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 flex items-center gap-1"
+                                className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
                                 onClick={() => {
                                   if (isUnread) {
                                     markReadMutation.mutate(notification.id);

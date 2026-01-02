@@ -151,9 +151,9 @@ export default function KioskDevicesPage() {
         if (!lastSeenAt) return { label: "Never connected", color: "text-muted-foreground", icon: WifiOff };
         const diff = Date.now() - new Date(lastSeenAt).getTime();
         const hours = diff / (1000 * 60 * 60);
-        if (hours < 1) return { label: "Online", color: "text-emerald-600 dark:text-emerald-400", icon: Wifi };
-        if (hours < 24) return { label: `${Math.floor(hours)}h ago`, color: "text-amber-600 dark:text-amber-400", icon: Wifi };
-        return { label: "Offline", color: "text-red-600 dark:text-red-400", icon: WifiOff };
+        if (hours < 1) return { label: "Online", color: "text-emerald-600", icon: Wifi };
+        if (hours < 24) return { label: `${Math.floor(hours)}h ago`, color: "text-amber-600", icon: Wifi };
+        return { label: "Offline", color: "text-red-600", icon: WifiOff };
     };
 
     const devices = devicesQuery.data ?? [];
@@ -179,7 +179,7 @@ export default function KioskDevicesPage() {
                     <div className="mt-4 flex items-start justify-between">
                         <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                                <Tablet className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                <Tablet className="h-6 w-6 text-emerald-600" />
                                 <h1 className="text-2xl font-bold text-foreground">Kiosk Devices</h1>
                             </div>
                             <p className="text-muted-foreground">
@@ -232,7 +232,7 @@ export default function KioskDevicesPage() {
                         <div className="bg-status-success/10">
                             <CardHeader>
                                 <div className="flex items-center gap-2">
-                                    <Key className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                    <Key className="h-5 w-5 text-emerald-600" />
                                     <CardTitle className="text-foreground">Pair New Device</CardTitle>
                                 </div>
                                 <CardDescription className="text-muted-foreground">
@@ -318,7 +318,7 @@ export default function KioskDevicesPage() {
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                    <ShieldCheck className="h-5 w-5 text-emerald-600" />
                                     <CardTitle className="text-foreground">Paired Devices</CardTitle>
                                 </div>
                                 {devicesQuery.isFetching && (
@@ -374,7 +374,7 @@ export default function KioskDevicesPage() {
                                                         <Tablet className={cn(
                                                             "h-5 w-5",
                                                             device.status === "active"
-                                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                                ? "text-emerald-600"
                                                                 : "text-muted-foreground"
                                                         )} />
                                                     </div>
@@ -439,7 +439,7 @@ export default function KioskDevicesPage() {
                                                             variant="outline"
                                                             onClick={() => enableMutation.mutate(device.id)}
                                                             disabled={enableMutation.isPending}
-                                                            className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-900/20"
+                                                            className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
                                                         >
                                                             Re-enable
                                                         </Button>
@@ -449,7 +449,7 @@ export default function KioskDevicesPage() {
                                                         variant="ghost"
                                                         onClick={() => setDeleteConfirm({ id: device.id, name: device.name })}
                                                         disabled={deleteMutation.isPending}
-                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -486,7 +486,7 @@ export default function KioskDevicesPage() {
                                             setMessage({ type: "success", text: "URL copied to clipboard" });
                                             setTimeout(() => setMessage(null), 2000);
                                         }}
-                                        className="ml-2 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                                        className="ml-2 text-emerald-600 hover:text-emerald-700"
                                     >
                                         <Copy className="h-3 w-3 inline" />
                                     </button>

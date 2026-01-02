@@ -19,17 +19,17 @@ import Link from "next/link";
 
 function FormsInfoBanner() {
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 p-4">
+    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
       <div className="flex items-start gap-3">
-        <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+        <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
         <div className="flex-1">
-          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Looking for legal documents and waivers?</p>
-          <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+          <p className="text-sm font-medium text-blue-900">Looking for legal documents and waivers?</p>
+          <p className="text-sm text-blue-700 mt-1">
             Park rules, liability waivers, and other legal documents have moved to the Forms page.
           </p>
           <Link
             href="/forms"
-            className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mt-2"
+            className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 mt-2"
           >
             Go to Forms & Documents
             <ArrowRight className="h-4 w-4" />

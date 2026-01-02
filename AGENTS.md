@@ -9,7 +9,7 @@
 - Prefer larger, end-to-end tasks when the goal is clear; propose a breakdown when helpful but proceed.
 - Avoid refactors unrelated to the request; touch adjacent files only when needed to fix the issue.
 - Use judgment on when to stop; continue if there are clear, aligned improvements that advance the request.
-- Ask questions only when genuinely blocked or ambiguity would cause rework.
+- Ask questions only when genuinely blocked or ambiguity would cause rework; otherwise proceed.
 
 ## Default workflow
 - Plan briefly when helpful, then implement and self-review.
@@ -27,4 +27,4 @@
 
 ## Run/test/lint discovery
 - Autodetect from package.json, README, and scripts/.
-- If still unclear, ask up to 3 questions then wait.
+- If still unclear, make a reasonable choice and note any testing gaps.

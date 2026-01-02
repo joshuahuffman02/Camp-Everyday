@@ -103,7 +103,7 @@ const featureCards = [
     description: "AI-powered pricing recommendations",
     icon: DollarSign,
     href: "/ai/pricing",
-    color: "from-emerald-500 to-green-600",
+    color: "bg-status-success-bg text-status-success-text border border-status-success-border",
     configKey: "dynamicPricingAiEnabled",
     stats: { label: "Suggestions", key: "pricingSuggestions" },
   },
@@ -113,7 +113,7 @@ const featureCards = [
     description: "Find revenue opportunities",
     icon: TrendingUp,
     href: "/ai/revenue",
-    color: "from-blue-500 to-indigo-600",
+    color: "bg-status-info-bg text-status-info-text border border-status-info-border",
     stats: { label: "Revenue Saved", key: "estimatedRevenueSaved", format: "currency" },
   },
   {
@@ -122,7 +122,7 @@ const featureCards = [
     description: "24/7 automated call handling",
     icon: Phone,
     href: "/ai/phone",
-    color: "from-violet-500 to-purple-600",
+    color: "bg-primary/10 text-primary border border-primary/20",
     configKey: "phoneAgentEnabled",
     stats: { label: "Calls Handled", key: "phoneCallsHandled" },
   },
@@ -132,7 +132,7 @@ const featureCards = [
     description: "Prevent equipment failures",
     icon: Wrench,
     href: "/ai/maintenance",
-    color: "from-amber-500 to-orange-600",
+    color: "bg-status-warning-bg text-status-warning-text border border-status-warning-border",
     configKey: "predictiveMaintenanceEnabled",
     stats: { label: "Alerts", key: "risksIdentified" },
   },
@@ -142,7 +142,7 @@ const featureCards = [
     description: "Auto-notify guests of weather",
     icon: CloudSun,
     href: "/ai/weather",
-    color: "from-cyan-500 to-teal-600",
+    color: "bg-status-info-bg text-status-info-text border border-status-info-border",
     configKey: "weatherAlertsEnabled",
     stats: { label: "Status", key: "weatherActive" },
   },
@@ -152,7 +152,7 @@ const featureCards = [
     description: "Configure autonomous features",
     icon: Settings,
     href: "/ai/settings",
-    color: "from-slate-500 to-gray-600",
+    color: "bg-muted text-muted-foreground border border-border",
     stats: { label: "Features", key: "featuresEnabled" },
   },
 ];
@@ -191,7 +191,7 @@ function getStatusColor(status?: string) {
     case "error":
       return "bg-status-error/15 text-status-error border-status-error";
     default:
-      return "bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-400 border-slate-200 dark:border-slate-800";
+      return "bg-muted text-muted-foreground border-border";
   }
 }
 
@@ -298,7 +298,7 @@ export default function AICommandCenterPage() {
           className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm">
               <Brain className="h-6 w-6" />
             </div>
             <div>
@@ -343,17 +343,17 @@ export default function AICommandCenterPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING_CONFIG, delay: 0.05 }}
         >
-          <Card className="relative overflow-hidden border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30">
+          <Card className="relative overflow-hidden border-status-info-border bg-status-info-bg">
             <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,black)]" />
             <CardContent className="p-4 sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <div className="h-14 w-14 rounded-full bg-violet-500/20 flex items-center justify-center">
-                      <Bot className="h-7 w-7 text-violet-600 dark:text-violet-400" />
+                    <div className="h-14 w-14 rounded-full bg-card border border-border flex items-center justify-center">
+                      <Bot className="h-7 w-7 text-primary" />
                     </div>
                     <motion.div
-                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-emerald-500"
+                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-status-success"
                       animate={{ scale: [1, 1.2, 1] }}
                       transition={{ repeat: Infinity, duration: 2 }}
                     />
@@ -363,11 +363,11 @@ export default function AICommandCenterPage() {
                       <h3 className="font-semibold text-lg text-foreground">AI Assistant Active</h3>
                       <Badge
                         variant="outline"
-                        className="bg-status-success/15 text-status-success border-status-success/30"
+                        className="bg-status-success-bg text-status-success-text border-status-success-border"
                       >
                         <span className="relative flex h-2 w-2 mr-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-status-success/40 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-status-success"></span>
                         </span>
                         Online
                       </Badge>
@@ -378,14 +378,14 @@ export default function AICommandCenterPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/50 dark:bg-white/10 border border-violet-200 dark:border-violet-700">
-                    <Zap className="h-4 w-4 text-amber-500" />
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/80 border border-border">
+                    <Zap className="h-4 w-4 text-status-warning" />
                     <span className="text-sm font-medium">
                       {metrics?.messagesHandled || 0} actions today
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/50 dark:bg-white/10 border border-violet-200 dark:border-violet-700">
-                    <Shield className="h-4 w-4 text-emerald-500" />
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/80 border border-border">
+                    <Shield className="h-4 w-4 text-status-success" />
                     <span className="text-sm font-medium">
                       {metrics?.risksIdentified || 0} risks prevented
                     </span>
@@ -406,7 +406,7 @@ export default function AICommandCenterPage() {
           <Card className="group hover:shadow-md transition-all">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <MessageSquare className="h-5 w-5 text-blue-500" />
+                <MessageSquare className="h-5 w-5 text-status-info-text" />
                 <Badge variant="outline" className="text-xs">Today</Badge>
               </div>
               <div className="text-2xl font-bold text-foreground">
@@ -418,7 +418,7 @@ export default function AICommandCenterPage() {
               </div>
               <p className="text-xs text-muted-foreground mt-1">Messages Handled</p>
               {metrics?.messagesAutoSent ? (
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                <p className="text-xs text-status-success-text mt-1">
                   {metrics.messagesAutoSent} auto-sent
                 </p>
               ) : null}
@@ -428,7 +428,7 @@ export default function AICommandCenterPage() {
           <Card className="group hover:shadow-md transition-all">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Phone className="h-5 w-5 text-violet-500" />
+                <Phone className="h-5 w-5 text-primary" />
                 <Badge variant="outline" className="text-xs">Today</Badge>
               </div>
               <div className="text-2xl font-bold text-foreground">
@@ -445,7 +445,7 @@ export default function AICommandCenterPage() {
           <Card className="group hover:shadow-md transition-all">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <DollarSign className="h-5 w-5 text-emerald-500" />
+                <DollarSign className="h-5 w-5 text-status-success-text" />
                 <Badge variant="outline" className="text-xs">This Month</Badge>
               </div>
               <div className="text-2xl font-bold text-foreground">
@@ -462,7 +462,7 @@ export default function AICommandCenterPage() {
           <Card className="group hover:shadow-md transition-all">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Gauge className="h-5 w-5 text-amber-500" />
+                <Gauge className="h-5 w-5 text-status-warning-text" />
                 <Badge variant="outline" className="text-xs">ROI</Badge>
               </div>
               <div className="text-2xl font-bold text-foreground">
@@ -544,10 +544,12 @@ export default function AICommandCenterPage() {
                         )}>
                           <CardContent className="p-5">
                             <div className="flex items-start justify-between mb-4">
-                              <div className={cn(
-                                "flex h-12 w-12 items-center justify-center rounded-xl text-white shadow-lg",
-                                `bg-gradient-to-br ${feature.color}`
-                              )}>
+                              <div
+                                className={cn(
+                                  "flex h-12 w-12 items-center justify-center rounded-xl shadow-sm",
+                                  feature.color
+                                )}
+                              >
                                 <Icon className="h-6 w-6" />
                               </div>
                               <div className="flex items-center gap-2">
@@ -583,10 +585,10 @@ export default function AICommandCenterPage() {
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
             >
               <Link href="/ai/pricing">
-                <Card className="group cursor-pointer hover:shadow-md transition-all hover:border-emerald-300 dark:hover:border-emerald-700">
+                <Card className="group cursor-pointer hover:shadow-md transition-all hover:border-status-success-border">
                   <CardContent className="p-4 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <div className="h-10 w-10 rounded-lg bg-status-success-bg border border-status-success-border flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Target className="h-5 w-5 text-status-success-text" />
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-sm text-foreground">Review Pricing</p>
@@ -600,10 +602,10 @@ export default function AICommandCenterPage() {
               </Link>
 
               <Link href="/ai/revenue">
-                <Card className="group cursor-pointer hover:shadow-md transition-all hover:border-blue-300 dark:hover:border-blue-700">
+                <Card className="group cursor-pointer hover:shadow-md transition-all hover:border-status-info-border">
                   <CardContent className="p-4 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <BarChart3 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div className="h-10 w-10 rounded-lg bg-status-info-bg border border-status-info-border flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <BarChart3 className="h-5 w-5 text-status-info-text" />
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-sm text-foreground">Revenue Insights</p>
@@ -615,10 +617,10 @@ export default function AICommandCenterPage() {
               </Link>
 
               <Link href="/ai/phone">
-                <Card className="group cursor-pointer hover:shadow-md transition-all hover:border-violet-300 dark:hover:border-violet-700">
+                <Card className="group cursor-pointer hover:shadow-md transition-all hover:border-primary/30">
                   <CardContent className="p-4 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Phone className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Phone className="h-5 w-5 text-primary" />
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-sm text-foreground">Phone Agent</p>
@@ -632,10 +634,10 @@ export default function AICommandCenterPage() {
               </Link>
 
               <Link href="/ai/maintenance">
-                <Card className="group cursor-pointer hover:shadow-md transition-all hover:border-amber-300 dark:hover:border-amber-700">
+                <Card className="group cursor-pointer hover:shadow-md transition-all hover:border-status-warning-border">
                   <CardContent className="p-4 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Wrench className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <div className="h-10 w-10 rounded-lg bg-status-warning-bg border border-status-warning-border flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Wrench className="h-5 w-5 text-status-warning-text" />
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-sm text-foreground">Maintenance Alerts</p>
@@ -657,15 +659,15 @@ export default function AICommandCenterPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      <Activity className="h-5 w-5 text-violet-500" />
+                      <Activity className="h-5 w-5 text-primary" />
                       AI Activity Feed
                     </CardTitle>
                     <CardDescription>Real-time autonomous actions</CardDescription>
                   </div>
                   <Badge variant="outline" className="text-xs">
                     <span className="relative flex h-2 w-2 mr-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/40 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                     </span>
                     Live
                   </Badge>
@@ -704,7 +706,7 @@ export default function AICommandCenterPage() {
                               item.status === "pending" || item.color === "amber" ? "bg-status-warning/15" :
                               item.status === "warning" || item.color === "orange" ? "bg-status-warning/15" :
                               item.status === "error" || item.color === "red" ? "bg-status-error/15" :
-                              "bg-slate-100 dark:bg-slate-900/30"
+                              "bg-muted"
                             )}>
                               <Icon className={cn(
                                 "h-4 w-4",
@@ -712,7 +714,7 @@ export default function AICommandCenterPage() {
                                 item.status === "pending" || item.color === "amber" ? "text-status-warning" :
                                 item.status === "warning" || item.color === "orange" ? "text-status-warning" :
                                 item.status === "error" || item.color === "red" ? "text-status-error" :
-                                "text-slate-600 dark:text-slate-400"
+                                "text-muted-foreground"
                               )} />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -765,7 +767,7 @@ export default function AICommandCenterPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-amber-500" />
+                    <Zap className="h-5 w-5 text-status-warning" />
                     Autonomous Mode Status
                   </CardTitle>
                   <CardDescription>
@@ -777,8 +779,8 @@ export default function AICommandCenterPage() {
                     {/* Auto Reply */}
                     <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                          <MessageSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <div className="h-10 w-10 rounded-lg bg-status-info-bg border border-status-info-border flex items-center justify-center">
+                          <MessageSquare className="h-5 w-5 text-status-info-text" />
                         </div>
                         <div>
                           <p className="font-medium text-foreground">Auto-Send Replies</p>
@@ -795,8 +797,8 @@ export default function AICommandCenterPage() {
                     {/* Auto Waitlist Offer */}
                     <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                          <Users className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                          <Users className="h-5 w-5 text-primary" />
                         </div>
                         <div>
                           <p className="font-medium text-foreground">Auto-Offer Waitlist</p>
@@ -813,8 +815,8 @@ export default function AICommandCenterPage() {
                     {/* Auto Fix Anomalies */}
                     <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                          <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        <div className="h-10 w-10 rounded-lg bg-status-warning-bg border border-status-warning-border flex items-center justify-center">
+                          <AlertTriangle className="h-5 w-5 text-status-warning-text" />
                         </div>
                         <div>
                           <p className="font-medium text-foreground">Auto-Fix Anomalies</p>
@@ -831,8 +833,8 @@ export default function AICommandCenterPage() {
                     {/* Auto Release No-Shows */}
                     <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                          <Calendar className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        <div className="h-10 w-10 rounded-lg bg-status-error-bg border border-status-error-border flex items-center justify-center">
+                          <Calendar className="h-5 w-5 text-status-error-text" />
                         </div>
                         <div>
                           <p className="font-medium text-foreground">Auto-Release No-Shows</p>
@@ -887,8 +889,8 @@ export default function AICommandCenterPage() {
                               className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="h-8 w-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                                  <Icon className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                                <div className="h-8 w-8 rounded-full bg-status-info-bg border border-status-info-border flex items-center justify-center">
+                                  <Icon className="h-4 w-4 text-status-info-text" />
                                 </div>
                                 <div>
                                   <p className="font-medium text-sm text-foreground">{item.title}</p>

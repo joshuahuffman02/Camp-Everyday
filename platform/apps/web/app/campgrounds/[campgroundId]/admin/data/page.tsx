@@ -212,9 +212,9 @@ export default function DataOperationsPage() {
             exit={{ opacity: 0, y: -10 }}
             className={cn(
                 "flex items-center gap-3 rounded-lg border px-4 py-3",
-                message.type === "success" && "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300",
-                message.type === "error" && "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300",
-                message.type === "info" && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300"
+                message.type === "success" && "bg-emerald-50 border-emerald-200 text-emerald-800",
+                message.type === "error" && "bg-red-50 border-red-200 text-red-800",
+                message.type === "info" && "bg-blue-50 border-blue-200 text-blue-800"
             )}
         >
             {message.type === "success" && <CheckCircle2 className="h-5 w-5 shrink-0" />}
@@ -246,7 +246,7 @@ export default function DataOperationsPage() {
                     <div className="mt-4 flex items-start justify-between">
                         <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                                <Database className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                <Database className="h-6 w-6 text-emerald-600" />
                                 <h1 className="text-2xl font-bold text-foreground">Data Operations</h1>
                             </div>
                             <p className="text-muted-foreground">
@@ -265,7 +265,7 @@ export default function DataOperationsPage() {
                     <Card className="border-border bg-card">
                         <CardHeader>
                             <div className="flex items-center gap-2">
-                                <Upload className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                <Upload className="h-5 w-5 text-emerald-600" />
                                 <div>
                                     <CardTitle className="text-foreground">Import Reservations</CardTitle>
                                     <CardDescription className="text-muted-foreground">
@@ -292,7 +292,7 @@ export default function DataOperationsPage() {
                                                 className={cn(
                                                     "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all",
                                                     importFormat === "csv"
-                                                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+                                                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                                         : "border-border bg-background text-muted-foreground hover:bg-muted"
                                                 )}
                                             >
@@ -304,7 +304,7 @@ export default function DataOperationsPage() {
                                                 className={cn(
                                                     "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all",
                                                     importFormat === "json"
-                                                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+                                                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                                         : "border-border bg-background text-muted-foreground hover:bg-muted"
                                                 )}
                                             >
@@ -346,7 +346,7 @@ export default function DataOperationsPage() {
                                         disabled={importing}
                                         className={cn(
                                             "w-full flex flex-col items-center justify-center gap-2 p-8 rounded-lg border-2 border-dashed transition-all",
-                                            "hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10",
+                                            "hover:border-emerald-500 hover:bg-emerald-50/50",
                                             importing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
                                             "border-border bg-muted/30"
                                         )}
@@ -406,7 +406,7 @@ export default function DataOperationsPage() {
                     <Card className="border-border bg-card">
                         <CardHeader>
                             <div className="flex items-center gap-2">
-                                <Download className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                <Download className="h-5 w-5 text-emerald-600" />
                                 <div>
                                     <CardTitle className="text-foreground">Export Reservations</CardTitle>
                                     <CardDescription className="text-muted-foreground">
@@ -433,7 +433,7 @@ export default function DataOperationsPage() {
                                                 className={cn(
                                                     "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all",
                                                     exportFormat === "csv"
-                                                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+                                                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                                         : "border-border bg-background text-muted-foreground hover:bg-muted"
                                                 )}
                                             >
@@ -445,7 +445,7 @@ export default function DataOperationsPage() {
                                                 className={cn(
                                                     "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all",
                                                     exportFormat === "json"
-                                                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+                                                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                                         : "border-border bg-background text-muted-foreground hover:bg-muted"
                                                 )}
                                             >
@@ -473,7 +473,7 @@ export default function DataOperationsPage() {
                                         <motion.div
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: "auto" }}
-                                            className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2"
+                                            className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
                                         >
                                             <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                                             <span>Handle exported PII data securely and in compliance with privacy regulations.</span>

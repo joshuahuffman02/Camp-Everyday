@@ -80,8 +80,8 @@ const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; col
   rv: { icon: <Home className="h-4 w-4" />, label: "RV", color: "bg-status-info/15 text-status-info" },
   tent: { icon: <Tent className="h-4 w-4" />, label: "Tent", color: "bg-status-success/15 text-status-success" },
   cabin: { icon: <Home className="h-4 w-4" />, label: "Cabin", color: "bg-status-warning/15 text-status-warning" },
-  group: { icon: <Users className="h-4 w-4" />, label: "Group", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400" },
-  glamping: { icon: <Sparkles className="h-4 w-4" />, label: "Glamping", color: "bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-400" },
+  group: { icon: <Users className="h-4 w-4" />, label: "Group", color: "bg-purple-100 text-purple-700" },
+  glamping: { icon: <Sparkles className="h-4 w-4" />, label: "Glamping", color: "bg-pink-100 text-pink-700" },
 };
 
 type Site = {
@@ -533,7 +533,7 @@ export default function SiteClassesPage() {
                         className={cn(
                           "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all",
                           form[hookup.key as keyof SiteClassFormState]
-                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                            ? "border-emerald-500 bg-emerald-50"
                             : "border-border hover:border-muted-foreground/30"
                         )}
                         whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
@@ -557,7 +557,7 @@ export default function SiteClassesPage() {
                       className={cn(
                         "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all",
                         form.petFriendly
-                          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                          ? "border-emerald-500 bg-emerald-50"
                           : "border-border hover:border-muted-foreground/30"
                       )}
                       whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
@@ -573,7 +573,7 @@ export default function SiteClassesPage() {
                       className={cn(
                         "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all",
                         form.accessible
-                          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                          ? "border-emerald-500 bg-emerald-50"
                           : "border-border hover:border-muted-foreground/30"
                       )}
                       whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
@@ -723,9 +723,9 @@ export default function SiteClassesPage() {
                       <motion.div
                         animate={{ y: [0, -8, 0] }}
                         transition={{ duration: 2, repeat: Infinity }}
-                        className="h-16 w-16 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center mb-4"
+                        className="h-16 w-16 rounded-full bg-purple-100 flex items-center justify-center mb-4"
                       >
-                        <Layers className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                        <Layers className="h-8 w-8 text-purple-600" />
                       </motion.div>
                       <p className="text-lg font-medium text-foreground">No site classes yet</p>
                       <p className="text-sm text-muted-foreground mt-1 max-w-sm">
@@ -803,7 +803,7 @@ export default function SiteClassesPage() {
                                 {typeConfig.label}
                               </Badge>
                               {rentalType !== "transient" && (
-                                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400">
+                                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700">
                                   {rentalTypeLabels[rentalType] || rentalType}
                                 </Badge>
                               )}
@@ -826,7 +826,7 @@ export default function SiteClassesPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteClass(cls.id, cls.name)}
-                                className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -863,7 +863,7 @@ export default function SiteClassesPage() {
                                 }}
                                 className="flex items-center gap-1 group mt-1"
                               >
-                                <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                                <span className="text-2xl font-bold text-emerald-600">
                                   ${(cls.defaultRate / 100).toFixed(0)}
                                 </span>
                                 <span className="text-sm text-muted-foreground">/night</span>
@@ -922,7 +922,7 @@ export default function SiteClassesPage() {
                               </div>
                             )}
                             {meteredEnabled && (
-                              <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                              <div className="flex items-center gap-1 text-xs text-orange-600">
                                 <Gauge className="h-3.5 w-3.5" />
                                 {meteredType === "electric" ? "Metered" : meteredType === "propane" ? "Propane" : "Metered"}
                               </div>

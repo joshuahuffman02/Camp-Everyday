@@ -275,7 +275,7 @@ export default function CompetitorsPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-status-info-bg text-status-info-text border border-status-info-border shadow-sm">
               <Target className="h-6 w-6" />
             </div>
             <div>
@@ -457,7 +457,7 @@ export default function CompetitorsPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <Building2 className="h-5 w-5 text-violet-500" />
+                <Building2 className="h-5 w-5 text-primary" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {(competitors as Competitor[]).length}
@@ -469,7 +469,7 @@ export default function CompetitorsPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <BarChart3 className="h-5 w-5 text-blue-500" />
+                <BarChart3 className="h-5 w-5 text-status-info-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {(marketPosition as MarketPosition[]).length > 0
@@ -486,7 +486,7 @@ export default function CompetitorsPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <TrendingUp className="h-5 w-5 text-emerald-500" />
+                <TrendingUp className="h-5 w-5 text-status-success-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
                 {(marketPosition as MarketPosition[]).length > 0
@@ -497,10 +497,12 @@ export default function CompetitorsPage() {
             </CardContent>
           </Card>
 
-          <Card className={cn(activeAlerts.length > 0 && "border-amber-500")}>
+          <Card className={cn(activeAlerts.length > 0 && "border-status-warning-border")}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <AlertTriangle className={cn("h-5 w-5", activeAlerts.length > 0 ? "text-amber-500" : "text-muted-foreground")} />
+                <AlertTriangle
+                  className={cn("h-5 w-5", activeAlerts.length > 0 ? "text-status-warning" : "text-muted-foreground")}
+                />
               </div>
               <div className="text-2xl font-bold text-foreground">{activeAlerts.length}</div>
               <p className="text-xs text-muted-foreground">Rate Parity Alerts</p>
@@ -567,7 +569,7 @@ export default function CompetitorsPage() {
                       <CardContent className="p-5">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-4">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-status-info-bg text-status-info-text border border-status-info-border">
                               <Building2 className="h-5 w-5" />
                             </div>
                             <div>
@@ -654,8 +656,8 @@ export default function CompetitorsPage() {
                           <Badge
                             variant={pos.position === 1 ? "default" : pos.position <= 3 ? "secondary" : "outline"}
                             className={cn(
-                              pos.position === 1 && "bg-emerald-500",
-                              pos.position === pos.totalCompetitors && "bg-amber-500"
+                              pos.position === 1 && "bg-status-success text-status-success-foreground",
+                              pos.position === pos.totalCompetitors && "bg-status-warning text-status-warning-foreground"
                             )}
                           >
                             {pos.positionLabel}
@@ -687,7 +689,11 @@ export default function CompetitorsPage() {
                                 <TableCell className="text-right">
                                   <span className={cn(
                                     "flex items-center justify-end gap-1",
-                                    cr.difference > 0 ? "text-emerald-600" : cr.difference < 0 ? "text-red-600" : "text-muted-foreground"
+                                    cr.difference > 0
+                                      ? "text-status-success-text"
+                                      : cr.difference < 0
+                                        ? "text-status-error-text"
+                                        : "text-muted-foreground"
                                   )}>
                                     {cr.difference > 0 ? (
                                       <TrendingUp className="h-3 w-3" />
@@ -725,7 +731,7 @@ export default function CompetitorsPage() {
                 <Card>
                   <CardContent className="py-12">
                     <div className="text-center">
-                      <Check className="h-12 w-12 mx-auto mb-4 text-emerald-500" />
+                      <Check className="h-12 w-12 mx-auto mb-4 text-status-success" />
                       <h3 className="text-lg font-semibold text-foreground mb-2">No Rate Parity Issues</h3>
                       <p className="text-sm text-muted-foreground">
                         Your direct rates are competitive with OTA listings.
@@ -736,16 +742,17 @@ export default function CompetitorsPage() {
               ) : (
                 <div className="space-y-4">
                   {(alerts as RateParityAlert[]).map((alert) => (
-                    <Card key={alert.id} className={cn(
-                      alert.status === "active" && "border-l-4 border-l-amber-500"
-                    )}>
+                    <Card
+                      key={alert.id}
+                      className={cn(alert.status === "active" && "border-l-4 border-l-status-warning")}
+                    >
                       <CardContent className="p-5">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-4">
                             <div className={cn(
                               "flex h-10 w-10 items-center justify-center rounded-lg",
                               alert.status === "active"
-                                ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600"
+                                ? "bg-status-warning-bg text-status-warning-text border border-status-warning-border"
                                 : "bg-muted text-muted-foreground"
                             )}>
                               <AlertTriangle className="h-5 w-5" />

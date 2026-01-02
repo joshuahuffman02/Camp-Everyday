@@ -67,8 +67,8 @@ const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; col
   rv: { icon: <Truck className="h-4 w-4" />, label: "RV", color: "bg-status-info/15 text-status-info" },
   tent: { icon: <Tent className="h-4 w-4" />, label: "Tent", color: "bg-status-success/15 text-status-success" },
   cabin: { icon: <Home className="h-4 w-4" />, label: "Cabin", color: "bg-status-warning/15 text-status-warning" },
-  group: { icon: <Users className="h-4 w-4" />, label: "Group", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400" },
-  glamping: { icon: <Sparkles className="h-4 w-4" />, label: "Glamping", color: "bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-400" },
+  group: { icon: <Users className="h-4 w-4" />, label: "Group", color: "bg-purple-100 text-purple-700" },
+  glamping: { icon: <Sparkles className="h-4 w-4" />, label: "Glamping", color: "bg-pink-100 text-pink-700" },
 };
 
 // Rental type options
@@ -519,7 +519,7 @@ export default function SiteClassDetailPage() {
               className="space-y-4"
             >
               {/* Basic Info */}
-              <Card className="border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
+              <Card className="border-emerald-200 bg-emerald-50/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Pencil className="h-5 w-5 text-emerald-600" />
@@ -653,7 +653,7 @@ export default function SiteClassDetailPage() {
 
               {/* RV Configuration - Only show for RV sites */}
               {editForm.siteType === "rv" && (
-                <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                <Card className="border-blue-200 bg-blue-50/50">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Truck className="h-5 w-5 text-blue-600" />
@@ -1049,7 +1049,7 @@ export default function SiteClassDetailPage() {
                   <CardContent className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <div className="text-xs text-muted-foreground">Default rate</div>
-                      <div className="font-medium text-lg text-emerald-600 dark:text-emerald-400">${((siteClass.defaultRate ?? 0) / 100).toFixed(2)}</div>
+                      <div className="font-medium text-lg text-emerald-600">${((siteClass.defaultRate ?? 0) / 100).toFixed(2)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Rental type</div>
@@ -1216,7 +1216,7 @@ export default function SiteClassDetailPage() {
                                   variant="outline"
                                   className={cn(
                                     "gap-1",
-                                    isCabinAmenity && "border-amber-300 bg-amber-50 dark:bg-amber-900/20"
+                                    isCabinAmenity && "border-amber-300 bg-amber-50"
                                   )}
                                 >
                                   {amenityIconMap[tag]}

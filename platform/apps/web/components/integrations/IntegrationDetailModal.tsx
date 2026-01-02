@@ -231,13 +231,13 @@ export function IntegrationDetailModal({
                                     </div>
 
                                     {/* Security note */}
-                                    <div className="flex items-start gap-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 p-4">
-                                        <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                                    <div className="flex items-start gap-3 rounded-lg bg-blue-50 p-4">
+                                        <Shield className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
                                         <div>
-                                            <h4 className="font-medium text-blue-900 dark:text-blue-100">
+                                            <h4 className="font-medium text-blue-900">
                                                 Secure Connection
                                             </h4>
-                                            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                                            <p className="text-sm text-blue-700 mt-1">
                                                 Your credentials are encrypted and stored securely.
                                                 We never store your password.
                                             </p>
@@ -282,7 +282,7 @@ export function IntegrationDetailModal({
 
                                 <TabsContent value="settings" className="mt-4 space-y-4">
                                     {/* Disconnect section */}
-                                    <div className="rounded-lg border border-red-200 dark:border-red-800 p-4">
+                                    <div className="rounded-lg border border-red-200 p-4">
                                         <div className="flex items-start gap-3">
                                             <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
                                             <div className="flex-1">
@@ -308,7 +308,7 @@ export function IntegrationDetailModal({
                                     <div className="text-center">
                                         <a
                                             href="#"
-                                            className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
                                         >
                                             View integration documentation
                                             <ExternalLink className="h-3 w-3" />
@@ -342,8 +342,8 @@ export function IntegrationDetailModal({
                             </div>
 
                             {/* Security note */}
-                            <div className="flex items-start gap-3 rounded-lg bg-muted dark:bg-muted/50 p-4">
-                                <Shield className="h-5 w-5 text-muted-foreground dark:text-muted-foreground shrink-0 mt-0.5" />
+                            <div className="flex items-start gap-3 rounded-lg bg-muted p-4">
+                                <Shield className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                                 <div>
                                     <h4 className="font-medium text-foreground">
                                         Secure & Private

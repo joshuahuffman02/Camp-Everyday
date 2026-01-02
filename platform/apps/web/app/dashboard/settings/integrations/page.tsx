@@ -277,17 +277,17 @@ export default function IntegrationsSettingsPage() {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={SPRING_CONFIG}
-                className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4"
+                className="rounded-lg border border-amber-200 bg-amber-50 p-4"
             >
                 <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
-                        <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
+                        <Sparkles className="h-4 w-4 text-amber-600" />
                     </div>
                     <div>
-                        <p className="font-medium text-amber-900 dark:text-amber-100">
+                        <p className="font-medium text-amber-900">
                             Integrations Beta
                         </p>
-                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                        <p className="text-sm text-amber-700">
                             We're actively adding new integrations. Some may require additional setup.
                         </p>
                     </div>
@@ -324,24 +324,24 @@ export default function IntegrationsSettingsPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...SPRING_CONFIG, delay: 0.05 }}
-                    className="rounded-xl border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 p-4"
+                    className="rounded-xl border bg-emerald-50 border-emerald-200 p-4"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
-                            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                         </div>
                         <div className="flex-1">
-                            <h3 className="font-medium text-emerald-900 dark:text-emerald-100">
+                            <h3 className="font-medium text-emerald-900">
                                 {connectedIntegrations.length} integration{connectedIntegrations.length > 1 ? "s" : ""} connected
                             </h3>
-                            <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                            <p className="text-sm text-emerald-700">
                                 {connectedIntegrations.map((i) => i.name).join(", ")}
                             </p>
                         </div>
                         <Button
                             variant="outline"
                             size="sm"
-                            className="border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                            className="border-emerald-300 hover:bg-emerald-100"
                             onClick={() => {
                                 if (connectedIntegrations[0]) {
                                     handleManage(connectedIntegrations[0]);

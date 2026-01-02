@@ -729,9 +729,9 @@ export default function SitesPage() {
               animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
               transition={SPRING_CONFIG}
-              className="flex flex-wrap items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-950/50 rounded-xl border border-emerald-200 dark:border-emerald-800"
+              className="flex flex-wrap items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-200"
             >
-              <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+              <span className="text-sm font-medium text-emerald-800">
                 {selectedSites.size} site{selectedSites.size > 1 ? "s" : ""} selected
               </span>
               <Select
@@ -746,7 +746,7 @@ export default function SitesPage() {
                 }}
                 disabled={bulkUpdateSites.isPending}
               >
-                <SelectTrigger className="w-[150px] bg-background border-emerald-300 dark:border-emerald-700">
+                <SelectTrigger className="w-[150px] bg-background border-emerald-300">
                   <SelectValue placeholder="Change class..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -759,7 +759,7 @@ export default function SitesPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                className="border-emerald-300 hover:bg-emerald-100"
                 onClick={() => {
                   bulkUpdateSites.mutate({
                     siteIds: Array.from(selectedSites),
@@ -773,7 +773,7 @@ export default function SitesPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                className="border-emerald-300 hover:bg-emerald-100"
                 onClick={() => {
                   bulkUpdateSites.mutate({
                     siteIds: Array.from(selectedSites),
@@ -1149,7 +1149,7 @@ export default function SitesPage() {
                     <TableRow className={cn(
                       "transition-colors",
                       isInactive && "opacity-50 bg-muted/50",
-                      isSelected && "bg-emerald-50 dark:bg-emerald-950/30",
+                      isSelected && "bg-emerald-50",
                       "hover:bg-muted/50"
                     )}>
                       <TableCell>
@@ -1165,7 +1165,7 @@ export default function SitesPage() {
                         <div className="flex flex-col">
                           <button
                             onClick={() => router.push(`/campgrounds/${campgroundId}/sites/${site.id}`)}
-                            className="font-medium text-foreground hover:text-emerald-600 dark:hover:text-emerald-400 text-left transition-colors"
+                            className="font-medium text-foreground hover:text-emerald-600 text-left transition-colors"
                           >
                             {site.name}
                           </button>
@@ -1211,7 +1211,7 @@ export default function SitesPage() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {cls ? (
-                          <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">${(cls.defaultRate / 100).toFixed(0)}</span>
+                          <span className="text-sm font-medium text-emerald-700">${(cls.defaultRate / 100).toFixed(0)}</span>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
@@ -1232,7 +1232,7 @@ export default function SitesPage() {
                               {effectivePower && (
                                 <span className={cn(
                                   "inline-flex items-center gap-0.5",
-                                  isInheritedHookups ? "text-amber-500/70 dark:text-amber-400/70" : "text-amber-600 dark:text-amber-400"
+                                  isInheritedHookups ? "text-amber-500/70" : "text-amber-600"
                                 )}>
                                   <Zap className="h-3.5 w-3.5" />
                                   {(() => {
@@ -1244,13 +1244,13 @@ export default function SitesPage() {
                               {effectiveWater && (
                                 <Droplet className={cn(
                                   "h-3.5 w-3.5",
-                                  isInheritedHookups ? "text-blue-400/70 dark:text-blue-400/70" : "text-blue-500 dark:text-blue-400"
+                                  isInheritedHookups ? "text-blue-400/70" : "text-blue-500"
                                 )} />
                               )}
                               {effectiveSewer && (
                                 <Waves className={cn(
                                   "h-3.5 w-3.5",
-                                  isInheritedHookups ? "text-muted-foreground/70 dark:text-muted-foreground/70" : "text-muted-foreground dark:text-muted-foreground"
+                                  isInheritedHookups ? "text-muted-foreground/70" : "text-muted-foreground"
                                 )} />
                               )}
                               {isInheritedHookups && (

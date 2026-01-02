@@ -33,40 +33,40 @@ const settingsLinks = [
         icon: DollarSign,
         label: "Deposit Policies",
         description: "Configure deposit rules, payment schedules, and refund policies",
-        color: "text-green-600 dark:text-green-400",
-        bg: "bg-green-100 dark:bg-green-900/30"
+        color: "text-green-600",
+        bg: "bg-green-100"
     },
     {
         href: (id: string) => `/campgrounds/${id}/settings/billing`,
         icon: Receipt,
         label: "Billing & Utilities",
         description: "Utility meters, meter readings, invoices, and late fees",
-        color: "text-blue-600 dark:text-blue-400",
-        bg: "bg-blue-100 dark:bg-blue-900/30"
+        color: "text-blue-600",
+        bg: "bg-blue-100"
     },
     {
         href: (id: string) => `/campgrounds/${id}/marketing/referrals`,
         icon: Megaphone,
         label: "Marketing & Referrals",
         description: "Referral programs, performance tracking, and guest insights",
-        color: "text-purple-600 dark:text-purple-400",
-        bg: "bg-purple-100 dark:bg-purple-900/30"
+        color: "text-purple-600",
+        bg: "bg-purple-100"
     },
     {
         href: (id: string) => `/campgrounds/${id}/admin/data`,
         icon: Database,
         label: "Data Operations",
         description: "Import/export reservations and PMS integrations",
-        color: "text-amber-600 dark:text-amber-400",
-        bg: "bg-amber-100 dark:bg-amber-900/30"
+        color: "text-amber-600",
+        bg: "bg-amber-100"
     },
     {
         href: (id: string) => `/campgrounds/${id}/admin/kiosk`,
         icon: Tablet,
         label: "Kiosk Devices",
         description: "Self-service check-in kiosks for 24/7 guest arrivals",
-        color: "text-emerald-600 dark:text-emerald-400",
-        bg: "bg-emerald-100 dark:bg-emerald-900/30"
+        color: "text-emerald-600",
+        bg: "bg-emerald-100"
     }
 ];
 
@@ -95,7 +95,7 @@ export default function CampgroundSettingsPage() {
     if (!cg) {
         return (
             <DashboardShell>
-                <div className="p-6 text-red-600 dark:text-red-400">Campground not found</div>
+                <div className="p-6 text-red-600">Campground not found</div>
             </DashboardShell>
         );
     }
@@ -117,7 +117,7 @@ export default function CampgroundSettingsPage() {
                         ]}
                     />
                     <div className="mt-4 flex items-center gap-2">
-                        <Settings className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                        <Settings className="h-6 w-6 text-emerald-600" />
                         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
                     </div>
                     <p className="text-muted-foreground mt-1">

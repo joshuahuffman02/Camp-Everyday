@@ -79,12 +79,12 @@ export default function RepeatChargesPage() {
                                                     {[...Array(3)].map((_, i) => (
                                                         <div key={i} className="animate-pulse flex items-center gap-4 p-3">
                                                             <div className="flex-1 space-y-2">
-                                                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24" />
-                                                                <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                                                                <div className="h-4 bg-slate-200 rounded w-24" />
+                                                                <div className="h-3 bg-slate-200 rounded w-32" />
                                                             </div>
-                                                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32" />
-                                                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16" />
-                                                            <div className="h-8 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                                                            <div className="h-4 bg-slate-200 rounded w-32" />
+                                                            <div className="h-4 bg-slate-200 rounded w-16" />
+                                                            <div className="h-8 w-20 bg-slate-200 rounded" />
                                                         </div>
                                                     ))}
                                                 </div>

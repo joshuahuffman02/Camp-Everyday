@@ -48,8 +48,8 @@ export function ConfirmDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           {variant === "destructive" && (
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-status-error-bg border border-status-error-border">
+              <AlertTriangle className="h-6 w-6 text-status-error-text" />
             </div>
           )}
           <AlertDialogTitle
@@ -71,7 +71,9 @@ export function ConfirmDialog({
             onClick={handleConfirm}
             disabled={isPending}
             className={
-              variant === "destructive" ? "bg-red-600 hover:bg-red-700" : ""
+              variant === "destructive"
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : ""
             }
           >
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

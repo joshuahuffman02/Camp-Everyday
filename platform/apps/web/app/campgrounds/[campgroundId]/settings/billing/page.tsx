@@ -80,9 +80,9 @@ type SiteClass = {
 };
 
 const meterTypeConfig = {
-    power: { icon: Zap, label: "Power", color: "text-amber-600 dark:text-amber-400", bg: "bg-status-warning/15", unit: "kWh" },
-    water: { icon: Droplets, label: "Water", color: "text-blue-600 dark:text-blue-400", bg: "bg-status-info/15", unit: "gal" },
-    sewer: { icon: Waves, label: "Sewer", color: "text-muted-foreground dark:text-muted-foreground", bg: "bg-muted dark:bg-muted/50", unit: "gal" },
+    power: { icon: Zap, label: "Power", color: "text-amber-600", bg: "bg-status-warning/15", unit: "kWh" },
+    water: { icon: Droplets, label: "Water", color: "text-blue-600", bg: "bg-status-info/15", unit: "gal" },
+    sewer: { icon: Waves, label: "Sewer", color: "text-muted-foreground", bg: "bg-muted", unit: "gal" },
 };
 
 // Celebration confetti effect
@@ -369,7 +369,7 @@ export default function BillingSettingsPage() {
                         />
                         <div className="mt-4">
                             <div className="flex items-center gap-2">
-                                <Receipt className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                <Receipt className="h-6 w-6 text-emerald-600" />
                                 <h1 className="text-2xl font-bold text-foreground">Billing & Utilities</h1>
                             </div>
                             <p className="text-muted-foreground mt-1">
@@ -387,7 +387,7 @@ export default function BillingSettingsPage() {
                         <Card className="border-border bg-card">
                             <CardHeader>
                                 <div className="flex items-center gap-2">
-                                    <Gauge className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                    <Gauge className="h-5 w-5 text-emerald-600" />
                                     <div>
                                         <CardTitle className="text-foreground">Utility Meters</CardTitle>
                                         <CardDescription className="text-muted-foreground">
@@ -613,7 +613,7 @@ export default function BillingSettingsPage() {
                         <Card className="border-border bg-card">
                             <CardHeader>
                                 <div className="flex items-center gap-2">
-                                    <CalendarClock className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                    <CalendarClock className="h-5 w-5 text-emerald-600" />
                                     <div>
                                         <CardTitle className="text-foreground">Record Readings</CardTitle>
                                         <CardDescription className="text-muted-foreground">
@@ -837,7 +837,7 @@ export default function BillingSettingsPage() {
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <FileText className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                        <FileText className="h-5 w-5 text-emerald-600" />
                                         <div>
                                             <CardTitle className="text-foreground">Invoices</CardTitle>
                                             <CardDescription className="text-muted-foreground">
@@ -934,7 +934,7 @@ export default function BillingSettingsPage() {
                                                         <td className="py-3 px-3 text-right">
                                                             <span className={cn(
                                                                 "font-medium",
-                                                                inv.balanceCents > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+                                                                inv.balanceCents > 0 ? "text-red-600" : "text-emerald-600"
                                                             )}>
                                                                 {formatMoney(inv.balanceCents)}
                                                             </span>

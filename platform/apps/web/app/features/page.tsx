@@ -123,10 +123,10 @@ function FeatureItem({
       animate={prefersReducedMotion ? {} : { opacity: 1, scale: 1 }}
       className={cn(
         "flex items-center gap-3 p-3 rounded-lg transition-all group",
-        "border bg-white dark:bg-slate-900",
+        "border bg-white",
         isChecked
-          ? "border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5"
-          : "border-slate-200 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600"
+          ? "border-emerald-200 bg-emerald-50"
+          : "border-slate-200 hover:border-slate-300"
       )}
     >
       <button
@@ -135,7 +135,7 @@ function FeatureItem({
           "w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors",
           isChecked
             ? "bg-emerald-500 text-white"
-            : "border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/50 hover:border-emerald-400"
+            : "border border-slate-300 bg-white hover:border-emerald-400"
         )}
       >
         {isChecked && <Check className="w-3 h-3" />}
@@ -144,18 +144,18 @@ function FeatureItem({
         <p className={cn(
           "text-sm font-medium",
           isChecked
-            ? "text-emerald-700 dark:text-emerald-300"
-            : "text-slate-900 dark:text-slate-200"
+            ? "text-emerald-700"
+            : "text-slate-900"
         )}>
           {feature.label}
         </p>
-        <p className="text-xs text-slate-500 dark:text-slate-500 truncate">
+        <p className="text-xs text-slate-500 truncate">
           {feature.description}
         </p>
       </div>
       <Link
         href={feature.href}
-        className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+        className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-slate-100 transition-all"
         title={`Go to ${feature.label}`}
       >
         <ExternalLink className="w-4 h-4 text-slate-400" />
@@ -190,14 +190,14 @@ function CategorySection({
     <motion.div
       initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
       animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
-      className="border border-slate-200 dark:border-slate-700/50 rounded-xl overflow-hidden bg-white dark:bg-slate-900"
+      className="border border-slate-200 rounded-xl overflow-hidden bg-white"
     >
       <button
         onClick={onToggleExpand}
         className={cn(
           "w-full flex items-center justify-between p-4 transition-colors",
-          "hover:bg-slate-50 dark:hover:bg-slate-800/30",
-          isExpanded && "bg-slate-50 dark:bg-slate-800/20"
+          "hover:bg-slate-50",
+          isExpanded && "bg-slate-50"
         )}
       >
         <div className="flex items-center gap-3">
@@ -205,25 +205,25 @@ function CategorySection({
             className={cn(
               "w-10 h-10 rounded-lg flex items-center justify-center",
               allCompleted
-                ? "bg-emerald-100 dark:bg-emerald-500/20"
-                : "bg-slate-100 dark:bg-slate-700/50"
+                ? "bg-emerald-100"
+                : "bg-slate-100"
             )}
           >
             {allCompleted ? (
-              <Trophy className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <Trophy className="w-5 h-5 text-emerald-600" />
             ) : (
               <Target className="w-5 h-5 text-slate-400" />
             )}
           </div>
           <div className="text-left">
-            <h3 className="font-medium text-slate-900 dark:text-white">{info.label}</h3>
+            <h3 className="font-medium text-slate-900">{info.label}</h3>
             <p className="text-xs text-slate-500">{info.description}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
           {/* Progress bar */}
           <div className="hidden sm:block w-24">
-            <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
               <div
                 className={cn(
                   "h-full rounded-full transition-all duration-500",
@@ -239,8 +239,8 @@ function CategorySection({
             className={cn(
               "text-sm font-medium tabular-nums",
               allCompleted
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-slate-500 dark:text-slate-400"
+                ? "text-emerald-600"
+                : "text-slate-500"
             )}
           >
             {completedCount}/{totalCount}
@@ -498,10 +498,10 @@ function FeaturesPageContent() {
               <Sparkles className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              <h1 className="text-2xl font-bold text-slate-900">
                 Feature Discovery
               </h1>
-              <p className="text-slate-500 dark:text-slate-400">
+              <p className="text-slate-500">
                 Track your journey through all {totalFeatures} features
               </p>
             </div>
@@ -520,14 +520,14 @@ function FeaturesPageContent() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+        <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
           <button
             onClick={() => setActiveTab("all")}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors",
               activeTab === "all"
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             )}
           >
             <Sparkles className="w-4 h-4" />
@@ -538,14 +538,14 @@ function FeaturesPageContent() {
             className={cn(
               "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors",
               activeTab === "queue"
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             )}
           >
             <ListTodo className="w-4 h-4" />
             My Queue
             {pendingQueueCount > 0 && (
-              <span className="px-1.5 py-0.5 text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 rounded-full">
+              <span className="px-1.5 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded-full">
                 {pendingQueueCount}
               </span>
             )}
@@ -555,14 +555,14 @@ function FeaturesPageContent() {
             className={cn(
               "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors",
               activeTab === "completed"
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             )}
           >
             <CheckCircle className="w-4 h-4" />
             Completed
             {completedQueueCount > 0 && (
-              <span className="px-1.5 py-0.5 text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-full">
+              <span className="px-1.5 py-0.5 text-xs bg-slate-200 text-slate-600 rounded-full">
                 {completedQueueCount}
               </span>
             )}
@@ -646,8 +646,8 @@ function FeaturesPageContent() {
             {/* Empty state */}
             {filteredCategories.length === 0 && (
               <div className="text-center py-12">
-                <Search className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-500 dark:text-slate-400">No features match your search</p>
+                <Search className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500">No features match your search</p>
               </div>
             )}
           </>
@@ -662,12 +662,12 @@ function FeaturesPageContent() {
                 <p className="text-slate-500">Loading queue...</p>
               </div>
             ) : filteredQueueItems.length === 0 ? (
-              <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+              <div className="text-center py-12 bg-slate-50 rounded-2xl">
                 <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
                   All caught up!
                 </h3>
-                <p className="text-slate-500 dark:text-slate-400">
+                <p className="text-slate-500">
                   No features pending in your queue.
                 </p>
               </div>
@@ -683,33 +683,33 @@ function FeaturesPageContent() {
                       transition={{ delay: index * 0.03 }}
                       className={cn(
                         "flex items-center gap-4 p-4 rounded-xl border transition-colors",
-                        "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+                        "bg-white border-slate-200"
                       )}
                     >
                       <div className={cn(
                         "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
                         item.status === "setup_now"
-                          ? "bg-emerald-100 dark:bg-emerald-900/30"
-                          : "bg-amber-100 dark:bg-amber-900/30"
+                          ? "bg-emerald-100"
+                          : "bg-amber-100"
                       )}>
                         {item.status === "setup_now" ? (
-                          <Play className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          <Play className="w-5 h-5 text-emerald-600" />
                         ) : (
-                          <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                          <Clock className="w-5 h-5 text-amber-600" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-slate-900 dark:text-white">
+                        <p className="font-medium text-slate-900">
                           {info.label}
                         </p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                        <p className="text-sm text-slate-500">
                           {item.status === "setup_now" ? "Set up now" : "Set up later"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Link
                           href={info.path}
-                          className="p-2 rounded-lg text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                          className="p-2 rounded-lg text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                           title="Open settings"
                         >
                           <ExternalLink className="w-4 h-4" />
@@ -717,7 +717,7 @@ function FeaturesPageContent() {
                         <button
                           onClick={() => completeMutation.mutate(item.featureKey)}
                           disabled={completeMutation.isPending}
-                          className="p-2 rounded-lg text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                          className="p-2 rounded-lg text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                           title="Mark complete"
                         >
                           <Check className="w-4 h-4" />
@@ -725,7 +725,7 @@ function FeaturesPageContent() {
                         <button
                           onClick={() => skipMutation.mutate(item.featureKey)}
                           disabled={skipMutation.isPending}
-                          className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                           title="Skip"
                         >
                           <SkipForward className="w-4 h-4" />
@@ -745,25 +745,25 @@ function FeaturesPageContent() {
             {queueLoading ? (
               <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="animate-pulse bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                  <div key={i} className="animate-pulse bg-white rounded-xl border border-slate-200 p-6">
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                      <div className="w-10 h-10 bg-slate-200 rounded-lg" />
                       <div className="flex-1 space-y-3">
-                        <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-48" />
-                        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full" />
-                        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+                        <div className="h-5 bg-slate-200 rounded w-48" />
+                        <div className="h-4 bg-slate-200 rounded w-full" />
+                        <div className="h-4 bg-slate-200 rounded w-3/4" />
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : filteredQueueItems.length === 0 ? (
-              <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+              <div className="text-center py-12 bg-slate-50 rounded-2xl">
                 <ListTodo className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
                   No completed features yet
                 </h3>
-                <p className="text-slate-500 dark:text-slate-400">
+                <p className="text-slate-500">
                   Features you complete or skip will appear here.
                 </p>
               </div>
@@ -780,20 +780,20 @@ function FeaturesPageContent() {
                       transition={{ delay: index * 0.03 }}
                       className={cn(
                         "flex items-center gap-4 p-4 rounded-xl border transition-colors",
-                        "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700",
+                        "bg-white border-slate-200",
                         isSkipped && "opacity-60"
                       )}
                     >
                       <div className={cn(
                         "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
                         isSkipped
-                          ? "bg-slate-100 dark:bg-slate-800"
-                          : "bg-emerald-100 dark:bg-emerald-900/30"
+                          ? "bg-slate-100"
+                          : "bg-emerald-100"
                       )}>
                         {isSkipped ? (
                           <SkipForward className="w-5 h-5 text-slate-400" />
                         ) : (
-                          <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          <CheckCircle className="w-5 h-5 text-emerald-600" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -801,11 +801,11 @@ function FeaturesPageContent() {
                           "font-medium",
                           isSkipped
                             ? "text-slate-500 line-through"
-                            : "text-slate-900 dark:text-white"
+                            : "text-slate-900"
                         )}>
                           {info.label}
                         </p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                        <p className="text-sm text-slate-500">
                           {isSkipped ? "Skipped" : "Completed"}
                         </p>
                       </div>
@@ -813,7 +813,7 @@ function FeaturesPageContent() {
                         <button
                           onClick={() => requeueMutation.mutate(item.featureKey)}
                           disabled={requeueMutation.isPending}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                           title="Re-add to queue"
                         >
                           <Undo2 className="w-4 h-4" />

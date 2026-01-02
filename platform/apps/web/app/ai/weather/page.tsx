@@ -79,13 +79,13 @@ function getWeatherIcon(icon: string) {
 function getSeverityColor(severity: string) {
   switch (severity) {
     case "warning":
-      return "bg-red-500 text-white";
+      return "bg-status-error text-status-error-foreground";
     case "watch":
-      return "bg-orange-500 text-white";
+      return "bg-status-warning text-status-warning-foreground";
     case "advisory":
-      return "bg-amber-500 text-white";
+      return "bg-status-info text-status-info-foreground";
     default:
-      return "bg-blue-500 text-white";
+      return "bg-status-info text-status-info-foreground";
   }
 }
 
@@ -159,7 +159,7 @@ export default function AIWeatherPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-lg shadow-cyan-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-status-info-bg text-status-info-text border border-status-info-border shadow-sm">
               <CloudSun className="h-6 w-6" />
             </div>
             <div>
@@ -191,22 +191,22 @@ export default function AIWeatherPage() {
             className="space-y-3"
           >
             {activeAlerts.map((alert) => (
-              <Card key={alert.id} className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+              <Card key={alert.id} className="border-status-warning-border bg-status-warning-bg">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    <AlertTriangle className="h-5 w-5 text-status-warning-text mt-0.5" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-amber-800 dark:text-amber-300">
+                        <span className="font-semibold text-status-warning-text">
                           {alert.title}
                         </span>
                         <Badge className={getSeverityColor(alert.severity)}>
                           {alert.severity}
                         </Badge>
                       </div>
-                      <p className="text-sm text-amber-700 dark:text-amber-400">{alert.message}</p>
+                      <p className="text-sm text-status-warning-text">{alert.message}</p>
                       {alert.guestsNotified > 0 && (
-                        <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">
+                        <p className="text-xs text-status-warning-text mt-2">
                           <Bell className="h-3 w-3 inline mr-1" />
                           {alert.guestsNotified} guests notified
                         </p>
@@ -242,8 +242,8 @@ export default function AIWeatherPage() {
               ) : weather ? (
                 <div className="flex flex-col md:flex-row md:items-center gap-8">
                   <div className="flex items-center gap-4">
-                    <div className="h-20 w-20 rounded-2xl bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center">
-                      <WeatherIcon className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
+                    <div className="h-20 w-20 rounded-2xl bg-status-info-bg border border-status-info-border flex items-center justify-center">
+                      <WeatherIcon className="h-10 w-10 text-status-info-text" />
                     </div>
                     <div>
                       <div className="text-4xl font-bold text-foreground">

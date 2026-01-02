@@ -91,7 +91,7 @@ function TrendIndicator({ change, size = "default" }: { change: number; size?: "
 
   if (isNeutral) {
     return (
-      <span className={`flex items-center text-muted-foreground dark:text-muted-foreground ${sizeClasses}`}>
+      <span className={`flex items-center text-muted-foreground ${sizeClasses}`}>
         <Minus className={size === "large" ? "h-5 w-5 mr-1" : "h-4 w-4 mr-1"} />
         No change
       </span>
@@ -99,7 +99,7 @@ function TrendIndicator({ change, size = "default" }: { change: number; size?: "
   }
 
   return (
-    <span className={`flex items-center ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"} ${sizeClasses}`}>
+    <span className={`flex items-center ${isPositive ? "text-emerald-600" : "text-rose-600"} ${sizeClasses}`}>
       {isPositive ? (
         <TrendingUp className={size === "large" ? "h-5 w-5 mr-1" : "h-4 w-4 mr-1"} />
       ) : (
@@ -125,16 +125,16 @@ function formatValue(value: number, format: string): string {
 
 function MetricCard({ metric }: { metric: TrendMetric }) {
   return (
-    <Card className="bg-card dark:bg-muted/50 border-border dark:border-border">
+    <Card className="bg-card border-border">
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-muted-foreground dark:text-muted-foreground">{metric.label}</span>
+          <span className="text-sm text-muted-foreground">{metric.label}</span>
           <TrendIndicator change={metric.change} />
         </div>
-        <div className="text-2xl font-bold text-foreground dark:text-white">
+        <div className="text-2xl font-bold text-foreground">
           {formatValue(metric.currentValue, metric.format)}
         </div>
-        <div className="text-xs text-muted-foreground dark:text-muted-foreground mt-1">
+        <div className="text-xs text-muted-foreground mt-1">
           vs {formatValue(metric.previousValue, metric.format)} prev period
         </div>
       </CardContent>
@@ -258,10 +258,10 @@ export default function GuestTrendsPage() {
     return (
       <div className="p-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-muted dark:bg-muted rounded w-64" />
+          <div className="h-8 bg-muted rounded w-64" />
           <div className="grid grid-cols-3 gap-4">
             {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="h-32 bg-muted dark:bg-muted rounded-lg" />
+              <div key={i} className="h-32 bg-muted rounded-lg" />
             ))}
           </div>
         </div>
@@ -272,13 +272,13 @@ export default function GuestTrendsPage() {
   if (!canViewTrends) {
     return (
       <div className="p-8">
-        <Card className="bg-amber-50 dark:bg-amber-900/20 border-amber-700">
+        <Card className="bg-amber-50 border-amber-700">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-6 w-6 text-amber-500" />
               <div>
-                <h3 className="font-semibold text-amber-200">Access Restricted</h3>
-                <p className="text-sm text-amber-300/80">
+                <h3 className="font-semibold text-amber-800">Access Restricted</h3>
+                <p className="text-sm text-amber-700">
                   You need platform admin or support role to view guest trends.
                 </p>
               </div>
@@ -292,13 +292,13 @@ export default function GuestTrendsPage() {
   if (error) {
     return (
       <div className="p-8">
-        <Card className="bg-rose-50 dark:bg-rose-900/20 border-rose-700">
+        <Card className="bg-rose-50 border-rose-700">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-6 w-6 text-rose-500" />
               <div>
-                <h3 className="font-semibold text-rose-200">Error Loading Trends</h3>
-                <p className="text-sm text-rose-300/80">{error}</p>
+                <h3 className="font-semibold text-rose-800">Error Loading Trends</h3>
+                <p className="text-sm text-rose-700">{error}</p>
               </div>
             </div>
           </CardContent>
@@ -319,14 +319,14 @@ export default function GuestTrendsPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground dark:text-white">Guest Trends</h1>
+            <h1 className="text-2xl font-bold text-foreground">Guest Trends</h1>
             {!hasData && (
-              <Badge className="bg-muted/20 text-muted-foreground dark:text-muted-foreground border border-border dark:border-border/50">
+              <Badge className="bg-muted/20 text-muted-foreground border border-border">
                 No Data
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground dark:text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1">
             {hasData
               ? "Year-over-year guest trends and insights"
               : "Trend data will appear once you have reservations"}
@@ -334,7 +334,7 @@ export default function GuestTrendsPage() {
         </div>
         <div className="flex items-center gap-3">
           <Select value={dateRange} onValueChange={setDateRange}>
-            <SelectTrigger className="w-44 bg-card dark:bg-muted border-border dark:border-border">
+            <SelectTrigger className="w-44 bg-card border-border">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -345,7 +345,7 @@ export default function GuestTrendsPage() {
             </SelectContent>
           </Select>
           <Select value={comparisonPeriod} onValueChange={setComparisonPeriod}>
-            <SelectTrigger className="w-44 bg-card dark:bg-muted border-border dark:border-border">
+            <SelectTrigger className="w-44 bg-card border-border">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -353,7 +353,7 @@ export default function GuestTrendsPage() {
               <SelectItem value="previous_year">Previous Year</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" className="border-border dark:border-border">
+          <Button variant="outline" size="sm" className="border-border">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
@@ -362,11 +362,11 @@ export default function GuestTrendsPage() {
 
       {/* Empty State */}
       {!hasData && (
-        <Card className="bg-muted dark:bg-muted/30 border-border dark:border-border">
+        <Card className="bg-muted border-border">
           <CardContent className="p-12 text-center">
             <TrendingUp className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-foreground dark:text-muted-foreground mb-2">No Trend Data Yet</h3>
-            <p className="text-muted-foreground dark:text-muted-foreground mb-6 max-w-md mx-auto">
+            <h3 className="text-xl font-semibold text-foreground mb-2">No Trend Data Yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Guest trend analytics will be available once you have multiple reservations over time.
               Trends help you understand how your guest demographics and behavior change.
             </p>
@@ -387,7 +387,7 @@ export default function GuestTrendsPage() {
       {hasData && trendsData.monthlyTrends.length > 0 && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Bookings Trend */}
-        <Card className="bg-card dark:bg-muted/50 border-border dark:border-border">
+        <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-emerald-500" />
@@ -397,7 +397,7 @@ export default function GuestTrendsPage() {
           </CardHeader>
           <CardContent>
             <SimpleAreaChart data={trendsData.monthlyTrends} dataKey="reservations" color="bg-emerald-600" />
-            <div className="flex justify-between text-xs text-muted-foreground dark:text-muted-foreground mt-2">
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
               <span>{trendsData.monthlyTrends[0]?.month}</span>
               <span>{trendsData.monthlyTrends[trendsData.monthlyTrends.length - 1]?.month}</span>
             </div>
@@ -405,7 +405,7 @@ export default function GuestTrendsPage() {
         </Card>
 
         {/* Revenue Trend */}
-        <Card className="bg-card dark:bg-muted/50 border-border dark:border-border">
+        <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-blue-500" />
@@ -415,7 +415,7 @@ export default function GuestTrendsPage() {
           </CardHeader>
           <CardContent>
             <SimpleAreaChart data={trendsData.monthlyTrends} dataKey="revenue" color="bg-blue-600" />
-            <div className="flex justify-between text-xs text-muted-foreground dark:text-muted-foreground mt-2">
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
               <span>{trendsData.monthlyTrends[0]?.month}</span>
               <span>{trendsData.monthlyTrends[trendsData.monthlyTrends.length - 1]?.month}</span>
             </div>
@@ -426,7 +426,7 @@ export default function GuestTrendsPage() {
 
       {/* Regional Performance */}
       {hasData && trendsData.regionalTrends.length > 0 && (
-      <Card className="bg-card dark:bg-muted/50 border-border dark:border-border">
+      <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-amber-500" />
@@ -438,29 +438,29 @@ export default function GuestTrendsPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-border dark:border-border">
-                  <th className="text-left text-sm font-medium text-muted-foreground dark:text-muted-foreground pb-3">Region</th>
-                  <th className="text-right text-sm font-medium text-muted-foreground dark:text-muted-foreground pb-3">Current Period</th>
-                  <th className="text-right text-sm font-medium text-muted-foreground dark:text-muted-foreground pb-3">Previous Period</th>
-                  <th className="text-right text-sm font-medium text-muted-foreground dark:text-muted-foreground pb-3">Change</th>
-                  <th className="text-right text-sm font-medium text-muted-foreground dark:text-muted-foreground pb-3">Top Origin</th>
+                <tr className="border-b border-border">
+                  <th className="text-left text-sm font-medium text-muted-foreground pb-3">Region</th>
+                  <th className="text-right text-sm font-medium text-muted-foreground pb-3">Current Period</th>
+                  <th className="text-right text-sm font-medium text-muted-foreground pb-3">Previous Period</th>
+                  <th className="text-right text-sm font-medium text-muted-foreground pb-3">Change</th>
+                  <th className="text-right text-sm font-medium text-muted-foreground pb-3">Top Origin</th>
                 </tr>
               </thead>
               <tbody>
                 {trendsData.regionalTrends.map((region, i) => (
-                  <tr key={i} className="border-b border-border dark:border-border last:border-0">
-                    <td className="py-3 text-foreground dark:text-white font-medium">{region.region}</td>
-                    <td className="py-3 text-right text-foreground dark:text-white">
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="py-3 text-foreground font-medium">{region.region}</td>
+                    <td className="py-3 text-right text-foreground">
                       {region.currentBookings.toLocaleString()}
                     </td>
-                    <td className="py-3 text-right text-muted-foreground dark:text-muted-foreground">
+                    <td className="py-3 text-right text-muted-foreground">
                       {region.previousBookings.toLocaleString()}
                     </td>
                     <td className="py-3 text-right">
                       <TrendIndicator change={region.change} />
                     </td>
                     <td className="py-3 text-right">
-                      <Badge variant="outline" className="text-foreground dark:text-muted-foreground">
+                      <Badge variant="outline" className="text-foreground">
                         {region.topOriginState}
                       </Badge>
                     </td>
@@ -478,7 +478,7 @@ export default function GuestTrendsPage() {
       <Card className="bg-status-info/10 border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <MapPin className="h-5 w-5 text-blue-600" />
             Snowbird Migration Trends
           </CardTitle>
           <CardDescription>
@@ -488,9 +488,9 @@ export default function GuestTrendsPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {trendsData.snowbirdTrends.map((trend, i) => (
-              <div key={i} className="bg-card dark:bg-muted/50 rounded-lg p-4 space-y-3">
+              <div key={i} className="bg-card rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-foreground dark:text-white">{trend.year}</span>
+                  <span className="text-lg font-bold text-foreground">{trend.year}</span>
                   {i < trendsData.snowbirdTrends.length - 1 && (
                     <TrendIndicator
                       change={
@@ -503,33 +503,33 @@ export default function GuestTrendsPage() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground dark:text-muted-foreground">Total Migrants</span>
-                    <span className="text-foreground dark:text-white font-medium">
+                    <span className="text-muted-foreground">Total Migrants</span>
+                    <span className="text-foreground font-medium">
                       {trend.totalMigrants.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground dark:text-muted-foreground">Avg Departure</span>
-                    <span className="text-foreground dark:text-white font-medium">
+                    <span className="text-muted-foreground">Avg Departure</span>
+                    <span className="text-foreground font-medium">
                       {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
                         Math.floor(trend.avgDepartureMonth) - 1
                       ]}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground dark:text-muted-foreground">Avg Stay</span>
-                    <span className="text-foreground dark:text-white font-medium">{trend.avgStayLength} nights</span>
+                    <span className="text-muted-foreground">Avg Stay</span>
+                    <span className="text-foreground font-medium">{trend.avgStayLength} nights</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground dark:text-muted-foreground">Canadian %</span>
-                    <span className="text-foreground dark:text-white font-medium">{trend.canadianPercentage}%</span>
+                    <span className="text-muted-foreground">Canadian %</span>
+                    <span className="text-foreground font-medium">{trend.canadianPercentage}%</span>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-border dark:border-border">
-                  <span className="text-xs text-muted-foreground dark:text-muted-foreground">Top Destinations:</span>
+                <div className="pt-2 border-t border-border">
+                  <span className="text-xs text-muted-foreground">Top Destinations:</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {trend.topDestinations.map((dest, j) => (
-                      <Badge key={j} variant="secondary" className="text-xs bg-muted dark:bg-muted/50">
+                      <Badge key={j} variant="secondary" className="text-xs bg-muted">
                         {dest}
                       </Badge>
                     ))}
@@ -547,7 +547,7 @@ export default function GuestTrendsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* New vs Repeat */}
         {trendsData.monthlyTrends.some(m => m.newGuests && m.repeatGuests) && (
-        <Card className="bg-card dark:bg-muted/50 border-border dark:border-border">
+        <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-violet-500" />
@@ -564,8 +564,8 @@ export default function GuestTrendsPage() {
                 return (
                   <div key={i} className="space-y-1">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground dark:text-muted-foreground">{month.month}</span>
-                      <span className="text-muted-foreground dark:text-muted-foreground">{total} guests</span>
+                      <span className="text-muted-foreground">{month.month}</span>
+                      <span className="text-muted-foreground">{total} guests</span>
                     </div>
                     <div className="flex h-4 rounded overflow-hidden">
                       <div
@@ -585,11 +585,11 @@ export default function GuestTrendsPage() {
               <div className="flex items-center gap-4 pt-2 text-xs">
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-violet-600 rounded" />
-                  <span className="text-muted-foreground dark:text-muted-foreground">New Guests</span>
+                  <span className="text-muted-foreground">New Guests</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-emerald-600 rounded" />
-                  <span className="text-muted-foreground dark:text-muted-foreground">Repeat Guests</span>
+                  <span className="text-muted-foreground">Repeat Guests</span>
                 </div>
               </div>
             </div>
@@ -599,7 +599,7 @@ export default function GuestTrendsPage() {
 
         {/* Stay Length Trends */}
         {trendsData.monthlyTrends.some(m => m.avgStay) && (
-        <Card className="bg-card dark:bg-muted/50 border-border dark:border-border">
+        <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-amber-500" />
@@ -609,28 +609,28 @@ export default function GuestTrendsPage() {
           </CardHeader>
           <CardContent>
             <SimpleAreaChart data={trendsData.monthlyTrends} dataKey="avgStay" color="bg-amber-600" />
-            <div className="flex justify-between text-xs text-muted-foreground dark:text-muted-foreground mt-2">
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
               <span>{trendsData.monthlyTrends[0]?.month}</span>
               <span>{trendsData.monthlyTrends[trendsData.monthlyTrends.length - 1]?.month}</span>
             </div>
-            <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border dark:border-border">
+            <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
               <div className="text-center">
-                <div className="text-lg font-bold text-foreground dark:text-white">
+                <div className="text-lg font-bold text-foreground">
                   {Math.min(...trendsData.monthlyTrends.map(m => m.avgStay || 0)).toFixed(1)}
                 </div>
-                <div className="text-xs text-muted-foreground dark:text-muted-foreground">Min (nights)</div>
+                <div className="text-xs text-muted-foreground">Min (nights)</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-bold text-foreground dark:text-white">
+                <div className="text-lg font-bold text-foreground">
                   {(trendsData.monthlyTrends.reduce((sum, m) => sum + (m.avgStay || 0), 0) / trendsData.monthlyTrends.length).toFixed(1)}
                 </div>
-                <div className="text-xs text-muted-foreground dark:text-muted-foreground">Average (nights)</div>
+                <div className="text-xs text-muted-foreground">Average (nights)</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-bold text-foreground dark:text-white">
+                <div className="text-lg font-bold text-foreground">
                   {Math.max(...trendsData.monthlyTrends.map(m => m.avgStay || 0)).toFixed(1)}
                 </div>
-                <div className="text-xs text-muted-foreground dark:text-muted-foreground">Max (nights)</div>
+                <div className="text-xs text-muted-foreground">Max (nights)</div>
               </div>
             </div>
           </CardContent>

@@ -265,7 +265,7 @@ export function AchievementCelebration({
             transition={SPRING_CONFIG}
             className="fixed top-4 right-4 z-50 max-w-sm"
           >
-            <div className="bg-card dark:bg-muted rounded-xl shadow-2xl border border-border dark:border-border overflow-hidden">
+            <div className="bg-card rounded-xl shadow-2xl border border-border overflow-hidden">
               <div className="flex items-start gap-3 p-4">
                 <motion.div
                   initial={prefersReducedMotion ? {} : { scale: 0, rotate: -180 }}
@@ -277,7 +277,7 @@ export function AchievementCelebration({
                 </motion.div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-semibold text-foreground dark:text-white truncate">
+                    <h4 className="font-semibold text-foreground truncate">
                       {title}
                     </h4>
                     {badge && (
@@ -287,7 +287,7 @@ export function AchievementCelebration({
                     )}
                   </div>
                   {subtitle && (
-                    <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-0.5">
+                    <p className="text-sm text-muted-foreground mt-0.5">
                       {subtitle}
                     </p>
                   )}

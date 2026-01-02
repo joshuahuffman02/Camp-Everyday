@@ -16,7 +16,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       <GuestPortalTopNav />
       <main className="pb-20 md:pb-8">{children}</main>
       <GuestPortalBottomNav />

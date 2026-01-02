@@ -115,10 +115,10 @@ export default function PayoutsPage() {
                       <div className="space-y-3">
                         {[...Array(4)].map((_, i) => (
                           <div key={i} className="animate-pulse flex items-center gap-4 p-2">
-                            <div className="h-4 bg-muted dark:bg-muted rounded w-32" />
-                            <div className="h-6 w-20 bg-muted dark:bg-muted rounded" />
-                            <div className="h-4 bg-muted dark:bg-muted rounded w-24" />
-                            <div className="flex-1 h-4 bg-muted dark:bg-muted rounded" />
+                            <div className="h-4 bg-muted rounded w-32" />
+                            <div className="h-6 w-20 bg-muted rounded" />
+                            <div className="h-4 bg-muted rounded w-24" />
+                            <div className="flex-1 h-4 bg-muted rounded" />
                           </div>
                         ))}
                       </div>

@@ -303,7 +303,7 @@ export default function DevelopersSettingsPage() {
                                             <div className="flex items-center gap-2">
                                                 <code
                                                     id="client-id"
-                                                    className="flex-1 rounded-lg bg-muted px-3 py-2.5 font-mono text-sm dark:bg-muted"
+                                                    className="flex-1 rounded-lg bg-muted px-3 py-2.5 font-mono text-sm"
                                                 >
                                                     {createdClientId}
                                                 </code>
@@ -335,7 +335,7 @@ export default function DevelopersSettingsPage() {
                                             <div className="flex items-center gap-2">
                                                 <div
                                                     id="client-secret"
-                                                    className="flex-1 rounded-lg border-2 border-amber-200 bg-amber-50 px-3 py-2.5 font-mono text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100"
+                                                    className="flex-1 rounded-lg border-2 border-amber-200 bg-amber-50 px-3 py-2.5 font-mono text-sm text-amber-900"
                                                 >
                                                     {showSecret ? createdClientSecret : "•".repeat(40)}
                                                 </div>
@@ -373,12 +373,12 @@ export default function DevelopersSettingsPage() {
                                         </div>
 
                                         {/* Security tips */}
-                                        <div className="rounded-lg bg-muted p-4 dark:bg-muted/50">
+                                        <div className="rounded-lg bg-muted p-4">
                                             <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
                                                 <Shield className="h-4 w-4 text-violet-600" />
                                                 Security Best Practices
                                             </h4>
-                                            <ul className="space-y-1 text-xs text-muted-foreground dark:text-muted-foreground">
+                                            <ul className="space-y-1 text-xs text-muted-foreground">
                                                 <li>• Never commit secrets to version control</li>
                                                 <li>• Use environment variables in production</li>
                                                 <li>• Rotate secrets regularly (every 90 days)</li>
@@ -414,14 +414,14 @@ export default function DevelopersSettingsPage() {
                                             <motion.div
                                                 initial={{ opacity: 0, height: 0 }}
                                                 animate={{ opacity: 1, height: "auto" }}
-                                                className="flex items-start gap-3 rounded-lg bg-violet-50 p-4 dark:bg-violet-900/20"
+                                                className="flex items-start gap-3 rounded-lg bg-violet-50 p-4"
                                             >
                                                 <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-violet-600" />
                                                 <div>
-                                                    <p className="text-sm font-medium text-violet-900 dark:text-violet-100">
+                                                    <p className="text-sm font-medium text-violet-900">
                                                         Your first API key!
                                                     </p>
-                                                    <p className="text-xs text-violet-700 dark:text-violet-300">
+                                                    <p className="text-xs text-violet-700">
                                                         This will unlock the full power of the CampReserv API.
                                                     </p>
                                                 </div>
@@ -585,7 +585,7 @@ export default function DevelopersSettingsPage() {
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl border bg-card shadow-sm dark:bg-muted"
+                    className="rounded-xl border bg-card shadow-sm"
                 >
                     <Table>
                         <TableHeader>
@@ -611,8 +611,8 @@ export default function DevelopersSettingsPage() {
                                         <div className="flex items-center gap-3">
                                             <div className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
                                                 client.isActive
-                                                    ? "bg-violet-100 text-violet-600 dark:bg-violet-900/30"
-                                                    : "bg-muted text-muted-foreground dark:bg-muted"
+                                                    ? "bg-violet-100 text-violet-600"
+                                                    : "bg-muted text-muted-foreground"
                                             }`}>
                                                 <Key className="h-4 w-4" />
                                             </div>
@@ -626,7 +626,7 @@ export default function DevelopersSettingsPage() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
-                                            <code className="rounded bg-muted px-2 py-1 font-mono text-xs dark:bg-muted">
+                                            <code className="rounded bg-muted px-2 py-1 font-mono text-xs">
                                                 {client.clientId}
                                             </code>
                                             <Button
@@ -696,7 +696,7 @@ export default function DevelopersSettingsPage() {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 hover:bg-status-error/15 hover:text-status-error dark:hover:bg-red-900/20"
+                                                        className="h-8 w-8 hover:bg-status-error/15 hover:text-status-error"
                                                         title="Delete"
                                                         aria-label={`Delete ${client.name}`}
                                                     >
@@ -718,7 +718,7 @@ export default function DevelopersSettingsPage() {
                     </Table>
 
                     {/* Rate Limit Info */}
-                    <div className="border-t bg-muted px-6 py-4 dark:bg-muted">
+                    <div className="border-t bg-muted px-6 py-4">
                         <div className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2 text-muted-foreground">
                                 <Shield className="h-4 w-4" />

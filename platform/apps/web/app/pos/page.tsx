@@ -796,9 +796,9 @@ export default function POSPage() {
                                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
                                         {[...Array(8)].map((_, i) => (
                                             <div key={i} className="animate-pulse">
-                                                <div className="aspect-square bg-muted dark:bg-muted rounded-lg mb-3" />
-                                                <div className="h-4 bg-muted dark:bg-muted rounded w-3/4 mb-2" />
-                                                <div className="h-3 bg-muted dark:bg-muted rounded w-1/2" />
+                                                <div className="aspect-square bg-muted rounded-lg mb-3" />
+                                                <div className="h-4 bg-muted rounded w-3/4 mb-2" />
+                                                <div className="h-3 bg-muted rounded w-1/2" />
                                             </div>
                                         ))}
                                     </div>
@@ -863,14 +863,14 @@ export default function POSPage() {
                                 <div key={i} className="animate-pulse rounded-lg border border-border bg-card p-4">
                                     <div className="flex items-start justify-between gap-2 mb-3">
                                         <div className="flex-1 space-y-2">
-                                            <div className="h-4 bg-muted dark:bg-muted rounded w-32" />
-                                            <div className="h-3 bg-muted dark:bg-muted rounded w-48" />
+                                            <div className="h-4 bg-muted rounded w-32" />
+                                            <div className="h-3 bg-muted rounded w-48" />
                                         </div>
-                                        <div className="h-6 w-16 bg-muted dark:bg-muted rounded" />
+                                        <div className="h-6 w-16 bg-muted rounded" />
                                     </div>
                                     <div className="space-y-2">
-                                        <div className="h-3 bg-muted dark:bg-muted rounded w-full" />
-                                        <div className="h-3 bg-muted dark:bg-muted rounded w-5/6" />
+                                        <div className="h-3 bg-muted rounded w-full" />
+                                        <div className="h-3 bg-muted rounded w-5/6" />
                                     </div>
                                 </div>
                             ))}

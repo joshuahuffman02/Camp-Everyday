@@ -68,14 +68,14 @@ export function RadarChart({
 }: RadarChartProps) {
   if (loading) {
     return (
-      <Card className="border-border dark:border-border">
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="text-lg text-foreground dark:text-white">{title}</CardTitle>
-          {description && <p className="text-sm text-muted-foreground dark:text-muted-foreground">{description}</p>}
+          <CardTitle className="text-lg text-foreground">{title}</CardTitle>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </CardHeader>
         <CardContent>
           <div className="animate-pulse flex items-center justify-center" style={{ height }}>
-            <div className="w-64 h-64 rounded-full bg-muted dark:bg-muted" />
+            <div className="w-64 h-64 rounded-full bg-muted" />
           </div>
         </CardContent>
       </Card>
@@ -93,10 +93,10 @@ export function RadarChart({
   }));
 
   return (
-    <Card className="border-border dark:border-border">
+    <Card className="border-border">
       <CardHeader>
-        <CardTitle className="text-lg text-foreground dark:text-white">{title}</CardTitle>
-        {description && <p className="text-sm text-muted-foreground dark:text-muted-foreground">{description}</p>}
+        <CardTitle className="text-lg text-foreground">{title}</CardTitle>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </CardHeader>
       <CardContent>
         <div style={{ height }}>
@@ -145,14 +145,14 @@ export function RadarChart({
               />
               <Legend
                 wrapperStyle={{ paddingTop: "16px" }}
-                formatter={(value: string) => <span className="text-muted-foreground dark:text-muted-foreground">{value}</span>}
+                formatter={(value: string) => <span className="text-muted-foreground">{value}</span>}
               />
             </RadarChartComponent>
           </ResponsiveContainer>
         </div>
 
         {/* Score interpretation legend */}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground dark:text-muted-foreground">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
               <span className="w-4 h-0.5 bg-blue-500" />

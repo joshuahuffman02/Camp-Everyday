@@ -56,15 +56,15 @@ type MaintenanceAlert = {
 function getSeverityColor(severity: string) {
   switch (severity) {
     case "critical":
-      return "bg-red-500 text-white";
+      return "bg-status-error text-status-error-foreground";
     case "high":
-      return "bg-orange-500 text-white";
+      return "bg-status-warning text-status-warning-foreground";
     case "medium":
-      return "bg-amber-500 text-white";
+      return "bg-status-info text-status-info-foreground";
     case "low":
-      return "bg-blue-500 text-white";
+      return "bg-status-success text-status-success-foreground";
     default:
-      return "bg-slate-500 text-white";
+      return "bg-muted text-muted-foreground border border-border";
   }
 }
 
@@ -151,7 +151,7 @@ export default function AIMaintenancePage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-status-warning-bg text-status-warning-text border border-status-warning-border shadow-sm">
               <Wrench className="h-6 w-6" />
             </div>
             <div>
@@ -174,15 +174,15 @@ export default function AIMaintenancePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SPRING_CONFIG, delay: 0.05 }}
           >
-            <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30">
+            <Card className="border-status-error-border bg-status-error-bg">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  <AlertTriangle className="h-6 w-6 text-status-error-text" />
                   <div>
-                    <p className="font-semibold text-red-800 dark:text-red-300">
+                    <p className="font-semibold text-status-error-text">
                       {criticalCount} High Priority Alert{criticalCount > 1 ? "s" : ""}
                     </p>
-                    <p className="text-sm text-red-700 dark:text-red-400">
+                    <p className="text-sm text-status-error-text">
                       Immediate attention recommended
                     </p>
                   </div>
@@ -201,14 +201,14 @@ export default function AIMaintenancePage() {
         >
           <Card>
             <CardContent className="p-4">
-              <AlertTriangle className="h-5 w-5 text-amber-500 mb-2" />
+              <AlertTriangle className="h-5 w-5 text-status-warning-text mb-2" />
               <div className="text-2xl font-bold text-foreground">{newCount}</div>
               <p className="text-xs text-muted-foreground">New Alerts</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <CheckCircle2 className="h-5 w-5 text-emerald-500 mb-2" />
+              <CheckCircle2 className="h-5 w-5 text-status-success-text mb-2" />
               <div className="text-2xl font-bold text-foreground">
                 {(alerts as MaintenanceAlert[]).filter(a => a.status === "scheduled").length}
               </div>
@@ -217,7 +217,7 @@ export default function AIMaintenancePage() {
           </Card>
           <Card>
             <CardContent className="p-4">
-              <Calendar className="h-5 w-5 text-blue-500 mb-2" />
+              <Calendar className="h-5 w-5 text-status-info-text mb-2" />
               <div className="text-2xl font-bold text-foreground">
                 {(alerts as MaintenanceAlert[]).filter(a => a.status === "resolved").length}
               </div>
@@ -226,7 +226,7 @@ export default function AIMaintenancePage() {
           </Card>
           <Card>
             <CardContent className="p-4">
-              <Zap className="h-5 w-5 text-violet-500 mb-2" />
+              <Zap className="h-5 w-5 text-primary mb-2" />
               <div className="text-2xl font-bold text-foreground">{criticalCount}</div>
               <p className="text-xs text-muted-foreground">High Priority</p>
             </CardContent>
@@ -262,7 +262,7 @@ export default function AIMaintenancePage() {
           <Card>
             <CardContent className="py-12">
               <div className="text-center">
-                <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-emerald-500/50" />
+                <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-status-success/50" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No Alerts</h3>
                 <p className="text-sm text-muted-foreground">
                   All systems operating normally
@@ -283,16 +283,18 @@ export default function AIMaintenancePage() {
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ delay: index * 0.02, ...SPRING_CONFIG }}
                   >
-                    <Card className={cn(
-                      "transition-all hover:shadow-md",
-                      alert.status === "new" && (alert.severity === "critical" || alert.severity === "high")
-                        ? "border-l-4 border-l-red-500"
-                        : alert.status === "new" && "border-l-4 border-l-amber-500"
-                    )}>
+                    <Card
+                      className={cn(
+                        "transition-all hover:shadow-md",
+                        alert.status === "new" && (alert.severity === "critical" || alert.severity === "high")
+                          ? "border-l-4 border-l-status-error"
+                          : alert.status === "new" && "border-l-4 border-l-status-warning"
+                      )}
+                    >
                       <CardContent className="p-5">
                         <div className="flex flex-col lg:flex-row gap-4">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30 flex-shrink-0">
-                            <Icon className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-status-warning-bg border border-status-warning-border flex-shrink-0">
+                            <Icon className="h-6 w-6 text-status-warning-text" />
                           </div>
 
                           <div className="flex-1">
@@ -357,7 +359,7 @@ export default function AIMaintenancePage() {
                             </div>
                           )}
                           {alert.predictedFailure && (
-                            <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                            <div className="flex items-center gap-1 text-status-error-text">
                               <AlertTriangle className="h-3 w-3" />
                               Predicted failure: {format(new Date(alert.predictedFailure), "MMM d")}
                             </div>

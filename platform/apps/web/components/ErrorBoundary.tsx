@@ -32,11 +32,11 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-muted dark:bg-muted">
+        <div className="min-h-screen flex items-center justify-center bg-muted">
           <div className="text-center p-8 max-w-md">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-status-error-bg border border-status-error-border flex items-center justify-center">
               <svg
-                className="w-8 h-8 text-red-600 dark:text-red-400"
+                className="w-8 h-8 text-status-error-text"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -49,15 +49,15 @@ export class ErrorBoundary extends Component<Props, State> {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-foreground dark:text-white mb-2">
+            <h1 className="text-2xl font-bold text-foreground mb-2">
               Something went wrong
             </h1>
-            <p className="text-muted-foreground dark:text-muted-foreground mb-6">
+            <p className="text-muted-foreground mb-6">
               We're sorry, but something unexpected happened. Please try refreshing the page.
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+              className="px-6 py-3 bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover font-medium rounded-lg transition-colors"
             >
               Refresh Page
             </button>
@@ -66,7 +66,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 <summary className="text-sm text-muted-foreground cursor-pointer">
                   Error details
                 </summary>
-                <pre className="mt-2 p-4 bg-muted dark:bg-muted rounded-lg text-xs overflow-auto">
+                <pre className="mt-2 p-4 bg-muted rounded-lg text-xs overflow-auto">
                   {this.state.error.toString()}
                   {"\n"}
                   {this.state.error.stack}

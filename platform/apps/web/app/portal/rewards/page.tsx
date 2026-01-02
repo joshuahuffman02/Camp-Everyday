@@ -29,24 +29,24 @@ type LoyaltyProfile = {
 // Theme-aware tier colors with gradients
 const TIER_STYLES: Record<string, { bg: string; text: string; gradient: string }> = {
     Bronze: {
-        bg: "bg-amber-600 dark:bg-amber-700",
-        text: "text-amber-600 dark:text-amber-400",
+        bg: "bg-amber-600",
+        text: "text-amber-600",
         gradient: "bg-gradient-to-br from-amber-500 to-amber-700"
     },
     Silver: {
-        bg: "bg-slate-400 dark:bg-slate-500",
-        text: "text-slate-600 dark:text-slate-300",
-        gradient: "bg-gradient-to-br from-slate-300 to-slate-500 dark:from-slate-400 dark:to-slate-600"
+        bg: "bg-slate-400",
+        text: "text-slate-600",
+        gradient: "bg-gradient-to-br from-slate-300 to-slate-500"
     },
     Gold: {
-        bg: "bg-yellow-500 dark:bg-yellow-600",
-        text: "text-yellow-600 dark:text-yellow-400",
+        bg: "bg-yellow-500",
+        text: "text-yellow-600",
         gradient: "bg-gradient-to-br from-yellow-400 to-yellow-600"
     },
     Platinum: {
-        bg: "bg-gradient-to-r from-slate-300 to-slate-500 dark:from-slate-400 dark:to-slate-600",
-        text: "text-slate-700 dark:text-slate-200",
-        gradient: "bg-gradient-to-br from-slate-200 via-slate-400 to-slate-600 dark:from-slate-300 dark:via-slate-500 dark:to-slate-700"
+        bg: "bg-gradient-to-r from-slate-300 to-slate-500",
+        text: "text-slate-700",
+        gradient: "bg-gradient-to-br from-slate-200 via-slate-400 to-slate-600"
     }
 };
 

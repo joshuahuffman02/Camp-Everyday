@@ -379,7 +379,7 @@ export default function YieldDashboardPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SPRING_CONFIG, delay: 0.4 }}
           >
-            <Card className="bg-gradient-to-br from-emerald-50 to-white">
+            <Card className="bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3 mb-4">
                   <Calendar className="h-5 w-5 text-emerald-600" />
@@ -401,7 +401,7 @@ export default function YieldDashboardPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SPRING_CONFIG, delay: 0.5 }}
           >
-            <Card className="bg-gradient-to-br from-blue-50 to-white">
+            <Card className="bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3 mb-4">
                   <Calendar className="h-5 w-5 text-blue-600" />
@@ -423,7 +423,7 @@ export default function YieldDashboardPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SPRING_CONFIG, delay: 0.6 }}
           >
-            <Card className="bg-gradient-to-br from-violet-50 to-white">
+            <Card className="bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3 mb-4">
                   <DollarSign className="h-5 w-5 text-violet-600" />
@@ -775,10 +775,7 @@ export default function YieldDashboardPage() {
                                 {formatCurrency(point.price)}
                               </div>
                               <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-violet-400 to-violet-600 rounded-full transition-all"
-                                  style={{ width: `${width}%` }}
-                                />
+                                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${width}%` }} />
                               </div>
                               <div className="w-16 text-right text-sm text-slate-600">
                                 {point.bookings} bookings

@@ -101,10 +101,10 @@ export function WaterfallChart({
 
   if (loading) {
     return (
-      <Card className="border-border dark:border-border">
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="text-lg text-foreground dark:text-white">{title}</CardTitle>
-          {description && <p className="text-sm text-muted-foreground dark:text-muted-foreground">{description}</p>}
+          <CardTitle className="text-lg text-foreground">{title}</CardTitle>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </CardHeader>
         <CardContent>
           <div className="animate-pulse" style={{ height }}>
@@ -112,7 +112,7 @@ export function WaterfallChart({
               {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className="flex-1 bg-muted dark:bg-muted rounded-t"
+                  className="flex-1 bg-muted rounded-t"
                   style={{ height: `${30 + Math.random() * 60}%` }}
                 />
               ))}
@@ -138,10 +138,10 @@ export function WaterfallChart({
   };
 
   return (
-    <Card className="border-border dark:border-border">
+    <Card className="border-border">
       <CardHeader>
-        <CardTitle className="text-lg text-foreground dark:text-white">{title}</CardTitle>
-        {description && <p className="text-sm text-muted-foreground dark:text-muted-foreground">{description}</p>}
+        <CardTitle className="text-lg text-foreground">{title}</CardTitle>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </CardHeader>
       <CardContent>
         <div style={{ height }}>
@@ -196,7 +196,7 @@ export function WaterfallChart({
         </div>
 
         {/* Legend */}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground dark:text-muted-foreground">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="w-4 h-4 rounded bg-blue-500" /> Start/Total
           </span>

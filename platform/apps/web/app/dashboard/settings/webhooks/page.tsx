@@ -162,7 +162,7 @@ export default function WebhooksSettingsPage() {
                                     <div className="space-y-2">
                                         <Label>Signing Secret</Label>
                                         <div className="flex items-center gap-2">
-                                            <div className="flex-1 rounded bg-yellow-50 p-2 font-mono text-sm text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100 break-all">
+                                            <div className="flex-1 rounded bg-yellow-50 p-2 font-mono text-sm text-yellow-900 break-all">
                                                 {createdSecret}
                                             </div>
                                             <Button size="icon" variant="ghost" onClick={() => copyToClipboard(createdSecret!)}>
@@ -233,7 +233,7 @@ export default function WebhooksSettingsPage() {
                     </TabsList>
 
                     <TabsContent value="endpoints" className="space-y-4">
-                        <div className="rounded-md border bg-card dark:bg-muted">
+                        <div className="rounded-md border bg-card">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -295,7 +295,7 @@ export default function WebhooksSettingsPage() {
                     </TabsContent>
 
                     <TabsContent value="deliveries" className="space-y-4">
-                        <div className="rounded-md border bg-card dark:bg-muted">
+                        <div className="rounded-md border bg-card">
                             <Table>
                                 <TableHeader>
                                     <TableRow>

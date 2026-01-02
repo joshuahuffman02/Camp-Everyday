@@ -132,11 +132,11 @@ function StatusIcon({ status }: { status: string }) {
 function TypeIcon({ type }: { type: string }) {
   switch (type) {
     case "refund":
-      return <RefreshCcw className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />;
+      return <RefreshCcw className="h-4 w-4 text-amber-600" aria-hidden="true" />;
     case "payout":
-      return <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />;
+      return <Banknote className="h-4 w-4 text-emerald-600" aria-hidden="true" />;
     case "config_change":
-      return <Settings className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />;
+      return <Settings className="h-4 w-4 text-blue-600" aria-hidden="true" />;
     default:
       return null;
   }
@@ -618,9 +618,9 @@ export default function ApprovalsPage() {
                 initial={{ scale: 0, rotate: -180 }}
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4"
+                className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"
               >
-                <PartyPopper className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                <PartyPopper className="h-10 w-10 text-emerald-600" />
               </motion.div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Queue cleared!</h2>
               <p className="text-muted-foreground">All approval requests have been processed.</p>
@@ -642,18 +642,18 @@ export default function ApprovalsPage() {
                   <span className="text-sm font-medium text-foreground">{openCount}</span>
                   <span className="text-xs text-muted-foreground">Open</span>
                 </div>
-                <div className="flex items-center gap-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 px-3 py-1.5">
-                  <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">{summary.pendingSecond}</span>
-                  <span className="text-xs text-amber-700 dark:text-amber-400">Needs 2nd</span>
+                <div className="flex items-center gap-1.5 rounded-lg bg-amber-100 border border-amber-200 px-3 py-1.5">
+                  <span className="text-sm font-semibold text-amber-700">{summary.pendingSecond}</span>
+                  <span className="text-xs text-amber-700">Needs 2nd</span>
                 </div>
                 {summary.urgent > 0 && (
                   <motion.div
                     animate={{ scale: [1, 1.02, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
-                    className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-1.5"
+                    className="flex items-center gap-1.5 rounded-lg bg-red-100 border border-red-200 px-3 py-1.5"
                   >
-                    <span className="text-sm font-bold text-red-700 dark:text-red-400">{summary.urgent}</span>
-                    <span className="text-xs text-red-700 dark:text-red-400">Urgent</span>
+                    <span className="text-sm font-bold text-red-700">{summary.urgent}</span>
+                    <span className="text-xs text-red-700">Urgent</span>
                   </motion.div>
                 )}
                 <span className="text-xs text-muted-foreground">{summary.total} total</span>
@@ -798,7 +798,7 @@ export default function ApprovalsPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className={cn(
                       "rounded-lg border p-4 space-y-3 transition-colors",
-                      urgent && "border-amber-400 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-900/20"
+                      urgent && "border-amber-400 bg-amber-50/50"
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -930,8 +930,8 @@ export default function ApprovalsPage() {
                     <TableRow>
                       <TableCell colSpan={7} className="h-32">
                         <div className="flex flex-col items-center justify-center text-center">
-                          <div className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 p-3 mb-3">
-                            <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                          <div className="rounded-full bg-emerald-100 p-3 mb-3">
+                            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
                           </div>
                           <p className="text-sm font-medium text-foreground">All caught up!</p>
                           <p className="text-xs text-muted-foreground mt-1">
@@ -984,7 +984,7 @@ export default function ApprovalsPage() {
                             className={cn(
                               "border-b transition-colors",
                               urgent
-                                ? "bg-amber-50/50 dark:bg-amber-900/20 border-l-4 border-l-amber-400 dark:border-l-amber-600"
+                                ? "bg-amber-50/50 border-l-4 border-l-amber-400"
                                 : "hover:bg-muted/50"
                             )}
                           >
@@ -1061,7 +1061,7 @@ export default function ApprovalsPage() {
                                         variant="outline"
                                         className={cn(
                                           "transition-all duration-150",
-                                          !approveDisabled && "hover:bg-red-50 hover:text-red-700 hover:border-red-300 dark:hover:bg-red-900/20 dark:hover:text-red-400 hover:scale-105 active:scale-95"
+                                          !approveDisabled && "hover:bg-red-50 hover:text-red-700 hover:border-red-300 hover:scale-105 active:scale-95"
                                         )}
                                         disabled={approveDisabled}
                                         aria-label={`Reject ${formatLabel(req.type)} request from ${req.requester || 'Unknown'}`}
@@ -1173,8 +1173,8 @@ export default function ApprovalsPage() {
                               className={cn(
                                 "flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all",
                                 policyForm.appliesTo.includes(type)
-                                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30"
-                                  : "border-border dark:border-border hover:border-border"
+                                  ? "border-emerald-500 bg-emerald-50"
+                                  : "border-border hover:border-border"
                               )}
                             >
                               <Checkbox
@@ -1235,8 +1235,8 @@ export default function ApprovalsPage() {
                               className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-md border cursor-pointer transition-all text-sm",
                                 policyForm.approverRoles.includes(role.value)
-                                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30"
-                                  : "border-border dark:border-border hover:border-border"
+                                  ? "border-emerald-500 bg-emerald-50"
+                                  : "border-border hover:border-border"
                               )}
                             >
                               <Checkbox

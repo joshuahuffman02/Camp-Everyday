@@ -130,7 +130,7 @@ function NavItem({ item, pathname }: { item: typeof adminNavItems[0]; pathname: 
     if (item.children) {
         return (
             <div className="space-y-1">
-                <div className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg ${isActive ? "text-foreground dark:text-white" : "text-muted-foreground dark:text-muted-foreground"
+                <div className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg ${isActive ? "text-foreground" : "text-muted-foreground"
                     }`}>
                     <Icon className="h-5 w-5" />
                     {item.title}
@@ -141,8 +141,8 @@ function NavItem({ item, pathname }: { item: typeof adminNavItems[0]; pathname: 
                             key={child.href}
                             href={child.href}
                             className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${pathname === child.href
-                                ? "bg-muted dark:bg-muted text-foreground dark:text-foreground"
-                                : "text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-foreground hover:bg-muted dark:hover:bg-muted"
+                                ? "bg-muted text-foreground"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                 }`}
                         >
                             <ChevronRight className="h-3 w-3" />
@@ -158,8 +158,8 @@ function NavItem({ item, pathname }: { item: typeof adminNavItems[0]; pathname: 
         <Link
             href={item.href!}
             className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${pathname === item.href
-                ? "bg-muted dark:bg-muted text-foreground dark:text-foreground"
-                : "text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-foreground hover:bg-muted dark:hover:bg-muted"
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
         >
             <Icon className="h-5 w-5" />
@@ -175,8 +175,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     if (status === "loading") {
         return (
-            <div className="min-h-screen bg-muted dark:bg-muted flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border dark:border-white" />
+            <div className="min-h-screen bg-muted flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border" />
             </div>
         );
     }
@@ -187,11 +187,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Not logged in - show login prompt
     if (!session) {
         return (
-            <div className="min-h-screen bg-muted dark:bg-muted flex items-center justify-center">
-                <div className="bg-card dark:bg-muted p-8 rounded-lg shadow-lg text-center max-w-md border border-border dark:border-border">
-                    <Shield className="h-12 w-12 text-blue-500 dark:text-blue-400 mx-auto mb-4" />
-                    <h1 className="text-2xl font-bold text-foreground dark:text-white mb-2">Admin Login Required</h1>
-                    <p className="text-muted-foreground dark:text-muted-foreground mb-6">
+            <div className="min-h-screen bg-muted flex items-center justify-center">
+                <div className="bg-card p-8 rounded-lg shadow-lg text-center max-w-md border border-border">
+                    <Shield className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                    <h1 className="text-2xl font-bold text-foreground mb-2">Admin Login Required</h1>
+                    <p className="text-muted-foreground mb-6">
                         Please sign in to access the platform admin area.
                     </p>
                     <Link
@@ -208,11 +208,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Logged in but not platform admin - show Access Denied
     if (!isPlatformAdmin) {
         return (
-            <div className="min-h-screen bg-muted dark:bg-muted flex items-center justify-center">
-                <div className="bg-card dark:bg-muted p-8 rounded-lg shadow-lg text-center max-w-md border border-border dark:border-border">
-                    <Shield className="h-12 w-12 text-red-500 dark:text-red-400 mx-auto mb-4" />
-                    <h1 className="text-2xl font-bold text-foreground dark:text-white mb-2">Access Denied</h1>
-                    <p className="text-muted-foreground dark:text-muted-foreground mb-2">
+            <div className="min-h-screen bg-muted flex items-center justify-center">
+                <div className="bg-card p-8 rounded-lg shadow-lg text-center max-w-md border border-border">
+                    <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                    <h1 className="text-2xl font-bold text-foreground mb-2">Access Denied</h1>
+                    <p className="text-muted-foreground mb-2">
                         You need platform admin privileges to access this area.
                     </p>
                     <p className="text-muted-foreground text-sm mb-4">
@@ -221,13 +221,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <div className="flex flex-col gap-2">
                         <Link
                             href="/"
-                            className="inline-flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                            className="inline-flex items-center justify-center gap-2 text-blue-600 hover:text-blue-700"
                         >
                             Return to Home
                         </Link>
                         <button
                             onClick={() => signOut({ callbackUrl: "/admin" })}
-                            className="inline-flex items-center justify-center gap-2 text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-white text-sm"
+                            className="inline-flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground text-sm"
                         >
                             <LogOut className="h-4 w-4" />
                             Sign in with a different account
@@ -242,16 +242,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const sidebarContent = (
         <>
             {/* Header */}
-            <div className="p-4 border-b border-border dark:border-border">
+            <div className="p-4 border-b border-border">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Shield className="h-6 w-6 text-blue-500 dark:text-blue-400" />
-                        <span className="text-lg font-bold text-foreground dark:text-white">Platform Admin</span>
+                        <Shield className="h-6 w-6 text-blue-500" />
+                        <span className="text-lg font-bold text-foreground">Platform Admin</span>
                     </div>
                     {/* Close button for mobile */}
                     <button
                         onClick={() => setMobileMenuOpen(false)}
-                        className="md:hidden p-2 text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-white"
+                        className="md:hidden p-2 text-muted-foreground hover:text-foreground"
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -266,17 +266,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </nav>
 
             {/* Footer */}
-            <div className="p-4 border-t border-border dark:border-border space-y-2">
+            <div className="p-4 border-t border-border space-y-2">
                 <Link
                     href="/dashboard"
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-foreground hover:bg-muted dark:hover:bg-muted rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                 >
                     <ExternalLink className="h-4 w-4" />
                     Staff Dashboard
                 </Link>
                 <button
                     onClick={() => signOut({ callbackUrl: "/" })}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-foreground hover:bg-muted dark:hover:bg-muted rounded-lg transition-colors w-full"
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors w-full"
                 >
                     <LogOut className="h-4 w-4" />
                     Sign Out
@@ -289,7 +289,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
 
     return (
-        <div className="min-h-screen bg-muted dark:bg-muted flex">
+        <div className="min-h-screen bg-muted flex">
             {/* Mobile menu backdrop */}
             {mobileMenuOpen && (
                 <div
@@ -299,13 +299,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
 
             {/* Sidebar - Desktop */}
-            <aside className="hidden md:flex w-64 bg-card dark:bg-muted border-r border-border dark:border-border flex-col">
+            <aside className="hidden md:flex w-64 bg-card border-r border-border flex-col">
                 {sidebarContent}
             </aside>
 
             {/* Sidebar - Mobile (Slide-in) */}
             <aside
-                className={`fixed inset-y-0 left-0 z-50 w-64 bg-card dark:bg-muted border-r border-border dark:border-border flex flex-col transform transition-transform duration-200 ease-in-out md:hidden ${
+                className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col transform transition-transform duration-200 ease-in-out md:hidden ${
                     mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
@@ -313,18 +313,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </aside>
 
             {/* Main content */}
-            <main className="flex-1 bg-muted dark:bg-muted">
+            <main className="flex-1 bg-muted">
                 {/* Mobile header */}
-                <div className="md:hidden sticky top-0 z-30 bg-card dark:bg-muted border-b border-border dark:border-border px-4 py-3 flex items-center gap-3">
+                <div className="md:hidden sticky top-0 z-30 bg-card border-b border-border px-4 py-3 flex items-center gap-3">
                     <button
                         onClick={() => setMobileMenuOpen(true)}
-                        className="p-2 text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-foreground hover:bg-muted dark:hover:bg-muted rounded-lg"
+                        className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
                     >
                         <Menu className="h-5 w-5" />
                     </button>
                     <div className="flex items-center gap-2">
-                        <Shield className="h-5 w-5 text-blue-500 dark:text-blue-400" />
-                        <span className="font-semibold text-foreground dark:text-white">Admin</span>
+                        <Shield className="h-5 w-5 text-blue-500" />
+                        <span className="font-semibold text-foreground">Admin</span>
                     </div>
                 </div>
 

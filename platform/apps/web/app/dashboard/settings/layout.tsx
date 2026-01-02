@@ -90,7 +90,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
             <div key={crumb.href} className="flex items-center gap-2">
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
               {index === breadcrumbs.length - 1 ? (
-                <span className="font-medium text-foreground dark:text-foreground">{crumb.label}</span>
+                <span className="font-medium text-foreground">{crumb.label}</span>
               ) : (
                 <Link
                   href={crumb.href}

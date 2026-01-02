@@ -62,9 +62,9 @@ const targetEntityOptions = [
 ];
 
 const requestTypes = [
-  { value: "comp", label: "Comp", icon: Gift, description: "Complimentary - waive full charge", color: "text-purple-600 dark:text-purple-400" },
-  { value: "void", label: "Void", icon: Trash2, description: "Cancel this transaction", color: "text-red-600 dark:text-red-400" },
-  { value: "discount", label: "Discount", icon: Percent, description: "Apply a price reduction", color: "text-blue-600 dark:text-blue-400" },
+  { value: "comp", label: "Comp", icon: Gift, description: "Complimentary - waive full charge", color: "text-purple-600" },
+  { value: "void", label: "Void", icon: Trash2, description: "Cancel this transaction", color: "text-red-600" },
+  { value: "discount", label: "Discount", icon: Percent, description: "Apply a price reduction", color: "text-blue-600" },
 ];
 
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; className: string }> = {
@@ -212,7 +212,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
           transition={SPRING_CONFIG}
         >
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700 dark:text-emerald-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">
               Staff
             </p>
             <h1 className="text-2xl font-bold text-foreground">Request Approval</h1>
@@ -223,13 +223,13 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
           <div className="flex flex-wrap gap-3">
             <Link
               href={`/campgrounds/${params.campgroundId}/staff/timeclock`}
-              className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors"
+              className="text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
             >
               Time clock
             </Link>
             <Link
               href={`/campgrounds/${params.campgroundId}/staff/approvals`}
-              className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors"
+              className="text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
             >
               My Approvals
             </Link>
@@ -245,7 +245,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
           <Card className="border-border bg-card">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Send className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <Send className="h-5 w-5 text-emerald-600" />
                 <div>
                   <CardTitle className="text-foreground">New Request</CardTitle>
                   <CardDescription className="text-muted-foreground">
@@ -273,7 +273,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
                         className={cn(
                           "flex items-center gap-3 rounded-lg border p-3 text-left transition-all",
                           isSelected
-                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-500"
+                            ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500"
                             : "border-border bg-background hover:border-muted-foreground/30 hover:bg-muted/50"
                         )}
                       >
@@ -292,7 +292,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
                   })}
                 </div>
                 {errors.type && (
-                  <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                  <p className="text-sm text-red-600 flex items-center gap-1">
                     <AlertCircle className="h-3.5 w-3.5" />
                     {errors.type}
                   </p>
@@ -332,7 +332,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
                       />
                     </div>
                     {errors.deltaAmount && (
-                      <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                      <p className="text-sm text-red-600 flex items-center gap-1">
                         <AlertCircle className="h-3.5 w-3.5" />
                         {errors.deltaAmount}
                       </p>
@@ -376,7 +376,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
                     <p className="text-xs text-muted-foreground">{selectedEntity.description}</p>
                   )}
                   {errors.targetEntity && (
-                    <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <p className="text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="h-3.5 w-3.5" />
                       {errors.targetEntity}
                     </p>
@@ -406,7 +406,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
                     )}
                   />
                   {errors.targetId && (
-                    <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <p className="text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="h-3.5 w-3.5" />
                       {errors.targetId}
                     </p>
@@ -433,7 +433,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
                   Include relevant details like guest name, incident reference, or receipt number.
                 </p>
                 {errors.reason && (
-                  <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                  <p className="text-sm text-red-600 flex items-center gap-1">
                     <AlertCircle className="h-3.5 w-3.5" />
                     {errors.reason}
                   </p>
@@ -508,7 +508,7 @@ export default function OverridesPage({ params }: { params: { campgroundId: stri
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  <ClipboardList className="h-5 w-5 text-emerald-600" />
                   <div>
                     <CardTitle className="text-foreground">Your Recent Requests</CardTitle>
                     <CardDescription className="text-muted-foreground">

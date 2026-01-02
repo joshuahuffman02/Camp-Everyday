@@ -121,26 +121,26 @@ export default function SmsSettingsPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground dark:text-foreground flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Phone className="h-6 w-6" />
           SMS / Text Messages
         </h1>
-        <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Configure SMS messaging for this campground.
         </p>
       </div>
 
       {/* Status Card */}
-      <Card className={hasAssignedNumber ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20" : ""}>
+      <Card className={hasAssignedNumber ? "border-emerald-200 bg-emerald-50" : ""}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {hasAssignedNumber ? (
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
-                  <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+                  <Check className="h-5 w-5 text-emerald-600" />
                 </div>
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted dark:bg-muted">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
                   <MessageSquare className="h-5 w-5 text-muted-foreground" />
                 </div>
               )}
@@ -211,15 +211,15 @@ export default function SmsSettingsPage() {
       </Card>
 
       {/* Billing Info */}
-      <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+      <Card className="bg-blue-50 border-blue-200">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="space-y-2">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              <p className="text-sm font-medium text-blue-900">
                 SMS Billing
               </p>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
+              <p className="text-sm text-blue-700">
                 SMS usage is tracked per campground. You'll see SMS charges on your monthly invoice
                 based on messages sent and received (~$0.0079/message for US numbers).
               </p>
@@ -249,7 +249,7 @@ export default function SmsSettingsPage() {
         </CardHeader>
         {useOwnAccount && (
           <CardContent className="space-y-4 border-t pt-4">
-            <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+            <div className="flex items-start gap-2 text-amber-700 bg-amber-50 rounded-lg p-3">
               <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
               <p className="text-sm">
                 With your own Twilio account, SMS costs are billed directly by Twilio to you, not through Campreserv.

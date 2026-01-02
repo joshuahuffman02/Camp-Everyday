@@ -214,21 +214,21 @@ export function SankeyDiagram({
 
   if (loading) {
     return (
-      <Card className="border-border dark:border-border">
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="text-lg text-foreground dark:text-white">{title}</CardTitle>
-          {description && <p className="text-sm text-muted-foreground dark:text-muted-foreground">{description}</p>}
+          <CardTitle className="text-lg text-foreground">{title}</CardTitle>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </CardHeader>
         <CardContent>
           <div className="animate-pulse" style={{ height }}>
             <div className="flex justify-between items-center h-full">
-              <div className="w-8 h-3/4 bg-muted dark:bg-muted rounded" />
+              <div className="w-8 h-3/4 bg-muted rounded" />
               <div className="flex-1 mx-8 h-full flex flex-col justify-center gap-4">
-                <div className="h-8 bg-muted dark:bg-muted rounded opacity-40" />
-                <div className="h-12 bg-muted dark:bg-muted rounded opacity-30" />
-                <div className="h-6 bg-muted dark:bg-muted rounded opacity-20" />
+                <div className="h-8 bg-muted rounded opacity-40" />
+                <div className="h-12 bg-muted rounded opacity-30" />
+                <div className="h-6 bg-muted rounded opacity-20" />
               </div>
-              <div className="w-8 h-3/4 bg-muted dark:bg-muted rounded" />
+              <div className="w-8 h-3/4 bg-muted rounded" />
             </div>
           </div>
         </CardContent>
@@ -244,10 +244,10 @@ export function SankeyDiagram({
   );
 
   return (
-    <Card className="border-border dark:border-border">
+    <Card className="border-border">
       <CardHeader>
-        <CardTitle className="text-lg text-foreground dark:text-white">{title}</CardTitle>
-        {description && <p className="text-sm text-muted-foreground dark:text-muted-foreground">{description}</p>}
+        <CardTitle className="text-lg text-foreground">{title}</CardTitle>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
