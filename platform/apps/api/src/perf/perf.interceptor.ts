@@ -8,6 +8,7 @@ import type { Request, Response } from "express";
 import { Observable, catchError, tap } from "rxjs";
 import { PerfService } from "./perf.service";
 import { ObservabilityService } from "../observability/observability.service";
+import { extractClientIpFromRequest } from "../common/ip-utils";
 
 @Injectable()
 export class PerfInterceptor implements NestInterceptor {
@@ -28,11 +29,8 @@ export class PerfInterceptor implements NestInterceptor {
     const headers = (anyReq.headers ?? {}) as Record<string, any>;
     const orgHeader = anyReq.organizationId ?? headers["x-organization-id"] ?? headers.get?.("x-organization-id");
     const orgId = Array.isArray(orgHeader) ? orgHeader[0] : orgHeader ?? null;
-    const ip =
-      (headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
-      anyReq.ip ||
-      anyReq.connection?.remoteAddress ||
-      null;
+    // Extract and validate client IP to prevent spoofing via x-forwarded-for
+    const ip = extractClientIpFromRequest(anyReq);
 
     const record = (statusCode: number) => {
       const durationMs = Date.now() - start;

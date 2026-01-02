@@ -15,6 +15,7 @@ import { ValueStackService } from './value-stack.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 import { GuaranteeType } from '@prisma/client';
+import { extractClientIp } from '../common/ip-utils';
 
 @Controller('campgrounds/:campgroundId/value-stack')
 @UseGuards(JwtAuthGuard, ScopeGuard)
@@ -199,15 +200,22 @@ export class PublicValueStackController {
   async captureLead(
     @Param('campgroundId') campgroundId: string,
     @Body() body: { email: string; source: string; marketingOptIn?: boolean },
-    @Headers('x-forwarded-for') ip?: string,
+    @Headers('x-forwarded-for') forwardedFor?: string,
     @Headers('user-agent') userAgent?: string,
+    @Req() req?: any,
   ) {
+    // Extract and validate client IP to prevent spoofing via x-forwarded-for
+    const ipAddress = extractClientIp({
+      forwardedFor,
+      directIp: req?.ip,
+      remoteAddress: req?.connection?.remoteAddress,
+    });
     return this.valueStackService.captureLead({
       campgroundId,
       email: body.email,
       source: body.source,
       marketingOptIn: body.marketingOptIn,
-      ipAddress: ip,
+      ipAddress,
       userAgent,
     });
   }

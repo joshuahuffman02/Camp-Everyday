@@ -89,6 +89,7 @@ export default function GuestFormsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           formTemplateId,
+          campgroundId: reservation?.campgroundId,
           reservationId,
           responses
         })

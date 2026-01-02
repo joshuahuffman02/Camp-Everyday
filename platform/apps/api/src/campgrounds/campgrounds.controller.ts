@@ -86,19 +86,48 @@ export class CampgroundsController {
   }
 
   // Admin endpoints (auth required)
-  // SECURITY: Added RolesGuard and ScopeGuard to validate campground membership
+  // SECURITY FIX (CAMP-HIGH-001): Added membership validation to prevent unauthorized access
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Get("campgrounds")
   listAll(@Req() req: Request) {
+    const user = (req as any).user;
     const org = (req as any).organizationId || null;
-    // If org is provided, scope; otherwise return all (for now) to avoid blocking when no header is set.
-    return this.campgrounds.listAll(org || undefined);
+
+    // SECURITY: Platform admins can see all, others only see their memberships
+    const isPlatformStaff = user?.platformRole === 'platform_admin' ||
+                            user?.platformRole === 'platform_superadmin' ||
+                            user?.platformRole === 'support_agent';
+
+    if (isPlatformStaff) {
+      return this.campgrounds.listAll(org || undefined);
+    }
+
+    // For non-platform users, only return campgrounds they are members of
+    const memberCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    if (memberCampgroundIds.length === 0) {
+      return [];
+    }
+    return this.campgrounds.listByIds(memberCampgroundIds, org || undefined);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Get("campgrounds/:id")
   getOne(@Param("id") id: string, @Req() req: Request) {
+    const user = (req as any).user;
     const org = (req as any).organizationId || null;
+
+    // SECURITY: Platform admins can access any, others need membership
+    const isPlatformStaff = user?.platformRole === 'platform_admin' ||
+                            user?.platformRole === 'platform_superadmin' ||
+                            user?.platformRole === 'support_agent';
+
+    if (!isPlatformStaff) {
+      const memberCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+      if (!memberCampgroundIds.includes(id)) {
+        throw new ForbiddenException("You do not have access to this campground");
+      }
+    }
+
     const cg = this.campgrounds.findOne(id, org || undefined);
     if (!cg) throw new NotFoundException("Campground not found");
     return cg;

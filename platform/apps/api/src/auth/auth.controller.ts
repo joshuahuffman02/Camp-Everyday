@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, MobileLoginDto, RefreshTokenDto } from './dto';
 import { JwtAuthGuard } from './guards';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { extractClientIpFromRequest } from '../common/ip-utils';
 
 @Controller('auth')
 export class AuthController {
@@ -20,11 +21,10 @@ export class AuthController {
     login(
         @Body() dto: LoginDto,
         @Req() req: any,
-        @Headers('user-agent') userAgent: string,
-        @Headers('x-forwarded-for') forwardedFor?: string
+        @Headers('user-agent') userAgent: string
     ) {
-        // Use forwarded IP if behind proxy, otherwise use direct IP
-        const clientIp = forwardedFor?.split(',')[0]?.trim() || req.ip;
+        // Extract and validate client IP to prevent spoofing via x-forwarded-for
+        const clientIp = extractClientIpFromRequest(req) || req.ip;
         return this.authService.login(dto, clientIp, userAgent);
     }
 
@@ -49,10 +49,10 @@ export class AuthController {
   mobileLogin(
     @Body() dto: MobileLoginDto,
     @Req() req: any,
-    @Headers('user-agent') userAgent: string,
-    @Headers('x-forwarded-for') forwardedFor?: string
+    @Headers('user-agent') userAgent: string
   ) {
-    const clientIp = forwardedFor?.split(',')[0]?.trim() || req.ip;
+    // Extract and validate client IP to prevent spoofing via x-forwarded-for
+    const clientIp = extractClientIpFromRequest(req) || req.ip;
     return this.authService.mobileLogin(dto, clientIp, userAgent);
   }
 
@@ -61,10 +61,10 @@ export class AuthController {
   refreshToken(
     @Body() dto: RefreshTokenDto,
     @Req() req: any,
-    @Headers('user-agent') userAgent: string,
-    @Headers('x-forwarded-for') forwardedFor?: string
+    @Headers('user-agent') userAgent: string
   ) {
-    const clientIp = forwardedFor?.split(',')[0]?.trim() || req.ip;
+    // Extract and validate client IP to prevent spoofing via x-forwarded-for
+    const clientIp = extractClientIpFromRequest(req) || req.ip;
     return this.authService.refreshMobileToken(dto.refreshToken, clientIp, userAgent);
   }
 

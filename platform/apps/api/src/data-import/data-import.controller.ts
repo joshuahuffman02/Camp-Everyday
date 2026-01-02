@@ -9,7 +9,9 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { Response } from "express";
-import { JwtAuthGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
+import { ScopeGuard } from "../permissions/scope.guard";
+import { UserRole } from "@prisma/client";
 import { DataImportService, ImportEntityType } from "./data-import.service";
 import { FieldMapping } from "./parsers/csv-parser.service";
 
@@ -32,7 +34,7 @@ class ExecuteImportDto {
   updateExisting?: boolean;
 }
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class DataImportController {
   constructor(private readonly dataImport: DataImportService) {}
@@ -42,6 +44,7 @@ export class DataImportController {
    * Returns required fields, optional fields, and descriptions
    */
   @Get("campgrounds/:campgroundId/import/schema/:entityType")
+  @Roles(UserRole.owner, UserRole.manager)
   getSchema(
     @Param("campgroundId") _campgroundId: string,
     @Param("entityType") entityType: ImportEntityType
@@ -54,6 +57,7 @@ export class DataImportController {
    * Download CSV template for an entity type
    */
   @Get("campgrounds/:campgroundId/import/template/:entityType")
+  @Roles(UserRole.owner, UserRole.manager)
   getTemplate(
     @Param("campgroundId") _campgroundId: string,
     @Param("entityType") entityType: ImportEntityType,
@@ -74,6 +78,7 @@ export class DataImportController {
    * Returns detected format (csv, campspot, newbook) and suggested field mappings
    */
   @Post("campgrounds/:campgroundId/import/detect")
+  @Roles(UserRole.owner, UserRole.manager)
   detectFormat(
     @Param("campgroundId") _campgroundId: string,
     @Body() body: DetectFormatDto
@@ -92,6 +97,7 @@ export class DataImportController {
    * Returns validation results and preview of what will be created/updated
    */
   @Post("campgrounds/:campgroundId/import/preview")
+  @Roles(UserRole.owner, UserRole.manager)
   previewImport(
     @Param("campgroundId") campgroundId: string,
     @Body() body: PreviewImportDto
@@ -119,6 +125,7 @@ export class DataImportController {
    * Creates/updates records based on CSV content and field mappings
    */
   @Post("campgrounds/:campgroundId/import/execute")
+  @Roles(UserRole.owner, UserRole.manager)
   executeImport(
     @Param("campgroundId") campgroundId: string,
     @Body() body: ExecuteImportDto
@@ -144,12 +151,22 @@ export class DataImportController {
 
   /**
    * Get import job status
+   * Note: Job access is scoped by campground membership via the guards
    */
-  @Get("import/jobs/:jobId")
-  getJobStatus(@Param("jobId") jobId: string) {
+  @Get("campgrounds/:campgroundId/import/jobs/:jobId")
+  @Roles(UserRole.owner, UserRole.manager)
+  getJobStatus(
+    @Param("campgroundId") campgroundId: string,
+    @Param("jobId") jobId: string
+  ) {
     const job = this.dataImport.getJobStatus(jobId);
 
     if (!job) {
+      throw new BadRequestException(`Job not found: ${jobId}`);
+    }
+
+    // Verify job belongs to this campground
+    if (job.campgroundId !== campgroundId) {
       throw new BadRequestException(`Job not found: ${jobId}`);
     }
 

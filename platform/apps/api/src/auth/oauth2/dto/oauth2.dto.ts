@@ -101,6 +101,7 @@ export class OAuth2AuthorizeRequestDto {
 
 /**
  * Revoke Token DTO
+ * Per RFC 7009, client authentication is required for token revocation.
  */
 export class OAuth2RevokeRequestDto {
   @ApiProperty({ description: "Token to revoke (access_token or refresh_token)" })
@@ -116,10 +117,21 @@ export class OAuth2RevokeRequestDto {
   @IsOptional()
   @IsIn(["access_token", "refresh_token"])
   token_type_hint?: "access_token" | "refresh_token";
+
+  @ApiProperty({ description: "Client ID for client authentication" })
+  @IsString()
+  @IsNotEmpty()
+  client_id!: string;
+
+  @ApiProperty({ description: "Client secret for client authentication" })
+  @IsString()
+  @IsNotEmpty()
+  client_secret!: string;
 }
 
 /**
  * Introspection Request DTO
+ * Per RFC 7662, client authentication is required for token introspection.
  */
 export class OAuth2IntrospectRequestDto {
   @ApiProperty({ description: "Token to introspect" })
@@ -135,6 +147,16 @@ export class OAuth2IntrospectRequestDto {
   @IsOptional()
   @IsIn(["access_token", "refresh_token"])
   token_type_hint?: "access_token" | "refresh_token";
+
+  @ApiProperty({ description: "Client ID for client authentication" })
+  @IsString()
+  @IsNotEmpty()
+  client_id!: string;
+
+  @ApiProperty({ description: "Client secret for client authentication" })
+  @IsString()
+  @IsNotEmpty()
+  client_secret!: string;
 }
 
 /**

@@ -62,8 +62,22 @@ export class OrgBillingWebhookController {
     }
 
     const webhookSecret = process.env.STRIPE_BILLING_WEBHOOK_SECRET;
+    const isProduction = process.env.NODE_ENV === "production";
+    const isStaging = process.env.NODE_ENV === "staging";
+
+    // Fail closed: require webhook secret in production/staging environments
     if (!webhookSecret) {
-      this.logger.warn("STRIPE_BILLING_WEBHOOK_SECRET not set - accepting without verification (DEV ONLY)");
+      if (isProduction || isStaging) {
+        this.logger.error(
+          "STRIPE_BILLING_WEBHOOK_SECRET not configured - rejecting webhook in production/staging"
+        );
+        throw new BadRequestException(
+          "Webhook signature verification not configured"
+        );
+      }
+      this.logger.warn(
+        "STRIPE_BILLING_WEBHOOK_SECRET not set - accepting without verification (DEV ONLY)"
+      );
     }
 
     let event: Stripe.Event;
@@ -75,7 +89,7 @@ export class OrgBillingWebhookController {
           webhookSecret
         );
       } else {
-        // In development without webhook secret, parse the body directly
+        // Only allowed in development when secret is missing
         event = JSON.parse(req.rawBody!.toString()) as Stripe.Event;
       }
     } catch (err: any) {

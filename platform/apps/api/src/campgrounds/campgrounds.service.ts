@@ -316,6 +316,18 @@ export class CampgroundsService {
     return this.prisma.campground.findMany();
   }
 
+  /**
+   * List campgrounds by IDs (for membership-based filtering)
+   * SECURITY: Used by controller to return only campgrounds the user has membership to
+   */
+  listByIds(ids: string[], orgId?: string) {
+    const where: any = { id: { in: ids } };
+    if (orgId) {
+      where.organizationId = orgId;
+    }
+    return this.prisma.campground.findMany({ where });
+  }
+
   // Public campgrounds (published only)
   async listPublic() {
     // Fetch campgrounds with historical awards

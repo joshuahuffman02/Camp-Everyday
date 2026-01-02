@@ -10,6 +10,7 @@ import type { Request } from "express";
 import { Observable } from "rxjs";
 import { RateLimitService } from "./rate-limit.service";
 import { PerfService } from "./perf.service";
+import { extractClientIpFromRequest } from "../common/ip-utils";
 
 @Injectable()
 export class RateLimitInterceptor implements NestInterceptor {
@@ -22,11 +23,8 @@ export class RateLimitInterceptor implements NestInterceptor {
     const http = context.switchToHttp();
     const req = http.getRequest();
 
-    const ip =
-      (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
-      req.ip ||
-      req.connection?.remoteAddress ||
-      null;
+    // Extract and validate client IP to prevent spoofing via x-forwarded-for
+    const ip = extractClientIpFromRequest(req);
     const orgHeader = (req as any).organizationId ?? req.headers["x-organization-id"];
     const orgId = Array.isArray(orgHeader) ? orgHeader[0] : orgHeader ?? null;
 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFormSubmissionDto, CreateFormTemplateDto, UpdateFormSubmissionDto, UpdateFormTemplateDto } from "./dto/form-template.dto";
@@ -146,37 +146,92 @@ export class FormsService {
 
   /**
    * Get a single form template for public submission
+   * SECURITY: Validates form is active and belongs to the specified campground
    */
-  async getPublicForm(id: string) {
+  async getPublicForm(id: string, campgroundId: string) {
+    if (!campgroundId) {
+      throw new BadRequestException("campgroundId is required");
+    }
+
     const form = await this.prisma.formTemplate.findUnique({
       where: { id },
       select: {
         id: true,
+        campgroundId: true,
         title: true,
         type: true,
         description: true,
         fields: true,
         isRequired: true,
-        allowSkipWithNote: true
+        allowSkipWithNote: true,
+        isActive: true
       }
     });
     if (!form) throw new NotFoundException("Form not found");
-    return form;
+
+    // Validate form belongs to the requested campground
+    if (form.campgroundId !== campgroundId) {
+      throw new NotFoundException("Form not found");
+    }
+
+    // Validate form is active
+    if (!form.isActive) {
+      throw new BadRequestException("Form is not active");
+    }
+
+    // Return only public-safe fields
+    return {
+      id: form.id,
+      title: form.title,
+      type: form.type,
+      description: form.description,
+      fields: form.fields,
+      isRequired: form.isRequired,
+      allowSkipWithNote: form.allowSkipWithNote
+    };
   }
 
   /**
    * Submit a form from public booking flow
+   * SECURITY: Validates form is active and matches reservation campground
    */
   async submitPublicForm(data: {
     formTemplateId: string;
+    campgroundId: string;
     reservationId?: string;
     guestEmail?: string;
     responses: Record<string, any>;
   }) {
+    if (!data.campgroundId) {
+      throw new BadRequestException("campgroundId is required");
+    }
+
     const template = await this.prisma.formTemplate.findUnique({
-      where: { id: data.formTemplateId }
+      where: { id: data.formTemplateId },
+      select: { id: true, campgroundId: true, isActive: true, title: true, type: true }
     });
     if (!template) throw new NotFoundException("Form template not found");
+
+    // Validate form belongs to the specified campground
+    if (template.campgroundId !== data.campgroundId) {
+      throw new NotFoundException("Form template not found");
+    }
+
+    // Validate form is active
+    if (!template.isActive) {
+      throw new BadRequestException("Form is not active");
+    }
+
+    // If reservationId is provided, validate it belongs to the same campground
+    if (data.reservationId) {
+      const reservation = await this.prisma.reservation.findFirst({
+        where: { id: data.reservationId, campgroundId: data.campgroundId },
+        select: { id: true }
+      });
+      if (!reservation) {
+        throw new BadRequestException("Reservation not found or does not belong to this campground");
+      }
+    }
 
     return this.prisma.formSubmission.create({
       data: {

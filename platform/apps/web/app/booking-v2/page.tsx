@@ -1,15 +1,18 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertCircle,
+  ArrowLeft,
   ArrowRight,
   BadgeCheck,
   CalendarDays,
   CheckCircle2,
   ChevronsRight,
   CircleDollarSign,
+  Info,
   Lock,
   MapPin,
   Search,
@@ -21,7 +24,7 @@ import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "../../components/breadcrumbs";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
@@ -35,6 +38,7 @@ import { apiClient } from "../../lib/api-client";
 import { cn } from "../../lib/utils";
 import { useWhoami } from "@/hooks/use-whoami";
 import { diffInDays, formatLocalDateInput, parseLocalDateInput } from "../calendar/utils";
+import { useBookingFormPersistence, createDebouncedSave, BookingFormData } from "@/hooks/use-booking-form-persistence";
 
 const SITE_TYPE_STYLES: Record<string, { label: string; badge: string; border: string }> = {
   rv: { label: "RV", badge: "bg-status-success/15 text-status-success", border: "border-l-status-success" },
@@ -206,6 +210,128 @@ function BookingLabPageInner() {
   const paymentCompletedRef = useRef(false);
   const [receiptData, setReceiptData] = useState<BookingReceiptData | null>(null);
 
+  // Form persistence for back navigation
+  const { restoredData, hasRestoredData, saveFormData, clearFormData } = useBookingFormPersistence();
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [showExitWarning, setShowExitWarning] = useState(false);
+
+  // Validation errors state
+  const [validationErrors, setValidationErrors] = useState<{
+    guest?: string;
+    dates?: string;
+    site?: string;
+    payment?: string;
+  }>({});
+
+  // Show restore dialog if there's saved data
+  useEffect(() => {
+    if (hasRestoredData && !formData.guestId && !formData.siteId) {
+      setShowRestoreDialog(true);
+    }
+  }, [hasRestoredData, formData.guestId, formData.siteId]);
+
+  // Restore form data handler
+  const handleRestoreData = useCallback(() => {
+    if (!restoredData) return;
+    setFormData((prev) => ({
+      ...prev,
+      arrivalDate: restoredData.arrivalDate || prev.arrivalDate,
+      departureDate: restoredData.departureDate || prev.departureDate,
+      adults: restoredData.adults ?? prev.adults,
+      children: restoredData.children ?? prev.children,
+      pets: restoredData.pets ?? prev.pets,
+      rigType: restoredData.rigType || prev.rigType,
+      rigLength: restoredData.rigLength || prev.rigLength,
+      guestId: restoredData.guestId || prev.guestId,
+      guestAddress1: restoredData.guestAddress1 || prev.guestAddress1,
+      guestCity: restoredData.guestCity || prev.guestCity,
+      guestState: restoredData.guestState || prev.guestState,
+      guestPostalCode: restoredData.guestPostalCode || prev.guestPostalCode,
+      siteId: restoredData.siteId || prev.siteId,
+      siteClassId: restoredData.siteClassId || prev.siteClassId,
+      lockSite: restoredData.lockSite ?? prev.lockSite,
+      notes: restoredData.notes || prev.notes,
+      referralSource: restoredData.referralSource || prev.referralSource,
+      stayReason: restoredData.stayReason || prev.stayReason,
+      collectPayment: restoredData.collectPayment ?? prev.collectPayment,
+      paymentAmount: restoredData.paymentAmount || prev.paymentAmount,
+      paymentMethod: restoredData.paymentMethod || prev.paymentMethod,
+      cardEntryMode: restoredData.cardEntryMode || prev.cardEntryMode,
+      cashReceived: restoredData.cashReceived || prev.cashReceived,
+      paymentNotes: restoredData.paymentNotes || prev.paymentNotes
+    }));
+    if (restoredData.guestSearch) {
+      setGuestSearch(restoredData.guestSearch);
+    }
+    if (restoredData.siteTypeFilter) {
+      setSiteTypeFilter(restoredData.siteTypeFilter);
+    }
+    if (restoredData.siteClassFilter) {
+      setSiteClassFilter(restoredData.siteClassFilter);
+    }
+    if (restoredData.newGuest) {
+      setGuestForm(restoredData.newGuest);
+      setShowNewGuest(true);
+    }
+    setShowRestoreDialog(false);
+    toast({ title: "Form restored", description: "Your previous booking data has been restored." });
+  }, [restoredData, toast]);
+
+  // Auto-save form data on changes (debounced)
+  const debouncedSave = useMemo(
+    () => createDebouncedSave(saveFormData, 1000),
+    [saveFormData]
+  );
+
+  // Validate form before submission
+  const validateForm = useCallback(() => {
+    const errors: typeof validationErrors = {};
+
+    if (!formData.guestId) {
+      errors.guest = "Please select or create a guest";
+    }
+
+    if (!formData.arrivalDate || !formData.departureDate) {
+      errors.dates = "Please select arrival and departure dates";
+    } else {
+      const arrival = parseLocalDateInput(formData.arrivalDate);
+      const departure = parseLocalDateInput(formData.departureDate);
+      if (departure <= arrival) {
+        errors.dates = "Departure date must be after arrival date";
+      }
+    }
+
+    if (!formData.siteId) {
+      errors.site = "Please select a site";
+    }
+
+    if (formData.collectPayment) {
+      const amount = parseFloat(formData.paymentAmount);
+      if (isNaN(amount) || amount <= 0) {
+        errors.payment = "Please enter a valid payment amount";
+      }
+      if (formData.paymentMethod === "cash") {
+        const cashReceived = parseFloat(formData.cashReceived);
+        if (isNaN(cashReceived) || cashReceived < amount) {
+          errors.payment = "Cash received must be at least the payment amount";
+        }
+      }
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [formData]);
+
+  // Handle back navigation with warning
+  const handleBackNavigation = useCallback(() => {
+    const hasUnsavedData = formData.guestId || formData.siteId || formData.notes;
+    if (hasUnsavedData) {
+      setShowExitWarning(true);
+    } else {
+      router.back();
+    }
+  }, [formData, router]);
+
   useEffect(() => {
     if (!paymentModal) {
       paymentCompletedRef.current = false;
@@ -258,6 +384,21 @@ function BookingLabPageInner() {
   const [siteTypeFilter, setSiteTypeFilter] = useState(initialSiteTypeFilter);
   const [siteClassFilter, setSiteClassFilter] = useState(initialSiteClassId || "all");
   const [availableOnly, setAvailableOnly] = useState(true);
+
+  // Save form state whenever it changes (after all state declarations)
+  useEffect(() => {
+    // Only save if we have meaningful data
+    if (formData.guestId || formData.siteId || formData.arrivalDate) {
+      debouncedSave({
+        ...formData,
+        guestSearch,
+        siteTypeFilter,
+        siteClassFilter,
+        newGuest: showNewGuest ? guestForm : undefined,
+        campgroundId: selectedCampground?.id
+      });
+    }
+  }, [formData, guestSearch, siteTypeFilter, siteClassFilter, showNewGuest, guestForm, selectedCampground?.id, debouncedSave]);
   const siteClassById = useMemo(() => {
     return new Map((siteClassesQuery.data || []).map((siteClass) => [siteClass.id, siteClass]));
   }, [siteClassesQuery.data]);
@@ -581,6 +722,8 @@ function BookingLabPageInner() {
     },
     onSuccess: (reservation) => {
       queryClient.invalidateQueries({ queryKey: ["booking-v2-guests", selectedCampground?.id] });
+      // Clear saved form data on successful booking
+      clearFormData();
       // Card payment: open modal to complete payment
       if (formData.paymentMethod === "card") {
         setPaymentModal({ reservationId: reservation.id, amountCents: paymentAmountCents });
@@ -634,6 +777,15 @@ function BookingLabPageInner() {
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBackNavigation}
+                className="h-11 w-11 rounded-2xl"
+                aria-label="Go back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
               <div className="h-11 w-11 rounded-2xl bg-emerald-600/10 text-emerald-700 flex items-center justify-center">
                 <CalendarDays className="h-5 w-5" />
               </div>
@@ -665,7 +817,10 @@ function BookingLabPageInner() {
         {selectedCampground && (
           <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)_320px]">
             <div className="space-y-4">
-              <Card className="p-5 border-slate-200 shadow-sm">
+              <Card className={cn(
+                "p-5 border-slate-200 shadow-sm",
+                validationErrors.guest && "border-red-300 ring-2 ring-red-100"
+              )}>
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Guest</div>
@@ -676,6 +831,12 @@ function BookingLabPageInner() {
                     Add guest
                   </Button>
                 </div>
+                {validationErrors.guest && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-red-600" role="alert">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{validationErrors.guest}</span>
+                  </div>
+                )}
 
                 <div className="mt-4 space-y-3">
                   <div className="relative">
@@ -828,8 +989,17 @@ function BookingLabPageInner() {
                 </div>
               </Card>
 
-              <Card className="p-5 border-slate-200 shadow-sm">
+              <Card className={cn(
+                "p-5 border-slate-200 shadow-sm",
+                validationErrors.dates && "border-red-300 ring-2 ring-red-100"
+              )}>
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Stay details</div>
+                {validationErrors.dates && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-red-600" role="alert">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{validationErrors.dates}</span>
+                  </div>
+                )}
                 <div className="mt-4 space-y-3">
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="space-y-1">
@@ -837,7 +1007,12 @@ function BookingLabPageInner() {
                       <Input
                         type="date"
                         value={formData.arrivalDate}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, arrivalDate: e.target.value }))}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, arrivalDate: e.target.value }));
+                          if (validationErrors.dates) setValidationErrors((prev) => ({ ...prev, dates: undefined }));
+                        }}
+                        className={validationErrors.dates ? "border-red-300" : ""}
+                        aria-invalid={!!validationErrors.dates}
                       />
                     </div>
                     <div className="space-y-1">
@@ -845,7 +1020,12 @@ function BookingLabPageInner() {
                       <Input
                         type="date"
                         value={formData.departureDate}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, departureDate: e.target.value }))}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, departureDate: e.target.value }));
+                          if (validationErrors.dates) setValidationErrors((prev) => ({ ...prev, dates: undefined }));
+                        }}
+                        className={validationErrors.dates ? "border-red-300" : ""}
+                        aria-invalid={!!validationErrors.dates}
                       />
                     </div>
                   </div>
@@ -1001,7 +1181,10 @@ function BookingLabPageInner() {
             </div>
 
             <div className="space-y-4">
-              <Card className="p-5 border-slate-200 shadow-sm">
+              <Card className={cn(
+                "p-5 border-slate-200 shadow-sm",
+                validationErrors.site && "border-red-300 ring-2 ring-red-100"
+              )}>
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Availability</div>
@@ -1012,6 +1195,12 @@ function BookingLabPageInner() {
                     Available only
                   </div>
                 </div>
+                {validationErrors.site && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-red-600" role="alert">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{validationErrors.site}</span>
+                  </div>
+                )}
 
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   <div className="space-y-1">
@@ -1115,6 +1304,7 @@ function BookingLabPageInner() {
                   <CircleDollarSign className="h-5 w-5 text-emerald-500" />
                 </div>
 
+                {/* Booking summary */}
                 <div className="mt-4 space-y-2 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Site</span>
@@ -1129,43 +1319,96 @@ function BookingLabPageInner() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Nights</span>
-                    <span className="font-semibold text-slate-800">{nights || "-"}</span>
+                    <span className="text-slate-500">Duration</span>
+                    <span className="font-semibold text-slate-800">{nights ? `${nights} night${nights === 1 ? "" : "s"}` : "-"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Guests</span>
+                    <span className="font-semibold text-slate-800">
+                      {formData.adults} adult{formData.adults !== 1 ? "s" : ""}
+                      {formData.children > 0 && `, ${formData.children} child${formData.children !== 1 ? "ren" : ""}`}
+                      {formData.pets > 0 && `, ${formData.pets} pet${formData.pets !== 1 ? "s" : ""}`}
+                    </span>
                   </div>
                 </div>
 
                 {(quoteQuery.isError || pricingIsEstimate) && (
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-                    {quoteQuery.isError
-                      ? "Quote unavailable right now. Showing default rate estimate."
-                      : "Estimate from default rate; final pricing may vary."}
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 flex items-start gap-2">
+                    <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>
+                      {quoteQuery.isError
+                        ? "Live quote unavailable. Showing estimated rate based on site default pricing."
+                        : "Estimate based on default rate. Final pricing may vary with promotions or seasonal rates."}
+                    </span>
                   </div>
                 )}
 
-                <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Subtotal</span>
-                    <span className="font-semibold text-slate-800">
-                      {displaySubtotalCents !== null ? `$${(displaySubtotalCents / 100).toFixed(2)}` : "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Rules delta</span>
-                    <span className="font-semibold text-slate-800">
-                      {pricingRulesDeltaCents !== null ? `$${(pricingRulesDeltaCents / 100).toFixed(2)}` : "—"}
-                    </span>
-                  </div>
-                  {lockFeeCents > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Site lock fee</span>
-                      <span className="font-semibold text-slate-800">${(lockFeeCents / 100).toFixed(2)}</span>
+                {/* Detailed price breakdown */}
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-100 border-b border-slate-200">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                      <CircleDollarSign className="h-3.5 w-3.5" />
+                      Price Breakdown
                     </div>
-                  )}
-                  <div className="flex items-center justify-between text-base">
-                    <span className="font-semibold text-slate-700">Total</span>
-                    <span className="font-black text-slate-900">
-                      {displayTotalCents !== null ? `$${(displayTotalCents / 100).toFixed(2)}` : "-"}
-                    </span>
+                  </div>
+                  <div className="px-3 py-3 space-y-2 text-sm">
+                    {/* Nightly rate calculation */}
+                    {nights > 0 && pricingSubtotalCents !== null && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600">
+                          ${((pricingSubtotalCents / nights) / 100).toFixed(2)} x {nights} night{nights === 1 ? "" : "s"}
+                        </span>
+                        <span className="font-medium text-slate-800">
+                          ${(pricingSubtotalCents / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    {nights === 0 && (
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Site rate</span>
+                        <span>-</span>
+                      </div>
+                    )}
+
+                    {/* Pricing rules adjustment */}
+                    {pricingRulesDeltaCents !== null && pricingRulesDeltaCents !== 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className={pricingRulesDeltaCents < 0 ? "text-emerald-600" : "text-slate-600"}>
+                          {pricingRulesDeltaCents < 0 ? "Discount" : "Rate adjustment"}
+                        </span>
+                        <span className={pricingRulesDeltaCents < 0 ? "font-medium text-emerald-600" : "font-medium text-slate-800"}>
+                          {pricingRulesDeltaCents < 0 ? "-" : "+"}${(Math.abs(pricingRulesDeltaCents) / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Site lock fee */}
+                    {lockFeeCents > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600 flex items-center gap-1">
+                          <Lock className="h-3 w-3" />
+                          Site reservation fee
+                        </span>
+                        <span className="font-medium text-slate-800">
+                          +${(lockFeeCents / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Divider and total */}
+                    <div className="border-t border-slate-200 pt-2 mt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900">Total due</span>
+                        <span className="text-lg font-black text-slate-900">
+                          {displayTotalCents !== null ? `$${(displayTotalCents / 100).toFixed(2)}` : "-"}
+                        </span>
+                      </div>
+                      {displayTotalCents !== null && displayTotalCents > 0 && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Amount charged at checkout
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1287,8 +1530,18 @@ function BookingLabPageInner() {
                   </Button>
                   <Button
                     className="w-full gap-2"
-                    onClick={() => createReservationMutation.mutate()}
-                    disabled={!canCreate || createReservationMutation.isPending}
+                    onClick={() => {
+                      if (validateForm()) {
+                        createReservationMutation.mutate();
+                      } else {
+                        toast({
+                          title: "Please complete all required fields",
+                          description: "Check the highlighted sections for missing information.",
+                          variant: "destructive"
+                        });
+                      }
+                    }}
+                    disabled={createReservationMutation.isPending}
                   >
                     {createReservationMutation.isPending ? "Creating..." : "Collect payment & book"}
                     <ArrowRight className="h-4 w-4" />
@@ -1359,6 +1612,86 @@ function BookingLabPageInner() {
           router.push(`/reservations/${reservationId}`);
         }}
       />
+
+      {/* Restore saved form data dialog */}
+      <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resume previous booking?</DialogTitle>
+            <DialogDescription>
+              You have a booking in progress from earlier. Would you like to continue where you left off?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {restoredData && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                {restoredData.arrivalDate && restoredData.departureDate && (
+                  <p className="text-slate-600">
+                    <span className="text-slate-500">Dates:</span>{" "}
+                    {restoredData.arrivalDate} to {restoredData.departureDate}
+                  </p>
+                )}
+                {restoredData.guestSearch && (
+                  <p className="text-slate-600">
+                    <span className="text-slate-500">Guest:</span> {restoredData.guestSearch}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                clearFormData();
+                setShowRestoreDialog(false);
+              }}
+            >
+              Start fresh
+            </Button>
+            <Button onClick={handleRestoreData}>
+              Resume booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exit warning dialog */}
+      <Dialog open={showExitWarning} onOpenChange={setShowExitWarning}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Leave booking page?</DialogTitle>
+            <DialogDescription>
+              Your booking progress will be saved. You can return later to continue.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setShowExitWarning(false)}
+            >
+              Stay on page
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                clearFormData();
+                router.back();
+              }}
+            >
+              Discard and leave
+            </Button>
+            <Button
+              onClick={() => {
+                setShowExitWarning(false);
+                router.back();
+              }}
+            >
+              Save and leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardShell>
   );
 }

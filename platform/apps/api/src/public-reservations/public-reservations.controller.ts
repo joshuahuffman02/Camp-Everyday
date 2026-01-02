@@ -152,19 +152,25 @@ export class PublicReservationsController {
 
     /**
      * Get a single form template for filling out
+     * SECURITY: Requires campgroundId query parameter to validate form belongs to campground
      */
     @Get("forms/:id")
-    async getPublicForm(@Param("id") id: string) {
-        return this.formsService.getPublicForm(id);
+    async getPublicForm(
+        @Param("id") id: string,
+        @Query("campgroundId") campgroundId: string
+    ) {
+        return this.formsService.getPublicForm(id, campgroundId);
     }
 
     /**
      * Submit a completed form during booking
+     * SECURITY: Requires campgroundId in body to validate form/reservation belong to campground
      */
     @Post("forms/submit")
     async submitPublicForm(
         @Body() body: {
             formTemplateId: string;
+            campgroundId: string;
             reservationId?: string;
             guestEmail?: string;
             responses: Record<string, any>;

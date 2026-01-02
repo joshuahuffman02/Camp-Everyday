@@ -605,54 +605,64 @@ export class BillingService {
 
     const amount = invoice.balanceCents;
     const beforeSnapshot = { status: invoice.status, balanceCents: invoice.balanceCents };
+    const dedupeKey = `writeoff:${invoiceId}`;
 
-    await this.prisma.invoiceLine.create({
-      data: {
-        invoiceId,
-        type: "adjustment",
-        description: `Write-off: ${reason}`,
-        quantity: 1,
-        unitCents: -amount,
-        amountCents: -amount,
-        meta: { reason }
+    // Wrap all write-off operations in a single transaction for atomicity
+    await this.prisma.$transaction(async (tx) => {
+      // Create adjustment line
+      await tx.invoiceLine.create({
+        data: {
+          invoiceId,
+          type: "adjustment",
+          description: `Write-off: ${reason}`,
+          quantity: 1,
+          unitCents: -amount,
+          amountCents: -amount,
+          meta: { reason }
+        }
+      });
+
+      // Post balanced ledger entries with deduplication
+      const ledgerEntries = await postBalancedLedgerEntries(tx, [
+        {
+          campgroundId: invoice.campgroundId,
+          reservationId: invoice.reservationId,
+          glCode: "BAD_DEBT",
+          account: "Bad Debt",
+          description: `Write-off ${invoice.number}`,
+          amountCents: amount,
+          direction: "debit" as const,
+          dedupeKey: `${dedupeKey}:debit`
+        },
+        {
+          campgroundId: invoice.campgroundId,
+          reservationId: invoice.reservationId,
+          glCode: "AR",
+          account: "Accounts Receivable",
+          description: `Write-off ${invoice.number}`,
+          amountCents: amount,
+          direction: "credit" as const,
+          dedupeKey: `${dedupeKey}:credit`
+        }
+      ]);
+
+      // Find the AR credit entry for arLedgerEntry link
+      const creditEntry = ledgerEntries.find((e: any) => e.direction === "credit");
+      if (creditEntry) {
+        await tx.arLedgerEntry.create({
+          data: {
+            ledgerEntryId: creditEntry.id,
+            invoiceId,
+            type: "writeoff"
+          }
+        });
       }
-    });
 
-    await this.prisma.ledgerEntry.create({
-      data: {
-        campgroundId: invoice.campgroundId,
-        reservationId: invoice.reservationId,
-        glCode: "BAD_DEBT",
-        account: "Bad Debt",
-        description: `Write-off ${invoice.number}`,
-        amountCents: amount,
-        direction: "debit"
-      }
-    });
-
-    const credit = await this.prisma.ledgerEntry.create({
-      data: {
-        campgroundId: invoice.campgroundId,
-        reservationId: invoice.reservationId,
-        glCode: "AR",
-        account: "Accounts Receivable",
-        description: `Write-off ${invoice.number}`,
-        amountCents: amount,
-        direction: "credit"
-      }
-    });
-
-    await this.prisma.arLedgerEntry.create({
-      data: {
-        ledgerEntryId: credit.id,
-        invoiceId,
-        type: "writeoff"
-      }
-    });
-
-    await this.prisma.invoice.update({
-      where: { id: invoiceId },
-      data: { status: "written_off", balanceCents: 0, closedAt: new Date() }
+      // Update invoice status
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { status: "written_off", balanceCents: 0, closedAt: new Date() }
+      });
     });
 
     await this.recalcInvoiceTotals(invoiceId);

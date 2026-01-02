@@ -750,7 +750,7 @@ export default function KioskPage() {
             }
 
             // Submit completed form responses
-            if (Object.keys(formResponses).length > 0) {
+            if (Object.keys(formResponses).length > 0 && campground?.id) {
                 for (const [formTemplateId, responses] of Object.entries(formResponses)) {
                     try {
                         await fetch("/api/public/forms/submit", {
@@ -758,6 +758,7 @@ export default function KioskPage() {
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                                 formTemplateId,
+                                campgroundId: campground.id,
                                 reservationId: reservation.id,
                                 responses
                             })

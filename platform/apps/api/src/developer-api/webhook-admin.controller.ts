@@ -9,7 +9,8 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, ScopeGuard, Roles } from "../auth/guards";
+import { UserRole } from "@prisma/client";
 import { WebhookService } from "./webhook.service";
 import { ApiUsageService } from "./api-usage.service";
 import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString } from "class-validator";
@@ -55,7 +56,8 @@ class TestWebhookDto {
   customPayload?: Record<string, unknown>;
 }
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+@Roles(UserRole.owner, UserRole.manager, "platform_admin")
 @Controller("developer/webhooks")
 export class WebhookAdminController {
   private readonly securityService: WebhookSecurityService;

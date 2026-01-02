@@ -2121,6 +2121,7 @@ function ReviewStep({
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                                 formTemplateId,
+                                campgroundId,
                                 reservationId: reservation.id,
                                 guestEmail: guestInfo.email,
                                 responses

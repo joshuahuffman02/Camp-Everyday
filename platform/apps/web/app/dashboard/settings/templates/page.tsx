@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import DOMPurify from "dompurify";
 import { FormField } from "@/components/ui/form-field";
 import { FormTextarea } from "@/components/ui/form-textarea";
 import { apiClient } from "@/lib/api-client";
@@ -878,7 +879,7 @@ function TemplateEditor({
             {template.channel === "email" ? (
               <div
                 className="p-4 bg-white"
-                dangerouslySetInnerHTML={{ __html: previewHtml }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
               />
             ) : (
               <div className="p-4 bg-slate-900 text-white font-mono text-sm whitespace-pre-wrap">

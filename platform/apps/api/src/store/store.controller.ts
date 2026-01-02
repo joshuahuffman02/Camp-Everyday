@@ -29,24 +29,46 @@ import { ScopeGuard } from "../permissions/scope.guard";
 import { RequireScope } from "../permissions/scope.decorator";
 import { UserRole } from "@prisma/client";
 
-// SECURITY: Added RolesGuard and ScopeGuard to prevent cross-tenant access
+// SECURITY FIX (STORE-HIGH-001): Added membership validation to prevent cross-tenant access
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class StoreController {
     constructor(private readonly store: StoreService) { }
 
+    /**
+     * Verify the authenticated user has access to the specified campground.
+     * Prevents cross-tenant access by ensuring users can only access campgrounds they are members of.
+     */
+    private assertCampgroundAccess(campgroundId: string, user: any): void {
+        // Platform staff can access any campground
+        const isPlatformStaff = user?.platformRole === 'platform_admin' ||
+                                user?.platformRole === 'platform_superadmin' ||
+                                user?.platformRole === 'support_agent';
+        if (isPlatformStaff) {
+            return;
+        }
+
+        const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+        if (!userCampgroundIds.includes(campgroundId)) {
+            throw new BadRequestException("You do not have access to this campground");
+        }
+    }
+
     // ==================== CATEGORIES ====================
 
     @Get("campgrounds/:campgroundId/store/categories")
-    listCategories(@Param("campgroundId") campgroundId: string) {
+    listCategories(@Param("campgroundId") campgroundId: string, @Req() req: any) {
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.store.listCategories(campgroundId);
     }
 
     @Post("campgrounds/:campgroundId/store/categories")
     createCategory(
         @Param("campgroundId") campgroundId: string,
-        @Body() body: Omit<CreateProductCategoryDto, "campgroundId">
+        @Body() body: Omit<CreateProductCategoryDto, "campgroundId">,
+        @Req() req: any
     ) {
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.store.createCategory({ campgroundId, ...body });
     }
 
@@ -68,8 +90,10 @@ export class StoreController {
     @Get("campgrounds/:campgroundId/store/products")
     listProducts(
         @Param("campgroundId") campgroundId: string,
-        @Query("categoryId") categoryId?: string
+        @Query("categoryId") categoryId?: string,
+        @Req() req?: any
     ) {
+        this.assertCampgroundAccess(campgroundId, req?.user);
         return this.store.listProducts(campgroundId, categoryId);
     }
 
@@ -81,8 +105,10 @@ export class StoreController {
     @Post("campgrounds/:campgroundId/store/products")
     createProduct(
         @Param("campgroundId") campgroundId: string,
-        @Body() body: Omit<CreateProductDto, "campgroundId">
+        @Body() body: Omit<CreateProductDto, "campgroundId">,
+        @Req() req: any
     ) {
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.store.createProduct({ campgroundId, ...body });
     }
 
@@ -90,8 +116,10 @@ export class StoreController {
     updateStock(
         @Param("campgroundId") campgroundId: string,
         @Param("id") id: string,
-        @Body() body: { stockQty?: number; delta?: number; channel?: "pos" | "online" | "portal" | "kiosk" | "internal" }
+        @Body() body: { stockQty?: number; delta?: number; channel?: "pos" | "online" | "portal" | "kiosk" | "internal" },
+        @Req() req: any
     ) {
+        this.assertCampgroundAccess(campgroundId, req.user);
         if (typeof body.stockQty === "number") {
             return this.store.setStock(id, body.stockQty, body.channel);
         }
@@ -108,24 +136,28 @@ export class StoreController {
   deleteProduct(@Param("id") id: string) {
     return this.store.deleteProduct(id);
   }
- 
+
     @Get("campgrounds/:campgroundId/store/products/low-stock")
-    getLowStockProducts(@Param("campgroundId") campgroundId: string) {
+    getLowStockProducts(@Param("campgroundId") campgroundId: string, @Req() req: any) {
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.store.getLowStockProducts(campgroundId);
     }
 
     // ==================== ADD-ONS ====================
 
     @Get("campgrounds/:campgroundId/store/addons")
-    listAddOns(@Param("campgroundId") campgroundId: string) {
+    listAddOns(@Param("campgroundId") campgroundId: string, @Req() req: any) {
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.store.listAddOns(campgroundId);
     }
 
     @Post("campgrounds/:campgroundId/store/addons")
     createAddOn(
         @Param("campgroundId") campgroundId: string,
-        @Body() body: Omit<CreateAddOnDto, "campgroundId">
+        @Body() body: Omit<CreateAddOnDto, "campgroundId">,
+        @Req() req: any
     ) {
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.store.createAddOn({ campgroundId, ...body });
     }
 
@@ -145,8 +177,10 @@ export class StoreController {
     listOrders(
         @Param("campgroundId") campgroundId: string,
         @Query("status") status?: string,
-        @Query("reservationId") reservationId?: string
+        @Query("reservationId") reservationId?: string,
+        @Req() req?: any
     ) {
+        this.assertCampgroundAccess(campgroundId, req?.user);
         return this.store.listOrders(campgroundId, { status, reservationId });
     }
 
@@ -154,8 +188,10 @@ export class StoreController {
     getSummary(
         @Param("campgroundId") campgroundId: string,
         @Query("start") start?: string,
-        @Query("end") end?: string
+        @Query("end") end?: string,
+        @Req() req?: any
     ) {
+        this.assertCampgroundAccess(campgroundId, req?.user);
         const startDate = start ? new Date(start) : undefined;
         const endDate = end ? new Date(end) : undefined;
         return this.store.getOrderSummary(campgroundId, { start: startDate, end: endDate });
@@ -172,6 +208,7 @@ export class StoreController {
         @Body() body: Omit<CreateOrderDto, "campgroundId">,
         @Req() req: any
     ) {
+        this.assertCampgroundAccess(campgroundId, req?.user);
         return this.store.createOrder({ campgroundId, ...body }, req?.user?.id);
     }
 
@@ -249,7 +286,8 @@ export class StoreController {
 
     // Staff notifications: list unseen/pending orders
     @Get("campgrounds/:campgroundId/store/orders/unseen")
-    listUnseen(@Param("campgroundId") campgroundId: string) {
+    listUnseen(@Param("campgroundId") campgroundId: string, @Req() req: any) {
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.store.listUnseenOrders(campgroundId);
     }
 

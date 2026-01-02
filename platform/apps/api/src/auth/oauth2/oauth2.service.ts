@@ -289,6 +289,29 @@ export class OAuth2Service {
   }
 
   /**
+   * Validate client credentials for revoke/introspect endpoints
+   * Per RFC 7009/7662, client authentication is required.
+   */
+  async authenticateClient(clientId: string, clientSecret: string): Promise<void> {
+    await this.validateClient(clientId, clientSecret);
+  }
+
+  /**
+   * Get client for validation purposes (authorize endpoint validation).
+   * Does not require client secret - used to validate client_id and redirect_uri.
+   */
+  async getClientForValidation(clientId: string): Promise<{
+    isActive: boolean;
+    redirectUris: string[];
+  } | null> {
+    const client = await this.prisma.oAuthClient.findUnique({
+      where: { clientId },
+      select: { isActive: true, redirectUris: true },
+    });
+    return client;
+  }
+
+  /**
    * Revoke a token
    */
   async revokeToken(token: string, tokenTypeHint?: "access_token" | "refresh_token"): Promise<void> {

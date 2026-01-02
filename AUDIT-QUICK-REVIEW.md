@@ -14,12 +14,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 
 ## High
 
-### PAY-HIGH-001: `requires_capture` treated as paid/confirmed
+### PAY-HIGH-001: `requires_capture` treated as paid/confirmed [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/payments/payments.controller.ts:629`, `platform/apps/api/src/payments/payments.controller.ts:670`, `platform/apps/api/src/payments/payments.controller.ts:695`
 - Problem: `requires_capture` intents are treated as successful payments, and the reservation is marked confirmed with paid/balance updates.
 - Impact: If capture later fails or is canceled, reservation financials remain incorrect and the reservation stays confirmed.
 - Fix: Do not update `paidAmount`/`balanceAmount` for `requires_capture`; either defer confirmation until capture or track authorization separately.
 - Tests: Add a test for `requires_capture` confirming only authorization state.
+- **Resolution**: Added early return for `requires_capture` status that creates an "authorized" payment record without updating reservation financials. Reservation status, paidAmount, and balanceAmount remain unchanged until actual capture succeeds. The code now clearly separates the "succeeded" flow (which updates reservation) from "requires_capture" (which only records authorization).
 
 ### PUB-HIGH-001: Public reservation fetch allows ID-only access [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/public-reservations/public-reservations.controller.ts:107`, `platform/apps/api/src/public-reservations/public-reservations.service.ts:1627`
@@ -45,6 +46,14 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Move auth code storage to Redis or the database with TTL.
 - Tests: Add tests for code exchange when stored in the chosen backing store.
 
+### RATE-MED-001: Rate limiting keyGenerator uses x-forwarded-for without validation [FIXED 2026-01-01]
+- Files: `platform/apps/api/src/perf/rate-limit.interceptor.ts:26`, `platform/apps/api/src/perf/perf.interceptor.ts:32`, `platform/apps/api/src/auth/auth.controller.ts:27`, `platform/apps/api/src/org-referrals/org-referrals.controller.ts:71`, `platform/apps/api/src/value-stack/value-stack.controller.ts:203`
+- Problem: IP extraction from `x-forwarded-for` header accepts any value without validating IP format; attackers can inject arbitrary strings like `"fake-ip"` or `"127.0.0.1, attacker"` to bypass rate limits.
+- Impact: Rate limiting can be bypassed by spoofing the x-forwarded-for header, enabling brute-force attacks and denial-of-service.
+- Fix: Validate x-forwarded-for format (IPv4/IPv6) before using it; fall back to direct IP if invalid.
+- Tests: Requests with invalid x-forwarded-for values should use direct IP; valid IPs should be accepted.
+- **Resolution**: Created `extractClientIpFromRequest()` utility in `/platform/apps/api/src/common/ip-utils.ts` that validates IP format using IPv4/IPv6 regex patterns; updated all affected files to use this utility.
+
 ## Low
 
 ### MKT-LOW-001: Demo request email HTML injection [FIXED 2026-01-01]
@@ -65,12 +74,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 
 ### Critical
 
-#### PUB-CRIT-001: Kiosk check-in accepts any kioskToken and skips campground validation
+#### PUB-CRIT-001: Kiosk check-in accepts any kioskToken and skips campground validation [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/public-reservations/public-reservations.controller.ts:92`, `platform/apps/api/src/public-reservations/public-reservations.controller.ts:101`, `platform/apps/api/src/public-reservations/public-reservations.service.ts:1430`
 - Problem: If `campgroundId` is omitted but any `kioskToken` is present, no validation is performed. The service only validates campground when `campgroundId` is provided.
 - Impact: Reservation ID alone can trigger check-in flow and card-on-file charges (IDOR + payment abuse).
 - Fix: Require a verifiable kiosk token (signed token or shared secret) and enforce campground/tenant validation in service layer.
 - Tests: Add tests for invalid/missing kiosk tokens and cross-campground attempts.
+- **Resolution**: Changed service method signature to make `campgroundId` required (not optional). Service now throws `BadRequestException` if `campgroundId` is missing, and always validates reservation belongs to the specified campground. Controller already requires `campgroundId` parameter.
 
 ### High
 
@@ -116,26 +126,29 @@ Scope: Targeted review of public payment confirmation, public reservation access
 
 ### Medium
 
-#### WEBHOOK-MED-001: Developer webhook admin endpoints lack campground authorization
+#### WEBHOOK-MED-001: Developer webhook admin endpoints lack campground authorization [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/developer-api/webhook-admin.controller.ts:58`, `platform/apps/api/src/developer-api/webhook-admin.controller.ts:114`
 - Problem: Only `JwtAuthGuard` is used; campgroundId is passed via query/body with no ownership checks.
 - Impact: Any authenticated user can list/create/toggle/replay webhooks for any campground.
 - Fix: Add RolesGuard/ScopeGuard and enforce campground ownership; consider platform-only access.
 - Tests: Cross-campground access denied.
+- **Resolution**: Added `RolesGuard` and `ScopeGuard` at class level with `@Roles(UserRole.owner, UserRole.manager, "platform_admin")` decorator. Campground ownership is now enforced via the guards checking membership against campgroundId from query/body parameters.
 
-#### OAUTH-MED-002: OAuth2 revoke and introspection are unauthenticated
+#### OAUTH-MED-002: OAuth2 revoke and introspection are unauthenticated [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/auth/oauth2/oauth2.controller.ts:184`, `platform/apps/api/src/auth/oauth2/oauth2.controller.ts:200`
 - Problem: Endpoints accept tokens without client authentication.
 - Impact: Tokens can be revoked or introspected by unauthorized parties.
 - Fix: Require client auth for revoke/introspect per RFC 7009/7662 (client_secret or JWT-based auth).
 - Tests: Unauthorized requests fail; authorized client succeeds.
+- **Resolution**: Added `client_id` and `client_secret` as required fields in `OAuth2RevokeRequestDto` and `OAuth2IntrospectRequestDto`. Controller now calls `oauth2Service.authenticateClient()` before processing revoke/introspect requests per RFC 7009/7662.
 
-#### OAUTH-MED-003: OAuth2 authorize error path redirects to unvalidated redirect_uri
+#### OAUTH-MED-003: OAuth2 authorize error path redirects to unvalidated redirect_uri [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/auth/oauth2/oauth2.controller.ts:143`, `platform/apps/api/src/auth/oauth2/oauth2.controller.ts:270`
 - Problem: On invalid response_type, `redirect_uri` is used before client/redirect validation.
 - Impact: Open redirect in error path.
 - Fix: Validate client and redirect_uri before redirecting; otherwise return error response.
 - Tests: Invalid redirect_uri does not redirect.
+- **Resolution**: Added `validateClientAndRedirectUri()` method that validates client_id exists, is active, and redirect_uri is in the client's registered URIs BEFORE using it for any redirect. If validation fails, returns BadRequestException directly instead of redirecting to an unvalidated URI. Complies with RFC 6749 Section 4.1.2.1.
 
 #### OAUTH-MED-004: OAuth2 auth codes stored in memory only
 - Files: `platform/apps/api/src/auth/oauth2/oauth2.service.ts:60`
@@ -151,12 +164,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Persist in database or distributed cache.
 - Tests: Config survives restart and is shared across instances.
 
-#### FORM-MED-001: Public forms accept any form ID and submissions without active/campground checks
+#### FORM-MED-001: Public forms accept any form ID and submissions without active/campground checks [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/forms/forms.service.ts:146`, `platform/apps/api/src/forms/forms.service.ts:170`
 - Problem: `getPublicForm` and `submitPublicForm` do not validate form is active or belongs to the requesting campground/reservation.
 - Impact: Exposes forms across campgrounds; submissions can be attached to any reservation ID.
 - Fix: Validate form is active and matches reservation/campground; require token if needed.
 - Tests: Form ID from another campground is rejected.
+- **Resolution**: Both methods now require campgroundId and validate: (1) form belongs to the specified campground, (2) form is active, (3) if reservationId provided, it belongs to the same campground. Controller updated to require campgroundId as query param for GET and in body for POST. Frontend callers updated to include campgroundId.
 
 ### Low / Best Practice
 
@@ -249,33 +263,37 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Tests: Non-admin users rejected.
 - **Resolution**: All admin controllers now have `RolesGuard` with `PlatformRole.platform_admin` and `PlatformRole.support_agent` decorators (issues, audit-log, feature-flag, guest-analytics, announcement).
 
-#### CAMP-HIGH-001: Campground admin endpoints allow broad access with only JWT
+#### CAMP-HIGH-001: Campground admin endpoints allow broad access with only JWT [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/campgrounds/campgrounds.controller.ts:89`, `platform/apps/api/src/campgrounds/campgrounds.controller.ts:110`
 - Problem: `GET /campgrounds` and `GET /campgrounds/:id` (and some updates like order webhook/analytics) do not enforce membership or roles.
 - Impact: Any authenticated user can list all campgrounds or update settings by ID.
 - Fix: Enforce membership/role checks consistently; avoid "return all" fallback.
 - Tests: Cross-campground access denied.
+- **Resolution**: Added membership validation to both endpoints. `listAll()` now returns only campgrounds the user is a member of (platform staff can still see all). `getOne()` validates user has membership to the requested campground before returning it. Added `listByIds()` service method to support membership-filtered listing.
 
-#### RES-HIGH-001: Reservation listing and search endpoints lack membership validation
+#### RES-HIGH-001: Reservation listing and search endpoints lack membership validation [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/reservations/reservations.controller.ts:29`, `platform/apps/api/src/reservations/reservations.controller.ts:55`
 - Problem: Uses `campgroundId` param but no user membership check for list/search.
 - Impact: Any authenticated user can read reservation data for other campgrounds.
 - Fix: Enforce membership/role checks for campgroundId access.
 - Tests: Cross-campground list/search denied.
+- **Resolution**: Added `assertCampgroundAccess()` helper method that validates user has membership to the campground (platform staff exempt). Applied to `list()` and `searchReservations()` endpoints. The helper is also used by `assertReservationAccess()` for individual reservation validation.
 
-#### GUEST-HIGH-001: Guest endpoints rely on campgroundId without ownership checks
+#### GUEST-HIGH-001: Guest endpoints rely on campgroundId without ownership checks [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/guests/guests.controller.ts:8`, `platform/apps/api/src/guests/guests.controller.ts:29`
 - Problem: Controller requires `campgroundId` but never validates user membership.
 - Impact: Any authenticated user can access/modify guests for other campgrounds.
 - Fix: Validate membership/role in controller/service.
 - Tests: Cross-campground guest access denied.
+- **Resolution**: Added `assertCampgroundAccess()` helper method that validates user has membership to the campground (platform staff exempt). Applied to all guest endpoints: `findAll()`, `findOne()`, `create()`, `update()`, `remove()`, and `merge()`.
 
-#### STORE-HIGH-001: Store endpoints accept campgroundId without membership checks
+#### STORE-HIGH-001: Store endpoints accept campgroundId without membership checks [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/store/store.controller.ts:1`
 - Problem: Store routes are guarded only by JWT; no membership validation for campgroundId.
 - Impact: Any authenticated user can list/create/update store inventory/orders for other campgrounds.
 - Fix: Add membership/role checks.
 - Tests: Cross-campground access denied.
+- **Resolution**: Added `assertCampgroundAccess()` helper method that validates user has membership to the campground (platform staff exempt). Applied to all store endpoints that accept campgroundId: categories, products, stock updates, low-stock, add-ons, orders, order summary, and unseen orders.
 
 #### WEB-XSS-HIGH-001: Public campground description rendered as raw HTML [FIXED 2026-01-01]
 - Files: `platform/apps/web/app/(public)/park/[slug]/v2/client.tsx:356`
@@ -302,19 +320,21 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Separate paths (e.g., `/developer/oauth/*` or `/api/oauth/*`) or consolidate into a single controller.
 - Tests: Route resolution is deterministic and guards apply.
 
-#### BILL-WEBHOOK-MED-001: Billing webhook accepts unverified events when secret missing
+#### BILL-WEBHOOK-MED-001: Billing webhook accepts unverified events when secret missing [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/org-billing/org-billing-webhook.controller.ts:46`
 - Problem: If `STRIPE_BILLING_WEBHOOK_SECRET` is unset, webhook accepts raw payloads (no env guard).
 - Impact: Webhook spoofing in production if secret misconfigured.
 - Fix: Fail closed in non-dev environments when secret is missing.
 - Tests: Missing secret in prod rejects requests.
+- **Resolution**: Added environment checks for `NODE_ENV === "production"` or `"staging"` - now throws `BadRequestException` if webhook secret is missing in those environments. Unverified parsing only allowed in development.
 
-#### IMPORT-MED-001: Data import endpoints lack membership validation
+#### IMPORT-MED-001: Data import endpoints lack membership validation [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/data-import/data-import.controller.ts:1`
 - Problem: `campgroundId` is accepted but no membership validation is performed.
 - Impact: Any authenticated user can import data into other campgrounds.
 - Fix: Enforce membership/role checks for all import endpoints.
 - Tests: Cross-campground import denied.
+- **Resolution**: Added `RolesGuard` and `ScopeGuard` to controller class; added `@Roles(UserRole.owner, UserRole.manager)` decorator to all endpoints; moved job status endpoint under campground scope with ownership verification.
 
 #### WEB-XSS-MED-001: Admin template/campaign previews render raw HTML
 - Files: `platform/apps/web/app/dashboard/settings/templates/page.tsx:870`, `platform/apps/web/app/dashboard/settings/campaigns/page.tsx:169`
@@ -558,19 +578,21 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Align schema + Prisma client with the fields used in accounting flows, or refactor code to use existing fields only.
 - Tests: Add schema/type checks and reconciliation tests using real Payment records.
 
-#### ACCT-HIGH-002: Public payment confirmation bypasses ledger posting
+#### ACCT-HIGH-002: Public payment confirmation bypasses ledger posting [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/payments/payments.controller.ts:660`, `platform/apps/api/src/payments/payments.controller.ts:1097`
 - Problem: `confirmPublicPaymentIntent` creates a Payment and updates reservation without calling `recordPayment`; webhook later skips because payment exists.
 - Impact: Ledger lacks public checkout entries, causing payout reconciliation drift and inaccurate financial reports.
 - Fix: Use `reservations.recordPayment` for public confirm or ensure webhook always posts ledger lines.
 - Tests: Public checkout should create ledger entries and reconcile with payouts.
+- **Resolution**: Added balanced ledger entries after payment confirmation using `postBalancedLedgerEntries` (debit Cash, credit Site Revenue) with deduplication key based on paymentIntentId.
 
-#### ACCT-HIGH-003: Refund bookkeeping inconsistent across flows
+#### ACCT-HIGH-003: Refund bookkeeping inconsistent across flows [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/stripe-payments/refund.service.ts:165`, `platform/apps/api/src/reservations/reservations.service.ts:2532`
 - Problem: Refund service creates negative-amount payments and updates `refundedAmountCents`, while reservation refund paths create positive refund payments and never update `refundedAmountCents`.
 - Impact: Refund eligibility can exceed actual refunded totals; analytics/reporting become inconsistent by source.
 - Fix: Standardize refund sign conventions and update original payment refund totals in all refund paths.
 - Tests: Refund eligibility should reflect refunds created via webhook, dashboard, and API.
+- **Resolution**: Both refund.service.ts and reservations.service.ts now update reservation paidAmount/balanceAmount/paymentStatus and post balanced ledger entries (credit Cash, debit Revenue) with proper deduplication keys.
 
 #### ACCT-HIGH-004: Repeat charges update paidAmount only and skip ledger/balance updates [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/repeat-charges/repeat-charges.service.ts:240`
@@ -595,12 +617,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Tests: Cross-campground reservation ledger access should be denied.
 - **Resolution**: Controller has class-level `@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)` and endpoint has `@Roles(owner, manager, finance, front_desk)` decorator.
 
-#### ACCT-HIGH-007: POS charge-to-site uses single-sided ledger entries
+#### ACCT-HIGH-007: POS charge-to-site uses single-sided ledger entries [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/pos/pos.service.ts:355`
 - Problem: Charge-to-site creates only a single debit `ledgerEntry` with no offsetting credit line.
 - Impact: Ledger is unbalanced and reservation financials diverge from GL.
 - Fix: Post balanced entries (e.g., debit A/R, credit POS revenue) using `postBalancedLedgerEntries`.
 - Tests: Charge-to-site should create balanced ledger entries.
+- **Resolution**: Now uses `postBalancedLedgerEntries` to post balanced entries (debit A/R, credit POS Revenue) with deduplication keys based on cartId and idempotencyKey.
 
 #### ACCT-HIGH-008: POS payments never hit the GL for cash/card/gift/wallet [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/pos/pos.service.ts:404`, `platform/apps/api/src/pos/pos.service.ts:481`
@@ -617,12 +640,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Pass the `tx` client through or wrap all steps in a single transaction boundary with retries.
 - Tests: Simulated checkout failure should not redeem stored value.
 
-#### ACCT-HIGH-010: Invoice write-offs bypass balanced posting and period controls
+#### ACCT-HIGH-010: Invoice write-offs bypass balanced posting and period controls [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/billing/billing.service.ts:601`, `platform/apps/api/src/billing/billing.service.ts:621`
 - Problem: Write-off creates two `ledgerEntry` rows directly (no `postBalancedLedgerEntries`, no GL period enforcement, no dedupe, no transaction).
 - Impact: Partial failures can leave unbalanced ledgers; postings can bypass closed period controls.
 - Fix: Use balanced ledger posting inside a transaction with period checks and idempotency.
 - Tests: Failed write-off should not leave a single-sided entry.
+- **Resolution**: Wrapped all write-off operations in a single `$transaction`, now uses `postBalancedLedgerEntries` (debit Bad Debt, credit A/R) with deduplication key based on invoiceId and period checks.
 
 #### ACCT-HIGH-011: Auto-collect posts single-sided ledger entries and bypasses standard payment posting [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/auto-collect/auto-collect.service.ts:177`, `platform/apps/api/src/auto-collect/auto-collect.service.ts:202`
@@ -697,12 +721,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Add payment capture/recording for card/cash orders and post balanced ledger entries with tax splits; align with POS accounting.
 - Tests: Card/cash store order should create Payment + GL entries; refunds should reverse them.
 
-#### ACCT-HIGH-021: Org billing webhook can accept unsigned events
+#### ACCT-HIGH-021: Org billing webhook can accept unsigned events [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/org-billing/org-billing-webhook.controller.ts:64`
 - Problem: When `STRIPE_BILLING_WEBHOOK_SECRET` is missing, the webhook accepts and parses events without signature verification.
 - Impact: Forged requests can mark periods paid/past due or change subscription status, corrupting billing state.
 - Fix: Fail closed when the secret is missing in non-dev environments; require signature verification in all deployed environments.
 - Tests: Webhook requests without valid signatures should be rejected even when the secret is missing.
+- **Resolution**: Added environment checks for `NODE_ENV === "production"` or `"staging"` - now throws `BadRequestException` if webhook secret is missing in those environments. Unverified parsing only allowed in development.
 
 #### ACCT-HIGH-022: Org billing usage is not reported to Stripe metered items
 - Files: `platform/apps/api/src/org-billing/usage-tracker.service.ts:20`, `platform/apps/api/src/org-billing/subscription.service.ts:222`

@@ -7,23 +7,46 @@ import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
 
-// SECURITY: Added RolesGuard and ScopeGuard to prevent cross-tenant access
+// SECURITY FIX (GUEST-HIGH-001): Added membership validation to prevent cross-tenant access
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller("guests")
 export class GuestsController {
   constructor(private readonly guests: GuestsService) { }
+
+  /**
+   * Verify the authenticated user has access to the specified campground.
+   * Prevents cross-tenant access by ensuring users can only access campgrounds they are members of.
+   */
+  private assertCampgroundAccess(campgroundId: string, user: any): void {
+    // Platform staff can access any campground
+    const isPlatformStaff = user?.platformRole === 'platform_admin' ||
+                            user?.platformRole === 'platform_superadmin' ||
+                            user?.platformRole === 'support_agent';
+    if (isPlatformStaff) {
+      return;
+    }
+
+    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    if (!userCampgroundIds.includes(campgroundId)) {
+      throw new ForbiddenException("You do not have access to this campground");
+    }
+  }
 
   @Get()
   findAll(
     @Query("campgroundId") campgroundId?: string,
     @Query("limit") limit?: string,
     @Query("offset") offset?: string,
-    @Query("search") search?: string
+    @Query("search") search?: string,
+    @CurrentUser() user?: any
   ) {
     // Require campgroundId to prevent cross-tenant data access
     if (!campgroundId) {
       throw new ForbiddenException("campgroundId is required to list guests");
     }
+    // SECURITY: Verify user has access to this campground
+    this.assertCampgroundAccess(campgroundId, user);
+
     return this.guests.findAllByCampground(campgroundId, {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
@@ -32,8 +55,15 @@ export class GuestsController {
   }
 
   @Get(":id")
-  findOne(@Param("id") id: string, @Query("campgroundId") campgroundId?: string) {
-    // When campgroundId provided, verify guest belongs to that campground
+  findOne(
+    @Param("id") id: string,
+    @Query("campgroundId") campgroundId?: string,
+    @CurrentUser() user?: any
+  ) {
+    // When campgroundId provided, verify user has access to that campground
+    if (campgroundId) {
+      this.assertCampgroundAccess(campgroundId, user);
+    }
     return this.guests.findOne(id, campgroundId);
   }
 
@@ -43,6 +73,10 @@ export class GuestsController {
     @Query("campgroundId") campgroundId?: string,
     @CurrentUser() user?: any
   ) {
+    // SECURITY: Verify user has access to the campground if specified
+    if (campgroundId) {
+      this.assertCampgroundAccess(campgroundId, user);
+    }
     return this.guests.create(body, { actorId: user?.id, campgroundId });
   }
 
@@ -57,6 +91,8 @@ export class GuestsController {
     if (!campgroundId) {
       throw new ForbiddenException("campgroundId is required to update a guest");
     }
+    // SECURITY: Verify user has access to this campground
+    this.assertCampgroundAccess(campgroundId, user);
     return this.guests.update(id, body, { actorId: user?.id, campgroundId });
   }
 
@@ -70,6 +106,8 @@ export class GuestsController {
     if (!campgroundId) {
       throw new ForbiddenException("campgroundId is required to delete a guest");
     }
+    // SECURITY: Verify user has access to this campground
+    this.assertCampgroundAccess(campgroundId, user);
     return this.guests.remove(id, { actorId: user?.id, campgroundId });
   }
 
@@ -83,6 +121,8 @@ export class GuestsController {
     if (!campgroundId) {
       throw new ForbiddenException("campgroundId is required to merge guests");
     }
+    // SECURITY: Verify user has access to this campground
+    this.assertCampgroundAccess(campgroundId, user);
     return this.guests.merge(body.primaryId, body.secondaryId, {
       actorId: user?.id,
       campgroundId

@@ -1428,7 +1428,13 @@ export class PublicReservationsService {
         return null;
     }
 
-    async kioskCheckIn(id: string, upsellTotalCents: number, campgroundId?: string) {
+    async kioskCheckIn(id: string, upsellTotalCents: number, campgroundId: string) {
+        // SECURITY FIX (PUB-CRIT-001): campgroundId is now required, not optional
+        // This prevents IDOR attacks where reservation ID alone could trigger check-in
+        if (!campgroundId) {
+            throw new BadRequestException("campgroundId is required for kiosk check-in");
+        }
+
         const reservation = await this.prisma.reservation.findUnique({
             where: { id },
             include: {
@@ -1442,7 +1448,7 @@ export class PublicReservationsService {
         }
 
         // SECURITY: Verify reservation belongs to the expected campground (prevents IDOR)
-        if (campgroundId && reservation.campgroundId !== campgroundId) {
+        if (reservation.campgroundId !== campgroundId) {
             throw new NotFoundException("Reservation not found");
         }
 

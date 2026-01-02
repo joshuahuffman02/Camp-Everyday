@@ -640,12 +640,50 @@ export class PaymentsController {
         throw new BadRequestException("Payment intent does not match this campground");
       }
 
+      // SECURITY FIX (PAY-HIGH-001): Only treat "succeeded" as completed payment
+      // "requires_capture" means authorization only - don't update reservation financials
+      // until capture actually succeeds (via webhook or explicit capture call)
       if (intent.status !== "succeeded" && intent.status !== "requires_capture") {
         const response = {
           success: false,
           status: intent.status,
           message: `Payment not completed. Status: ${intent.status}`,
           reservationId: body.reservationId
+        };
+        await this.idempotency.complete(idempotencyKey, response);
+        return response;
+      }
+
+      // For requires_capture (authorization-only), return early without updating reservation
+      // The reservation will be updated when the payment is captured
+      if (intent.status === "requires_capture") {
+        // Create payment record as "authorized" but do NOT update reservation financials
+        const authPayment = await this.prisma.payment.create({
+          data: {
+            reservationId: body.reservationId,
+            campgroundId: reservation.campground.id,
+            amountCents: intent.amount,
+            currency: intent.currency?.toUpperCase() || "USD",
+            status: "authorized",
+            method: "card",
+            stripePaymentIntentId: paymentIntentId,
+            paidAt: null,
+            metadata: {
+              source: "public_checkout_authorized",
+              paymentIntentStatus: intent.status,
+              requiresCapture: true
+            }
+          }
+        });
+
+        const response = {
+          success: true,
+          status: "authorized",
+          paymentId: authPayment.id,
+          reservationId: body.reservationId,
+          amountCents: intent.amount,
+          message: "Payment authorized. Capture required to complete payment.",
+          requiresCapture: true
         };
         await this.idempotency.complete(idempotencyKey, response);
         return response;
@@ -672,8 +710,8 @@ export class PaymentsController {
       }
 
       // Record the payment AND update reservation atomically
+      // At this point, intent.status === "succeeded" (requires_capture handled above)
       const amountCents = intent.amount;
-      const isAuthorizedOnly = intent.status === "requires_capture";
 
       const { payment, updatedReservation } = await this.prisma.$transaction(async (tx) => {
         // Create payment record
@@ -683,10 +721,10 @@ export class PaymentsController {
             campgroundId: reservation.campground.id,
             amountCents,
             currency: intent.currency?.toUpperCase() || "USD",
-            status: isAuthorizedOnly ? "authorized" : "completed",
+            status: "completed",
             method: "card",
             stripePaymentIntentId: paymentIntentId,
-            paidAt: isAuthorizedOnly ? null : new Date(),
+            paidAt: new Date(),
             metadata: {
               source: "public_checkout_confirm",
               paymentIntentStatus: intent.status
@@ -700,38 +738,28 @@ export class PaymentsController {
           select: { paidAmount: true, balanceAmount: true, totalAmountCents: true }
         });
 
-        // Only update paidAmount/balanceAmount for completed payments (not authorized)
-        // Authorized payments will update these when captured via payment_intent.succeeded webhook
-        let updateData: any = {
-          status: "confirmed",
-          confirmedAt: new Date()
-        };
-
-        if (!isAuthorizedOnly) {
-          // Payment succeeded - update financial fields
-          const newPaidAmount = (currentReservation?.paidAmount ?? 0) + amountCents;
-          const newBalanceAmount = Math.max(0, (currentReservation?.balanceAmount ?? currentReservation?.totalAmountCents ?? 0) - amountCents);
-          const paymentStatus = newBalanceAmount === 0 ? "paid" : newPaidAmount > 0 ? "partial" : "unpaid";
-
-          updateData = {
-            ...updateData,
-            paidAmount: newPaidAmount,
-            balanceAmount: newBalanceAmount,
-            paymentStatus
-          };
-        }
+        // Payment succeeded - update financial fields and confirm reservation
+        const newPaidAmount = (currentReservation?.paidAmount ?? 0) + amountCents;
+        const newBalanceAmount = Math.max(0, (currentReservation?.balanceAmount ?? currentReservation?.totalAmountCents ?? 0) - amountCents);
+        const paymentStatus = newBalanceAmount === 0 ? "paid" : newPaidAmount > 0 ? "partial" : "unpaid";
 
         const updatedReservation = await tx.reservation.update({
           where: { id: body.reservationId },
-          data: updateData
+          data: {
+            status: "confirmed",
+            confirmedAt: new Date(),
+            paidAmount: newPaidAmount,
+            balanceAmount: newBalanceAmount,
+            paymentStatus
+          }
         });
 
         return { payment, updatedReservation };
       });
 
-      // SECURITY FIX: Post ledger entries for completed payments (not authorized-only)
+      // Post ledger entries for completed payment
       // This ensures proper accounting trail for public checkout payments
-      if (!isAuthorizedOnly) {
+      {
         try {
           // Get site info for GL codes
           const siteInfo = await this.prisma.site.findUnique({

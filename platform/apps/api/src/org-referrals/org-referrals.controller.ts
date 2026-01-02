@@ -11,6 +11,7 @@ import {
 import { JwtAuthGuard } from "../auth/guards";
 import { OrgReferralsService } from "./org-referrals.service";
 import type { Request } from "express";
+import { extractClientIpFromRequest } from "../common/ip-utils";
 
 interface TrackClickDto {
   referralCode: string;
@@ -64,11 +65,11 @@ export class OrgReferralsController {
   @Post("public/referrals/track-click")
   async trackClick(
     @Body() body: TrackClickDto,
-    @Headers("x-forwarded-for") forwardedFor: string,
     @Headers("user-agent") userAgent: string,
     @Req() req: Request
   ) {
-    const ipAddress = forwardedFor?.split(",")[0] || req.ip;
+    // Extract and validate client IP to prevent spoofing via x-forwarded-for
+    const ipAddress = extractClientIpFromRequest(req as any) || req.ip;
 
     return this.referrals.trackClick(body.referralCode, {
       utmSource: body.utmSource,

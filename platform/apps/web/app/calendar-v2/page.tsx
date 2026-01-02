@@ -58,6 +58,57 @@ const SITE_TYPE_STYLES: Record<string, { label: string; badge: string; border: s
   default: { label: "Site", badge: "bg-slate-100 text-slate-600", border: "border-l-slate-300" }
 };
 
+// Status configuration for legend and chips
+const STATUS_CONFIG: Record<string, {
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  icon: typeof CheckCircle;
+  description: string;
+}> = {
+  confirmed: {
+    label: "Confirmed",
+    color: "text-status-success",
+    bgColor: "bg-status-success",
+    borderColor: "border-status-success",
+    icon: CheckCircle,
+    description: "Reservation is confirmed and ready"
+  },
+  checked_in: {
+    label: "Checked In",
+    color: "text-status-info",
+    bgColor: "bg-status-info",
+    borderColor: "border-status-info",
+    icon: Clock,
+    description: "Guest is currently on-site"
+  },
+  pending: {
+    label: "Pending",
+    color: "text-status-warning",
+    bgColor: "bg-status-warning",
+    borderColor: "border-status-warning",
+    icon: Clock,
+    description: "Awaiting confirmation or payment"
+  },
+  cancelled: {
+    label: "Cancelled",
+    color: "text-status-error",
+    bgColor: "bg-status-error",
+    borderColor: "border-status-error",
+    icon: XCircle,
+    description: "Reservation has been cancelled"
+  },
+  checked_out: {
+    label: "Checked Out",
+    color: "text-muted-foreground",
+    bgColor: "bg-muted",
+    borderColor: "border-muted",
+    icon: LogOut,
+    description: "Guest has departed"
+  }
+};
+
 interface ActiveSelection {
   siteId: string;
   startIdx: number;
@@ -136,6 +187,26 @@ export default function CalendarLabPage() {
     });
     return Array.from(types);
   }, [visibleSites]);
+
+  // Count reservations by status for filter chips
+  const reservationCountsByStatus = useMemo(() => {
+    const counts: Record<string, number> = {
+      confirmed: 0,
+      checked_in: 0,
+      pending: 0,
+      cancelled: 0,
+      checked_out: 0
+    };
+    // Use all visible reservations (not status-filtered) for accurate counts
+    const allRes = queries.reservations.data || [];
+    for (const res of allRes) {
+      const status = res.status || "pending";
+      if (counts[status] !== undefined) {
+        counts[status]++;
+      }
+    }
+    return counts;
+  }, [queries.reservations.data]);
 
   const rangeLabel = useMemo(() => {
     const start = parseLocalDateInput(state.startDate);
@@ -491,6 +562,18 @@ export default function CalendarLabPage() {
               <StatCard label="Housekeeping" value={`${housekeepingCount}`} sub="Active tasks" icon={<Sparkles className="h-4 w-4" />} />
             </div>
 
+            {/* Status Legend */}
+            <StatusLegend />
+
+            {/* Status Filter Chips */}
+            <Card className="p-4 border-slate-200 shadow-sm">
+              <StatusFilterChips
+                activeFilter={state.statusFilter}
+                onFilterChange={actions.setStatusFilter}
+                reservationCounts={reservationCountsByStatus}
+              />
+            </Card>
+
             {visibleSiteTypes.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Site types</span>
@@ -749,6 +832,111 @@ function StatCard({ label, value, sub, icon }: { label: string; value: string; s
         <div className="text-xs text-slate-500">{sub}</div>
       </div>
     </Card>
+  );
+}
+
+interface StatusLegendProps {
+  className?: string;
+}
+
+function StatusLegend({ className }: StatusLegendProps) {
+  return (
+    <Card className={cn("p-4 border-slate-200 shadow-sm", className)}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="h-5 w-5 rounded-md bg-slate-100 flex items-center justify-center">
+          <CalendarDays className="h-3 w-3 text-slate-600" />
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status Legend</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+          const Icon = config.icon;
+          return (
+            <div
+              key={key}
+              className="flex items-center gap-2 group"
+              title={config.description}
+            >
+              <div className={cn(
+                "h-6 w-6 rounded-md flex items-center justify-center text-white shadow-sm",
+                config.bgColor
+              )}>
+                <Icon className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-slate-700 truncate">
+                  {config.label}
+                </div>
+                <div className="text-[10px] text-slate-400 truncate hidden sm:block">
+                  {config.description}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+interface StatusFilterChipsProps {
+  activeFilter: string;
+  onFilterChange: (status: string) => void;
+  reservationCounts?: Record<string, number>;
+  className?: string;
+}
+
+function StatusFilterChips({ activeFilter, onFilterChange, reservationCounts = {}, className }: StatusFilterChipsProps) {
+  const statuses = ["all", "confirmed", "checked_in", "pending", "cancelled"] as const;
+
+  return (
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">
+        Filter by status
+      </span>
+      {statuses.map((status) => {
+        const isActive = activeFilter === status;
+        const config = status === "all" ? null : STATUS_CONFIG[status];
+        const count = status === "all"
+          ? Object.values(reservationCounts).reduce((sum, n) => sum + n, 0)
+          : reservationCounts[status] || 0;
+
+        return (
+          <button
+            key={status}
+            type="button"
+            onClick={() => onFilterChange(status)}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200",
+              "border shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500/50",
+              isActive
+                ? config
+                  ? cn("text-white border-transparent", config.bgColor)
+                  : "bg-slate-800 text-white border-slate-800"
+                : config
+                  ? cn("bg-white border-slate-200 hover:border-slate-300", config.color)
+                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+            )}
+          >
+            {config && (() => {
+              const Icon = config.icon;
+              return <Icon className="h-3 w-3" />;
+            })()}
+            <span className="capitalize">{status === "all" ? "All" : config?.label}</span>
+            {count > 0 && (
+              <span className={cn(
+                "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                isActive
+                  ? "bg-white/20"
+                  : "bg-slate-100"
+              )}>
+                {count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

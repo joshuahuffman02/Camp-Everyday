@@ -11,7 +11,7 @@ import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
 
-// SECURITY: Added RolesGuard and ScopeGuard to validate campground membership
+// SECURITY FIX (RES-HIGH-001): Added RolesGuard and ScopeGuard with membership validation
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class ReservationsController {
@@ -20,6 +20,25 @@ export class ReservationsController {
     private readonly importExport: ReservationImportExportService,
     private readonly prisma: PrismaService
   ) { }
+
+  /**
+   * Verify the authenticated user has access to the specified campground.
+   * Prevents cross-tenant access by ensuring users can only access campgrounds they are members of.
+   */
+  private assertCampgroundAccess(campgroundId: string, user: any): void {
+    // Platform staff can access any campground
+    const isPlatformStaff = user?.platformRole === 'platform_admin' ||
+                            user?.platformRole === 'platform_superadmin' ||
+                            user?.platformRole === 'support_agent';
+    if (isPlatformStaff) {
+      return;
+    }
+
+    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    if (!userCampgroundIds.includes(campgroundId)) {
+      throw new ForbiddenException("You do not have access to this campground");
+    }
+  }
 
   /**
    * Verify the authenticated user has access to the reservation's campground.
@@ -36,10 +55,7 @@ export class ReservationsController {
       return; // Let the service handle "not found" errors
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
-    if (!userCampgroundIds.includes(reservation.campgroundId)) {
-      throw new ForbiddenException("You do not have access to this reservation");
-    }
+    this.assertCampgroundAccess(reservation.campgroundId, user);
   }
 
   @Get("campgrounds/:campgroundId/reservations")
@@ -49,8 +65,12 @@ export class ReservationsController {
     @Query("offset") offset?: string,
     @Query("status") status?: string,
     @Query("fromDate") fromDate?: string,
-    @Query("toDate") toDate?: string
+    @Query("toDate") toDate?: string,
+    @Req() req: any
   ) {
+    // SECURITY: Verify user has access to this campground
+    this.assertCampgroundAccess(campgroundId, req.user);
+
     return this.reservations.listByCampground(campgroundId, {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
@@ -64,8 +84,12 @@ export class ReservationsController {
   searchReservations(
     @Param("campgroundId") campgroundId: string,
     @Query("q") query: string,
-    @Query("activeOnly") activeOnly?: string
+    @Query("activeOnly") activeOnly?: string,
+    @Req() req: any
   ) {
+    // SECURITY: Verify user has access to this campground
+    this.assertCampgroundAccess(campgroundId, req.user);
+
     return this.reservations.searchReservations(campgroundId, query, activeOnly !== "false");
   }
 

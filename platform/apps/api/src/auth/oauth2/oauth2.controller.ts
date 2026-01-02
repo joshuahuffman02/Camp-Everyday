@@ -121,6 +121,7 @@ export class OAuth2Controller {
 
   /**
    * Authorization endpoint - Initiate authorization code flow
+   * Per RFC 6749, client and redirect_uri must be validated BEFORE using redirect_uri for error responses.
    */
   @Get("authorize")
   @UseGuards(JwtAuthGuard)
@@ -140,11 +141,27 @@ export class OAuth2Controller {
     @CurrentUser() user: any,
     @Res() res: Response
   ) {
+    // Per RFC 6749 Section 4.1.2.1: MUST validate client_id and redirect_uri BEFORE
+    // using redirect_uri for error responses. If these are invalid, return error directly.
+    const validatedRedirectUri = await this.validateClientAndRedirectUri(
+      query.client_id,
+      query.redirect_uri
+    );
+
+    // If validation failed, validatedRedirectUri is null - return error directly, do not redirect
+    if (!validatedRedirectUri) {
+      throw new BadRequestException({
+        error: "invalid_request",
+        error_description: "Invalid client_id or redirect_uri",
+      });
+    }
+
+    // Now that redirect_uri is validated, we can safely use it for error redirects
     // Validate response type
     if (query.response_type !== OAuth2ResponseType.CODE) {
       return this.redirectWithError(
         res,
-        query.redirect_uri,
+        validatedRedirectUri,
         "unsupported_response_type",
         "Only 'code' response type is supported",
         query.state
@@ -157,14 +174,14 @@ export class OAuth2Controller {
       const scopes = parseScopes(query.scope);
       const code = await this.oauth2Service.generateAuthorizationCode({
         clientId: query.client_id,
-        redirectUri: query.redirect_uri,
+        redirectUri: validatedRedirectUri,
         scope: scopes,
         userId: user.sub,
         codeChallenge: query.code_challenge,
         codeChallengeMethod: query.code_challenge_method,
       });
 
-      const redirectUrl = new URL(query.redirect_uri);
+      const redirectUrl = new URL(validatedRedirectUri);
       redirectUrl.searchParams.set("code", code);
       if (query.state) {
         redirectUrl.searchParams.set("state", query.state);
@@ -174,34 +191,67 @@ export class OAuth2Controller {
     } catch (error: any) {
       const errorCode = error.response?.error || "server_error";
       const errorDesc = error.response?.error_description || error.message;
-      return this.redirectWithError(res, query.redirect_uri, errorCode, errorDesc, query.state);
+      return this.redirectWithError(res, validatedRedirectUri, errorCode, errorDesc, query.state);
+    }
+  }
+
+  /**
+   * Validate client and redirect_uri before using redirect_uri for any response.
+   * Returns the validated redirect_uri, or null if validation fails.
+   */
+  private async validateClientAndRedirectUri(
+    clientId: string,
+    redirectUri: string
+  ): Promise<string | null> {
+    try {
+      const client = await this.oauth2Service.getClientForValidation(clientId);
+      if (!client || !client.isActive) {
+        this.logger.warn(`OAuth2 authorize: invalid client_id ${clientId}`);
+        return null;
+      }
+
+      const registeredUris = client.redirectUris || [];
+      if (!registeredUris.includes(redirectUri)) {
+        this.logger.warn(`OAuth2 authorize: redirect_uri not registered for client ${clientId}`);
+        return null;
+      }
+
+      return redirectUri;
+    } catch (error) {
+      this.logger.error(`OAuth2 authorize: error validating client/redirect_uri`, error);
+      return null;
     }
   }
 
   /**
    * Token revocation endpoint
+   * Per RFC 7009, client authentication is required.
    */
   @Post("revoke")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Revoke token",
-    description: "Revoke an access token or refresh token",
+    description: "Revoke an access token or refresh token. Client authentication is required per RFC 7009.",
   })
   @ApiBody({ type: OAuth2RevokeRequestDto })
   @ApiResponse({ status: 200, description: "Token revoked (or was already invalid)" })
+  @ApiResponse({ status: 401, description: "Invalid client credentials" })
   async revoke(@Body() body: OAuth2RevokeRequestDto) {
+    // Authenticate the client before processing revocation
+    await this.oauth2Service.authenticateClient(body.client_id, body.client_secret);
     await this.oauth2Service.revokeToken(body.token, body.token_type_hint);
     return {}; // Empty response per RFC 7009
   }
 
   /**
    * Token introspection endpoint
+   * Per RFC 7662, client authentication is required.
    */
   @Post("introspect")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Introspect token",
-    description: "Get information about a token",
+    description: "Get information about a token. Client authentication is required per RFC 7662.",
   })
   @ApiBody({ type: OAuth2IntrospectRequestDto })
   @ApiResponse({
@@ -223,7 +273,10 @@ export class OAuth2Controller {
       },
     },
   })
+  @ApiResponse({ status: 401, description: "Invalid client credentials" })
   async introspect(@Body() body: OAuth2IntrospectRequestDto) {
+    // Authenticate the client before processing introspection
+    await this.oauth2Service.authenticateClient(body.client_id, body.client_secret);
     return this.oauth2Service.introspectToken(body.token);
   }
 
