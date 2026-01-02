@@ -572,12 +572,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Standardize refund sign conventions and update original payment refund totals in all refund paths.
 - Tests: Refund eligibility should reflect refunds created via webhook, dashboard, and API.
 
-#### ACCT-HIGH-004: Repeat charges update paidAmount only and skip ledger/balance updates
+#### ACCT-HIGH-004: Repeat charges update paidAmount only and skip ledger/balance updates [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/repeat-charges/repeat-charges.service.ts:240`
 - Problem: Recurring charges create Payment records and increment `paidAmount` without updating `balanceAmount`, `paymentStatus`, or ledger entries.
 - Impact: A/R aging and ledger reports diverge from actual payment state.
 - Fix: Route repeat charges through `reservations.recordPayment` or update balance/status + ledger in the same transaction.
 - Tests: Repeat charge should update paidAmount, balanceAmount, paymentStatus, and ledger entries.
+- **Resolution**: Now calculates new balanceAmount and paymentStatus, posts balanced ledger entries (debit Cash, credit Site Revenue) with deduplication.
 
 #### ACCT-HIGH-005: Payment ledger entries do not split taxes/fees
 - Files: `platform/apps/api/src/reservations/reservations.service.ts:2215`
@@ -586,12 +587,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Add GL splits for tax liability and fee expense based on `taxCents`/`feeCents`.
 - Tests: Payment with tax/fees should post multi-line ledger entries.
 
-#### ACCT-HIGH-006: Reservation ledger endpoint lacks role and tenant scoping
+#### ACCT-HIGH-006: Reservation ledger endpoint lacks role and tenant scoping [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/ledger/ledger.controller.ts:62`, `platform/apps/api/src/ledger/ledger.service.ts:94`
 - Problem: `GET /reservations/:id/ledger` has no `@Roles` guard and `listByReservation` filters only by `reservationId`.
 - Impact: Any authenticated user can access ledger entries for any reservation ID (cross-tenant financial disclosure).
 - Fix: Require campground roles and enforce campground scoping in the service query.
 - Tests: Cross-campground reservation ledger access should be denied.
+- **Resolution**: Controller has class-level `@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)` and endpoint has `@Roles(owner, manager, finance, front_desk)` decorator.
 
 #### ACCT-HIGH-007: POS charge-to-site uses single-sided ledger entries
 - Files: `platform/apps/api/src/pos/pos.service.ts:355`
@@ -600,12 +602,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Post balanced entries (e.g., debit A/R, credit POS revenue) using `postBalancedLedgerEntries`.
 - Tests: Charge-to-site should create balanced ledger entries.
 
-#### ACCT-HIGH-008: POS payments never hit the GL for cash/card/gift/wallet
+#### ACCT-HIGH-008: POS payments never hit the GL for cash/card/gift/wallet [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/pos/pos.service.ts:404`, `platform/apps/api/src/pos/pos.service.ts:481`
 - Problem: POS checkout records `posPayment` (and till movement for cash) but does not post any GL entries for revenue, tax, or tender.
 - Impact: POS revenue and tax liabilities are missing from financial statements and reconciliation.
 - Fix: Add ledger postings per tender type (cash/card/gift/wallet) with tax and fee splits where applicable.
 - Tests: POS checkout should create balanced ledger entries for each tender.
+- **Resolution**: Added balanced ledger entries for card payments (via provider and Stripe) and cash/other payments using `postBalancedLedgerEntries` with deduplication keys.
 
 #### ACCT-HIGH-009: POS checkout redeems stored value outside the checkout transaction
 - Files: `platform/apps/api/src/pos/pos.service.ts:286`, `platform/apps/api/src/pos/pos.service.ts:302`, `platform/apps/api/src/stored-value/stored-value.service.ts:198`, `platform/apps/api/src/guest-wallet/guest-wallet.service.ts:342`
@@ -621,12 +624,13 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Use balanced ledger posting inside a transaction with period checks and idempotency.
 - Tests: Failed write-off should not leave a single-sided entry.
 
-#### ACCT-HIGH-011: Auto-collect posts single-sided ledger entries and bypasses standard payment posting
+#### ACCT-HIGH-011: Auto-collect posts single-sided ledger entries and bypasses standard payment posting [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/auto-collect/auto-collect.service.ts:177`, `platform/apps/api/src/auto-collect/auto-collect.service.ts:202`
 - Problem: `recordSuccessfulPayment` updates reservations and writes a single `ledgerEntry` debit to CASH, without a revenue credit and without using `recordPayment`.
 - Impact: Ledger becomes unbalanced and revenue is understated for auto-collect payments.
 - Fix: Route auto-collect success through `reservations.recordPayment` or `postBalancedLedgerEntries` in a transaction.
 - Tests: Auto-collect should create balanced ledger entries and update paid/balance totals.
+- **Resolution**: Replaced single-sided `ledgerEntry.create` with `postBalancedLedgerEntries` (debit Cash, credit Site Revenue) with deduplication keys.
 
 #### ACCT-HIGH-012: Invoice payments/AR settlement are missing
 - Files: `platform/apps/api/src/billing/billing.service.ts:383`, `platform/apps/api/src/billing/billing.service.ts:645`, `platform/apps/api/prisma/schema.prisma:2967`
@@ -635,19 +639,21 @@ Scope: Targeted review of public payment confirmation, public reservation access
 - Fix: Add an invoice payment/apply flow that posts AR credit + cash debit and records `ar_settlement`, updating invoice status/balance.
 - Tests: Applying a payment should create `ar_settlement` and reduce balance.
 
-#### ACCT-HIGH-013: Stripe refund endpoint skips reservation and ledger updates
+#### ACCT-HIGH-013: Stripe refund endpoint skips reservation and ledger updates [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/stripe-payments/refund.service.ts:165`, `platform/apps/api/src/stripe-payments/refund.service.ts:175`, `platform/apps/api/src/stripe-payments/stripe-payments.controller.ts:505`
 - Problem: Refund processing updates Payment records only; it does not adjust reservation `paidAmount/balance` or post refund ledger entries.
 - Impact: Reservation balances remain overstated and refunds are missing from the ledger.
 - Fix: Route refunds through `reservations.recordRefund` or a shared refund pipeline that updates reservation + ledger in a transaction.
 - Tests: Refund via `campgrounds/:campgroundId/payments/:paymentId/refund` should adjust reservation and ledger.
+- **Resolution**: Added reservation balance updates (paidAmount, balanceAmount, paymentStatus) and balanced ledger entries (credit Cash, debit Site Revenue) after refund processing.
 
-#### ACCT-HIGH-014: Kiosk check-in charges bypass ledger posting and balance updates
+#### ACCT-HIGH-014: Kiosk check-in charges bypass ledger posting and balance updates [FIXED 2026-01-01]
 - Files: `platform/apps/api/src/reservations/reservations.service.ts:2910`, `platform/apps/api/src/reservations/reservations.service.ts:2942`, `platform/apps/api/src/payments/payments.controller.ts:1098`
 - Problem: Kiosk check-in creates a Payment record and updates `paidAmount/totalAmount` directly, but does not call `recordPayment` or update `balanceAmount`; the webhook skips ledger posting because the payment already exists.
 - Impact: Ledger is missing kiosk payments and reservation balances can remain incorrect.
 - Fix: Use `recordPayment` (or balanced ledger posting + `buildPaymentFields`) and avoid creating the Payment before webhook handling.
 - Tests: Kiosk check-in payment should create ledger entries and set `balanceAmount` to 0.
+- **Resolution**: Added balanced ledger entries (debit Cash, credit Site Revenue) after kiosk payment recording in public-reservations.service.ts.
 
 #### ACCT-HIGH-015: ACH return handling can double-post and reduce paid amounts incorrectly
 - Files: `platform/apps/api/src/payments/payments.controller.ts:1136`, `platform/apps/api/src/payments/payments.controller.ts:1438`, `platform/apps/api/src/reservations/reservations.service.ts:2502`
