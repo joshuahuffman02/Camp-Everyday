@@ -5,9 +5,10 @@ import { BillingDashboardService } from "./billing-dashboard.service";
 import { BillingDashboardController } from "./billing-dashboard.controller";
 import { PrismaService } from "../prisma/prisma.service";
 import { BillingJobs } from "./billing.jobs";
+import { PermissionsModule } from "../permissions/permissions.module";
 
 @Module({
-  imports: [],
+  imports: [PermissionsModule],
   controllers: [BillingController, BillingDashboardController],
   providers: [BillingService, BillingDashboardService, BillingJobs, PrismaService],
   exports: [BillingService, BillingDashboardService]

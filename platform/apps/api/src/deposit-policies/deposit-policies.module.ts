@@ -3,12 +3,12 @@ import { DepositPoliciesController } from "./deposit-policies.controller";
 import { DepositPoliciesService } from "./deposit-policies.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditModule } from "../audit/audit.module";
+import { PermissionsModule } from "../permissions/permissions.module";
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, PermissionsModule],
   controllers: [DepositPoliciesController],
   providers: [DepositPoliciesService],
   exports: [DepositPoliciesService]
 })
 export class DepositPoliciesModule {}
-
