@@ -119,7 +119,7 @@ export function RevenueBySourceReport({ campgroundId, dateRange }: RevenueBySour
                                     fontSize={12}
                                     tickLine={false}
                                     axisLine={false}
-                                    tickFormatter={(value) => `$${value}`}
+                                    tickFormatter={(value: number | string) => `$${value}`}
                                 />
                                 <Tooltip
                                     cursor={{ fill: 'transparent' }}
