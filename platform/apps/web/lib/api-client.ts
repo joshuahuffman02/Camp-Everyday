@@ -5906,8 +5906,9 @@ export const apiClient = {
     });
     return parseResponse<{ id: string }>(res);
   },
-  async getRepeatChargesByReservation(reservationId: string) {
-    const data = await fetchJSON<unknown>(`/repeat-charges/reservation/${reservationId}`);
+  async getRepeatChargesByReservation(reservationId: string, campgroundId?: string) {
+    const path = withCampgroundId(`/repeat-charges/reservation/${reservationId}`, campgroundId);
+    const data = await fetchJSON<unknown>(path);
     return z.array(z.object({
       id: z.string(),
       reservationId: z.string(),
@@ -5967,15 +5968,17 @@ export const apiClient = {
 
   // Repeat Charges
   // Repeat Charges
-  async generateRepeatCharges(reservationId: string) {
-    const res = await fetch(`${API_BASE}/repeat-charges/reservation/${reservationId}/generate`, {
+  async generateRepeatCharges(reservationId: string, campgroundId?: string) {
+    const path = withCampgroundId(`/repeat-charges/reservation/${reservationId}/generate`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: scopedHeaders()
     });
     return parseResponse<unknown>(res);
   },
   async getRepeatChargesByCampground(campgroundId: string) {
-    const data = await fetchJSON<unknown>(`/repeat-charges?campgroundId=${campgroundId}`);
+    const path = withCampgroundId(`/repeat-charges`, campgroundId);
+    const data = await fetchJSON<unknown>(path);
     return z.array(z.object({
       id: z.string(),
       reservationId: z.string(),
@@ -6000,8 +6003,9 @@ export const apiClient = {
       }).optional()
     })).parse(data);
   },
-  async processRepeatCharge(id: string) {
-    const res = await fetch(`${API_BASE}/repeat-charges/${id}/process`, {
+  async processRepeatCharge(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/repeat-charges/${id}/process`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: scopedHeaders()
     });

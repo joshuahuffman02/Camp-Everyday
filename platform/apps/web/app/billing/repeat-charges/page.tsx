@@ -34,7 +34,7 @@ export default function RepeatChargesPage() {
     const handleProcess = async (id: string) => {
         setProcessingId(id);
         try {
-            await apiClient.processRepeatCharge(id);
+            await apiClient.processRepeatCharge(id, campgroundId);
             toast({
                 title: "Charge Processed",
                 description: "The payment has been successfully processed.",

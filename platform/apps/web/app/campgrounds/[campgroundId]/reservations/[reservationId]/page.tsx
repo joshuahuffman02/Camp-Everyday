@@ -223,8 +223,8 @@ export default function ReservationDetailPage() {
 
   const chargesQuery = useQuery({
     queryKey: ["reservation-charges", reservationId],
-    queryFn: () => apiClient.getRepeatChargesByReservation(reservationId),
-    enabled: !!reservationId
+    queryFn: () => apiClient.getRepeatChargesByReservation(reservationId, campgroundId),
+    enabled: !!reservationId && !!campgroundId
   });
 
   const relatedQuery = useQuery({
@@ -1189,7 +1189,7 @@ export default function ReservationDetailPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      apiClient.generateRepeatCharges(reservationId)
+                      apiClient.generateRepeatCharges(reservationId, campgroundId)
                         .then(() => queryClient.invalidateQueries({ queryKey: ["reservation-charges", reservationId] }));
                     }}
                   >
@@ -1242,7 +1242,7 @@ export default function ReservationDetailPage() {
                                   size="sm"
                                   variant="secondary"
                                   onClick={() => {
-                                    apiClient.processRepeatCharge(charge.id)
+                                    apiClient.processRepeatCharge(charge.id, campgroundId)
                                       .then(() => {
                                         queryClient.invalidateQueries({ queryKey: ["reservation-charges", reservationId] });
                                         queryClient.invalidateQueries({ queryKey: ["reservation", reservationId] });

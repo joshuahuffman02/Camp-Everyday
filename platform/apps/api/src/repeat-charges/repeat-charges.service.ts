@@ -14,9 +14,9 @@ export class RepeatChargesService {
         private readonly stripeService: StripeService
     ) { }
 
-    async generateCharges(reservationId: string) {
-        const reservation = await this.prisma.reservation.findUnique({
-            where: { id: reservationId },
+    async generateCharges(campgroundId: string, reservationId: string) {
+        const reservation = await this.prisma.reservation.findFirst({
+            where: { id: reservationId, campgroundId },
             include: {
                 seasonalRate: true,
                 repeatCharges: true
@@ -99,9 +99,12 @@ export class RepeatChargesService {
         return createdCharges;
     }
 
-    async getCharges(reservationId: string) {
+    async getCharges(campgroundId: string, reservationId: string) {
         return this.prisma.repeatCharge.findMany({
-            where: { reservationId },
+            where: {
+                reservationId,
+                reservation: { campgroundId }
+            },
             orderBy: { dueDate: 'asc' }
         });
     }
@@ -125,9 +128,12 @@ export class RepeatChargesService {
         });
     }
 
-    async processCharge(chargeId: string) {
-        const charge = await this.prisma.repeatCharge.findUnique({
-            where: { id: chargeId },
+    async processCharge(campgroundId: string, chargeId: string) {
+        const charge = await this.prisma.repeatCharge.findFirst({
+            where: {
+                id: chargeId,
+                reservation: { campgroundId }
+            },
             include: {
                 reservation: {
                     include: {
