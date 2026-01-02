@@ -2,6 +2,59 @@
 
 Scope: Targeted review of public payment confirmation, public reservation access, OAuth2 auth codes, and waitlist flow. Read `CLAUDE.md` and `AUDIT-2024-12-28.md` for guardrails and prior findings.
 
+## Verification of [FIXED] items (review pass)
+Status key: VERIFIED, PARTIAL, NOT VERIFIED.
+
+### NOT VERIFIED
+- PAY-CRIT-001: `confirmPublicPaymentIntent` only checks metadata if present and never validates amount/currency; intents without metadata still pass. (`platform/apps/api/src/payments/payments.controller.ts`)
+- PAY-HIGH-001: `requires_capture` branch and success branch create Payment fields that do not exist in the schema (currency/status/paidAt/metadata), likely failing Prisma writes. (`platform/apps/api/src/payments/payments.controller.ts`, `platform/apps/api/prisma/schema.prisma`)
+- PUB-HIGH-001: token is accepted but ignored; service only validates campgroundId if provided, so any token string still allows ID-only access. (`platform/apps/api/src/public-reservations/public-reservations.controller.ts`, `platform/apps/api/src/public-reservations/public-reservations.service.ts`)
+- PUB-HIGH-002: same issue as PUB-HIGH-001 (token not validated, ID-only access still works). (`platform/apps/api/src/public-reservations/public-reservations.controller.ts`, `platform/apps/api/src/public-reservations/public-reservations.service.ts`)
+- PUB-HIGH-003: token is accepted but ignored; if campgroundId omitted, submissions are returned without ownership validation. (`platform/apps/api/src/public-reservations/public-reservations.controller.ts`, `platform/apps/api/src/forms/forms.service.ts`)
+- FORM-HIGH-001: RolesGuard added but no `@RequireScope`; update/delete/list by id are still unscoped and service uses id-only lookups. (`platform/apps/api/src/forms/forms.controller.ts`, `platform/apps/api/src/forms/forms.service.ts`)
+- AC-HIGH-001: guards added but no tenant scoping; service uses reservationId only and does not validate campground ownership. (`platform/apps/api/src/access-control/access-control.controller.ts`, `platform/apps/api/src/access-control/access-control.service.ts`)
+- OTA-HIGH-001: ID-based endpoints (channels/mappings) are not scoped to campground; service updates by id only. (`platform/apps/api/src/ota/ota.controller.ts`, `platform/apps/api/src/ota/ota.service.ts`)
+- WEBHOOK-MED-001: toggle/replay/retry/test endpoints operate by id without campground scoping; guard can be satisfied by unrelated `x-campground-id`. (`platform/apps/api/src/developer-api/webhook-admin.controller.ts`, `platform/apps/api/src/developer-api/webhook.service.ts`)
+- DEV-HIGH-001: rotate/toggle/update/delete by id are not scoped to campground; service updates by id only. (`platform/apps/api/src/developer-api/developer-admin.controller.ts`, `platform/apps/api/src/developer-api/api-auth.service.ts`)
+- ACCT-HIGH-002: public confirm flow still writes Payment fields missing from schema and uses `reservation.siteId` without selecting it, so the ledger post path is not reliable. (`platform/apps/api/src/payments/payments.controller.ts`, `platform/apps/api/prisma/schema.prisma`)
+- ACCT-HIGH-003: refund flows still inconsistent; refund service writes negative refund payments and updates `refundedAmountCents`, while reservation refund paths write positive refunds and never update `refundedAmountCents`. (`platform/apps/api/src/stripe-payments/refund.service.ts`, `platform/apps/api/src/reservations/reservations.service.ts`)
+- ACCT-HIGH-006: `GET /reservations/:id/ledger` has no campground scoping; service filters by reservationId only. (`platform/apps/api/src/ledger/ledger.controller.ts`, `platform/apps/api/src/ledger/ledger.service.ts`)
+
+### PARTIAL
+- PUB-CRIT-001: campgroundId is now required, but kiosk token/signature is still not validated; IDOR remains if campgroundId is known. (`platform/apps/api/src/public-reservations/public-reservations.controller.ts`, `platform/apps/api/src/public-reservations/public-reservations.service.ts`)
+- IMPORT-CRIT-001: access now requires onboarding token, but JWT path likely never works because controller does not apply `JwtAuthGuard` to populate `req.user`. (`platform/apps/api/src/data-import/reservation-import.controller.ts`)
+- STORE-HIGH-001: membership checks added for campgroundId routes, but ID-only endpoints (products/categories by id) are still unscoped. (`platform/apps/api/src/store/store.controller.ts`)
+- ACCT-HIGH-004: repeat charges now update balance/status and post ledger entries, but not within a single transaction as requested. (`platform/apps/api/src/repeat-charges/repeat-charges.service.ts`)
+- ACCT-HIGH-014: ledger entries added for kiosk check-in, but `balanceAmount` is not updated after setting paidAmount/totalAmount. (`platform/apps/api/src/public-reservations/public-reservations.service.ts`)
+
+### VERIFIED (spot-checked)
+- RATE-MED-001
+- MKT-LOW-001
+- OAUTH-MED-002
+- OAUTH-MED-003
+- FORM-MED-001
+- PAY-LOW-001
+- SELF-CRIT-001
+- ADMIN-CRIT-001
+- ORG-HIGH-001
+- ADMIN-HIGH-001
+- CAMP-HIGH-001
+- RES-HIGH-001
+- GUEST-HIGH-001
+- WEB-XSS-HIGH-001
+- WEB-XSS-HIGH-002
+- BILL-WEBHOOK-MED-001
+- IMPORT-MED-001
+- UPLOAD-LOW-001
+- AUTH-LOW-002
+- UI-LOW-001
+- ACCT-HIGH-007
+- ACCT-HIGH-008
+- ACCT-HIGH-010
+- ACCT-HIGH-011
+- ACCT-HIGH-013
+- ACCT-HIGH-021
+
 ## Critical
 
 ### PAY-CRIT-001: Public payment confirmation lacks intent-to-reservation validation [FIXED 2026-01-01]

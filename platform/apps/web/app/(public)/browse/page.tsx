@@ -69,6 +69,8 @@ export default async function CampgroundsIndexPage() {
       <Breadcrumbs
         items={[{ name: "Browse Campgrounds", path: "/browse" }]}
         className="mb-6"
+        showHome
+        enableSeo
       />
 
       {/* Hero Section */}

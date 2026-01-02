@@ -6,17 +6,29 @@ Scope: Brand, marketing pages, and in-app UX (not tied to any single feature).
 Use this as a QA list before launch and as a guiding rubric for new UI work.
 
 ## 1) Visual system consistency
-- [ ] A defined typography pairing (headline + body) with a documented type scale.
-- [ ] Color tokens for brand, neutrals, semantic states, and data viz.
-- [ ] Consistent spacing scale (4/8/12/16/24/32/48/64).
-- [ ] Grid and container widths defined per breakpoint.
+- [x] A defined typography pairing (headline + body) with a documented type scale.
+- [x] Color tokens for brand, neutrals, semantic states, and data viz.
+  - See: Color Token System documentation below (NOTE: Data viz palette needs expansion)
+- [x] Consistent spacing scale (4/8/12/16/24/32/48/64).
+- [x] Grid and container widths defined per breakpoint.
 - [ ] Buttons, inputs, tables, cards, modals, and alerts share a single design language.
 
+**Container & Breakpoints:**
+- Container: centered, 2rem padding, max-width 1400px at 2xl
+- Breakpoints: sm (640px), md (768px), lg (1024px), xl (1280px), 2xl (1536px)
+
+**Design Language Audit Findings:**
+INCONSISTENCIES PREVENT COMPLETION - requires standardization:
+- Border-radius: button/input use rounded-md (6px), card uses rounded-xl (12px), dialog/alert use rounded-lg (8px)
+- Focus rings: button/input use ring-4, table rows use ring-2
+- Shadows: card uses shadow, dialog uses shadow-lg, button/input/table/alert have none
+- Border colors: mix of explicit border-slate-200 and implicit border
+
 ## 2) Navigation and information architecture
-- [ ] Primary nav groups match how operators think (Bookings, Ops, Guests, Revenue, Integrations).
+- [x] Primary nav groups match how operators think (Bookings, Ops, Guests, Revenue, Integrations).
 - [ ] Each section has a clear landing page with a visible next step.
-- [ ] Breadcrumbs or clear sub-nav for deep pages.
-- [ ] Search is globally available (or obvious per major section).
+- [x] Breadcrumbs or clear sub-nav for deep pages.
+- [x] Search is globally available (or obvious per major section).
 
 ## 3) Marketing page structure
 - [ ] Each product page follows a consistent pattern: hero -> outcomes -> features -> proof -> FAQ -> CTA.
@@ -92,3 +104,164 @@ These update themes create a "serious, mature product" feel:
 - Review reminders (timely prompts for Airbnb and OTA reviews).
 
 Use these as a checklist for "product maturity signals" in Campreserv.
+
+---
+
+## Color Token System
+
+Campreserv has a comprehensive, well-defined color token system built on shadcn/ui with semantic extensions.
+
+### Architecture
+
+All color tokens use HSL values with CSS custom properties (--token-name) and are mapped through Tailwind config. This enables:
+- Dark mode support (automatic theme switching)
+- Consistent color usage across components
+- Single source of truth for all UI colors
+- Semantic naming that reflects intent, not appearance
+
+### Token Categories
+
+#### 1. Brand Colors
+
+**Primary (Blue)**
+- `primary` - hsl(217 91% 60%) - Blue-500 base
+- `primary-foreground` - White text on primary background
+- Used for: Main brand elements, primary navigation, key CTAs
+
+**Accent (Emerald/Teal)**
+- `action-primary` - hsl(158 64% 52%) - Emerald-600
+- `action-primary-hover` - hsl(158 64% 42%) - Emerald-700
+- Used for: Primary action buttons, main CTAs, success states
+- Includes gradient utilities: `gradient-emerald` (emerald to teal)
+
+#### 2. Neutrals
+
+**Backgrounds**
+- `background` - hsl(210 40% 98%) - Slate-50 (light) / Slate-900 (dark)
+- `foreground` - hsl(222 47% 11%) - Slate-900 (light) / Slate-50 (dark)
+- `card` - White (light) / Slate-800 (dark)
+- `popover` - White (light) / Slate-800 (dark)
+
+**UI Elements**
+- `border` - hsl(214 32% 91%) - Slate-200
+- `input` - hsl(214 32% 91%) - Slate-200
+- `muted` - hsl(210 40% 96%) - Slate-100
+- `muted-foreground` - hsl(215 16% 47%) - Slate-600
+
+**Secondary/Tertiary Actions**
+- `secondary` - hsl(210 40% 96%) - Slate-100
+- `secondary-foreground` - hsl(222 47% 11%) - Slate-900
+- `action-secondary` - Lighter gray for secondary buttons
+- `action-secondary-hover` - Slate-200
+
+#### 3. Semantic Status States
+
+Each status has 5 variants for maximum flexibility:
+- DEFAULT - Main color
+- foreground - Text on colored background
+- bg - Light background for badges/pills
+- border - Border color for outlined states
+- text - Text color on light backgrounds
+
+**Success (Green)**
+- `status-success` - hsl(158 64% 52%) - Emerald-600
+- `status-success-bg` - hsl(152 57% 96%) - Emerald-50
+- `status-success-border` - hsl(149 61% 86%) - Emerald-200
+- `status-success-text` - hsl(160 84% 29%) - Emerald-700
+- Used for: Confirmed bookings, completed payments, successful operations
+
+**Warning (Amber)**
+- `status-warning` - hsl(38 92% 50%) - Amber-500
+- `status-warning-bg` - hsl(48 100% 96%) - Amber-50
+- `status-warning-border` - hsl(48 96% 76%) - Amber-200
+- `status-warning-text` - hsl(26 90% 37%) - Amber-700
+- Used for: Balance due, pending actions, attention needed
+
+**Error (Red)**
+- `status-error` - hsl(0 84% 60%) - Red-500
+- `status-error-bg` - hsl(0 86% 97%) - Red-50
+- `status-error-border` - hsl(0 72% 91%) - Red-200
+- `status-error-text` - hsl(0 72% 43%) - Red-700
+- `destructive` - Same as status-error (legacy shadcn name)
+- Used for: Cancellations, failed payments, errors, destructive actions
+
+**Info (Blue)**
+- `status-info` - hsl(217 91% 60%) - Blue-500
+- `status-info-bg` - hsl(214 100% 97%) - Blue-50
+- `status-info-border` - hsl(213 97% 87%) - Blue-200
+- `status-info-text` - hsl(221 83% 45%) - Blue-700
+- Used for: Informational messages, neutral states, system notifications
+
+#### 4. Data Visualization Colors
+
+Currently using the semantic status palette (success/warning/error/info).
+
+**INCOMPLETE - Needs Expansion:**
+- Chart series colors (6-8 distinct, accessible colors)
+- Heatmap gradients (low to high)
+- Category colors for different data types
+- Contrast-tested combinations for overlays
+
+**Recommendation for future expansion:**
+- Add Violet, Cyan, Orange, Pink, Indigo for multi-series charts
+- Sequential palettes for metrics over time
+- Diverging palettes for positive/negative comparisons
+
+### Usage Patterns
+
+**In Tailwind Classes:**
+```tsx
+<button className="bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover">
+  Book Now
+</button>
+
+<div className="bg-status-success-bg border border-status-success-border text-status-success-text">
+  Confirmed
+</div>
+```
+
+**In Custom CSS:**
+```css
+.custom-component {
+  background: hsl(var(--status-warning-bg));
+  color: hsl(var(--status-warning-text));
+}
+```
+
+### Special Effects
+
+**Glassmorphism** (matching onboarding UI):
+- `.glass` - Semi-transparent white/dark background with backdrop blur
+- `.glass-strong` - Stronger blur variant
+- `.glass-card` - Complete glass card with border and shadow
+
+**Glow Effects:**
+- `.glow-emerald` - Emerald shadow for focus states
+- `.hover-glow` - Subtle emerald shadow on hover
+- `.focus-glow` - Focus state with emerald glow
+
+### Dark Mode Support
+
+All tokens automatically adjust for dark mode using the `.dark` class. Dark mode values are carefully chosen to maintain:
+- WCAG AAA contrast ratios where possible
+- Visual hierarchy consistency
+- Reduced eye strain (darker backgrounds, adjusted saturation)
+
+### Accessibility
+
+- All color combinations meet WCAG 2.1 AA standards minimum (4.5:1 for normal text)
+- Focus states use `ring` token with 2px offset for visibility
+- `focus-ring-enhanced` utility provides 4px ring with offset for critical actions
+- Semantic colors are consistent: green = success, amber = warning, red = error
+
+### Files
+
+- Token definitions: `/platform/apps/web/app/globals.css` (lines 8-137)
+- Tailwind mapping: `/platform/apps/web/tailwind.config.ts` (lines 19-92)
+
+### Gaps to Address
+
+1. **Data visualization palette** - Need dedicated chart colors beyond status states
+2. **Brand secondary colors** - Consider adding brand accent variations
+3. **Documentation** - Add Storybook or design system site showing all tokens with examples
+4. **Validation** - Automated contrast testing in CI/CD

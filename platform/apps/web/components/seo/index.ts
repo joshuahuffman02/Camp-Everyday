@@ -4,5 +4,8 @@
  */
 
 export * from "./JsonLd";
-export * from "./Breadcrumbs";
 export * from "./InternalLinks";
+
+// Re-export Breadcrumbs from ui for backwards compatibility
+export { Breadcrumbs, getCampgroundBreadcrumbs, getDashboardBreadcrumbs } from "../ui/breadcrumbs";
+export type { BreadcrumbItem } from "../ui/breadcrumbs";
