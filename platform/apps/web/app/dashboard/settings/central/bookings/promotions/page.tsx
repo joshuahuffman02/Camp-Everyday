@@ -206,6 +206,7 @@ export default function PromotionsPage() {
   };
 
   const handleToggle = async (promo: Promotion) => {
+    if (!campgroundId) return;
     try {
       await apiClient.updatePromotion(promo.id, { isActive: !promo.isActive }, campgroundId);
       if (campgroundId) loadPromotions(campgroundId);

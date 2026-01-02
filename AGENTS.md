@@ -6,7 +6,7 @@
 - Codex-optimized agents/skills: ./codex/agents/ and ./codex/skills/
 
 ## Core rules
-- Prefer small, focused tasks; if a task is larger, propose a breakdown but proceed when the goal is clear.
+- Prefer larger, end-to-end tasks when the goal is clear; propose a breakdown when helpful but proceed.
 - Avoid refactors unrelated to the request; touch adjacent files only when needed to fix the issue.
 - Stop when acceptance checks pass or the task is complete.
 - Ask before proceeding only when the goal is unclear (max 3 questions).
