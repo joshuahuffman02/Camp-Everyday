@@ -710,10 +710,9 @@ export default function Dashboard() {
                   aria-label="Create a new booking"
                   className={cn(
                     "inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white",
-                    "bg-emerald-600 hover:bg-emerald-500",
-                    "shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40",
-                    "transition-all duration-200",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                    "bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover",
+                    "shadow-sm transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2"
                   )}
                 >
                   <Plus className="h-4 w-4" />
@@ -727,10 +726,9 @@ export default function Dashboard() {
                   className={cn(
                     "inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold",
                     "border border-border bg-card text-card-foreground",
-                    "hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50",
-                    "dark:hover:border-emerald-700 dark:hover:text-emerald-400 dark:hover:bg-emerald-950/30",
-                    "shadow-sm hover:shadow-md transition-all duration-200",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                    "hover:border-action-primary/40 hover:text-action-primary hover:bg-action-primary/10",
+                    "shadow-sm hover:shadow-md transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2"
                   )}
                 >
                   <ShoppingBag className="h-4 w-4" />

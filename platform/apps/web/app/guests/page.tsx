@@ -629,7 +629,10 @@ export default function GuestsPage() {
   };
 
   return (
-    <DashboardShell>
+    <DashboardShell
+      title="Guests"
+      subtitle="Search, segment, and manage guest profiles."
+    >
       <div className="space-y-4">
         <Breadcrumbs items={[{ label: "Guests" }]} />
 

@@ -1399,10 +1399,10 @@ interface ReservationChipProps {
 
 function ReservationChip({ reservation, onClick, densityConfig }: ReservationChipProps) {
   const statusStyles: Record<string, string> = {
-    confirmed: "bg-gradient-to-br from-status-success/90 to-status-success/95 border-status-success/40",
-    checked_in: "bg-gradient-to-br from-status-info/90 to-status-info/95 border-status-info/40",
-    pending: "bg-gradient-to-br from-status-warning/90 to-status-warning/95 border-status-warning/40",
-    cancelled: "bg-gradient-to-br from-status-error/90 to-status-error/95 border-status-error/40"
+    confirmed: "bg-status-success/90 border-status-success/40",
+    checked_in: "bg-status-info/90 border-status-info/40",
+    pending: "bg-status-warning/90 border-status-warning/40",
+    cancelled: "bg-status-error/90 border-status-error/40"
   };
 
   const guestName = `${reservation.guest?.primaryFirstName || ""} ${reservation.guest?.primaryLastName || ""}`.trim() || "Guest";
