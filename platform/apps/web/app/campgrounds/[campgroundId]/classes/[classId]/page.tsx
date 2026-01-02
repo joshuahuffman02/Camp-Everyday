@@ -218,7 +218,7 @@ export default function SiteClassDetailPage() {
 
   const classQuery = useQuery({
     queryKey: ["site-class", classId],
-    queryFn: () => apiClient.getSiteClass(classId, campgroundId),
+    queryFn: () => apiClient.getSiteClass(classId),
     enabled: !!classId
   });
 
