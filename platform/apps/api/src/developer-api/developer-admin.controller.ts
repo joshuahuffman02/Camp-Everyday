@@ -7,7 +7,8 @@ import {
   ApiBody,
   ApiQuery,
 } from "@nestjs/swagger";
-import { JwtAuthGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, ScopeGuard, Roles } from "../auth/guards";
+import { UserRole } from "@prisma/client";
 import { ApiAuthService } from "./api-auth.service";
 import { ApiScope, ApiClientTier, TIER_LIMITS, DEFAULT_TIER_SCOPES } from "./types";
 import { IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
@@ -42,7 +43,8 @@ class UpdateTierDto {
 
 @ApiTags("Developer")
 @ApiBearerAuth("bearer")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
+@Roles(UserRole.owner, UserRole.manager, UserRole.platform_admin)
 @Controller("developer/clients")
 export class DeveloperAdminController {
   constructor(private readonly apiAuth: ApiAuthService) { }

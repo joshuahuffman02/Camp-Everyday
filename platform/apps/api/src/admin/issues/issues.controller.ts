@@ -8,7 +8,8 @@ import {
   Body,
   UseGuards,
 } from "@nestjs/common";
-import { JwtAuthGuard } from "../../auth/guards";
+import { JwtAuthGuard, RolesGuard, Roles } from "../../auth/guards";
+import { PlatformRole } from "@prisma/client";
 import { IssuesService } from "./issues.service";
 import { CreateIssueDto, UpdateIssueDto, AddAttemptDto } from "./dto";
 
@@ -19,7 +20,8 @@ import { CreateIssueDto, UpdateIssueDto, AddAttemptDto } from "./dto";
  * Inspired by vibe-kanban's Kanban board patterns
  */
 @Controller("admin/issues")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(PlatformRole.platform_admin, PlatformRole.support_agent)
 export class IssuesController {
   constructor(private readonly issues: IssuesService) {}
 

@@ -1,5 +1,5 @@
-import BookingLabPage from "../booking-lab/page";
+import BookingV2Page from "../booking-v2/page";
 
 export default function BookingPage() {
-  return <BookingLabPage />;
+  return <BookingV2Page />;
 }

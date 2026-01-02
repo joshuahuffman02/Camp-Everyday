@@ -147,28 +147,29 @@ export function BookingSidebar({
   // Check if high demand (stubbed - would come from API)
   const isHighDemand = nights > 0 && (reviewCount || 0) > 10;
 
+  // Calculate effective nightly rate (base + dynamic pricing baked in)
+  const effectiveNightlyRate = useMemo(() => {
+    if (!quote) return null;
+    // Effective rate = (base + pricing rules) / nights
+    // This bakes in dynamic pricing so it doesn't look like hidden fees
+    const totalBeforeDiscountsAndTaxes = quote.baseSubtotalCents + (quote.rulesDeltaCents || 0);
+    return Math.round(totalBeforeDiscountsAndTaxes / quote.nights);
+  }, [quote]);
+
   // Build price breakdown from quote
   const priceBreakdown = useMemo(() => {
-    if (!quote) return null;
+    if (!quote || !effectiveNightlyRate) return null;
 
     const items: { label: string; amount: number; isDiscount?: boolean }[] = [];
 
-    // Base rate
+    // Site rate (includes dynamic pricing baked in)
+    const siteSubtotal = quote.baseSubtotalCents + (quote.rulesDeltaCents || 0);
     items.push({
-      label: `$${(quote.perNightCents / 100).toFixed(0)} x ${quote.nights} night${quote.nights !== 1 ? "s" : ""}`,
-      amount: quote.baseSubtotalCents,
+      label: `$${(effectiveNightlyRate / 100).toFixed(0)} x ${quote.nights} night${quote.nights !== 1 ? "s" : ""}`,
+      amount: siteSubtotal,
     });
 
-    // Pricing rules (dynamic pricing)
-    if (quote.rulesDeltaCents && quote.rulesDeltaCents !== 0) {
-      items.push({
-        label: quote.rulesDeltaCents > 0 ? "Peak season" : "Off-season discount",
-        amount: Math.abs(quote.rulesDeltaCents),
-        isDiscount: quote.rulesDeltaCents < 0,
-      });
-    }
-
-    // Discounts
+    // Discounts (promo codes, memberships, etc.)
     if (quote.discountCents && quote.discountCents > 0) {
       items.push({
         label: "Discount",
@@ -177,7 +178,7 @@ export function BookingSidebar({
       });
     }
 
-    // Taxes & fees
+    // Taxes & fees (shown separately for transparency)
     if (quote.taxesCents && quote.taxesCents > 0) {
       items.push({
         label: "Taxes & fees",
@@ -186,10 +187,9 @@ export function BookingSidebar({
     }
 
     return items;
-  }, [quote]);
+  }, [quote, effectiveNightlyRate]);
 
   const totalAmount = quote?.totalWithTaxesCents || quote?.totalCents || 0;
-  const perNightDisplay = quote ? quote.perNightCents / 100 : (selectedClass?.defaultRate || 0) / 100;
 
   return (
     <motion.div
@@ -204,10 +204,10 @@ export function BookingSidebar({
       {/* Header with price */}
       <div className="p-6 pb-4">
         <div className="flex items-baseline justify-between mb-1">
-          {selectedClass && quote ? (
+          {selectedClass && quote && effectiveNightlyRate ? (
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-bold text-slate-900">
-                ${(quote.perNightCents / 100).toFixed(0)}
+                ${(effectiveNightlyRate / 100).toFixed(0)}
               </span>
               <span className="text-slate-500">/ night</span>
             </div>
@@ -345,7 +345,7 @@ export function BookingSidebar({
       </div>
 
       {/* Price breakdown (expandable) - only show when we have a real quote */}
-      {quote && priceBreakdown && nights > 0 && (
+      {quote && priceBreakdown && effectiveNightlyRate && nights > 0 && (
         <div className="px-6 pb-4">
           <button
             onClick={() => setShowPriceBreakdown(!showPriceBreakdown)}
@@ -353,7 +353,7 @@ export function BookingSidebar({
             aria-expanded={showPriceBreakdown}
           >
             <span className="underline decoration-dashed underline-offset-4">
-              ${(quote.perNightCents / 100).toFixed(0)} x {quote.nights} night{quote.nights === 1 ? "" : "s"}
+              ${(effectiveNightlyRate / 100).toFixed(0)} x {quote.nights} night{quote.nights === 1 ? "" : "s"}
             </span>
             {showPriceBreakdown ? (
               <ChevronUp className="h-4 w-4" />

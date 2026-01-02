@@ -115,6 +115,14 @@ function getClusterColor(count: number): string {
   return "#ef4444"; // red-500
 }
 
+// HTML escape function to prevent XSS in map popups
+const escapeHtml = (str: string): string =>
+  str.replace(/&/g, "&amp;")
+     .replace(/</g, "&lt;")
+     .replace(/>/g, "&gt;")
+     .replace(/"/g, "&quot;")
+     .replace(/'/g, "&#039;");
+
 export function CampgroundSearchMap({
   campgrounds,
   onSelectCampground,
@@ -324,8 +332,8 @@ export function CampgroundSearchMap({
 
           const popupContent = `
             <div class="p-3 min-w-[200px]">
-              <h3 class="font-bold text-slate-900">${campground.name}</h3>
-              ${campground.city && campground.state ? `<p class="text-sm text-slate-600">${campground.city}, ${campground.state}</p>` : ""}
+              <h3 class="font-bold text-slate-900">${escapeHtml(campground.name)}</h3>
+              ${campground.city && campground.state ? `<p class="text-sm text-slate-600">${escapeHtml(campground.city)}, ${escapeHtml(campground.state)}</p>` : ""}
               ${campground.rating ? `<div class="flex items-center gap-1 mt-1"><span class="text-amber-500">&#9733;</span><span class="text-sm font-medium">${campground.rating.toFixed(1)}</span><span class="text-xs text-slate-500">(${campground.reviewCount || 0})</span></div>` : ""}
               ${campground.priceFrom ? `<p class="text-sm font-medium text-emerald-600 mt-1">From $${campground.priceFrom}/night</p>` : ""}
             </div>

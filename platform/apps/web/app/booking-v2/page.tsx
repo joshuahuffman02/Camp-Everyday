@@ -143,19 +143,19 @@ function BookingLabPageInner() {
   const siteLockFeeCents = (selectedCampground as CampgroundWithFees)?.siteSelectionFeeCents ?? 0;
 
   const guestsQuery = useQuery({
-    queryKey: ["booking-lab-guests", selectedCampground?.id],
+    queryKey: ["booking-v2-guests", selectedCampground?.id],
     queryFn: () => apiClient.getGuests(selectedCampground?.id),
     enabled: !!selectedCampground?.id
   });
 
   const siteClassesQuery = useQuery({
-    queryKey: ["booking-lab-site-classes", selectedCampground?.id],
+    queryKey: ["booking-v2-site-classes", selectedCampground?.id],
     queryFn: () => apiClient.getSiteClasses(selectedCampground!.id),
     enabled: !!selectedCampground?.id
   });
 
   const reservationsQuery = useQuery({
-    queryKey: ["booking-lab-reservations", selectedCampground?.id],
+    queryKey: ["booking-v2-reservations", selectedCampground?.id],
     queryFn: () => apiClient.getReservations(selectedCampground!.id),
     enabled: !!selectedCampground?.id,
     staleTime: 30_000
@@ -247,7 +247,7 @@ function BookingLabPageInner() {
   }, [formData.arrivalDate, formData.departureDate]);
 
   const siteStatusQuery = useQuery({
-    queryKey: ["booking-lab-site-status", selectedCampground?.id, formData.arrivalDate, formData.departureDate],
+    queryKey: ["booking-v2-site-status", selectedCampground?.id, formData.arrivalDate, formData.departureDate],
     queryFn: () => apiClient.getSitesWithStatus(selectedCampground!.id, {
       arrivalDate: formData.arrivalDate,
       departureDate: formData.departureDate
@@ -333,7 +333,7 @@ function BookingLabPageInner() {
   }, [selectedSite]);
 
   const quoteQuery = useQuery({
-    queryKey: ["booking-lab-quote", selectedCampground?.id, formData.siteId, formData.arrivalDate, formData.departureDate],
+    queryKey: ["booking-v2-quote", selectedCampground?.id, formData.siteId, formData.arrivalDate, formData.departureDate],
     queryFn: () => apiClient.getQuote(selectedCampground!.id, {
       siteId: formData.siteId,
       arrivalDate: formData.arrivalDate,
@@ -454,7 +454,7 @@ function BookingLabPageInner() {
   }, [selectedGuest?.id]);
 
   const matchesQuery = useQuery({
-    queryKey: ["booking-lab-matches", selectedCampground?.id, formData.guestId],
+    queryKey: ["booking-v2-matches", selectedCampground?.id, formData.guestId],
     queryFn: () => apiClient.getMatchedSites(selectedCampground!.id, formData.guestId),
     enabled: !!selectedCampground?.id && !!formData.guestId
   });
@@ -490,7 +490,7 @@ function BookingLabPageInner() {
       setShowNewGuest(false);
       setGuestForm({ primaryFirstName: "", primaryLastName: "", email: "", phone: "", address1: "", city: "", state: "", postalCode: "" });
       queryClient.setQueryData(
-        ["booking-lab-guests", selectedCampground?.id],
+        ["booking-v2-guests", selectedCampground?.id],
         (current: typeof guests | undefined) => {
           if (!current) return [guest];
           if (current.some((item) => item.id === guest.id)) return current;
@@ -580,7 +580,7 @@ function BookingLabPageInner() {
       return apiClient.createReservation(payload);
     },
     onSuccess: (reservation) => {
-      queryClient.invalidateQueries({ queryKey: ["booking-lab-guests", selectedCampground?.id] });
+      queryClient.invalidateQueries({ queryKey: ["booking-v2-guests", selectedCampground?.id] });
       // Card payment: open modal to complete payment
       if (formData.paymentMethod === "card") {
         setPaymentModal({ reservationId: reservation.id, amountCents: paymentAmountCents });
@@ -1229,13 +1229,13 @@ function BookingLabPageInner() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="manual">Manual entry (keyed)</SelectItem>
-                            <SelectItem value="reader">Card reader (coming soon)</SelectItem>
+                            <SelectItem value="reader" disabled>Card reader (requires terminal setup)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       {formData.cardEntryMode === "reader" && (
                         <div className="mt-2 text-[11px] text-amber-600">
-                          Card reader payments are not enabled in this sandbox.
+                          Card reader requires terminal configuration. Go to Settings &gt; Payments to set up.
                         </div>
                       )}
                     </div>

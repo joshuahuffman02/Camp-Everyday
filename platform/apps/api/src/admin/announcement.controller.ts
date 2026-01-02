@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
+import { PlatformRole } from "@prisma/client";
 import { AnnouncementService } from "./announcement.service";
 
 class CreateAnnouncementDto {
@@ -21,7 +22,8 @@ class UpdateAnnouncementDto {
 }
 
 @Controller("admin/announcements")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(PlatformRole.platform_admin, PlatformRole.support_agent)
 export class AnnouncementController {
     constructor(private readonly announcements: AnnouncementService) { }
 

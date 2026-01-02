@@ -9,6 +9,7 @@ import {
 import { SelfCheckinService } from './self-checkin.service';
 import { JwtAuthGuard } from '../auth/guards';
 
+@UseGuards(JwtAuthGuard)
 @Controller('reservations/:id')
 export class SelfCheckinController {
   constructor(private readonly selfCheckinService: SelfCheckinService) {}
@@ -26,7 +27,6 @@ export class SelfCheckinController {
     return this.selfCheckinService.selfCheckin(id, body);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Post('self-checkout')
   selfCheckout(
     @Param('id') id: string,

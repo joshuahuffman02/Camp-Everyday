@@ -1,5 +1,6 @@
 import { Body, Controller, Post, UseGuards, BadRequestException } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
+import { UserRole } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import * as bcrypt from "bcryptjs";
 
@@ -24,11 +25,12 @@ class CreateCampgroundWithAdminDto {
 }
 
 @Controller("admin/campgrounds")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class AdminCampgroundController {
     constructor(private readonly prisma: PrismaService) { }
 
     @Post()
+    @Roles(UserRole.platform_admin)
     async createWithAdmin(@Body() dto: CreateCampgroundWithAdminDto) {
         const { campground, admin } = dto;
 

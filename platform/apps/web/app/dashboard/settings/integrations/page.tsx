@@ -214,8 +214,8 @@ export default function IntegrationsSettingsPage() {
             if (oauthData.error) {
                 // Integration not configured yet
                 toast({
-                    title: "Not available yet",
-                    description: oauthData.message || "This integration is coming soon.",
+                    title: "Not available",
+                    description: oauthData.message || "This integration requires additional configuration. Contact support for assistance.",
                     variant: "destructive"
                 });
                 return;

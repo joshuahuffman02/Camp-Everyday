@@ -1,5 +1,5 @@
-import CalendarLabPage from "../calender-lab/page";
+import CalendarV2Page from "../calendar-v2/page";
 
 export default function CalendarPage() {
-  return <CalendarLabPage />;
+  return <CalendarV2Page />;
 }

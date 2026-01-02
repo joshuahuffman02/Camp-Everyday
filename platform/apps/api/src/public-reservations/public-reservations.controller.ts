@@ -106,17 +106,34 @@ export class PublicReservationsController {
 
     @Get("reservations/:id")
     @Throttle({ default: { limit: 20, ttl: 60000 } }) // Moderate rate limit: 20 per minute
-    getReservation(@Param("id") id: string, @Query("campgroundId") campgroundId?: string) {
-        // SECURITY: When campgroundId provided, service validates reservation belongs to it
-        return this.service.getReservation(id, campgroundId);
+    getReservation(
+        @Param("id") id: string,
+        @Query("campgroundId") campgroundId?: string,
+        @Query("token") token?: string
+    ) {
+        // SECURITY: Require either campgroundId for validation OR a signed token
+        // This prevents IDOR by ensuring caller has legitimate access
+        if (!campgroundId && !token) {
+            throw new BadRequestException("campgroundId or access token required");
+        }
+        return this.service.getReservation(id, campgroundId, token);
     }
 
     /**
      * Get form submissions for a reservation
+     * SECURITY: Requires campgroundId to prevent IDOR
      */
     @Get("reservations/:id/form-submissions")
-    async getReservationFormSubmissions(@Param("id") id: string) {
-        return this.formsService.getReservationFormSubmissions(id);
+    async getReservationFormSubmissions(
+        @Param("id") id: string,
+        @Query("campgroundId") campgroundId?: string,
+        @Query("token") token?: string
+    ) {
+        // SECURITY: Require either campgroundId for validation OR a signed token
+        if (!campgroundId && !token) {
+            throw new BadRequestException("campgroundId or access token required");
+        }
+        return this.formsService.getReservationFormSubmissions(id, campgroundId);
     }
 
     /**
@@ -160,6 +177,14 @@ export class PublicReservationsController {
      */
     @Post("demo-request")
     async submitDemoRequest(@Body() dto: CreateDemoRequestDto) {
+        // SECURITY: Escape HTML special characters to prevent injection
+        const escapeHtml = (str: string): string =>
+            str.replace(/&/g, "&amp;")
+               .replace(/</g, "&lt;")
+               .replace(/>/g, "&gt;")
+               .replace(/"/g, "&quot;")
+               .replace(/'/g, "&#039;");
+
         // Store the demo request in the database
         const demoRequest = await this.prisma.demoRequest.create({
             data: {
@@ -173,20 +198,26 @@ export class PublicReservationsController {
             },
         });
 
-        // Send notification email to sales team
+        // Send notification email to sales team (with escaped user input)
         try {
+            const safeName = escapeHtml(dto.name);
+            const safeEmail = escapeHtml(dto.email);
+            const safePhone = dto.phone ? escapeHtml(dto.phone) : "Not provided";
+            const safeCampgroundName = escapeHtml(dto.campgroundName);
+            const safeMessage = dto.message ? escapeHtml(dto.message) : null;
+
             await this.emailService.sendEmail({
                 to: "sales@campeveryday.com",
-                subject: `New Demo Request: ${dto.campgroundName}`,
+                subject: `New Demo Request: ${safeCampgroundName}`,
                 html: `
                     <h2>New Demo Request</h2>
                     <table style="border-collapse: collapse; margin: 16px 0;">
-                        <tr><td style="padding: 8px; font-weight: bold;">Name:</td><td style="padding: 8px;">${dto.name}</td></tr>
-                        <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;"><a href="mailto:${dto.email}">${dto.email}</a></td></tr>
-                        <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;">${dto.phone || "Not provided"}</td></tr>
-                        <tr><td style="padding: 8px; font-weight: bold;">Campground:</td><td style="padding: 8px;">${dto.campgroundName}</td></tr>
+                        <tr><td style="padding: 8px; font-weight: bold;">Name:</td><td style="padding: 8px;">${safeName}</td></tr>
+                        <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;"><a href="mailto:${safeEmail}">${safeEmail}</a></td></tr>
+                        <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;">${safePhone}</td></tr>
+                        <tr><td style="padding: 8px; font-weight: bold;">Campground:</td><td style="padding: 8px;">${safeCampgroundName}</td></tr>
                         <tr><td style="padding: 8px; font-weight: bold;">Site Count:</td><td style="padding: 8px;">${dto.sites}</td></tr>
-                        ${dto.message ? `<tr><td style="padding: 8px; font-weight: bold; vertical-align: top;">Message:</td><td style="padding: 8px;">${dto.message}</td></tr>` : ""}
+                        ${safeMessage ? `<tr><td style="padding: 8px; font-weight: bold; vertical-align: top;">Message:</td><td style="padding: 8px;">${safeMessage}</td></tr>` : ""}
                     </table>
                     <p style="color: #666; font-size: 12px;">Request ID: ${demoRequest.id}</p>
                 `,

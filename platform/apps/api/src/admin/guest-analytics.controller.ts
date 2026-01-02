@@ -1,9 +1,11 @@
 import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { GuestAnalyticsService } from "./guest-analytics.service";
-import { JwtAuthGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
+import { PlatformRole } from "@prisma/client";
 
 @Controller("admin/guest-analytics")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(PlatformRole.platform_admin, PlatformRole.support_agent)
 export class GuestAnalyticsController {
     constructor(private readonly guestAnalyticsService: GuestAnalyticsService) { }
 

@@ -626,6 +626,19 @@ export class PaymentsController {
       // Retrieve payment intent from Stripe to verify status
       const intent = await this.stripeService.retrievePaymentIntent(paymentIntentId, stripeAccountId);
 
+      // SECURITY: Validate payment intent metadata matches the reservation
+      // This prevents attackers from applying a different payment intent to a reservation
+      const intentReservationId = intent.metadata?.reservationId;
+      const intentCampgroundId = intent.metadata?.campgroundId;
+
+      if (intentReservationId && intentReservationId !== body.reservationId) {
+        throw new BadRequestException("Payment intent does not match this reservation");
+      }
+
+      if (intentCampgroundId && intentCampgroundId !== reservation.campground.id) {
+        throw new BadRequestException("Payment intent does not match this campground");
+      }
+
       if (intent.status !== "succeeded" && intent.status !== "requires_capture") {
         const response = {
           success: false,

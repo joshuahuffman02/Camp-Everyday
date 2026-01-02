@@ -4,9 +4,13 @@ import {
   Post,
   Param,
   BadRequestException,
+  ForbiddenException,
   Headers,
+  Req,
+  UseGuards,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { JwtAuthGuard } from "../auth/guards";
 import {
   ReservationImportService,
   ReservationImportColumnMapping,
@@ -54,8 +58,9 @@ export class ReservationImportController {
     @Param("campgroundId") campgroundId: string,
     @Body() body: UploadDto,
     @Headers("x-onboarding-token") onboardingToken?: string,
+    @Req() req?: any,
   ) {
-    await this.validateCampgroundAccess(campgroundId, onboardingToken);
+    await this.validateCampgroundAccess(campgroundId, onboardingToken, req?.user);
 
     if (!body.csvContent) {
       throw new BadRequestException("CSV content is required");
@@ -75,8 +80,9 @@ export class ReservationImportController {
     @Param("campgroundId") campgroundId: string,
     @Body() body: PreviewDto,
     @Headers("x-onboarding-token") onboardingToken?: string,
+    @Req() req?: any,
   ) {
-    await this.validateCampgroundAccess(campgroundId, onboardingToken);
+    await this.validateCampgroundAccess(campgroundId, onboardingToken, req?.user);
 
     if (!body.csvContent) {
       throw new BadRequestException("CSV content is required");
@@ -101,8 +107,9 @@ export class ReservationImportController {
     @Param("campgroundId") campgroundId: string,
     @Body() body: ExecuteDto,
     @Headers("x-onboarding-token") onboardingToken?: string,
+    @Req() req?: any,
   ) {
-    await this.validateCampgroundAccess(campgroundId, onboardingToken);
+    await this.validateCampgroundAccess(campgroundId, onboardingToken, req?.user);
 
     if (!body.csvContent) {
       throw new BadRequestException("CSV content is required");
@@ -179,11 +186,12 @@ export class ReservationImportController {
 
   /**
    * Validate that the request has access to the campground
-   * Either via onboarding token or would need JWT (handled by guard)
+   * Either via onboarding token or JWT with campground membership
    */
   private async validateCampgroundAccess(
     campgroundId: string,
-    onboardingToken?: string
+    onboardingToken?: string,
+    user?: any
   ): Promise<void> {
     // If onboarding token provided, validate it matches the campground
     if (onboardingToken) {
@@ -203,14 +211,27 @@ export class ReservationImportController {
       return;
     }
 
-    // Otherwise, verify campground exists (JWT guard would handle auth)
-    const campground = await this.prisma.campground.findUnique({
-      where: { id: campgroundId },
-      select: { id: true },
-    });
+    // Without onboarding token, require authenticated user with campground access
+    if (!user) {
+      throw new ForbiddenException("Authentication required - provide JWT token or onboarding token");
+    }
 
-    if (!campground) {
-      throw new BadRequestException("Campground not found");
+    // Platform admins can access any campground
+    if (user.platformRole === "platform_admin" || user.platformRole === "platform_superadmin") {
+      return;
+    }
+
+    // Check user has owner/manager role for this campground
+    const userMemberships = user.memberships || [];
+    const membership = userMemberships.find((m: any) => m.campgroundId === campgroundId);
+
+    if (!membership) {
+      throw new ForbiddenException("You do not have access to this campground");
+    }
+
+    // Only owner and manager can import data
+    if (!["owner", "manager"].includes(membership.role)) {
+      throw new ForbiddenException("Only owners and managers can import reservations");
     }
   }
 }

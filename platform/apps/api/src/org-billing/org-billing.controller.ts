@@ -7,24 +7,60 @@ import {
   Query,
   Body,
   UseGuards,
+  Req,
+  ForbiddenException,
 } from "@nestjs/common";
 import { OrgBillingService } from "./org-billing.service";
 import { SubscriptionService } from "./subscription.service";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
+import { UserRole, PlatformRole } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Controller("organizations/:organizationId/billing")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.owner, UserRole.manager, UserRole.finance, PlatformRole.platform_admin)
 export class OrgBillingController {
   constructor(
     private billingService: OrgBillingService,
-    private subscriptionService: SubscriptionService
+    private subscriptionService: SubscriptionService,
+    private prisma: PrismaService
   ) {}
+
+  /**
+   * Validates that the user has access to the organization via campground membership.
+   * Platform admins bypass this check.
+   */
+  private async validateOrgAccess(organizationId: string, user: any): Promise<void> {
+    // Platform admins can access any organization
+    if (user.platformRole === "platform_admin" || user.platformRole === "platform_superadmin") {
+      return;
+    }
+
+    // Check if user has membership to any campground in this organization
+    const userCampgroundIds = (user.memberships || []).map((m: any) => m.campgroundId);
+    if (userCampgroundIds.length === 0) {
+      throw new ForbiddenException("You do not have access to this organization");
+    }
+
+    const campgroundInOrg = await this.prisma.campground.findFirst({
+      where: {
+        organizationId,
+        id: { in: userCampgroundIds },
+      },
+      select: { id: true },
+    });
+
+    if (!campgroundInOrg) {
+      throw new ForbiddenException("You do not have access to this organization");
+    }
+  }
 
   /**
    * Get billing summary for current period
    */
   @Get("summary")
-  async getBillingSummary(@Param("organizationId") organizationId: string) {
+  async getBillingSummary(@Param("organizationId") organizationId: string, @Req() req: any) {
+    await this.validateOrgAccess(organizationId, req.user);
     return this.billingService.getBillingSummary(organizationId);
   }
 
@@ -32,7 +68,8 @@ export class OrgBillingController {
    * Get current billing period
    */
   @Get("current-period")
-  async getCurrentPeriod(@Param("organizationId") organizationId: string) {
+  async getCurrentPeriod(@Param("organizationId") organizationId: string, @Req() req: any) {
+    await this.validateOrgAccess(organizationId, req.user);
     return this.billingService.getCurrentPeriod(organizationId);
   }
 
@@ -42,8 +79,10 @@ export class OrgBillingController {
   @Get("history")
   async getBillingHistory(
     @Param("organizationId") organizationId: string,
-    @Query("limit") limit?: string
+    @Query("limit") limit?: string,
+    @Req() req?: any
   ) {
+    await this.validateOrgAccess(organizationId, req?.user);
     return this.billingService.getBillingHistory(
       organizationId,
       limit ? parseInt(limit, 10) : 12
@@ -60,8 +99,10 @@ export class OrgBillingController {
     @Query("periodStart") periodStartStr?: string,
     @Query("periodEnd") periodEndStr?: string,
     @Query("limit") limitStr?: string,
-    @Query("offset") offsetStr?: string
+    @Query("offset") offsetStr?: string,
+    @Req() req?: any
   ) {
+    await this.validateOrgAccess(organizationId, req?.user);
     const periodStart = periodStartStr ? new Date(periodStartStr) : undefined;
     const periodEnd = periodEndStr ? new Date(periodEndStr) : undefined;
     const limit = limitStr ? parseInt(limitStr, 10) : 100;
@@ -91,8 +132,10 @@ export class OrgBillingController {
       referenceType?: string;
       referenceId?: string;
       metadata?: Record<string, unknown>;
-    }
+    },
+    @Req() req?: any
   ) {
+    await this.validateOrgAccess(organizationId, req?.user);
     return this.billingService.recordUsageEvent({
       organizationId,
       ...body,
@@ -103,6 +146,7 @@ export class OrgBillingController {
    * Finalize a billing period (admin only)
    */
   @Post("periods/:periodId/finalize")
+  @Roles(PlatformRole.platform_admin)
   async finalizePeriod(@Param("periodId") periodId: string) {
     return this.billingService.finalizePeriod(periodId);
   }
@@ -111,6 +155,7 @@ export class OrgBillingController {
    * Mark period as paid (webhook / admin)
    */
   @Post("periods/:periodId/paid")
+  @Roles(PlatformRole.platform_admin)
   async markPeriodPaid(
     @Param("periodId") periodId: string,
     @Body() body: { stripePaymentIntentId?: string }
@@ -126,7 +171,8 @@ export class OrgBillingController {
    * Get Stripe subscription details
    */
   @Get("subscription")
-  async getSubscription(@Param("organizationId") organizationId: string) {
+  async getSubscription(@Param("organizationId") organizationId: string, @Req() req: any) {
+    await this.validateOrgAccess(organizationId, req.user);
     const subscription = await this.subscriptionService.getSubscription(organizationId);
     if (!subscription) {
       return { hasSubscription: false };
@@ -154,8 +200,10 @@ export class OrgBillingController {
   @Post("subscription")
   async createSubscription(
     @Param("organizationId") organizationId: string,
-    @Body() body: { tier?: string }
+    @Body() body: { tier?: string },
+    @Req() req: any
   ) {
+    await this.validateOrgAccess(organizationId, req.user);
     return this.subscriptionService.createSubscription(
       organizationId,
       body.tier || "standard"
@@ -168,8 +216,10 @@ export class OrgBillingController {
   @Delete("subscription")
   async cancelSubscription(
     @Param("organizationId") organizationId: string,
-    @Query("immediately") immediately?: string
+    @Query("immediately") immediately?: string,
+    @Req() req?: any
   ) {
+    await this.validateOrgAccess(organizationId, req?.user);
     return this.subscriptionService.cancelSubscription(
       organizationId,
       immediately === "true"
@@ -182,8 +232,10 @@ export class OrgBillingController {
   @Post("portal")
   async getBillingPortal(
     @Param("organizationId") organizationId: string,
-    @Body() body: { returnUrl: string }
+    @Body() body: { returnUrl: string },
+    @Req() req: any
   ) {
+    await this.validateOrgAccess(organizationId, req.user);
     const url = await this.subscriptionService.getBillingPortalUrl(
       organizationId,
       body.returnUrl
@@ -195,7 +247,8 @@ export class OrgBillingController {
    * Get current Stripe usage (metered billing)
    */
   @Get("stripe-usage")
-  async getStripeUsage(@Param("organizationId") organizationId: string) {
+  async getStripeUsage(@Param("organizationId") organizationId: string, @Req() req: any) {
+    await this.validateOrgAccess(organizationId, req.user);
     return this.subscriptionService.getCurrentUsage(organizationId);
   }
 
@@ -205,8 +258,10 @@ export class OrgBillingController {
   @Post("subscription/change-tier")
   async changeTier(
     @Param("organizationId") organizationId: string,
-    @Body() body: { tier: string }
+    @Body() body: { tier: string },
+    @Req() req: any
   ) {
+    await this.validateOrgAccess(organizationId, req.user);
     return this.subscriptionService.changeTier(organizationId, body.tier);
   }
 }

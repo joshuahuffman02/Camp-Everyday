@@ -1,13 +1,15 @@
 import { Controller, Get, Query, UseGuards } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/guards";
+import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
+import { UserRole } from "@prisma/client";
 import { AuditLogService } from "./audit-log.service";
 
 @Controller("admin/audit")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class AuditLogController {
     constructor(private readonly auditLog: AuditLogService) { }
 
     @Get()
+    @Roles(UserRole.platform_admin, UserRole.support_agent, UserRole.support_lead)
     async list(
         @Query("limit") limit?: string,
         @Query("offset") offset?: string,

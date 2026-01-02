@@ -193,8 +193,20 @@ export class FormsService {
 
   /**
    * Get form submissions for a reservation
+   * SECURITY: When campgroundId is provided, validates reservation belongs to that campground
    */
-  async getReservationFormSubmissions(reservationId: string) {
+  async getReservationFormSubmissions(reservationId: string, campgroundId?: string) {
+    // If campgroundId provided, verify the reservation belongs to it
+    if (campgroundId) {
+      const reservation = await this.prisma.reservation.findFirst({
+        where: { id: reservationId, campgroundId },
+        select: { id: true }
+      });
+      if (!reservation) {
+        throw new NotFoundException("Reservation not found in this campground");
+      }
+    }
+
     return this.prisma.formSubmission.findMany({
       where: { reservationId },
       select: {
