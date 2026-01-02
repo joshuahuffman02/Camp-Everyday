@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { PlatformAnalyticsService, AnalyticsQueryParams } from "../platform-analytics.service";
 
@@ -20,6 +20,7 @@ interface ExportResult {
 
 @Injectable()
 export class AnalyticsExportService {
+  private readonly logger = new Logger(AnalyticsExportService.name);
   private exports: Map<string, { status: string; format: string; data?: string; createdAt: Date }> = new Map();
 
   constructor(
@@ -41,7 +42,8 @@ export class AnalyticsExportService {
 
     // Process export asynchronously
     this.processExport(id, options).catch((err) => {
-      console.error("Export failed:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Export failed: ${message}`);
       const exp = this.exports.get(id);
       if (exp) {
         exp.status = "failed";

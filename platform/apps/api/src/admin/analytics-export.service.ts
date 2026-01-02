@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { GuestAnalyticsService } from "./guest-analytics.service";
 import { AnalyticsType, ExportFormat, ExportStatus, SegmentScope } from "@prisma/client";
@@ -16,6 +16,8 @@ interface ExportRequest {
 
 @Injectable()
 export class AnalyticsExportService {
+  private readonly logger = new Logger(AnalyticsExportService.name);
+
   constructor(
     private prisma: PrismaService,
     private guestAnalyticsService: GuestAnalyticsService
@@ -49,9 +51,10 @@ export class AnalyticsExportService {
     });
 
     // Process export (in production, this would be a background job)
-    this.processExport(exportRecord.id).catch((err) =>
-      console.error("Export processing failed:", err)
-    );
+    this.processExport(exportRecord.id).catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Export processing failed: ${message}`);
+    });
 
     return exportRecord;
   }
