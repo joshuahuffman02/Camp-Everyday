@@ -188,6 +188,7 @@ export function GiftCardsManagement({ campgroundId }: GiftCardsManagementProps) 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000"}/stored-value/code/${checkCode.trim()}/balance`, {
         headers: {
           Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("campreserv:authToken") : ""}`,
+          "x-campground-id": campgroundId,
         },
       });
       if (!res.ok) throw new Error("Card not found");

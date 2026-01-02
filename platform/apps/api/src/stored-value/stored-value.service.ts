@@ -307,6 +307,10 @@ export class StoredValueService {
     const account = await this.prisma.storedValueAccount.findUnique({ where: { id: hold.accountId } });
     if (!account) throw new NotFoundException("Account not found");
     this.ensureActive(account);
+    if (!actor?.campgroundId) {
+      throw new BadRequestException("campground context required");
+    }
+    await this.assertCampgroundScope(account, actor.campgroundId);
     const accountScope = this.normalizeScope(account);
     const transactionCampgroundId = actor?.campgroundId ?? account.campgroundId;
 
@@ -372,6 +376,10 @@ export class StoredValueService {
     const account = await this.prisma.storedValueAccount.findUnique({ where: { id: dto.accountId } });
     if (!account) throw new NotFoundException("Account not found");
     this.ensureActive(account);
+    if (!actor?.campgroundId) {
+      throw new BadRequestException("campground context required");
+    }
+    await this.assertCampgroundScope(account, actor.campgroundId);
     const accountScope = this.normalizeScope(account);
     const transactionCampgroundId = actor?.campgroundId ?? account.campgroundId;
     this.ensureCurrency(account, dto.currency);
@@ -479,6 +487,12 @@ export class StoredValueService {
     const hold = await this.prisma.storedValueHold.findUnique({ where: { id: holdId } });
     if (!hold) throw new NotFoundException("Hold not found");
     if (hold.status !== "open") throw new ConflictException("Hold not open");
+    const account = await this.prisma.storedValueAccount.findUnique({ where: { id: hold.accountId } });
+    if (!account) throw new NotFoundException("Account not found");
+    if (!actor?.campgroundId) {
+      throw new BadRequestException("campground context required");
+    }
+    await this.assertCampgroundScope(account, actor.campgroundId);
 
     try {
       const result = await this.prisma.$transaction(async (tx: any) => {
@@ -622,17 +636,25 @@ export class StoredValueService {
     }
   }
 
-  async balanceByAccount(accountId: string) {
+  async balanceByAccount(accountId: string, campgroundId?: string) {
     await this.idempotency.throttleScope(undefined, undefined, "lookup").catch((err) => {
       this.observability.recordRedeemOutcome(false, undefined, { error: err?.message ?? "throttled_lookup", accountId });
       throw err;
     });
+    if (campgroundId) {
+      const account = await this.prisma.storedValueAccount.findUnique({
+        where: { id: accountId },
+        select: { id: true, campgroundId: true, scopeType: true, scopeId: true }
+      });
+      if (!account) throw new NotFoundException("Account not found");
+      await this.assertCampgroundScope(account, campgroundId);
+    }
     // Computes balance from ledger for now
     const { balanceCents, availableCents } = await this.getBalances(this.prisma, accountId);
     return { accountId, balanceCents, availableCents };
   }
 
-  async balanceByCode(code: string) {
+  async balanceByCode(code: string, campgroundId?: string) {
     await this.idempotency.throttleScope(undefined, undefined, "lookup").catch((err) => {
       this.observability.recordRedeemOutcome(false, undefined, { error: err?.message ?? "throttled_lookup", code });
       throw err;
@@ -642,7 +664,7 @@ export class StoredValueService {
       select: { accountId: true }
     });
     if (!account) return { code, balanceCents: 0 };
-    return this.balanceByAccount(account.accountId);
+    return this.balanceByAccount(account.accountId, campgroundId);
   }
 
   async listAccounts(campgroundId: string) {
@@ -875,6 +897,27 @@ export class StoredValueService {
     }
     const scopeId = account?.scopeId ?? account?.campgroundId ?? null;
     return { scopeType: "campground", scopeId };
+  }
+
+  private async assertCampgroundScope(
+    account: { scopeType?: string | null; scopeId?: string | null; campgroundId?: string | null },
+    campgroundId: string
+  ) {
+    const accountScope = this.normalizeScope(account);
+    if (accountScope.scopeType === "global") {
+      return;
+    }
+    if (accountScope.scopeType === "organization") {
+      const orgId = await this.getOrganizationIdForCampground(campgroundId);
+      if (!orgId || orgId !== accountScope.scopeId) {
+        throw new ForbiddenException("Stored value not valid for this campground");
+      }
+      return;
+    }
+    const scopeId = accountScope.scopeId ?? account.campgroundId ?? null;
+    if (scopeId && scopeId !== campgroundId) {
+      throw new ForbiddenException("Stored value not valid for this campground");
+    }
   }
 
   private ensureScopeMatches(account: any, expected: { scopeType: string; scopeId: string | null }) {
