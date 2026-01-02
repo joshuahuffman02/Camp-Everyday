@@ -789,8 +789,8 @@ function BookingPageInner() {
     paymentReady;
 
   return (
-    <DashboardShell>
-      <div className="px-6 py-6 w-full max-w-none space-y-6">
+    <DashboardShell density="full">
+      <div className="space-y-6">
         <Breadcrumbs
           items={[
             { label: "Dashboard", href: "/dashboard" },
@@ -824,7 +824,7 @@ function BookingPageInner() {
             </div>
 
             {selectedCampground && (
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600">
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-card px-4 py-2 text-xs font-semibold text-slate-600">
                 <MapPin className="h-4 w-4 text-emerald-600" />
                 <span>{selectedCampground.name}</span>
               </div>
@@ -876,7 +876,7 @@ function BookingPageInner() {
                       onFocus={() => setShowGuestResults(true)}
                     />
                     {showGuestResults && guestSearch && (
-                      <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-card shadow-lg">
                         {guestMatches.length === 0 && (
                           <div className="p-3 text-xs text-slate-500">No matching guests.</div>
                         )}
@@ -1584,7 +1584,7 @@ function BookingPageInner() {
                 {formData.collectPayment && (
                   <div className="mt-4 space-y-2">
                   {formData.paymentMethod === "card" && (
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500">
+                    <div className="rounded-lg border border-slate-200 bg-card px-3 py-2 text-[11px] text-slate-500">
                       {formData.cardEntryMode === "reader"
                         ? "Card reader payments require a connected terminal."
                         : "Manual card checkout opens right after the reservation is created."}
@@ -1619,7 +1619,7 @@ function BookingPageInner() {
                     </div>
                   </div>
                   {formData.paymentMethod === "card" && (
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <div className="rounded-lg border border-slate-200 bg-card px-3 py-2">
                       <div className="space-y-1">
                         <Label className="text-xs text-slate-500">Card entry</Label>
                         <Select
@@ -1643,7 +1643,7 @@ function BookingPageInner() {
                     </div>
                   )}
                   {formData.paymentMethod === "cash" && (
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <div className="rounded-lg border border-slate-200 bg-card px-3 py-2">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <div className="space-y-1">
                           <Label className="text-xs text-slate-500">Cash received</Label>

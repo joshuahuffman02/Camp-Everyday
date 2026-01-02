@@ -262,7 +262,7 @@ export function CalendarGrid({ data, onSelectionComplete, onReservationMove }: C
             <div className="overflow-x-auto">
                 {/* Header Row */}
                 <div
-                    className="grid text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 bg-slate-50/50"
+                    className="grid text-xs font-medium text-muted-foreground border-b border-slate-200 bg-slate-50/50"
                     style={{ gridTemplateColumns: gridTemplate }}
                 >
                     <div className="px-4 py-3 sticky left-0 z-30 bg-slate-50 border-r border-slate-200">

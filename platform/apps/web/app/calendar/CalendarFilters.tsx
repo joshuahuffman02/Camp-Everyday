@@ -26,7 +26,7 @@ export function CalendarFilters({ filters, actions }: CalendarFiltersProps) {
     return (
         <div className="flex flex-wrap gap-4 items-end bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6">
             <div className="space-y-1.5 min-w-[140px]">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 ml-1">Guest Search</Label>
+                <Label className="text-xs font-medium text-muted-foreground">Guest Search</Label>
                 <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                     <Input
@@ -39,7 +39,7 @@ export function CalendarFilters({ filters, actions }: CalendarFiltersProps) {
             </div>
 
             <div className="space-y-1.5 min-w-[120px]">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 ml-1">Status</Label>
+                <Label className="text-xs font-medium text-muted-foreground">Status</Label>
                 <Select value={filters.statusFilter} onValueChange={actions.setStatusFilter}>
                     <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="All Statuses" />
@@ -54,7 +54,7 @@ export function CalendarFilters({ filters, actions }: CalendarFiltersProps) {
             </div>
 
             <div className="space-y-1.5 min-w-[120px]">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 ml-1">Site Type</Label>
+                <Label className="text-xs font-medium text-muted-foreground">Site Type</Label>
                 <Select value={filters.siteTypeFilter} onValueChange={actions.setSiteTypeFilter}>
                     <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="All Types" />

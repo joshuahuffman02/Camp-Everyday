@@ -410,8 +410,8 @@ export default function CalendarPage() {
   }, [bookingDraft, router]);
 
   return (
-    <DashboardShell>
-      <div className="px-6 py-6 w-full max-w-none space-y-6">
+    <DashboardShell density="full">
+      <div className="space-y-6">
         <Breadcrumbs
           items={[
             { label: "Dashboard", href: "/dashboard" },
@@ -423,7 +423,7 @@ export default function CalendarPage() {
           <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-2xl bg-blue-600/10 text-blue-700 flex items-center justify-center">
+                <div className="h-11 w-11 rounded-2xl bg-emerald-600/10 text-emerald-700 flex items-center justify-center">
                   <CalendarDays className="h-5 w-5" />
                 </div>
                 <div>
@@ -446,7 +446,7 @@ export default function CalendarPage() {
                     size="sm"
                     className={cn(
                       "h-8 px-3 text-[10px] font-black uppercase tracking-wider",
-                      state.dayCount === range ? "bg-slate-100 text-blue-700" : "text-slate-500"
+                      state.dayCount === range ? "bg-slate-100 text-emerald-700" : "text-slate-500"
                     )}
                     onClick={() => actions.setDayCount(range)}
                   >
@@ -473,7 +473,7 @@ export default function CalendarPage() {
               </div>
 
               <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-600">
-                <CalendarCheck className="h-4 w-4 text-blue-600" />
+                <CalendarCheck className="h-4 w-4 text-emerald-600" />
                 <span>{rangeLabel}</span>
               </div>
 
@@ -489,7 +489,7 @@ export default function CalendarPage() {
                       size="sm"
                       className={cn(
                         "h-8 px-2.5 gap-1.5",
-                        density === mode ? "bg-slate-100 text-blue-700" : "text-slate-500"
+                        density === mode ? "bg-slate-100 text-emerald-700" : "text-slate-500"
                       )}
                       onClick={() => setDensity(mode)}
                       title={`${config.label} view`}
@@ -534,7 +534,7 @@ export default function CalendarPage() {
           <Card className="p-4 border-slate-200 shadow-sm">
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Search guests</Label>
+                <Label className="text-xs font-medium text-muted-foreground">Search guests</Label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
@@ -557,7 +557,7 @@ export default function CalendarPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status</Label>
+                <Label className="text-xs font-medium text-muted-foreground">Status</Label>
                 <Select value={state.statusFilter} onValueChange={actions.setStatusFilter}>
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder="All statuses" />
@@ -573,7 +573,7 @@ export default function CalendarPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Site type</Label>
+                <Label className="text-xs font-medium text-muted-foreground">Site type</Label>
                 <Select value={state.siteTypeFilter} onValueChange={actions.setSiteTypeFilter}>
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder="All types" />
@@ -630,10 +630,10 @@ export default function CalendarPage() {
         {state.selectedCampground && (
           <div className="space-y-4">
             {bookingDraft ? (
-              <Card className="p-4 border-blue-200 shadow-[0_20px_50px_-30px_rgba(37,99,235,0.35)]">
+              <Card className="p-4 border-emerald-200 shadow-[0_20px_50px_-30px_rgba(16,185,129,0.35)]">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="space-y-1">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-blue-700">Draft booking</div>
+                    <div className="text-xs font-medium text-emerald-700">Draft booking</div>
                     <div className="text-sm font-semibold text-slate-900">{bookingDraft.siteName}</div>
                     <div className="text-xs text-slate-500">
                       {bookingDraft.arrival} → {bookingDraft.departure} · {bookingDraft.nights} nights
@@ -678,7 +678,7 @@ export default function CalendarPage() {
 
             {visibleSiteTypes.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Site types</span>
+                <span className="text-xs font-medium text-muted-foreground">Site types</span>
                 {visibleSiteTypes.map((type) => {
                   const meta = SITE_TYPE_STYLES[type] || SITE_TYPE_STYLES.default;
                   return (
@@ -930,7 +930,7 @@ function StatCard({ label, value, sub, icon }: { label: string; value: string; s
         {icon}
       </div>
       <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</div>
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
         <div className="text-lg font-black text-slate-900">{value}</div>
         <div className="text-xs text-slate-500">{sub}</div>
       </div>
@@ -949,7 +949,7 @@ function StatusLegend({ className }: StatusLegendProps) {
         <div className="h-5 w-5 rounded-md bg-slate-100 flex items-center justify-center">
           <CalendarDays className="h-3 w-3 text-slate-600" />
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status Legend</span>
+        <span className="text-xs font-medium text-muted-foreground">Status Legend</span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {Object.entries(STATUS_CONFIG).map(([key, config]) => {
@@ -994,7 +994,7 @@ function StatusFilterChips({ activeFilter, onFilterChange, reservationCounts = {
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">
+      <span className="text-xs font-medium text-muted-foreground mr-1">
         Filter by status
       </span>
       {statuses.map((status) => {
@@ -1202,7 +1202,7 @@ function CalendarGrid({
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <div
-          className="grid text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 bg-slate-50/70"
+          className="grid text-xs font-medium text-muted-foreground border-b border-slate-200 bg-slate-50/70"
           style={{ gridTemplateColumns: gridTemplate }}
         >
           <div className="px-4 py-3 sticky left-0 z-20 bg-slate-50 border-r border-slate-200">
@@ -1213,7 +1213,7 @@ function CalendarGrid({
               key={idx}
               className={cn(
                 "px-2 py-3 text-center border-r border-slate-100 last:border-r-0",
-                d.isToday && "bg-blue-50 text-blue-700"
+                d.isToday && "bg-emerald-50 text-emerald-700"
               )}
             >
               <div>{d.label}</div>
@@ -1316,8 +1316,8 @@ function CalendarRow({
                 "border-r border-slate-100 cursor-crosshair transition-colors select-none touch-none",
                 zebra,
                 d.weekend && "bg-slate-50/60",
-                d.isToday && "bg-blue-50/50",
-                "hover:bg-blue-50/40"
+                d.isToday && "bg-emerald-50/50",
+                "hover:bg-emerald-50/40"
               )}
               style={{ height: `${densityConfig.rowHeight}px` }}
               onPointerDown={(e) => onCellPointerDown(site.id, i, e)}
@@ -1331,10 +1331,10 @@ function CalendarRow({
         >
           {active && activeStart !== null && activeEnd !== null && (
             <div
-              className={cn("my-1 mx-1 rounded-xl bg-blue-500/25 border border-blue-500/70 shadow-[0_0_20px_rgba(59,130,246,0.25)] flex items-center justify-center z-20", selectionHeightClass)}
+              className={cn("my-1 mx-1 rounded-xl bg-emerald-500/25 border border-emerald-500/70 shadow-[0_0_20px_rgba(16,185,129,0.25)] flex items-center justify-center z-20", selectionHeightClass)}
               style={{ gridColumn: `${activeStart + 1} / span ${activeSpan}` }}
             >
-              <div className={cn("px-3 py-1 rounded-full bg-blue-600 text-white font-black uppercase tracking-widest flex items-center gap-2", densityConfig.fontSize)}>
+              <div className={cn("px-3 py-1 rounded-full bg-emerald-600 text-white font-black uppercase tracking-widest flex items-center gap-2", densityConfig.fontSize)}>
                 {densityConfig.showDetails && <span className="opacity-80">{site.name}</span>}
                 <span>{activeSpan} {activeLabel}</span>
               </div>

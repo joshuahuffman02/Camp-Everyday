@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
 import { HelpAnchor } from "../../components/help/HelpAnchor";
 
 export default function ReservationsLanding() {
@@ -23,7 +24,7 @@ export default function ReservationsLanding() {
 
   return (
     <DashboardShell>
-      <div className="card p-6 space-y-3">
+      <Card className="p-6 space-y-3">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-semibold text-slate-900">Reservations</h1>
           <HelpAnchor topicId="reservation-manage" label="How to manage reservations" />
@@ -39,7 +40,7 @@ export default function ReservationsLanding() {
             <Link href="/booking">Create reservation</Link>
           </Button>
         </div>
-      </div>
+      </Card>
     </DashboardShell>
   );
 }

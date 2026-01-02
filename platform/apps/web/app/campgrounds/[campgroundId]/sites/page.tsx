@@ -1569,26 +1569,37 @@ export default function SitesPage() {
               })}
               {filteredSites.length === 0 && !isLoading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
                     <motion.div
                       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
                       animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
                       transition={SPRING_CONFIG}
-                      className="flex flex-col items-center gap-3"
+                      className="flex flex-col items-center gap-4"
                     >
-                      <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-                        <Trees className="h-8 w-8 text-muted-foreground" />
+                      <div className="h-20 w-20 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
+                        <Trees className="h-10 w-10 text-emerald-600" />
                       </div>
-                      <div>
-                        <p className="font-medium text-foreground">
+                      <div className="space-y-2">
+                        <p className="text-lg font-semibold text-foreground">
                           {data?.length === 0 ? "No sites yet" : "No sites match your filters"}
                         </p>
-                        <p className="text-sm">
+                        <p className="text-sm max-w-md mx-auto">
                           {data?.length === 0
-                            ? "Click 'Add Site' above to create your first site."
-                            : "Try adjusting your search or filter criteria."}
+                            ? "Sites are the bookable units at your campground. Add your first site to start accepting reservations."
+                            : "Try adjusting your search or filter criteria to find what you're looking for."}
                         </p>
                       </div>
+                      {data?.length === 0 && (
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            onClick={() => setShowCreateForm(true)}
+                            className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Your First Site
+                          </Button>
+                        </div>
+                      )}
                     </motion.div>
                   </TableCell>
                 </TableRow>

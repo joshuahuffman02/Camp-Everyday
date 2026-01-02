@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
 import { useToast } from "../../components/ui/use-toast";
 import { HelpAnchor } from "../../components/help/HelpAnchor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -4495,7 +4496,7 @@ function ReportsPageInner() {
                 {/* Site Status Report */}
                 {
                   (activeTab as string) === 'daily' && siteStatusReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Site Status Overview</div>
                         <div className="text-xs text-slate-500">Real-time availability status for all sites</div>
@@ -4527,14 +4528,14 @@ function ReportsPageInner() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* Transaction Log */}
                 {
                   (activeTab as string) === 'daily' && transactionLog && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Transaction Log</div>
                         <div className="text-xs text-slate-500">Complete financial activity log, sorted by date</div>
@@ -4585,14 +4586,14 @@ function ReportsPageInner() {
                           </table>
                         </div>
                       )}
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* Monthly Revenue */}
                 {
                   (activeTab as string) === 'daily' && monthlyRevenue && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Monthly Revenue Breakdown</div>
                         <div className="text-xs text-slate-500">All 12 months for current year</div>
@@ -4621,14 +4622,14 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* Annual Revenue */}
                 {
                   (activeTab as string) === 'daily' && annualRevenue && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Annual Revenue Comparison</div>
                         <div className="text-xs text-slate-500">Year-over-year performance (last 3 years)</div>
@@ -4662,14 +4663,14 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* Daily Revenue (Last 30 Days) */}
                 {
                   (activeTab as string) === 'daily' && dailyRevenue && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Daily Revenue Trend</div>
                         <div className="text-xs text-slate-500">Last 30 days booking activity</div>
@@ -4709,7 +4710,7 @@ function ReportsPageInner() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
@@ -4780,7 +4781,7 @@ function ReportsPageInner() {
                 {/* No-Show Report */}
                 {
                   (activeTab as string) === 'daily' && noShowReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">No-Shows</div>
                         <div className="text-xs text-slate-500">Guests who didn't arrive for confirmed reservations</div>
@@ -4838,14 +4839,14 @@ function ReportsPageInner() {
                           </table>
                         </div>
                       )}
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* REVENUE TAB */}
                 {
                   activeTab === 'revenue' && reservationStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Reservation Analytics</div>
                         <div className="text-xs text-slate-500">For date range: {dateRange.start} to {dateRange.end}</div>
@@ -4881,14 +4882,14 @@ function ReportsPageInner() {
                           ))}
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Site Performance */}
                 {
                   activeTab === 'performance' && sitePerformance && sitePerformance.length > 0 && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Top 10 Sites by Revenue</div>
                         <div className="text-xs text-slate-500">All-time performance</div>
@@ -4907,14 +4908,14 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* Revenue Trends */}
                 {
                   activeTab === 'revenue' && revenueTrends && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Revenue Trends</div>
                         <div className="text-xs text-slate-500">Last 12 months</div>
@@ -4939,14 +4940,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* REVENUE TAB - Weekend vs Weekday */}
                 {
                   activeTab === 'revenue' && weekendVsWeekdayStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Weekend vs Weekday Performance</div>
                         <div className="text-xs text-slate-500">Booking patterns by arrival day</div>
@@ -4987,14 +4988,14 @@ function ReportsPageInner() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* REVENUE TAB - Pricing Analysis by Site Class */}
                 {
                   activeTab === 'revenue' && pricingAnalysis && pricingAnalysis.length > 0 && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Pricing Analysis by Site Class</div>
                         <div className="text-xs text-slate-500">Average daily rate and performance metrics</div>
@@ -5019,14 +5020,14 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* REVENUE TAB - ADR Trends */}
                 {
                   activeTab === 'revenue' && adrTrends && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">ADR Trends</div>
                         <div className="text-xs text-slate-500">Average daily rate over last 12 months</div>
@@ -5051,14 +5052,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Site Class Performance */}
                 {
                   activeTab === 'performance' && siteClassStats && siteClassStats.length > 0 && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Site Class Performance</div>
                         <div className="text-xs text-slate-500">Revenue by class</div>
@@ -5074,14 +5075,14 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Occupancy Trends */}
                 {
                   activeTab === 'performance' && occupancyTrends && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Occupancy Trends</div>
                         <div className="text-xs text-slate-500">Last 12 months</div>
@@ -5111,14 +5112,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Revenue Per Site */}
                 {
                   activeTab === 'performance' && revenuePerSiteStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Revenue Per Site</div>
                         <div className="text-xs text-slate-500">Average performance metrics</div>
@@ -5137,14 +5138,14 @@ function ReportsPageInner() {
                           <div className="text-2xl font-bold text-blue-900">{formatCurrency(revenuePerSiteStats.last30Days, 0)}</div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Site Utilization */}
                 {
                   activeTab === 'performance' && siteUtilizationStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Site Utilization Rate</div>
                         <div className="text-xs text-slate-500">Booking frequency by site (All-time)</div>
@@ -5186,14 +5187,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Occupancy by Site Class */}
                 {
                   activeTab === 'performance' && occupancyBySiteClass && occupancyBySiteClass.length > 0 && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Occupancy by Site Class</div>
                         <div className="text-xs text-slate-500">Annual occupancy rate by class</div>
@@ -5224,14 +5225,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Site Utilization Report (90 days) */}
                 {
                   activeTab === 'performance' && siteUtilizationReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Site Utilization (Last 90 Days)</div>
                         <div className="text-xs text-slate-500">Occupancy rates and revenue by site | Avg: {siteUtilizationReport.avgOccupancy.toFixed(1)}%</div>
@@ -5272,14 +5273,14 @@ function ReportsPageInner() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Revenue Per Site Report */}
                 {
                   activeTab === 'performance' && revenuePerSiteReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Revenue Per Site (All-Time)</div>
                         <div className="text-xs text-slate-500">Total: {formatCurrency(revenuePerSiteReport.totalRevenue, 0)}</div>
@@ -5314,7 +5315,7 @@ function ReportsPageInner() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
@@ -5347,7 +5348,7 @@ function ReportsPageInner() {
                 {/* PERFORMANCE TAB - Length of Stay Distribution */}
                 {
                   activeTab === 'performance' && lengthOfStayReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Length of Stay Distribution</div>
                         <div className="text-xs text-slate-500">Avg: {lengthOfStayReport.avgStay.toFixed(1)} nights | Total bookings: {lengthOfStayReport.totalBookings}</div>
@@ -5393,14 +5394,14 @@ function ReportsPageInner() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Booking Lead Time Analysis */}
                 {
                   activeTab === 'performance' && bookingLeadTimeReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Booking Lead Time Analysis</div>
                         <div className="text-xs text-slate-500">How far in advance guests book | Avg: {bookingLeadTimeReport.avgLeadTime.toFixed(1)} days | Median: {bookingLeadTimeReport.medianLeadTime} days</div>
@@ -5456,14 +5457,14 @@ function ReportsPageInner() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* REVENUE TAB - Future Revenue Forecast */}
                 {
                   activeTab === 'revenue' && futureRevenue && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Future Revenue Forecast</div>
                         <div className="text-xs text-slate-500">Confirmed & pending bookings</div>
@@ -5486,14 +5487,14 @@ function ReportsPageInner() {
                           <div className="text-lg font-bold text-amber-900">${futureRevenue.outstanding.toFixed(0)}</div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* REVENUE TAB - Payment Breakdown */}
                 {
                   activeTab === 'revenue' && paymentStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Payment Breakdown</div>
                         <div className="text-xs text-slate-500">All-time collection metrics</div>
@@ -5516,14 +5517,14 @@ function ReportsPageInner() {
                           <div className="text-xl font-bold text-blue-900">{paymentStats.paidPercentage}%</div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* REVENUE TAB - Monthly Comparison */}
                 {
                   activeTab === 'revenue' && monthlyComparison && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Month-over-Month</div>
                         <div className="text-xs text-slate-500">Current vs previous month comparison</div>
@@ -5567,14 +5568,14 @@ function ReportsPageInner() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* GUESTS TAB */}
                 {
                   activeTab === 'guests' && activeSubTab === 'legacy-overview' && guestStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Guest Analytics</div>
                         <div className="text-xs text-slate-500">Loyalty metrics</div>
@@ -5593,14 +5594,14 @@ function ReportsPageInner() {
                           <div className="text-2xl font-bold text-blue-900">{guestStats.repeatRate}%</div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* GUESTS TAB - Party Size Distribution */}
                 {
                   activeTab === 'guests' && activeSubTab === 'legacy-overview' && partySizeStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Party Size Distribution</div>
                         <div className="text-xs text-slate-500">Average party size: {partySizeStats.avgPartySize} guests</div>
@@ -5625,14 +5626,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* GUESTS TAB - Top Guests by Revenue */}
                 {
                   activeTab === 'guests' && activeSubTab === 'legacy-overview' && topGuestsStats && topGuestsStats.length > 0 && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Top 10 Guests by Revenue</div>
                         <div className="text-xs text-slate-500">Most valuable customers (All-time)</div>
@@ -5654,14 +5655,14 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* GUESTS TAB - Guest Loyalty & Repeat Visitors */}
                 {
                   activeTab === 'guests' && activeSubTab === 'legacy-overview' && guestLoyaltyReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Guest Loyalty & Repeat Visitors</div>
                         <div className="text-xs text-slate-500">
@@ -5719,14 +5720,14 @@ function ReportsPageInner() {
                           </table>
                         </div>
                       )}
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* GUESTS TAB - Guest Segmentation (New vs Returning) */}
                 {
                   activeTab === 'guests' && activeSubTab === 'legacy-overview' && guestSegmentationReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Guest Segmentation Analysis</div>
                         <div className="text-xs text-slate-500">New vs Returning guest revenue breakdown | Returning Rate: {guestSegmentationReport.returningRate.toFixed(1)}%</div>
@@ -5776,7 +5777,7 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
@@ -5786,7 +5787,7 @@ function ReportsPageInner() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {/* Cancellation Analytics */}
                       {cancellationStats && (
-                        <div className="card p-4 space-y-3">
+                        <Card className="p-4 space-y-3">
                           <div>
                             <div className="text-sm font-semibold text-slate-900">Cancellation Analytics</div>
                             <div className="text-xs text-slate-500">All-time performance</div>
@@ -5805,12 +5806,12 @@ function ReportsPageInner() {
                               <div className="text-2xl font-bold text-amber-900">{formatCurrency(cancellationStats.revenueLost, 0)}</div>
                             </div>
                           </div>
-                        </div>
+                        </Card>
                       )}
 
                       {/* Length of Stay */}
                       {lengthOfStayStats && (
-                        <div className="card p-4 space-y-3">
+                        <Card className="p-4 space-y-3">
                           <div>
                             <div className="text-sm font-semibold text-slate-900">Length of Stay</div>
                             <div className="text-xs text-slate-500">Average: {lengthOfStayStats.avgNights} nights</div>
@@ -5823,12 +5824,12 @@ function ReportsPageInner() {
                               </div>
                             ))}
                           </div>
-                        </div>
+                        </Card>
                       )}
 
                       {/* Booking Window Distribution */}
                       {bookingWindowStats && (
-                        <div className="card p-4 space-y-3">
+                        <Card className="p-4 space-y-3">
                           <div>
                             <div className="text-sm font-semibold text-slate-900">Booking Window</div>
                             <div className="text-xs text-slate-500">Average: {bookingWindowStats.avgDays} days in advance</div>
@@ -5841,12 +5842,12 @@ function ReportsPageInner() {
                               </div>
                             ))}
                           </div>
-                        </div>
+                        </Card>
                       )}
 
                       {/* Day of Week Patterns */}
                       {dayOfWeekStats && (
-                        <div className="card p-4 space-y-3">
+                        <Card className="p-4 space-y-3">
                           <div>
                             <div className="text-sm font-semibold text-slate-900">Day of Week Patterns</div>
                             <div className="text-xs text-slate-500">Arrival & departure trends</div>
@@ -5868,12 +5869,12 @@ function ReportsPageInner() {
                               </div>
                             ))}
                           </div>
-                        </div>
+                        </Card>
                       )}
 
                       {/* Revenue Concentration */}
                       {revenueConcentrationStats && (
-                        <div className="card p-4 space-y-3 lg:col-span-2">
+                        <Card className="p-4 space-y-3 lg:col-span-2">
                           <div>
                             <div className="text-sm font-semibold text-slate-900">Revenue Concentration</div>
                             <div className="text-xs text-slate-500">Pareto analysis of site revenue distribution</div>
@@ -5898,7 +5899,7 @@ function ReportsPageInner() {
                           <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-700">
                             <span className="font-semibold">Insight:</span> Understanding revenue concentration helps identify your star performers and opportunities to improve underperforming sites.
                           </div>
-                        </div>
+                        </Card>
                       )}
                     </div>
                   )
@@ -5907,7 +5908,7 @@ function ReportsPageInner() {
                 {/* MARKETING TAB */}
                 {
                   activeTab === 'marketing' && marketingStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Booking Conversion</div>
                         <div className="text-xs text-slate-500">All-time conversion metrics</div>
@@ -5938,13 +5939,13 @@ function ReportsPageInner() {
                         <div className="text-xs text-purple-700 mb-1">Average Booking Value</div>
                         <div className="text-3xl font-bold text-purple-900">{formatCurrency(marketingStats.avgBookingValue)}</div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {
                   activeTab === 'marketing' && bookingPaceStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Booking Pace</div>
                         <div className="text-xs text-slate-500">Future bookings on the books</div>
@@ -5971,14 +5972,14 @@ function ReportsPageInner() {
                           <div className="text-xs text-emerald-700">bookings</div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* FORECASTING TAB */}
                 {
                   activeTab === 'forecasting' && revenueForecast && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Revenue Forecast</div>
                         <div className="text-xs text-slate-500">Projected revenue for next 3 months (confirmed + pending bookings)</div>
@@ -6001,13 +6002,13 @@ function ReportsPageInner() {
                       <div className="rounded-md bg-status-info/15 border border-status-info/30 px-3 py-2 text-xs text-status-info">
                         <span className="font-semibold">Note:</span> Forecasts are based on current confirmed and pending reservations. Actual results may vary based on new bookings and cancellations.
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {
                   activeTab === 'forecasting' && bookingPaceStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Demand Outlook</div>
                         <div className="text-xs text-slate-500">Booking distribution for next 90 days</div>
@@ -6050,14 +6051,14 @@ function ReportsPageInner() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* FORECASTING TAB - Seasonal Analysis */}
                 {
                   activeTab === 'forecasting' && seasonalAnalysisReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Peak vs Off-Peak Season Analysis</div>
                         <div className="text-xs text-slate-500">Avg Revenue: ${seasonalAnalysisReport.avgRevenue.toFixed(0)}/month | Peak: {seasonalAnalysisReport.peakMonths.map(m => m.month).join(', ')}</div>
@@ -6096,14 +6097,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* FORECASTING TAB - Day of Week Performance */}
                 {
                   activeTab === 'forecasting' && dayOfWeekReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Day of Week Performance</div>
                         <div className="text-xs text-slate-500">Check-in patterns by arrival day | Avg: {dayOfWeekReport.avgBookingsPerDay.toFixed(1)} bookings/day</div>
@@ -6130,14 +6131,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* FORECASTING TAB - Revenue Optimization Opportunities */}
                 {
                   activeTab === 'forecasting' && revenueOptimizationReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Revenue Optimization Opportunities</div>
                         <div className="text-xs text-slate-500">Actionable insights to improve performance</div>
@@ -6185,14 +6186,14 @@ function ReportsPageInner() {
                           ))}
                         </div>
                       )}
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* FORECASTING TAB - Occupancy Forecast (90 days) */}
                 {
                   activeTab === 'forecasting' && occupancyForecastReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">90-Day Occupancy Forecast</div>
                         <div className="text-xs text-slate-500">
@@ -6242,14 +6243,14 @@ function ReportsPageInner() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Extended Stay Analysis */}
                 {
                   activeTab === 'performance' && extendedStayReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Extended Stay Analysis</div>
                         <div className="text-xs text-slate-500">Long-term guest tracking (7+ nights)</div>
@@ -6319,14 +6320,14 @@ function ReportsPageInner() {
                           </div>
                         </div>
                       )}
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* GUESTS TAB - Group Booking Analysis */}
                 {
                   activeTab === 'guests' && activeSubTab === 'legacy-overview' && groupBookingReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Group Booking Analysis</div>
                         <div className="text-xs text-slate-500">Parties of 5+ guests | Total: {groupBookingReport.totalGroups} groups</div>
@@ -6389,14 +6390,14 @@ function ReportsPageInner() {
                           </div>
                         </div>
                       )}
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* PERFORMANCE TAB - Advance vs Walk-in Booking Analysis */}
                 {
                   activeTab === 'performance' && advanceBookingReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Advance vs Walk-in Booking Analysis</div>
                         <div className="text-xs text-slate-500">Booking lead time distribution | Total: {advanceBookingReport.total} bookings</div>
@@ -6474,14 +6475,14 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* FORECASTING TAB - Pricing Strategy Recommendations */}
                 {
                   activeTab === 'forecasting' && pricingStrategyReport && pricingStrategyReport.length > 0 && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">AI-Driven Pricing Strategy Recommendations</div>
                         <div className="text-xs text-slate-500">Revenue optimization opportunities | {pricingStrategyReport.length} recommendations</div>
@@ -6573,14 +6574,14 @@ function ReportsPageInner() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* FORECASTING TAB - Weekend Premium Analysis */}
                 {
                   activeTab === 'forecasting' && weekendPremiumReport && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Weekend Premium Analysis</div>
                         <div className="text-xs text-slate-500">Weekday vs Weekend rate comparison (Friday/Saturday arrivals)</div>
@@ -6700,14 +6701,14 @@ function ReportsPageInner() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* ACCOUNTING TAB */}
                 {
                   activeTab === 'accounting' && paymentStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Payment Summary</div>
                         <div className="text-xs text-slate-500">All-time collection metrics</div>
@@ -6730,13 +6731,13 @@ function ReportsPageInner() {
                           <div className="text-2xl font-bold text-blue-900">{paymentStats.paidPercentage}%</div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {
                   activeTab === 'accounting' && paymentMethodStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Payment Status Distribution</div>
                         <div className="text-xs text-slate-500">Breakdown by payment completion</div>
@@ -6763,14 +6764,14 @@ function ReportsPageInner() {
                           <div className="text-xs text-slate-600">Active reservations</div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* ACCOUNTING TAB - Refund Tracking */}
                 {
                   activeTab === 'accounting' && refundStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Refund & Cancellation Summary</div>
                         <div className="text-xs text-slate-500">Cancelled reservations with payment history</div>
@@ -6792,13 +6793,13 @@ function ReportsPageInner() {
                           <div className="text-xs text-slate-600">Per cancellation</div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {
                   activeTab === 'accounting' && agingQuery.data && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Accounts Receivable Aging</div>
                         <div className="text-xs text-slate-500">Outstanding balances by age bucket</div>
@@ -6820,14 +6821,14 @@ function ReportsPageInner() {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* AUDITS TAB */}
                 {
                   activeTab === 'audits' && dataQualityStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Data Quality Overview</div>
                         <div className="text-xs text-slate-500">Issues requiring attention</div>
@@ -6875,14 +6876,14 @@ function ReportsPageInner() {
                                 (dataQualityStats.totalSites + dataQualityStats.totalReservations))) * 100) >= 70 ? 'Fair' : 'Needs Attention'
                         }
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
 
                 {/* AUDITS TAB - Rate Consistency Audit */}
                 {
                   activeTab === 'audits' && rateConsistencyStats && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Rate Consistency Audit</div>
                         <div className="text-xs text-slate-500">Pricing variance analysis across reservations</div>
@@ -6933,13 +6934,13 @@ function ReportsPageInner() {
                           <span className="font-semibold">All Clear!</span> No significant rate inconsistencies detected across your sites.
                         </div>
                       )}
-                    </div>
+                    </Card>
                   )
                 }
 
                 {
                   activeTab === 'audits' && sitesQuery.data && (
-                    <div className="card p-4 space-y-3">
+                    <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Inventory Audit</div>
                         <div className="text-xs text-slate-500">Site configuration summary</div>
@@ -6962,7 +6963,7 @@ function ReportsPageInner() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   )
                 }
               </>

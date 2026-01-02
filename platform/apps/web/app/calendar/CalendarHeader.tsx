@@ -44,7 +44,7 @@ export function CalendarHeader({
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-                        <CalendarIcon className="h-8 w-8 text-status-info" />
+                        <CalendarIcon className="h-8 w-8 text-emerald-600" />
                         Interactive Calendar
                     </h1>
                     <p className="text-sm text-slate-500 font-medium">Manage bookings, site availability, and ops in real-time.</p>
@@ -60,7 +60,7 @@ export function CalendarHeader({
                                 size="sm"
                                 className={cn(
                                     "px-3 h-8 text-[10px] font-bold uppercase tracking-tight",
-                                    dayCount === d ? "bg-muted text-status-info" : "text-muted-foreground"
+                                    dayCount === d ? "bg-muted text-emerald-600" : "text-muted-foreground"
                                 )}
                                 onClick={() => setDayCount(d)}
                             >
@@ -70,7 +70,7 @@ export function CalendarHeader({
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-status-info"
+                            className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
                             title="Custom Range"
                         >
                             <CalendarRange className="h-3.5 w-3.5" />

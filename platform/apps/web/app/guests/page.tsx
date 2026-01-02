@@ -1147,17 +1147,76 @@ export default function GuestsPage() {
                 </tr>
               )}
               {!guestsQuery.isLoading && filteredAndSortedGuests.length === 0 && (
-                <TableEmpty colSpan={7}>
-                  {!campgroundChecked
-                    ? "Checking campground..."
-                    : !campgroundId
-                      ? "No campground selected. Please select a campground from the sidebar."
-                      : guestsQuery.isError
-                          ? `Error loading guests: ${guestsQuery.error?.message || "Unknown error"}`
-                          : hasFilters
-                            ? "No guests match the current filters."
-                            : "No guests yet. Create your first booking to add a guest."}
-                </TableEmpty>
+                <tr>
+                  <td colSpan={7} className="px-4 py-16 text-center">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                        <Users className="h-10 w-10 text-blue-600" />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-lg font-semibold text-foreground">
+                          {!campgroundChecked
+                            ? "Loading..."
+                            : !campgroundId
+                              ? "No campground selected"
+                              : guestsQuery.isError
+                                ? "Error loading guests"
+                                : hasFilters
+                                  ? "No guests match your filters"
+                                  : "No guests yet"}
+                        </p>
+                        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                          {!campgroundChecked
+                            ? "Checking campground..."
+                            : !campgroundId
+                              ? "Please select a campground from the sidebar to view guests."
+                              : guestsQuery.isError
+                                ? `${guestsQuery.error?.message || "An error occurred while loading guests."}`
+                                : hasFilters
+                                  ? "Try adjusting your search or filter criteria to find what you're looking for."
+                                  : "Guests are created automatically when you make a reservation, or you can add them manually."}
+                        </p>
+                      </div>
+                      {!campgroundChecked ? null : !campgroundId ? null : guestsQuery.isError ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => guestsQuery.refetch()}
+                          className="mt-2"
+                        >
+                          Try Again
+                        </Button>
+                      ) : hasFilters ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSearch("");
+                            setVipFilter("all");
+                          }}
+                          className="mt-2"
+                        >
+                          Clear Filters
+                        </Button>
+                      ) : (
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            onClick={() => setShowAddForm(true)}
+                            className="gap-2"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                            Add Your First Guest
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => router.push("/booking")}
+                            className="gap-2"
+                          >
+                            Create a Reservation
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

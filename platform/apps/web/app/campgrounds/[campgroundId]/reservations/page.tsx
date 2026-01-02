@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient, useQueries } from "@tanstack/react-query";
+import { CalendarDays, Plus } from "lucide-react";
 import { apiClient } from "../../../../lib/api-client";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Button } from "../../../../components/ui/button";
@@ -2812,21 +2813,61 @@ export default function ReservationsPage() {
               );
             })}
             {!reservationsQuery.isLoading && reservationsQuery.data?.length && !filteredReservations.length && (
-              <div className="overflow-hidden rounded border border-slate-200 bg-white">
-                <table className="w-full text-sm">
-                  <tbody>
-                    <TableEmpty>No reservations match the current filters.</TableEmpty>
-                  </tbody>
-                </table>
+              <div className="rounded-lg border border-slate-200 bg-white py-12 px-4 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-16 w-16 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                    <CalendarDays className="h-8 w-8 text-slate-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-lg font-semibold text-foreground">No reservations match your filters</p>
+                    <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                      Try adjusting your filters or search criteria to find what you're looking for.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearch("");
+                      setStatusFilter("all");
+                      setStartFilter("");
+                      setEndFilter("");
+                    }}
+                    className="mt-2"
+                  >
+                    Clear All Filters
+                  </Button>
+                </div>
               </div>
             )}
             {!reservationsQuery.isLoading && !reservationsQuery.data?.length && (
-              <div className="overflow-hidden rounded border border-slate-200 bg-white">
-                <table className="w-full text-sm">
-                  <tbody>
-                    <TableEmpty>No reservations yet.</TableEmpty>
-                  </tbody>
-                </table>
+              <div className="rounded-lg border border-slate-200 bg-white py-16 px-4 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                    <CalendarDays className="h-10 w-10 text-blue-600" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-lg font-semibold text-foreground">No reservations yet</p>
+                    <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                      Start taking bookings by creating your first reservation. You can also set up your site inventory and pricing first.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      onClick={() => router.push("/booking")}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create First Reservation
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push(`/campgrounds/${campgroundId}/sites`)}
+                      className="gap-2"
+                    >
+                      Set Up Sites
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

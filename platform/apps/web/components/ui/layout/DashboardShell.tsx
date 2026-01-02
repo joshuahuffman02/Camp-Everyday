@@ -299,7 +299,27 @@ interface SessionWithApiToken {
   };
 }
 
-export function DashboardShell({ children, className, title, subtitle }: { children: ReactNode; className?: string; title?: string; subtitle?: string }) {
+/**
+ * Layout density controls the maximum container width for data-dense pages.
+ * - "normal": Standard max-width (max-w-7xl) for content-focused pages
+ * - "full": Full width (max-w-none) for data-dense pages like calendars and booking grids
+ */
+export type DashboardDensity = "normal" | "full";
+
+export interface DashboardShellProps {
+  children: ReactNode;
+  className?: string;
+  title?: string;
+  subtitle?: string;
+  /**
+   * Layout density - controls container max-width.
+   * Use "full" for data-dense pages (calendar, booking grid).
+   * Defaults to "normal" for standard content pages.
+   */
+  density?: DashboardDensity;
+}
+
+export function DashboardShell({ children, className, title, subtitle, density = "normal" }: DashboardShellProps) {
   const { data: session } = useSession();
   const { data: whoami } = useWhoami();
   const { setSelectedCampground } = useCampground();
@@ -933,7 +953,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
             </button>
           </div>
           {!collapsed && (
-            <div className="px-4 py-4 border-b border-slate-200">
+            <div className="px-4 py-4 border-b border-slate-800">
               <div className="text-xs text-slate-400">
                 <div className="mb-1 font-semibold text-slate-300">Campground</div>
                 {campgroundsLoading ? (
@@ -1061,10 +1081,13 @@ export function DashboardShell({ children, className, title, subtitle }: { child
         </aside>
         <main className={cn("flex-1", className)}>
           <ErrorBoundary>
-            <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">
+            <div className={cn(
+              "mx-auto px-6 py-6 space-y-4",
+              density === "full" ? "max-w-none" : "max-w-7xl"
+            )}>
               {(title || subtitle) && (
                 <div className="mb-6">
-                  {title && <h1 className="text-2xl font-bold text-slate-900">{title}</h1>}
+                  {title && <h1 className="text-2xl font-bold text-foreground">{title}</h1>}
                   {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
                 </div>
               )}

@@ -75,21 +75,21 @@ function getTimeOfDayGreeting() {
       greeting: "Good morning",
       icon: <Sun className="h-8 w-8 text-amber-500" />,
       message: "Here's what's happening at the park today",
-      tone: "from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200 dark:border-amber-800"
+      tone: "bg-card border-border"
     };
   } else if (hour < 17) {
     return {
       greeting: "Good afternoon",
       icon: <Sunset className="h-8 w-8 text-sky-500" />,
       message: "Let's check on today's progress",
-      tone: "from-sky-50 to-blue-50 dark:from-sky-950/30 dark:to-blue-950/30 border-sky-200 dark:border-sky-800"
+      tone: "bg-card border-border"
     };
   } else {
     return {
       greeting: "Good evening",
       icon: <Moon className="h-8 w-8 text-indigo-500" />,
       message: "Winding down the day",
-      tone: "from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border-indigo-200 dark:border-indigo-800"
+      tone: "bg-card border-border"
     };
   }
 }
@@ -99,8 +99,7 @@ function SkeletonCard() {
   return (
     <div className={cn(
       "rounded-xl border p-4 animate-pulse",
-      "bg-gradient-to-br from-slate-50 to-slate-100",
-      "dark:from-slate-800/50 dark:to-slate-900/50 dark:border-slate-700"
+      "bg-muted border-border"
     )}>
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-lg bg-slate-200 dark:bg-slate-700" />
@@ -223,9 +222,8 @@ function TodaysWins({
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...SPRING_CONFIG, delay: 0.15 }}
       className={cn(
-        "rounded-xl p-4 backdrop-blur-sm",
-        "bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50",
-        "dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30",
+        "rounded-xl p-4",
+        "bg-emerald-50 dark:bg-emerald-950/30",
         "border border-emerald-200 dark:border-emerald-800"
       )}
     >
@@ -280,7 +278,7 @@ function CelebrationBadge({
       transition={{ type: "spring" as const, duration: 0.5, delay: 0.3 }}
       className={cn(
         "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
-        "bg-gradient-to-r from-emerald-500 to-teal-500 text-white",
+        "bg-emerald-600 text-white",
         "shadow-lg shadow-emerald-500/30"
       )}
     >
@@ -349,7 +347,7 @@ export default function Dashboard() {
         greeting: "Welcome",
         icon: <Sun className="h-8 w-8 text-amber-500" />,
         message: "Here's what's happening at the park",
-        tone: "from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border-slate-200 dark:border-slate-700"
+        tone: "bg-card border-border"
       };
     }
     return getTimeOfDayGreeting();
@@ -609,8 +607,8 @@ export default function Dashboard() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <motion.div
           className={cn(
-            "flex flex-col gap-4 rounded-2xl p-6 backdrop-blur-sm transition-all duration-500",
-            "border bg-gradient-to-br",
+            "flex flex-col gap-4 rounded-2xl p-6 transition-all duration-500",
+            "border",
             timeOfDay.tone
           )}
           {...motionProps}
@@ -646,8 +644,7 @@ export default function Dashboard() {
                   aria-label="Create a new booking"
                   className={cn(
                     "inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white",
-                    "bg-gradient-to-r from-emerald-500 to-teal-500",
-                    "hover:from-emerald-400 hover:to-teal-400",
+                    "bg-emerald-600 hover:bg-emerald-500",
                     "shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40",
                     "transition-all duration-200",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
@@ -728,9 +725,8 @@ export default function Dashboard() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <motion.div
           className={cn(
-            "rounded-2xl p-5 space-y-4 backdrop-blur-sm transition-colors",
-            "bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200",
-            "dark:from-slate-800/50 dark:to-slate-900/50 dark:border-slate-700"
+            "rounded-2xl p-5 space-y-4 transition-colors",
+            "bg-muted border border-border"
           )}
           {...motionProps}
           transition={{ ...SPRING_CONFIG, delay: 0.1 }}
@@ -873,8 +869,8 @@ export default function Dashboard() {
                 transition={{ type: "spring" as const, duration: 0.5 }}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-4 py-4",
-                  "border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50",
-                  "dark:border-emerald-700 dark:from-emerald-950/30 dark:to-teal-950/30"
+                  "border-2 border-emerald-300 bg-emerald-50",
+                  "dark:border-emerald-700 dark:bg-emerald-950/30"
                 )}
               >
                 <motion.div
@@ -939,8 +935,7 @@ export default function Dashboard() {
                           aria-label={`Collect payment from ${r.guest?.primaryFirstName ?? 'Guest'}`}
                           className={cn(
                             "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold text-white",
-                            "bg-gradient-to-r from-emerald-500 to-teal-500",
-                            "hover:from-emerald-400 hover:to-teal-400",
+                            "bg-emerald-600 hover:bg-emerald-500",
                             "shadow-sm hover:shadow-md transition-all duration-200",
                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                           )}
@@ -961,9 +956,9 @@ export default function Dashboard() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <motion.div
           className={cn(
-            "rounded-2xl p-5 space-y-3 backdrop-blur-sm shadow-lg transition-colors",
-            "bg-white/80 border-2 border-emerald-200",
-            "dark:bg-slate-800/50 dark:border-emerald-700/50"
+            "rounded-2xl p-5 space-y-3 shadow-lg transition-colors",
+            "bg-card border-2 border-emerald-200",
+            "dark:border-emerald-700/50"
           )}
           {...motionProps}
           transition={{ ...SPRING_CONFIG, delay: 0.2 }}
@@ -1307,24 +1302,24 @@ function OpsCard({
 
   const toneMap: Record<typeof tone, { light: string; dark: string }> = {
     emerald: {
-      light: "from-emerald-50 to-emerald-100 text-emerald-800 border-emerald-200",
-      dark: "dark:from-emerald-950/50 dark:to-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
+      light: "bg-emerald-50 text-emerald-800 border-emerald-200",
+      dark: "dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800"
     },
     amber: {
-      light: "from-amber-50 to-amber-100 text-amber-800 border-amber-200",
-      dark: "dark:from-amber-950/50 dark:to-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+      light: "bg-amber-50 text-amber-800 border-amber-200",
+      dark: "dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800"
     },
     blue: {
-      light: "from-blue-50 to-blue-100 text-blue-800 border-blue-200",
-      dark: "dark:from-blue-950/50 dark:to-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+      light: "bg-blue-50 text-blue-800 border-blue-200",
+      dark: "dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800"
     },
     purple: {
-      light: "from-purple-50 to-purple-100 text-purple-800 border-purple-200",
-      dark: "dark:from-purple-950/50 dark:to-purple-900/30 dark:text-purple-300 dark:border-purple-800"
+      light: "bg-purple-50 text-purple-800 border-purple-200",
+      dark: "dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800"
     },
     rose: {
-      light: "from-rose-50 to-rose-100 text-rose-800 border-rose-200",
-      dark: "dark:from-rose-950/50 dark:to-rose-900/30 dark:text-rose-300 dark:border-rose-800"
+      light: "bg-rose-50 text-rose-800 border-rose-200",
+      dark: "dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
     }
   };
 
@@ -1342,7 +1337,7 @@ function OpsCard({
         href={href}
         aria-label={`${label}: ${value}`}
         className={cn(
-          "flex items-center justify-between gap-3 rounded-xl border p-4 bg-gradient-to-br backdrop-blur-sm transition-all hover:shadow-lg hover:shadow-emerald-500/10",
+          "flex items-center justify-between gap-3 rounded-xl border p-4 transition-all hover:shadow-lg hover:shadow-emerald-500/10",
           toneMap[tone].light,
           toneMap[tone].dark,
           celebrate && "ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-900",
@@ -1441,8 +1436,7 @@ function BoardCard({
           transition={{ type: "spring" as const, duration: 0.4 }}
           className={cn(
             "rounded-lg p-6 text-center space-y-2",
-            "border-2 border-dashed border-border bg-gradient-to-br from-slate-50 to-slate-100",
-            "dark:from-slate-800/30 dark:to-slate-900/30"
+            "border-2 border-dashed border-border bg-muted"
           )}
         >
           <div className="flex justify-center mb-2">
