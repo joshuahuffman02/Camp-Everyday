@@ -40,15 +40,41 @@ type DropdownMenuProps = {
 
 export function DropdownMenu({ children, className }: DropdownMenuProps) {
   const [open, setOpen] = React.useState(false);
+  const [focusedIndex, setFocusedIndex] = React.useState(0);
   const triggerRef = React.useRef<HTMLElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (!open) return;
 
+    // Focus first item when menu opens
+    const firstItem = contentRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+    firstItem?.focus();
+
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+
+      // Arrow key navigation within menu
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const items = Array.from(contentRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') || []);
+        if (items.length === 0) return;
+
+        const currentIndex = items.findIndex(item => item === document.activeElement);
+        let nextIndex = currentIndex;
+
+        if (event.key === "ArrowDown") {
+          nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+        } else {
+          nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+        }
+
+        items[nextIndex]?.focus();
+        setFocusedIndex(nextIndex);
       }
     };
 
@@ -168,7 +194,7 @@ export const DropdownMenuItem = React.forwardRef<HTMLButtonElement, DropdownMenu
     };
 
     const itemClassName = cn(
-      "flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100",
+      "flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-1 transition-colors",
       disabled && "cursor-not-allowed opacity-50",
       className
     );

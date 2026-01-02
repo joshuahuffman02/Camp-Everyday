@@ -176,7 +176,7 @@ export class FormsService {
 
     // Validate form is active
     if (!form.isActive) {
-      throw new BadRequestException("Form is not active");
+      throw new BadRequestException("This form is currently inactive and cannot accept submissions. Please contact the campground");
     }
 
     // Return only public-safe fields
@@ -219,7 +219,7 @@ export class FormsService {
 
     // Validate form is active
     if (!template.isActive) {
-      throw new BadRequestException("Form is not active");
+      throw new BadRequestException("This form is currently inactive and cannot accept submissions. Please contact the campground");
     }
 
     // If reservationId is provided, validate it belongs to the same campground

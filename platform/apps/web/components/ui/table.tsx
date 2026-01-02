@@ -53,17 +53,34 @@ TableFooter.displayName = "TableFooter"
 
 const TableRow = React.forwardRef<
     HTMLTableRowElement,
-    React.HTMLAttributes<HTMLTableRowElement>
->(({ className, ...props }, ref) => (
-    <tr
-        ref={ref}
-        className={cn(
-            "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
-            className
-        )}
-        {...props}
-    />
-))
+    React.HTMLAttributes<HTMLTableRowElement> & {
+        interactive?: boolean;
+        onActivate?: () => void;
+    }
+>(({ className, interactive, onActivate, onKeyDown, ...props }, ref) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+        if (interactive && onActivate && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            onActivate();
+        }
+        onKeyDown?.(e);
+    };
+
+    return (
+        <tr
+            ref={ref}
+            className={cn(
+                "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+                interactive && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2",
+                className
+            )}
+            tabIndex={interactive ? 0 : undefined}
+            onKeyDown={handleKeyDown}
+            onClick={interactive ? onActivate : undefined}
+            {...props}
+        />
+    );
+})
 TableRow.displayName = "TableRow"
 
 const TableHead = React.forwardRef<

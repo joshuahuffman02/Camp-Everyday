@@ -4,6 +4,7 @@
 export type MilestoneStatus = 'completed' | 'in_progress' | 'planned';
 export type PhaseStatus = 'completed' | 'in_progress' | 'planned';
 export type UpdateCategory = 'feature' | 'improvement' | 'bugfix' | 'infrastructure';
+export type UpdateType = 'new' | 'update' | 'enhancement' | 'fix';
 
 export interface Milestone {
     id: string;
@@ -32,6 +33,14 @@ export interface Update {
     category: UpdateCategory;
     phaseId: string;
     milestoneIds: string[];
+    // Enhanced release notes fields
+    type?: UpdateType;
+    version?: string;
+    whatChanged?: string;
+    whyItMatters?: string;
+    whoItHelps?: string;
+    screenshot?: string;
+    videoUrl?: string;
 }
 
 // =============================================================================
@@ -553,9 +562,55 @@ export const roadmapPhases: RoadmapPhase[] = [
 
 export const updates: Update[] = [
     {
+        id: 'update-2026-01-01-release-notes-page',
+        title: 'Enhanced Release Notes with Categorization',
+        date: '2026-01-01',
+        version: '1.2.0',
+        type: 'new',
+        body: 'Introduced a completely redesigned release notes page with professional categorization, monthly grouping, and rich update details.',
+        whatChanged: 'Added support for "New", "Update", "Enhancement", and "Fix" badges. Updates now group by month and include detailed sections for what changed, why it matters, and who it helps. Added support for screenshots and demo videos.',
+        whyItMatters: 'Transparent communication about product changes helps campground operators understand how features affect their daily operations and plan for adoption.',
+        whoItHelps: 'All users benefit from clearer product communication. Managers and owners can track feature rollouts and plan staff training accordingly.',
+        tags: ['release-notes', 'ux', 'documentation'],
+        category: 'feature',
+        phaseId: 'foundation',
+        milestoneIds: [],
+    },
+    {
+        id: 'update-2025-12-24-booking-sidebar-pricing',
+        title: 'Real-time Pricing in Booking Sidebar',
+        date: '2025-12-24',
+        version: '1.1.5',
+        type: 'update',
+        body: 'Updated the booking sidebar to fetch real pricing from the quote API instead of using placeholder calculations.',
+        whatChanged: 'The BookingSidebar component now calls the /quotes API endpoint to get accurate pricing including all fees, taxes, and seasonal adjustments.',
+        whyItMatters: 'Guests and front desk staff now see exact pricing during the booking process, reducing confusion and pricing errors at checkout.',
+        whoItHelps: 'Front desk staff making reservations and guests using the booking engine.',
+        tags: ['booking', 'pricing', 'api'],
+        category: 'improvement',
+        phaseId: 'reservations',
+        milestoneIds: ['reservation-workflow'],
+    },
+    {
+        id: 'update-2025-12-20-maintenance-quick-actions',
+        title: 'Quick Action Buttons for Maintenance Tickets',
+        date: '2025-12-20',
+        version: '1.1.4',
+        type: 'enhancement',
+        body: 'Added one-click action buttons to maintenance tickets for common workflows.',
+        whatChanged: 'Maintenance tickets now have quick action buttons for assigning, marking in progress, and completing. Click on any ticket to edit details inline.',
+        whyItMatters: 'Reduces time spent managing maintenance requests from multiple clicks to a single action. Staff can triage and update tickets faster during busy periods.',
+        whoItHelps: 'Maintenance staff and managers tracking facility issues.',
+        tags: ['maintenance', 'tickets', 'productivity'],
+        category: 'enhancement',
+        phaseId: 'operational',
+        milestoneIds: ['maintenance-tracking'],
+    },
+    {
         id: 'update-2025-12-17-platform-scale-complete',
         title: 'Platform & Scale Phase Complete - 161/162 Tasks Done',
         date: '2025-12-17',
+        type: 'new',
         body: 'Completed all Platform & Scale milestones: (1) Public API with 28 webhook event types, exponential backoff retries, and API usage tracking; (2) AI Assist with real anomaly detection using z-score statistical analysis for occupancy, revenue, cancellations, bookings, and ADR; (3) IoT with QR code generation for check-in, site identification, WiFi, and store ordering; (4) Enterprise & International with full i18n support for 14 locales (EN, ES, FR, DE, IT, PT, NL, JA) and comprehensive translations. Remaining: Stripe account setup.',
         tags: ['api', 'webhooks', 'ai', 'iot', 'qr-codes', 'i18n'],
         category: 'feature',
@@ -1370,4 +1425,18 @@ export const statusLabels: Record<PhaseStatus, string> = {
     completed: 'Completed',
     in_progress: 'In Progress',
     planned: 'Planned',
+};
+
+export const typeColors: Record<UpdateType, { bg: string; text: string; border: string }> = {
+    new: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300' },
+    update: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-300' },
+    enhancement: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-300' },
+    fix: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-300' },
+};
+
+export const typeLabels: Record<UpdateType, string> = {
+    new: 'New',
+    update: 'Update',
+    enhancement: 'Enhancement',
+    fix: 'Fix',
 };

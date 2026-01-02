@@ -49,12 +49,12 @@ export class GiftCardsService {
   }
 
   async redeemAgainstBooking(code: string, amountCents: number, bookingId: string, actor?: any) {
-    if (!code) throw new BadRequestException("code is required");
-    if (!amountCents || amountCents <= 0) throw new BadRequestException("amount must be positive");
+    if (!code) throw new BadRequestException("Gift card code is required to process redemption");
+    if (!amountCents || amountCents <= 0) throw new BadRequestException("Redemption amount must be greater than zero");
 
     const card = await this.loadCard(code);
-    if (!card) throw new NotFoundException("Gift card or store credit not found");
-    if (card.balanceCents < amountCents) throw new BadRequestException("Insufficient balance");
+    if (!card) throw new NotFoundException("Gift card or store credit not found. Please verify the code and try again");
+    if (card.balanceCents < amountCents) throw new BadRequestException(`Gift card has insufficient balance. Available: $${(card.balanceCents / 100).toFixed(2)}, Required: $${(amountCents / 100).toFixed(2)}`);
 
     // Wrap everything in a transaction: redeem stored value + create payment + update reservation + post ledger entries
     return this.prisma.$transaction(async (tx) => {
@@ -181,12 +181,12 @@ export class GiftCardsService {
     context: { channel: RedemptionChannel; referenceId: string },
     actor?: any
   ) {
-    if (!code) throw new BadRequestException("code is required");
-    if (!amountCents || amountCents <= 0) throw new BadRequestException("amount must be positive");
+    if (!code) throw new BadRequestException("Gift card code is required to process purchase");
+    if (!amountCents || amountCents <= 0) throw new BadRequestException("Purchase amount must be greater than zero");
 
     const card = await this.loadCard(code);
-    if (!card) throw new NotFoundException("Gift card or store credit not found");
-    if (card.balanceCents < amountCents) throw new BadRequestException("Insufficient balance");
+    if (!card) throw new NotFoundException("Gift card or store credit not found. Please verify the code and try again");
+    if (card.balanceCents < amountCents) throw new BadRequestException(`Gift card has insufficient balance. Available: $${(card.balanceCents / 100).toFixed(2)}, Required: $${(amountCents / 100).toFixed(2)}`);
 
     const result = await this.storedValue.redeem(
       {

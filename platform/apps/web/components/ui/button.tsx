@@ -8,11 +8,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover focus-visible:ring-action-primary/50",
-        secondary: "bg-action-secondary text-action-secondary-foreground hover:bg-action-secondary-hover focus-visible:ring-action-secondary/50",
-        ghost: "text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-950/20",
-        outline: "border border-slate-200 bg-white hover:bg-slate-100 text-slate-900 focus-visible:ring-slate-950/20",
-        destructive: "bg-status-error text-status-error-foreground hover:bg-red-700 focus-visible:ring-status-error/50"
+        default: "bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover focus-visible:ring-action-primary/60",
+        secondary: "bg-action-secondary text-action-secondary-foreground hover:bg-action-secondary-hover focus-visible:ring-action-secondary/60",
+        ghost: "text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-950/30",
+        outline: "border border-slate-200 bg-white hover:bg-slate-100 text-slate-900 focus-visible:ring-slate-950/30",
+        destructive: "bg-status-error text-status-error-foreground hover:bg-red-700 focus-visible:ring-status-error/60"
       },
       size: {
         default: "h-10 px-4 py-2",

@@ -216,7 +216,7 @@ export class StoredValueService {
         const { balanceCents, availableCents } = await this.getBalances(tx, account.id);
 
         if (!dto.holdOnly && availableCents < dto.amountCents) {
-          throw new BadRequestException("Insufficient balance");
+          throw new BadRequestException(`Insufficient balance. Available: $${(availableCents / 100).toFixed(2)}, Required: $${(dto.amountCents / 100).toFixed(2)}`);
         }
 
         if (!dto.holdOnly) {

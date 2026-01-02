@@ -108,7 +108,7 @@ export default function UsersPage() {
       inviteForm.reset();
       toast({ title: "Member added", description: "User invited/added to this campground." });
     },
-    onError: (err: Error) => toast({ title: "Failed to add member", description: err.message, variant: "destructive" })
+    onError: (err: Error) => toast({ title: "Failed to add member", description: err.message || "Unable to add member. Please check the email and try again", variant: "destructive" })
   });
 
   const updateRole = useMutation({
@@ -120,7 +120,7 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ["campground-members", campgroundId] });
       toast({ title: "Role updated" });
     },
-    onError: (err: Error) => toast({ title: "Failed to update role", description: err.message, variant: "destructive" })
+    onError: (err: Error) => toast({ title: "Failed to update role", description: err.message || "Unable to update member role. Please try again", variant: "destructive" })
   });
 
   const removeMember = useMutation({
@@ -132,7 +132,7 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ["campground-members", campgroundId] });
       toast({ title: "Member removed" });
     },
-    onError: (err: Error) => toast({ title: "Failed to remove member", description: err.message, variant: "destructive" })
+    onError: (err: Error) => toast({ title: "Failed to remove member", description: err.message || "Unable to remove member. Ensure at least one owner remains", variant: "destructive" })
   });
 
   const memberCount = useMemo(() => membersQuery.data?.length ?? 0, [membersQuery.data]);
@@ -146,7 +146,7 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ["campground-members", campgroundId] });
       toast({ title: "Invite resent" });
     },
-    onError: (err: Error) => toast({ title: "Failed to resend invite", description: err.message, variant: "destructive" })
+    onError: (err: Error) => toast({ title: "Failed to resend invite", description: err.message || "Unable to resend invitation. Please verify the email and try again", variant: "destructive" })
   });
 
   const createOnboardingInvite = useMutation({

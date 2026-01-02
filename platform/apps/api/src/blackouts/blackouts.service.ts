@@ -11,10 +11,10 @@ export class BlackoutsService {
         const end = new Date(endDate);
 
         if (isNaN(start.valueOf()) || isNaN(end.valueOf())) {
-            throw new BadRequestException("Invalid start or end date");
+            throw new BadRequestException("Invalid date format. Please use a valid date format (YYYY-MM-DD)");
         }
         if (end <= start) {
-            throw new BadRequestException("End date must be after start date");
+            throw new BadRequestException("End date must be after start date. Please adjust your date range");
         }
         return { start, end };
     }
@@ -22,7 +22,7 @@ export class BlackoutsService {
     private async validateCampgroundAndSite(campgroundId: string, siteId?: string | null) {
         const campground = await this.prisma.campground.findUnique({ where: { id: campgroundId }, select: { id: true } });
         if (!campground) {
-            throw new NotFoundException("Campground not found");
+            throw new NotFoundException("Campground not found. Please verify the campground ID or contact support");
         }
 
         if (!siteId) return null;
@@ -94,10 +94,10 @@ export class BlackoutsService {
         const start = data.startDate ? new Date(data.startDate) : existing.startDate;
         const end = data.endDate ? new Date(data.endDate) : existing.endDate;
         if (isNaN(start.valueOf()) || isNaN(end.valueOf())) {
-            throw new BadRequestException("Invalid start or end date");
+            throw new BadRequestException("Invalid date format. Please use a valid date format (YYYY-MM-DD)");
         }
         if (end <= start) {
-            throw new BadRequestException("End date must be after start date");
+            throw new BadRequestException("End date must be after start date. Please adjust your date range");
         }
 
         const siteId = await this.validateCampgroundAndSite(existing.campgroundId, data.siteId ?? existing.siteId);

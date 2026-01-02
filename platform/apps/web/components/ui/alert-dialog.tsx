@@ -60,7 +60,7 @@ const AlertDialogContent = React.forwardRef<
     HTMLDivElement,
     React.HTMLAttributes<HTMLDivElement>
 >(({ className, children, ...props }, ref) => {
-    const { open } = React.useContext(AlertDialogContext)
+    const { open, onOpenChange } = React.useContext(AlertDialogContext)
     const contentRef = React.useRef<HTMLDivElement | null>(null)
     const previousActiveElement = React.useRef<HTMLElement | null>(null)
 
@@ -74,10 +74,20 @@ const AlertDialogContent = React.forwardRef<
         )
         firstFocusable?.focus()
 
+        // Handle Escape key
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                onOpenChange(false)
+            }
+        }
+
+        document.addEventListener("keydown", handleKeyDown)
+
         return () => {
+            document.removeEventListener("keydown", handleKeyDown)
             previousActiveElement.current?.focus()
         }
-    }, [open])
+    }, [open, onOpenChange])
 
     if (!open) return null
 

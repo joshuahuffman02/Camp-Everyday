@@ -92,7 +92,7 @@ export class PromotionsService {
         });
 
         if (!promotion) {
-            throw new BadRequestException("Invalid promo code");
+            throw new BadRequestException("Promo code not found. Please verify the code and try again");
         }
 
         if (!promotion.isActive) {

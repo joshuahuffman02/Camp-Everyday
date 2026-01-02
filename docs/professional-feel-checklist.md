@@ -28,7 +28,7 @@ Use this as a QA list before launch and as a guiding rubric for new UI work.
 - [ ] Headlines are benefit-first and plain-language.
 - [ ] Every feature line answers "so what?" with a concrete operator outcome.
 - [ ] Microcopy in forms is precise (what happens next, what is required, why).
-- [ ] Error messages are actionable (what broke and how to fix it).
+- [x] Error messages are actionable (what broke and how to fix it).
 
 ## 5) Trust and credibility
 - [ ] Visible claims are quantified (saves time, reduces no-shows, increases direct bookings).
@@ -58,15 +58,15 @@ Use this as a QA list before launch and as a guiding rubric for new UI work.
 
 ## 9) Performance and accessibility
 - [ ] Core Web Vitals are in the green for public pages.
-- [ ] Inputs and tables are keyboard friendly.
-- [ ] Contrast and focus states are consistent and visible.
+- [x] Inputs and tables are keyboard friendly.
+- [x] Contrast and focus states are consistent and visible.
 - [ ] Motion is purposeful and minimal (avoid gratuitous animation).
 
 ## 10) Release notes and product cadence
-- [ ] Release notes have "New", "Update", "Enhancement" tags with dates.
-- [ ] Each update includes: What changed, Why it matters, Who it helps.
-- [ ] Major updates include short demo videos or screenshots.
-- [ ] Public roadmap or changelog makes the product feel actively maintained.
+- [x] Release notes have "New", "Update", "Enhancement" tags with dates.
+- [x] Each update includes: What changed, Why it matters, Who it helps.
+- [x] Major updates include short demo videos or screenshots.
+- [x] Public roadmap or changelog makes the product feel actively maintained.
 
 ## 11) Design QA before shipping
 - [ ] Cross-browser check (Chrome, Safari, Firefox).

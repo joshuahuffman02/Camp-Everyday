@@ -109,7 +109,7 @@ export default function CheckInOutPage() {
       queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });
       toast({ title: "Guest checked in" });
     },
-    onError: () => toast({ title: "Failed to check in", description: "Please try again", variant: "destructive" })
+    onError: () => toast({ title: "Failed to check in", description: "Unable to check in guest. Verify payment status and try again", variant: "destructive" })
   });
 
   const bulkCheckInMutation = useMutation({
@@ -136,7 +136,7 @@ export default function CheckInOutPage() {
       setSelectedIds(new Set());
     },
     onError: () => {
-      toast({ title: "Bulk check-in failed", description: "Please try again", variant: "destructive" });
+      toast({ title: "Bulk check-in failed", description: "Unable to process multiple check-ins. Try checking in guests individually", variant: "destructive" });
     }
   });
 
@@ -147,7 +147,7 @@ export default function CheckInOutPage() {
       toast({ title: "Guest checked out" });
       setIsPaymentOpen(false);
     },
-    onError: () => toast({ title: "Failed to check out", description: "Please try again", variant: "destructive" })
+    onError: () => toast({ title: "Failed to check out", description: "Unable to check out guest. Ensure all charges are settled and try again", variant: "destructive" })
   });
 
   const paymentMutation = useMutation({

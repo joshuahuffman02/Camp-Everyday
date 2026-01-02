@@ -46,7 +46,7 @@ export function usePaymentIntent(options: UsePaymentIntentOptions = {}): UsePaym
     async (amountCents?: number): Promise<PaymentIntentData | null> => {
       const amount = amountCents ?? state.remainingCents;
       if (amount <= 0) {
-        setError("Invalid payment amount");
+        setError("Payment amount must be greater than zero. Please verify the amount and try again");
         return null;
       }
 
@@ -77,14 +77,14 @@ export function usePaymentIntent(options: UsePaymentIntentOptions = {}): UsePaym
             captureMethod === "automatic"
           );
         } else {
-          throw new Error("Missing reservation ID for payment");
+          throw new Error("Reservation ID is required to process payment. Please select a reservation");
         }
 
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.id);
         return data;
       } catch (err: any) {
-        const message = err.message || "Failed to initialize payment";
+        const message = err.message || "Failed to initialize payment. Please check your connection and try again";
         setError(message);
         return null;
       } finally {
@@ -147,7 +147,7 @@ export function useDepositHold() {
             : undefined;
 
         if (!reservationId) {
-          throw new Error("Deposit holds require a reservation");
+          throw new Error("Deposit holds require a reservation ID. Please select a reservation");
         }
 
         // Create a manual capture payment intent (hold only)
@@ -166,7 +166,7 @@ export function useDepositHold() {
 
         return data;
       } catch (err: any) {
-        setError(err.message || "Failed to create deposit hold");
+        setError(err.message || "Failed to create deposit hold. Please check your payment method and try again");
         return null;
       } finally {
         setLoading(false);
@@ -178,7 +178,7 @@ export function useDepositHold() {
   const captureHold = useCallback(
     async (amountCents?: number) => {
       if (!hold) {
-        setError("No active hold to capture");
+        setError("No active payment hold found. Please create a new hold");
         return null;
       }
 
@@ -190,7 +190,7 @@ export function useDepositHold() {
         // For now, return the hold info
         return hold;
       } catch (err: any) {
-        setError(err.message || "Failed to capture hold");
+        setError(err.message || "Failed to capture payment hold. Please try again or contact support");
         return null;
       } finally {
         setLoading(false);
@@ -201,7 +201,7 @@ export function useDepositHold() {
 
   const releaseHold = useCallback(async () => {
     if (!hold) {
-      setError("No active hold to release");
+      setError("No active payment hold found to release");
       return false;
     }
 
@@ -213,7 +213,7 @@ export function useDepositHold() {
       setHold(null);
       return true;
     } catch (err: any) {
-      setError(err.message || "Failed to release hold");
+      setError(err.message || "Failed to release payment hold. Please try again or contact support");
       return false;
     } finally {
       setLoading(false);
