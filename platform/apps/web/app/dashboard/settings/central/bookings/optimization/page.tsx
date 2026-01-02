@@ -129,8 +129,8 @@ export default function OptimizationPage() {
     <div className="max-w-4xl space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Grid Optimization</h2>
-        <p className="text-slate-500 mt-1">
+        <h2 className="text-2xl font-bold text-foreground">Grid Optimization</h2>
+        <p className="text-muted-foreground mt-1">
           Automatically optimize site assignments to maximize revenue and occupancy
         </p>
       </div>
@@ -157,17 +157,17 @@ export default function OptimizationPage() {
       {/* Stats Cards (only show when enabled) */}
       {settings.enabled && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-gradient-to-br from-green-50 to-white border-green-200">
+          <Card className="bg-status-success/10 border-status-success/20">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-status-success/15">
                   <TrendingUp className="h-5 w-5 text-status-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-green-900">
+                  <p className="text-2xl font-bold text-foreground">
                     ${totalRevenueGain}
                   </p>
-                  <p className="text-sm text-green-700">Revenue gained (30 days)</p>
+                  <p className="text-sm text-muted-foreground">Revenue gained (30 days)</p>
                 </div>
               </div>
             </CardContent>
@@ -176,12 +176,12 @@ export default function OptimizationPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-100">
-                  <Activity className="h-5 w-5 text-purple-600" />
+                <div className="p-2 rounded-lg bg-status-info/15">
+                  <Activity className="h-5 w-5 text-status-info" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{totalMoves}</p>
-                  <p className="text-sm text-slate-500">Reservations optimized</p>
+                  <p className="text-2xl font-bold text-foreground">{totalMoves}</p>
+                  <p className="text-sm text-muted-foreground">Reservations optimized</p>
                 </div>
               </div>
             </CardContent>
@@ -190,12 +190,12 @@ export default function OptimizationPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <Calendar className="h-5 w-5 text-blue-600" />
+                <div className="p-2 rounded-lg bg-status-success/15">
+                  <Calendar className="h-5 w-5 text-status-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{totalGapsFilled}</p>
-                  <p className="text-sm text-slate-500">Gaps filled</p>
+                  <p className="text-2xl font-bold text-foreground">{totalGapsFilled}</p>
+                  <p className="text-sm text-muted-foreground">Gaps filled</p>
                 </div>
               </div>
             </CardContent>
@@ -206,12 +206,12 @@ export default function OptimizationPage() {
       {/* Celebration Modal */}
       {showCelebration && (
         <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 text-center animate-in zoom-in-95 duration-300">
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-purple-100 mb-4">
-              <Sparkles className="h-8 w-8 text-purple-600" />
+          <div className="bg-card rounded-2xl border border-border shadow-2xl p-8 text-center animate-in zoom-in-95 duration-300">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-status-info/15 mb-4">
+              <Sparkles className="h-8 w-8 text-status-info" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900">Optimization Enabled!</h3>
-            <p className="text-slate-500 mt-2">
+            <h3 className="text-xl font-bold text-foreground">Optimization Enabled!</h3>
+            <p className="text-muted-foreground mt-2">
               Your first optimization will run tonight at 2 AM
             </p>
           </div>
@@ -244,27 +244,27 @@ export default function OptimizationPage() {
                   ← Back to log
                 </Button>
 
-                <div className="flex items-center gap-4 p-4 rounded-lg bg-slate-50">
+                <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/60">
                   <div>
-                    <p className="text-sm text-slate-500">Run date</p>
+                    <p className="text-sm text-muted-foreground">Run date</p>
                     <p className="font-medium">
                       {selectedLogEntry.timestamp.toLocaleDateString()} at{" "}
                       {selectedLogEntry.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
-                  <div className="h-8 w-px bg-slate-200" />
+                  <div className="h-8 w-px bg-muted" />
                   <div>
-                    <p className="text-sm text-slate-500">Optimized</p>
+                    <p className="text-sm text-muted-foreground">Optimized</p>
                     <p className="font-medium">{selectedLogEntry.reservationsOptimized} reservations</p>
                   </div>
-                  <div className="h-8 w-px bg-slate-200" />
+                  <div className="h-8 w-px bg-muted" />
                   <div>
-                    <p className="text-sm text-slate-500">Revenue gain</p>
+                    <p className="text-sm text-muted-foreground">Revenue gain</p>
                     <p className="font-medium text-emerald-600">+${selectedLogEntry.revenueGain}</p>
                   </div>
                 </div>
 
-                <h4 className="font-medium text-slate-900">Moves made</h4>
+                <h4 className="font-medium text-foreground">Moves made</h4>
 
                 {selectedLogEntry.moves.length > 0 ? (
                   <div className="space-y-2">
@@ -275,22 +275,22 @@ export default function OptimizationPage() {
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <User className="h-4 w-4 text-slate-400" />
+                            <User className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">{move.guestName}</span>
                             <Badge variant="secondary" className="text-xs">
                               {move.reservationId}
                             </Badge>
                           </div>
                           <div className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-4 w-4 text-slate-400" />
-                            <span className="text-slate-600">{move.fromSite}</span>
-                            <ArrowRight className="h-4 w-4 text-slate-400" />
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">{move.fromSite}</span>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium text-purple-600">{move.toSite}</span>
                           </div>
-                          <p className="text-sm text-slate-500 mt-1">{move.reason}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{move.reason}</p>
                         </div>
                         <div className="text-right">
-                          <div className="flex items-center gap-1 text-sm text-slate-500">
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Calendar className="h-4 w-4" />
                             {move.arrivalDate}
                           </div>
@@ -299,7 +299,7 @@ export default function OptimizationPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-slate-500 text-sm">No detailed move data available for this run.</p>
+                  <p className="text-muted-foreground text-sm">No detailed move data available for this run.</p>
                 )}
               </div>
             ) : (
@@ -309,17 +309,17 @@ export default function OptimizationPage() {
                   <button
                     key={entry.id}
                     onClick={() => viewLogDetails(entry)}
-                    className="w-full flex items-center justify-between p-4 rounded-lg border hover:bg-slate-50 transition-colors text-left"
+                    className="w-full flex items-center justify-between p-4 rounded-lg border hover:bg-muted/60 transition-colors text-left"
                   >
                     <div className="flex items-center gap-4">
                       <div className="p-2 rounded-lg bg-purple-100">
                         <CheckCircle2 className="h-4 w-4 text-purple-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900">
+                        <p className="font-medium text-foreground">
                           {entry.timestamp.toLocaleDateString()}
                         </p>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-muted-foreground">
                           {entry.timestamp.toLocaleTimeString()}
                         </p>
                       </div>
@@ -327,10 +327,10 @@ export default function OptimizationPage() {
 
                     <div className="flex items-center gap-6">
                       <div className="text-right">
-                        <p className="font-medium text-slate-900">
+                        <p className="font-medium text-foreground">
                           {entry.reservationsOptimized} moves
                         </p>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-muted-foreground">
                           {entry.gapsFilled} gaps filled
                         </p>
                       </div>

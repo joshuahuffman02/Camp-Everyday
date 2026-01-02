@@ -151,13 +151,13 @@ export default function NotificationsPage() {
     return (
       <div className="max-w-5xl space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Notifications</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-foreground">Notifications</h2>
+          <p className="text-muted-foreground mt-1">
             Configure automated notification triggers
           </p>
         </div>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </div>
     );
@@ -167,15 +167,15 @@ export default function NotificationsPage() {
     return (
       <div className="max-w-5xl space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Notifications</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-foreground">Notifications</h2>
+          <p className="text-muted-foreground mt-1">
             Configure automated notification triggers
           </p>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
             <Info className="h-8 w-8 text-amber-500 mx-auto mb-3" />
-            <p className="text-slate-600">Please select a campground first.</p>
+            <p className="text-muted-foreground">Please select a campground first.</p>
           </CardContent>
         </Card>
       </div>
@@ -187,8 +187,8 @@ export default function NotificationsPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Notifications</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-foreground">Notifications</h2>
+          <p className="text-muted-foreground mt-1">
             Configure automated notification triggers
           </p>
         </div>
@@ -226,8 +226,8 @@ export default function NotificationsPage() {
                 <Zap className="h-5 w-5 text-status-success" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">{enabledCount}</p>
-                <p className="text-sm text-slate-500">Active Triggers</p>
+                <p className="text-2xl font-bold text-foreground">{enabledCount}</p>
+                <p className="text-sm text-muted-foreground">Active Triggers</p>
               </div>
             </div>
           </CardContent>
@@ -239,10 +239,10 @@ export default function NotificationsPage() {
                 <Mail className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold text-foreground">
                   {triggers.filter((t) => t.channel === "email" || t.channel === "both").length}
                 </p>
-                <p className="text-sm text-slate-500">Email Triggers</p>
+                <p className="text-sm text-muted-foreground">Email Triggers</p>
               </div>
             </div>
           </CardContent>
@@ -254,10 +254,10 @@ export default function NotificationsPage() {
                 <Smartphone className="h-5 w-5 text-status-success" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold text-foreground">
                   {triggers.filter((t) => t.channel === "sms" || t.channel === "both").length}
                 </p>
-                <p className="text-sm text-slate-500">SMS Triggers</p>
+                <p className="text-sm text-muted-foreground">SMS Triggers</p>
               </div>
             </div>
           </CardContent>
@@ -268,11 +268,11 @@ export default function NotificationsPage() {
       {triggers.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <Bell className="h-12 w-12 mx-auto text-slate-300 mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
+            <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">
               No notification triggers yet
             </h3>
-            <p className="text-slate-500 mb-4 max-w-md mx-auto">
+            <p className="text-muted-foreground mb-4 max-w-md mx-auto">
               Set up automatic notifications for booking confirmations, check-in
               reminders, payment receipts, and more.
             </p>
@@ -286,7 +286,7 @@ export default function NotificationsPage() {
         </Card>
       ) : (
         <Card>
-          <CardHeader className="py-3 px-4 bg-slate-50 border-b">
+          <CardHeader className="py-3 px-4 bg-muted/60 border-b">
             <CardTitle className="text-sm font-medium">
               All Triggers ({triggers.length})
             </CardTitle>
@@ -297,7 +297,7 @@ export default function NotificationsPage() {
               return (
                 <div
                   key={trigger.id}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors group"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-muted/60 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
                     <Switch
@@ -306,15 +306,15 @@ export default function NotificationsPage() {
                       disabled={updating === trigger.id}
                     />
                     <div className={`p-2 rounded-lg ${
-                      trigger.enabled ? "bg-status-success/15 text-status-success" : "bg-slate-100 text-slate-400"
+                      trigger.enabled ? "bg-status-success/15 text-status-success" : "bg-muted text-muted-foreground"
                     }`}>
                       <Icon className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="font-medium text-slate-900">
+                      <p className="font-medium text-foreground">
                         {EVENT_LABELS[trigger.event] || trigger.event}
                       </p>
-                      <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           {trigger.channel === "email" ? (
                             <Mail className="h-3 w-3" />
@@ -334,7 +334,7 @@ export default function NotificationsPage() {
                           </Badge>
                         )}
                         {trigger.template && (
-                          <span className="text-slate-400">
+                          <span className="text-muted-foreground">
                             Template: {trigger.template.name}
                           </span>
                         )}
@@ -387,18 +387,18 @@ export default function NotificationsPage() {
       )}
 
       {/* Quick Link to Templates */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+      <Card className="bg-status-info/10 border-status-info/20">
         <CardContent className="py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <Mail className="h-5 w-5 text-blue-600" />
+              <div className="p-2 rounded-lg bg-status-info/15">
+                <Mail className="h-5 w-5 text-status-info" />
               </div>
               <div>
-                <p className="font-medium text-slate-900">
+                <p className="font-medium text-foreground">
                   Customize Your Messages
                 </p>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   Create email and SMS templates for your triggers
                 </p>
               </div>

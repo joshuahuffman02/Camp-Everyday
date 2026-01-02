@@ -346,12 +346,12 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <Copy className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center">
+                <Copy className="w-6 h-6 text-indigo-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Schedule Templates</h1>
-                <p className="text-slate-600">Create reusable weekly schedules</p>
+                <h1 className="text-2xl font-bold text-foreground">Schedule Templates</h1>
+                <p className="text-muted-foreground">Create reusable weekly schedules</p>
               </div>
             </div>
 
@@ -405,17 +405,17 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                className="bg-card rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 <form onSubmit={handleSubmit} className="p-6">
-                  <h2 className="text-xl font-bold text-slate-900 mb-6">
+                  <h2 className="text-xl font-bold text-foreground mb-6">
                     {editingId ? "Edit Template" : "Create Template"}
                   </h2>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         Template Name
                       </label>
                       <input
@@ -423,13 +423,13 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                         value={formName}
                         onChange={(e) => setFormName(e.target.value)}
                         placeholder="e.g., Summer Weekday Schedule"
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         Description (optional)
                       </label>
                       <textarea
@@ -437,13 +437,13 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                         onChange={(e) => setFormDescription(e.target.value)}
                         placeholder="Notes about this template..."
                         rows={2}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       />
                     </div>
 
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <label className="block text-sm font-medium text-slate-700">
+                        <label className="block text-sm font-medium text-foreground">
                           Shifts in Template
                         </label>
                         <button
@@ -457,7 +457,7 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                       </div>
 
                       {formShifts.length === 0 ? (
-                        <p className="text-sm text-slate-500 text-center py-8 bg-slate-50 rounded-lg">
+                        <p className="text-sm text-muted-foreground text-center py-8 bg-muted/60 rounded-lg">
                           No shifts yet. Click "Add Shift" to get started.
                         </p>
                       ) : (
@@ -465,14 +465,14 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                           {formShifts.map((shift, idx) => (
                             <div
                               key={idx}
-                              className="p-3 bg-slate-50 rounded-lg flex flex-wrap gap-3 items-center"
+                              className="p-3 bg-muted/60 rounded-lg flex flex-wrap gap-3 items-center"
                             >
                               <select
                                 value={shift.dayOfWeek}
                                 onChange={(e) =>
                                   updateFormShift(idx, { dayOfWeek: parseInt(e.target.value) })
                                 }
-                                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+                                className="px-3 py-1.5 border border-border rounded-lg text-sm"
                               >
                                 {DAYS_OF_WEEK.map((day, i) => (
                                   <option key={i} value={i}>
@@ -485,14 +485,14 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                                 type="time"
                                 value={shift.startTime}
                                 onChange={(e) => updateFormShift(idx, { startTime: e.target.value })}
-                                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+                                className="px-3 py-1.5 border border-border rounded-lg text-sm"
                               />
-                              <span className="text-slate-400">to</span>
+                              <span className="text-muted-foreground">to</span>
                               <input
                                 type="time"
                                 value={shift.endTime}
                                 onChange={(e) => updateFormShift(idx, { endTime: e.target.value })}
-                                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+                                className="px-3 py-1.5 border border-border rounded-lg text-sm"
                               />
 
                               {roles.length > 0 && (
@@ -501,7 +501,7 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                                   onChange={(e) =>
                                     updateFormShift(idx, { roleCode: e.target.value || undefined })
                                   }
-                                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+                                  className="px-3 py-1.5 border border-border rounded-lg text-sm"
                                 >
                                   <option value="">No role</option>
                                   {roles.map((role) => (
@@ -517,7 +517,7 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                                 onChange={(e) =>
                                   updateFormShift(idx, { userId: e.target.value || undefined })
                                 }
-                                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm flex-1 min-w-[150px]"
+                                className="px-3 py-1.5 border border-border rounded-lg text-sm flex-1 min-w-[150px]"
                               >
                                 <option value="">Unassigned</option>
                                 {staffMembers.map((member) => (
@@ -545,7 +545,7 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                     <button
                       type="button"
                       onClick={resetForm}
-                      className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200"
+                      className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg font-medium hover:bg-muted"
                     >
                       Cancel
                     </button>
@@ -587,7 +587,7 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white rounded-2xl shadow-xl max-w-md w-full"
+                className="bg-card rounded-2xl shadow-xl max-w-md w-full"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-6">
@@ -596,8 +596,8 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                       <RefreshCw className="w-5 h-5 text-violet-600" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-slate-900">Auto-Schedule</h2>
-                      <p className="text-sm text-slate-500">
+                      <h2 className="text-lg font-bold text-foreground">Auto-Schedule</h2>
+                      <p className="text-sm text-muted-foreground">
                         Automatically apply this template every week
                       </p>
                     </div>
@@ -605,13 +605,13 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         Run on
                       </label>
                       <select
                         value={recurringDay}
                         onChange={(e) => setRecurringDay(parseInt(e.target.value))}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-violet-500"
                       >
                         {DAYS_OF_WEEK.map((day, i) => (
                           <option key={i} value={i}>
@@ -619,26 +619,26 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                           </option>
                         ))}
                       </select>
-                      <p className="text-xs text-slate-500 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         The template will be applied automatically on this day
                       </p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         Schedule for
                       </label>
                       <select
                         value={recurringWeeksAhead}
                         onChange={(e) => setRecurringWeeksAhead(parseInt(e.target.value))}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-violet-500"
                       >
                         <option value={1}>Next week</option>
                         <option value={2}>2 weeks ahead</option>
                         <option value={3}>3 weeks ahead</option>
                         <option value={4}>4 weeks ahead</option>
                       </select>
-                      <p className="text-xs text-slate-500 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         How far ahead to generate the schedule
                       </p>
                     </div>
@@ -647,7 +647,7 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                   <div className="flex gap-3 mt-6 pt-4 border-t">
                     <button
                       onClick={() => setRecurringTemplate(null)}
-                      className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200"
+                      className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg font-medium hover:bg-muted"
                     >
                       Cancel
                     </button>
@@ -685,11 +685,11 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
             animate={{ opacity: 1, scale: 1 }}
             className="text-center py-20"
           >
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-              <Inbox className="w-8 h-8 text-slate-400" />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+              <Inbox className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">No templates yet</h3>
-            <p className="text-slate-500">
+            <h3 className="text-lg font-semibold text-foreground mb-1">No templates yet</h3>
+            <p className="text-muted-foreground">
               Create a template to quickly generate weekly schedules
             </p>
             <button
@@ -723,11 +723,11 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ ...SPRING_CONFIG, delay: idx * 0.05 }}
-                    className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                    className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
                   >
                     {/* Header */}
                     <div
-                      className="p-5 cursor-pointer hover:bg-slate-50 transition-colors"
+                      className="p-5 cursor-pointer hover:bg-muted/60 transition-colors"
                       onClick={() => setExpandedTemplate(isExpanded ? null : template.id)}
                     >
                       <div className="flex items-center justify-between">
@@ -736,8 +736,8 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                             <Copy className="w-5 h-5 text-indigo-600" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-slate-900">{template.name}</h3>
-                            <p className="text-sm text-slate-500">
+                            <h3 className="font-semibold text-foreground">{template.name}</h3>
+                            <p className="text-sm text-muted-foreground">
                               {template.shifts.length} shifts across{" "}
                               {Object.keys(shiftsByDay).length} days
                             </p>
@@ -786,7 +786,7 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                               e.stopPropagation();
                               handleEdit(template);
                             }}
-                            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
+                            className="p-2 text-muted-foreground hover:bg-muted rounded-lg"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
@@ -800,15 +800,15 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                             <Trash2 className="w-4 h-4" />
                           </button>
                           {isExpanded ? (
-                            <ChevronUp className="w-5 h-5 text-slate-400" />
+                            <ChevronUp className="w-5 h-5 text-muted-foreground" />
                           ) : (
-                            <ChevronDown className="w-5 h-5 text-slate-400" />
+                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
                           )}
                         </div>
                       </div>
 
                       {template.description && (
-                        <p className="mt-2 text-sm text-slate-600 ml-14">{template.description}</p>
+                        <p className="mt-2 text-sm text-muted-foreground ml-14">{template.description}</p>
                       )}
                     </div>
 
@@ -819,18 +819,18 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          className="border-t border-slate-100 bg-status-success/10 overflow-hidden"
+                          className="border-t border-border bg-status-success/10 overflow-hidden"
                         >
                           <div className="p-4 flex items-center gap-4">
                             <div className="flex-1">
-                              <label className="block text-sm font-medium text-slate-700 mb-1">
+                              <label className="block text-sm font-medium text-foreground mb-1">
                                 Apply to week starting:
                               </label>
                               <input
                                 type="date"
                                 value={applyWeekStart}
                                 onChange={(e) => setApplyWeekStart(e.target.value)}
-                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
+                                className="px-3 py-2 border border-border rounded-lg text-sm w-full"
                               />
                             </div>
                             <button
@@ -861,18 +861,18 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          className="border-t border-slate-100 overflow-hidden"
+                          className="border-t border-border overflow-hidden"
                         >
                           <div className="p-5 grid grid-cols-7 gap-2">
                             {DAYS_OF_WEEK.map((day, dayIdx) => {
                               const dayShifts = shiftsByDay[dayIdx] || [];
                               return (
                                 <div key={dayIdx} className="text-center">
-                                  <h4 className="text-xs font-semibold text-slate-500 mb-2">
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-2">
                                     {SHORT_DAYS[dayIdx]}
                                   </h4>
                                   {dayShifts.length === 0 ? (
-                                    <div className="p-2 bg-slate-50 rounded text-xs text-slate-400">
+                                    <div className="p-2 bg-muted/60 rounded text-xs text-muted-foreground">
                                       -
                                     </div>
                                   ) : (
@@ -890,7 +890,7 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
                                               {getRoleName(shift.roleCode)}
                                             </p>
                                           )}
-                                          <p className="text-slate-500 truncate">
+                                          <p className="text-muted-foreground truncate">
                                             {getStaffName(shift.userId)}
                                           </p>
                                         </div>

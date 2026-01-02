@@ -299,12 +299,12 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <CalendarDays className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-status-info/15 flex items-center justify-center">
+              <CalendarDays className="w-5 h-5 text-status-info" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Staff Availability</h1>
-              <p className="text-sm text-slate-600">View and manage when staff can work</p>
+              <h1 className="text-2xl font-bold text-foreground">Staff Availability</h1>
+              <p className="text-sm text-muted-foreground">View and manage when staff can work</p>
             </div>
           </div>
 
@@ -314,13 +314,13 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={goToPreviousWeek}
-              className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+              className="p-2 rounded-lg border border-border hover:bg-muted/60 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </motion.button>
             <button
               onClick={goToCurrentWeek}
-              className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 font-medium text-sm hover:bg-slate-200 transition-colors"
+              className="px-4 py-2 rounded-lg bg-muted text-foreground font-medium text-sm hover:bg-muted transition-colors"
             >
               {formatWeekRange()}
             </button>
@@ -328,7 +328,7 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={goToNextWeek}
-              className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+              className="p-2 rounded-lg border border-border hover:bg-muted/60 transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </motion.button>
@@ -355,20 +355,20 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING_CONFIG, delay: 0.15 }}
-          className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+          className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
         >
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-24 text-slate-500">
+            <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
               <Loader2 className="w-5 h-5 animate-spin" />
               <span className="text-sm">Loading availability...</span>
             </div>
           ) : staffMembers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                <User className="w-8 h-8 text-slate-400" />
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                <User className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">No staff availability set</h3>
-              <p className="text-sm text-slate-600 mt-1 max-w-md">
+              <h3 className="text-lg font-semibold text-foreground">No staff availability set</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md">
                 Staff members need to set their availability first.
               </p>
             </div>
@@ -376,8 +376,8 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
             <div className="overflow-x-auto">
               <table className="w-full min-w-[700px]">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-48">
+                  <tr className="bg-muted/60 border-b border-border">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-48">
                       Staff Member
                     </th>
                     {weekDates.map((date, i) => {
@@ -387,7 +387,7 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
                           key={i}
                           className={cn(
                             "text-center px-2 py-3 text-xs font-semibold uppercase tracking-wider min-w-[80px]",
-                            isToday ? "text-blue-600 bg-blue-50" : "text-slate-600"
+                            isToday ? "text-blue-600 bg-blue-50" : "text-muted-foreground"
                           )}
                         >
                           <div>{DAYS[date.getDay()]}</div>
@@ -399,15 +399,15 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
                     })}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border">
                   {staffMembers.map((staff) => (
-                    <tr key={staff.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={staff.id} className="hover:bg-muted/60 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                            <User className="w-4 h-4 text-slate-500" />
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                            <User className="w-4 h-4 text-muted-foreground" />
                           </div>
-                          <div className="font-medium text-slate-900 text-sm">
+                          <div className="font-medium text-foreground text-sm">
                             {staff.firstName && staff.lastName
                               ? `${staff.firstName} ${staff.lastName}`
                               : staff.firstName || staff.email.split("@")[0]}
@@ -435,7 +435,7 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
                                     : "bg-status-success/10 text-status-success"
                                   : status.isOverride
                                   ? "bg-status-error/15 text-status-error ring-2 ring-status-error/30"
-                                  : "bg-slate-100 text-slate-500"
+                                  : "bg-muted text-muted-foreground"
                               )}
                             >
                               {status.available ? (
@@ -477,12 +477,12 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden"
+                className="bg-card rounded-xl shadow-xl w-full max-w-md overflow-hidden"
               >
-                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-blue-100 px-6 py-4 flex items-center justify-between">
+                <div className="bg-status-info/10 border-b border-status-info/20 px-6 py-4 flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Set Availability Override</h2>
-                    <p className="text-sm text-slate-600">
+                    <h2 className="text-lg font-semibold text-foreground">Set Availability Override</h2>
+                    <p className="text-sm text-muted-foreground">
                       {selectedCell.date.toLocaleDateString(undefined, {
                         weekday: "long",
                         month: "long",
@@ -492,9 +492,9 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
                   </div>
                   <button
                     onClick={() => setSelectedCell(null)}
-                    className="p-1 rounded-lg hover:bg-white/50 transition-colors"
+                    className="p-1 rounded-lg hover:bg-card/50 transition-colors"
                   >
-                    <X className="w-5 h-5 text-slate-500" />
+                    <X className="w-5 h-5 text-muted-foreground" />
                   </button>
                 </div>
 
@@ -507,7 +507,7 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
                         "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium transition-all",
                         overrideAvailable
                           ? "border-status-success bg-status-success/15 text-status-success"
-                          : "border-slate-200 text-slate-600 hover:border-slate-300"
+                          : "border-border text-muted-foreground hover:border-border"
                       )}
                     >
                       <CheckCircle2 className="w-4 h-4" />
@@ -519,7 +519,7 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
                         "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 font-medium transition-all",
                         !overrideAvailable
                           ? "border-status-error bg-status-error/15 text-status-error"
-                          : "border-slate-200 text-slate-600 hover:border-slate-300"
+                          : "border-border text-muted-foreground hover:border-border"
                       )}
                     >
                       <XCircle className="w-4 h-4" />
@@ -531,21 +531,21 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
                   {overrideAvailable && (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
+                        <label className="block text-sm font-medium text-foreground mb-2">Start Time</label>
                         <input
                           type="time"
                           value={overrideStartTime}
                           onChange={(e) => setOverrideStartTime(e.target.value)}
-                          className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                          className="w-full border border-border rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
+                        <label className="block text-sm font-medium text-foreground mb-2">End Time</label>
                         <input
                           type="time"
                           value={overrideEndTime}
                           onChange={(e) => setOverrideEndTime(e.target.value)}
-                          className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                          className="w-full border border-border rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
                         />
                       </div>
                     </div>
@@ -553,15 +553,15 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
 
                   {/* Reason */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Reason <span className="text-slate-400">(optional)</span>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Reason <span className="text-muted-foreground">(optional)</span>
                     </label>
                     <input
                       type="text"
                       value={overrideReason}
                       onChange={(e) => setOverrideReason(e.target.value)}
                       placeholder="e.g., Doctor's appointment"
-                      className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                      className="w-full border border-border rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
                     />
                   </div>
 
@@ -598,7 +598,7 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING_CONFIG, delay: 0.2 }}
-          className="flex flex-wrap items-center gap-4 text-xs text-slate-600"
+          className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground"
         >
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-status-success/10 border border-status-success/20" />
@@ -609,7 +609,7 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
             <span>Available (override)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-slate-100 border border-slate-200" />
+            <div className="w-4 h-4 rounded bg-muted border border-border" />
             <span>Unavailable (regular)</span>
           </div>
           <div className="flex items-center gap-2">
@@ -623,7 +623,7 @@ export default function AvailabilityPage({ params }: { params: { campgroundId: s
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING_CONFIG, delay: 0.25 }}
-          className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-200 p-5"
+          className="bg-status-info/10 rounded-xl border border-status-info/20 p-5"
         >
           <div className="flex items-center gap-2 text-blue-700 text-sm font-medium mb-2">
             <Sparkles className="w-4 h-4" />

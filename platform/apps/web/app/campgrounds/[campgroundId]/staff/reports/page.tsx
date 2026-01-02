@@ -237,12 +237,12 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
         >
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                <BarChart3 className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 rounded-xl bg-status-info/15 flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-status-info" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Timesheet Reports</h1>
-                <p className="text-slate-600">Review hours worked and overtime</p>
+                <h1 className="text-2xl font-bold text-foreground">Timesheet Reports</h1>
+                <p className="text-muted-foreground">Review hours worked and overtime</p>
               </div>
             </div>
 
@@ -250,8 +250,8 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
               onClick={exportToCsv}
               disabled={!report || exporting}
               className={cn(
-                "px-4 py-2 bg-slate-900 text-white rounded-lg font-medium flex items-center gap-2",
-                "hover:bg-slate-800 transition-colors",
+                "px-4 py-2 bg-foreground text-white rounded-lg font-medium flex items-center gap-2",
+                "hover:bg-foreground/90 transition-colors",
                 (!report || exporting) && "opacity-50 cursor-not-allowed"
               )}
             >
@@ -269,13 +269,13 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 p-4 bg-white rounded-xl border border-slate-200 shadow-sm"
+          className="mb-6 p-4 bg-card rounded-xl border border-border shadow-sm"
         >
           <div className="flex flex-wrap items-center gap-4">
             <div className="relative">
               <button
                 onClick={() => setShowPresets(!showPresets)}
-                className="px-4 py-2 bg-slate-100 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-200 flex items-center gap-2"
+                className="px-4 py-2 bg-muted rounded-lg text-sm font-medium text-foreground hover:bg-muted flex items-center gap-2"
               >
                 <Calendar className="w-4 h-4" />
                 Quick Select
@@ -288,13 +288,13 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="absolute z-10 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
+                    className="absolute z-10 mt-2 w-48 bg-card rounded-lg shadow-lg border border-border py-1"
                   >
                     {DATE_PRESETS.map((preset) => (
                       <button
                         key={preset.label}
                         onClick={() => applyPreset(preset)}
-                        className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                        className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted"
                       >
                         {preset.label}
                       </button>
@@ -309,25 +309,25 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                 type="date"
                 value={periodStart}
                 onChange={(e) => setPeriodStart(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                className="px-3 py-2 border border-border rounded-lg text-sm"
               />
-              <span className="text-slate-400">to</span>
+              <span className="text-muted-foreground">to</span>
               <input
                 type="date"
                 value={periodEnd}
                 onChange={(e) => setPeriodEnd(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                className="px-3 py-2 border border-border rounded-lg text-sm"
               />
             </div>
 
-            <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
               <button
                 onClick={() => setViewMode("summary")}
                 className={cn(
                   "px-3 py-1.5 rounded text-sm font-medium transition-colors",
                   viewMode === "summary"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 Summary
@@ -337,8 +337,8 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                 className={cn(
                   "px-3 py-1.5 rounded text-sm font-medium transition-colors",
                   viewMode === "detailed"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 Detailed
@@ -365,7 +365,7 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
             <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
           </div>
         ) : !report ? (
-          <div className="text-center py-20 text-slate-500">
+          <div className="text-center py-20 text-muted-foreground">
             Select a date range to view the report
           </div>
         ) : (
@@ -376,27 +376,27 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
               animate={{ opacity: 1, y: 0 }}
               className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
             >
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex items-center gap-2 text-slate-600 mb-1">
+              <div className="bg-card rounded-xl border border-border p-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Users className="w-4 h-4" />
                   <span className="text-sm">Team Members</span>
                 </div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold text-foreground">
                   {Object.keys(report.byUser).length}
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex items-center gap-2 text-slate-600 mb-1">
+              <div className="bg-card rounded-xl border border-border p-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Clock className="w-4 h-4" />
                   <span className="text-sm">Total Hours</span>
                 </div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold text-foreground">
                   {formatHours(report.totalNetMinutes)}
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <div className="bg-card rounded-xl border border-border p-4">
                 <div className="flex items-center gap-2 text-emerald-600 mb-1">
                   <Timer className="w-4 h-4" />
                   <span className="text-sm">Regular</span>
@@ -406,7 +406,7 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <div className="bg-card rounded-xl border border-border p-4">
                 <div className="flex items-center gap-2 text-amber-600 mb-1">
                   <TrendingUp className="w-4 h-4" />
                   <span className="text-sm">Overtime</span>
@@ -422,14 +422,14 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="bg-white rounded-xl border border-slate-200 overflow-hidden"
+                className="bg-card rounded-xl border border-border overflow-hidden"
               >
-                <div className="p-4 border-b border-slate-200 bg-slate-50">
-                  <h3 className="font-semibold text-slate-900">Hours by Employee</h3>
+                <div className="p-4 border-b border-border bg-muted/60">
+                  <h3 className="font-semibold text-foreground">Hours by Employee</h3>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-border">
                   {userSummaries.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500">
+                    <div className="p-8 text-center text-muted-foreground">
                       No time entries for this period
                     </div>
                   ) : (
@@ -439,25 +439,25 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className="p-4 hover:bg-slate-50"
+                        className="p-4 hover:bg-muted/60"
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-semibold">
+                            <div className="w-10 h-10 rounded-full bg-status-info/15 flex items-center justify-center text-status-info font-semibold">
                               {user.name.charAt(0)}
                             </div>
                             <div>
-                              <p className="font-medium text-slate-900">{user.name}</p>
-                              <p className="text-sm text-slate-500">{user.entries} entries</p>
+                              <p className="font-medium text-foreground">{user.name}</p>
+                              <p className="text-sm text-muted-foreground">{user.entries} entries</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-slate-900">
+                            <p className="font-bold text-foreground">
                               {formatMinutes(user.netMinutes)}
                             </p>
-                            <p className="text-sm text-slate-500">
+                            <p className="text-sm text-muted-foreground">
                               {user.breakMinutes > 0 && (
-                                <span className="text-slate-400 mr-2">
+                                <span className="text-muted-foreground mr-2">
                                   <Coffee className="w-3 h-3 inline" /> {formatMinutes(user.breakMinutes)}
                                 </span>
                               )}
@@ -484,7 +484,7 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                             />
                           )}
                         </div>
-                        <div className="ml-13 flex justify-between text-xs text-slate-500 mt-1">
+                        <div className="ml-13 flex justify-between text-xs text-muted-foreground mt-1">
                           <span>REG: {formatHours(user.regularMinutes)}h</span>
                           {user.overtimeMinutes > 0 && (
                             <span className="text-amber-600">
@@ -501,17 +501,17 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="bg-white rounded-xl border border-slate-200 overflow-hidden"
+                className="bg-card rounded-xl border border-border overflow-hidden"
               >
-                <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                  <h3 className="font-semibold text-slate-900">All Time Entries</h3>
-                  <span className="text-sm text-slate-500">
+                <div className="p-4 border-b border-border bg-muted/60 flex items-center justify-between">
+                  <h3 className="font-semibold text-foreground">All Time Entries</h3>
+                  <span className="text-sm text-muted-foreground">
                     {report.totalEntries} entries
                   </span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-slate-50 text-left text-sm text-slate-600">
+                    <thead className="bg-muted/60 text-left text-sm text-muted-foreground">
                       <tr>
                         <th className="px-4 py-3 font-medium">Employee</th>
                         <th className="px-4 py-3 font-medium">Date</th>
@@ -524,10 +524,10 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                         <th className="px-4 py-3 font-medium">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-border">
                       {report.entries.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                          <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                             No time entries for this period
                           </td>
                         </tr>
@@ -538,24 +538,24 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: idx * 0.02 }}
-                            className="hover:bg-slate-50"
+                            className="hover:bg-muted/60"
                           >
-                            <td className="px-4 py-3 font-medium text-slate-900">
+                            <td className="px-4 py-3 font-medium text-foreground">
                               {entry.userName}
                             </td>
-                            <td className="px-4 py-3 text-slate-600">{formatDate(entry.date)}</td>
-                            <td className="px-4 py-3 text-slate-600">{formatTime(entry.clockIn)}</td>
-                            <td className="px-4 py-3 text-slate-600">
+                            <td className="px-4 py-3 text-muted-foreground">{formatDate(entry.date)}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{formatTime(entry.clockIn)}</td>
+                            <td className="px-4 py-3 text-muted-foreground">
                               {entry.clockOut ? formatTime(entry.clockOut) : "-"}
                             </td>
-                            <td className="px-4 py-3 text-slate-600">{entry.role || "-"}</td>
-                            <td className="px-4 py-3 text-right text-slate-600">
+                            <td className="px-4 py-3 text-muted-foreground">{entry.role || "-"}</td>
+                            <td className="px-4 py-3 text-right text-muted-foreground">
                               {formatMinutes(entry.grossMinutes)}
                             </td>
-                            <td className="px-4 py-3 text-right text-slate-400">
+                            <td className="px-4 py-3 text-right text-muted-foreground">
                               {entry.breakMinutes > 0 ? formatMinutes(entry.breakMinutes) : "-"}
                             </td>
-                            <td className="px-4 py-3 text-right font-medium text-slate-900">
+                            <td className="px-4 py-3 text-right font-medium text-foreground">
                               {formatMinutes(entry.netMinutes)}
                             </td>
                             <td className="px-4 py-3">
@@ -568,7 +568,7 @@ export default function TimesheetReportsPage({ params }: { params: { campgroundI
                                     ? "bg-status-info/15 text-status-info"
                                     : entry.status === "open"
                                     ? "bg-status-warning/15 text-status-warning"
-                                    : "bg-slate-100 text-slate-600"
+                                    : "bg-muted text-muted-foreground"
                                 )}
                               >
                                 {entry.status}

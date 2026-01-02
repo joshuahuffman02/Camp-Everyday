@@ -212,10 +212,10 @@ const tierIcons: Record<string, React.ReactNode> = {
 };
 
 const tierColors: Record<string, string> = {
-  founders_circle: "from-amber-500 to-orange-500",
-  pioneer: "from-emerald-500 to-teal-500",
-  trailblazer: "from-violet-500 to-purple-500",
-  standard: "from-slate-500 to-slate-600",
+  founders_circle: "bg-amber-500",
+  pioneer: "bg-emerald-500",
+  trailblazer: "bg-violet-500",
+  standard: "bg-slate-600",
 };
 
 const statusStyles: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
@@ -431,7 +431,7 @@ export default function BillingPage() {
           <>
             {/* Tier Badge */}
             <div
-              className={`bg-gradient-to-r ${tierColors[summary.tier.name] || tierColors.standard} rounded-2xl p-6 text-white`}
+              className={`${tierColors[summary.tier.name] || tierColors.standard} rounded-2xl p-6 text-white`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">

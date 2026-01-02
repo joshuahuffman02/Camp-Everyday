@@ -210,7 +210,7 @@ export default function GamificationSettingsPage() {
       <div className="max-w-5xl space-y-6">
         <div className="flex flex-col items-center justify-center py-24">
           <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
-          <p className="text-slate-500">Loading settings...</p>
+          <p className="text-muted-foreground">Loading settings...</p>
         </div>
       </div>
     );
@@ -221,11 +221,11 @@ export default function GamificationSettingsPage() {
     return (
       <div className="max-w-5xl space-y-6">
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center mb-6">
-            <Trophy className="w-12 h-12 text-slate-400" />
+          <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
+            <Trophy className="w-12 h-12 text-muted-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Select a Campground</h1>
-          <p className="text-slate-500 max-w-md">
+          <h1 className="text-2xl font-bold text-foreground mb-2">Select a Campground</h1>
+          <p className="text-muted-foreground max-w-md">
             Please select a campground to manage gamification settings.
           </p>
         </div>
@@ -241,11 +241,11 @@ export default function GamificationSettingsPage() {
           <div className="w-24 h-24 rounded-full bg-status-error/15 flex items-center justify-center mb-6">
             <Trophy className="w-12 h-12 text-status-error/60" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Unable to Load Settings</h1>
-          <p className="text-slate-500 max-w-md mb-4">
+          <h1 className="text-2xl font-bold text-foreground mb-2">Unable to Load Settings</h1>
+          <p className="text-muted-foreground max-w-md mb-4">
             There was an error loading gamification settings. Please try refreshing the page.
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground">
             {(settingsError as Error)?.message || "Unknown error"}
           </p>
         </div>
@@ -257,8 +257,8 @@ export default function GamificationSettingsPage() {
     <div className="max-w-5xl space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Gamification Settings</h1>
-          <p className="text-slate-600 text-sm">
+          <h1 className="text-2xl font-semibold text-foreground">Gamification Settings</h1>
+          <p className="text-muted-foreground text-sm">
             Make work a friendly competition - configure XP rules, role access, and recognition.
           </p>
         </div>
@@ -272,37 +272,37 @@ export default function GamificationSettingsPage() {
 
       {/* Impact Pulse */}
       {enabled && (
-        <Card className="bg-gradient-to-r from-emerald-50 via-cyan-50 to-white border-emerald-100">
+        <Card className="bg-status-success/10 border-status-success/20">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="w-5 h-5 text-emerald-600" />
+              <Zap className="w-5 h-5 text-status-success" />
               Impact Pulse
             </CardTitle>
             <CardDescription>Quick stats at a glance</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-lg border border-emerald-100 bg-white/70 p-4">
+            <div className="rounded-lg border border-border bg-card/80 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
-                <span className="text-sm font-medium text-slate-700">Total XP (30 days)</span>
+                <TrendingUp className="w-4 h-4 text-status-success" />
+                <span className="text-sm font-medium text-muted-foreground">Total XP (30 days)</span>
               </div>
-              <div className="text-2xl font-bold text-slate-900">{totalXp.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-foreground">{totalXp.toLocaleString()}</div>
             </div>
-            <div className="rounded-lg border border-emerald-100 bg-white/70 p-4">
+            <div className="rounded-lg border border-border bg-card/80 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Trophy className="w-4 h-4 text-amber-500" />
-                <span className="text-sm font-medium text-slate-700">Top Performer</span>
+                <span className="text-sm font-medium text-muted-foreground">Top Performer</span>
               </div>
-              <div className="text-lg font-bold text-slate-900">
+              <div className="text-lg font-bold text-foreground">
                 {topPerformer ? `${topPerformer.name} (+${topPerformer.xp} XP)` : "No data yet"}
               </div>
             </div>
-            <div className="rounded-lg border border-emerald-100 bg-white/70 p-4">
+            <div className="rounded-lg border border-border bg-card/80 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Users className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-medium text-slate-700">Leaderboard Size</span>
+                <Users className="w-4 h-4 text-status-info" />
+                <span className="text-sm font-medium text-muted-foreground">Leaderboard Size</span>
               </div>
-              <div className="text-2xl font-bold text-slate-900">
+              <div className="text-2xl font-bold text-foreground">
                 {leaderboard?.leaderboard?.length || 0} staff
               </div>
             </div>
@@ -314,7 +314,7 @@ export default function GamificationSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-slate-600" />
+            <Shield className="w-5 h-5 text-muted-foreground" />
             Opt-in & Role Gates
           </CardTitle>
           <CardDescription>Control who participates in gamification</CardDescription>
@@ -322,8 +322,8 @@ export default function GamificationSettingsPage() {
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-slate-900">Enable gamification</div>
-              <p className="text-sm text-slate-600">
+              <div className="text-sm font-medium text-foreground">Enable gamification</div>
+              <p className="text-sm text-muted-foreground">
                 XP, badges, and leaderboards will be available for staff.
               </p>
             </div>
@@ -337,7 +337,7 @@ export default function GamificationSettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm text-slate-700">Roles allowed to participate</Label>
+            <Label className="text-sm text-muted-foreground">Roles allowed to participate</Label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {roleOptions.map((role) => (
                 <button
@@ -346,12 +346,12 @@ export default function GamificationSettingsPage() {
                   onClick={() => handleToggleRole(role.value)}
                   className={`text-left rounded border px-3 py-2 text-sm transition ${
                     enabledRoles.includes(role.value)
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                      : "border-slate-200 hover:border-slate-300"
+                      ? "border-status-success/40 bg-status-success/10 text-status-success"
+                      : "border-border hover:border-border"
                   }`}
                 >
                   <div className="font-medium">{role.label}</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-muted-foreground">
                     {enabledRoles.includes(role.value) ? "Included" : "Excluded"}
                   </div>
                 </button>
@@ -389,22 +389,22 @@ export default function GamificationSettingsPage() {
             <CardDescription>Configure how much XP each activity awards</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded border border-slate-200 divide-y">
+            <div className="rounded border border-border divide-y">
               {rules.map((rule: any) => (
                 <div
                   key={rule.id}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-muted/60"
                 >
                   <div>
-                    <div className="font-medium text-slate-900 capitalize">
+                    <div className="font-medium text-foreground capitalize">
                       {rule.category.replace(/_/g, " ")}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-muted-foreground">
                       Range: {rule.minXp} - {rule.maxXp} XP
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                    <Badge variant="outline" className="bg-status-success/10 text-status-success border-status-success/20">
                       Default: {rule.defaultXp} XP
                     </Badge>
                     <Badge variant={rule.isActive ? "default" : "secondary"}>
@@ -516,7 +516,7 @@ export default function GamificationSettingsPage() {
             {(leaderboard?.leaderboard || []).slice(0, 5).map((row: any) => (
               <div
                 key={row.userId}
-                className="flex items-center justify-between rounded border border-slate-100 px-4 py-3 bg-slate-50/50"
+                className="flex items-center justify-between rounded border border-border px-4 py-3 bg-muted/50"
               >
                 <div className="flex items-center gap-3">
                   <Badge
@@ -525,7 +525,7 @@ export default function GamificationSettingsPage() {
                       row.rank === 1
                         ? "bg-status-warning/15 text-status-warning border-status-warning/30"
                         : row.rank === 2
-                        ? "bg-slate-100 text-slate-600 border-slate-200"
+                        ? "bg-muted text-muted-foreground border-border"
                         : row.rank === 3
                         ? "bg-status-warning/10 text-status-warning border-status-warning/20"
                         : ""
@@ -534,8 +534,8 @@ export default function GamificationSettingsPage() {
                     {row.rank}
                   </Badge>
                   <div>
-                    <div className="font-medium text-slate-900">{row.name}</div>
-                    <div className="text-xs text-slate-500">{row.role || "Staff"}</div>
+                    <div className="font-medium text-foreground">{row.name}</div>
+                    <div className="text-xs text-muted-foreground">{row.role || "Staff"}</div>
                   </div>
                 </div>
                 <div className="font-bold text-emerald-600">+{row.xp} XP</div>

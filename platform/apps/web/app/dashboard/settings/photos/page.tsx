@@ -97,12 +97,12 @@ export default function PhotosPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* How It Works Section */}
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 mb-4">
+            <div className="bg-status-warning/10 border border-status-warning/20 rounded-lg p-4 mb-4">
               <div className="flex items-start gap-3">
                 <div className="text-2xl">📷</div>
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-amber-900">How Photos Work</h4>
-                  <div className="text-sm text-slate-700 space-y-1">
+                  <h4 className="font-semibold text-foreground">How Photos Work</h4>
+                  <div className="text-sm text-muted-foreground space-y-1">
                     <p><strong>Media Pool:</strong> This is your campground's central photo library. All photos added here can be used across your listing.</p>
                     <p><strong>Hero Image:</strong> Select one photo (using the radio button) to be your primary display image on the homepage and search results.</p>
                     <p><strong>Order Matters:</strong> Use the ↑↓ buttons to reorder photos. The order here determines how they appear in your public gallery.</p>
@@ -111,8 +111,8 @@ export default function PhotosPage() {
                 </div>
               </div>
             </div>
-            {!campgroundId && <div className="text-sm text-slate-500">Select a campground to edit photos.</div>}
-            {campgroundQuery.isLoading && <div className="text-sm text-slate-500">Loading…</div>}
+            {!campgroundId && <div className="text-sm text-muted-foreground">Select a campground to edit photos.</div>}
+            {campgroundQuery.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
 
             {campgroundId && !campgroundQuery.isLoading && (
               <div className="space-y-4">
@@ -128,9 +128,9 @@ export default function PhotosPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {photos.length === 0 && <div className="text-sm text-slate-500">No photos yet.</div>}
+                  {photos.length === 0 && <div className="text-sm text-muted-foreground">No photos yet.</div>}
                   {photos.map((url, idx) => (
-                    <div key={url} className="flex items-center gap-3 border border-slate-200 rounded-lg p-3">
+                    <div key={url} className="flex items-center gap-3 border border-border rounded-lg p-3">
                       <input
                         type="radio"
                         name="hero"
@@ -170,4 +170,3 @@ export default function PhotosPage() {
     </div>
   );
 }
-

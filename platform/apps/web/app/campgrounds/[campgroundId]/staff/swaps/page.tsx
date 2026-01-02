@@ -70,8 +70,8 @@ const STATUS_STYLES: Record<SwapStatus, { bg: string; text: string; icon: React.
   pending_manager: { bg: "bg-status-info/15", text: "text-status-info", icon: <Shield className="w-3.5 h-3.5" />, label: "Awaiting Manager" },
   approved: { bg: "bg-status-success/15", text: "text-status-success", icon: <CheckCircle2 className="w-3.5 h-3.5" />, label: "Approved" },
   rejected: { bg: "bg-status-error/15", text: "text-status-error", icon: <XCircle className="w-3.5 h-3.5" />, label: "Rejected" },
-  declined: { bg: "bg-slate-100", text: "text-slate-500", icon: <XCircle className="w-3.5 h-3.5" />, label: "Declined" },
-  cancelled: { bg: "bg-slate-100", text: "text-slate-500", icon: <X className="w-3.5 h-3.5" />, label: "Cancelled" },
+  declined: { bg: "bg-muted", text: "text-muted-foreground", icon: <XCircle className="w-3.5 h-3.5" />, label: "Declined" },
+  cancelled: { bg: "bg-muted", text: "text-muted-foreground", icon: <X className="w-3.5 h-3.5" />, label: "Cancelled" },
 };
 
 export default function ShiftSwapsPage({ params }: { params: { campgroundId: string } }) {
@@ -238,12 +238,12 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
           className="mb-8"
         >
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-              <ArrowLeftRight className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
+              <ArrowLeftRight className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Shift Swaps</h1>
-              <p className="text-slate-600">Trade shifts with your coworkers</p>
+              <h1 className="text-2xl font-bold text-foreground">Shift Swaps</h1>
+              <p className="text-muted-foreground">Trade shifts with your coworkers</p>
             </div>
           </div>
         </motion.div>
@@ -275,7 +275,7 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-200 pb-2">
+        <div className="flex gap-2 mb-6 border-b border-border pb-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -284,7 +284,7 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
                 "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
                 activeTab === tab.id
                   ? "bg-violet-100 text-violet-700"
-                  : "text-slate-600 hover:bg-slate-100"
+                  : "text-muted-foreground hover:bg-muted"
               )}
             >
               {tab.label}
@@ -308,11 +308,11 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
             animate={{ opacity: 1, scale: 1 }}
             className="text-center py-20"
           >
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-              <Inbox className="w-8 h-8 text-slate-400" />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+              <Inbox className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">No swap requests</h3>
-            <p className="text-slate-500">
+            <h3 className="text-lg font-semibold text-foreground mb-1">No swap requests</h3>
+            <p className="text-muted-foreground">
               {activeTab === "incoming"
                 ? "No one has requested to swap shifts with you yet"
                 : activeTab === "outgoing"
@@ -321,7 +321,7 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
                 ? "No swaps awaiting your approval"
                 : "No shift swap requests yet"}
             </p>
-            <p className="text-sm text-slate-400 mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               To request a swap, go to the schedule and click on your shift
             </p>
           </motion.div>
@@ -345,36 +345,36 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ ...SPRING_CONFIG, delay: idx * 0.05 }}
-                    className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+                    className="bg-card rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-shadow"
                   >
                     {/* Header Row */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-4">
                         {/* Requester */}
                         <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                          <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-semibold">
                             {swap.requester?.firstName?.[0] || "?"}
                           </div>
                           <div>
-                            <p className="font-medium text-slate-900">
+                            <p className="font-medium text-foreground">
                               {swap.requester?.firstName} {swap.requester?.lastName}
                             </p>
-                            <p className="text-xs text-slate-500">Requesting swap</p>
+                            <p className="text-xs text-muted-foreground">Requesting swap</p>
                           </div>
                         </div>
 
-                        <ArrowRight className="w-5 h-5 text-slate-400" />
+                        <ArrowRight className="w-5 h-5 text-muted-foreground" />
 
                         {/* Recipient */}
                         <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center text-white font-semibold">
+                          <div className="w-10 h-10 rounded-full bg-status-success/15 flex items-center justify-center text-status-success font-semibold">
                             {swap.recipient?.firstName?.[0] || "?"}
                           </div>
                           <div>
-                            <p className="font-medium text-slate-900">
+                            <p className="font-medium text-foreground">
                               {swap.recipient?.firstName} {swap.recipient?.lastName}
                             </p>
-                            <p className="text-xs text-slate-500">Would take shift</p>
+                            <p className="text-xs text-muted-foreground">Would take shift</p>
                           </div>
                         </div>
                       </div>
@@ -394,16 +394,16 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
 
                     {/* Shift Details */}
                     {swap.requesterShift && (
-                      <div className="mb-4 p-3 bg-slate-50 rounded-lg flex items-center gap-4">
-                        <Calendar className="w-5 h-5 text-slate-400" />
+                      <div className="mb-4 p-3 bg-muted/60 rounded-lg flex items-center gap-4">
+                        <Calendar className="w-5 h-5 text-muted-foreground" />
                         <div>
-                          <p className="font-medium text-slate-900">
+                          <p className="font-medium text-foreground">
                             {formatDate(swap.requesterShift.shiftDate)}
                           </p>
-                          <p className="text-sm text-slate-600">
+                          <p className="text-sm text-muted-foreground">
                             {formatTime(swap.requesterShift.startTime)} - {formatTime(swap.requesterShift.endTime)}
                             {swap.requesterShift.role && (
-                              <span className="ml-2 text-slate-400">({swap.requesterShift.role})</span>
+                              <span className="ml-2 text-muted-foreground">({swap.requesterShift.role})</span>
                             )}
                           </p>
                         </div>
@@ -412,14 +412,14 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
 
                     {/* Notes */}
                     {swap.requesterNote && (
-                      <p className="text-sm text-slate-600 mb-4">
+                      <p className="text-sm text-muted-foreground mb-4">
                         <span className="font-medium">Note:</span> {swap.requesterNote}
                       </p>
                     )}
 
                     {/* Actions */}
                     {(canRespond || canApprove || canCancel) && (
-                      <div className="flex gap-2 pt-3 border-t border-slate-100">
+                      <div className="flex gap-2 pt-3 border-t border-border">
                         {canRespond && (
                           <>
                             <button
@@ -443,7 +443,7 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
                               disabled={isProcessing}
                               className={cn(
                                 "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
-                                "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                                "bg-muted text-foreground hover:bg-muted",
                                 isProcessing && "opacity-50 cursor-not-allowed"
                               )}
                             >
@@ -490,7 +490,7 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
                             disabled={isProcessing}
                             className={cn(
                               "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
-                              "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                              "bg-muted text-foreground hover:bg-muted",
                               isProcessing && "opacity-50 cursor-not-allowed"
                             )}
                           >
@@ -507,7 +507,7 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
 
                     {/* Manager decision info */}
                     {swap.manager && swap.managerRespondedAt && (
-                      <div className="mt-3 pt-3 border-t border-slate-100 text-sm text-slate-500">
+                      <div className="mt-3 pt-3 border-t border-border text-sm text-muted-foreground">
                         <span className="font-medium">{swap.manager.firstName} {swap.manager.lastName}</span>{" "}
                         {swap.status === "approved" ? "approved" : "rejected"} on{" "}
                         {formatDate(swap.managerRespondedAt)}

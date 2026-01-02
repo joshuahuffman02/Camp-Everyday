@@ -126,10 +126,10 @@ export default function PaymentsSettingsPage() {
     return (
       <div className="max-w-3xl">
         <div className="flex items-center gap-2 mb-4">
-          <h1 className="text-2xl font-semibold text-slate-900">Payments</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Payments</h1>
           <HelpAnchor topicId="payments-config" label="Payments setup help" />
         </div>
-        <div className="p-8 text-center text-slate-500">
+        <div className="p-8 text-center text-muted-foreground">
           <p>Select a campground to configure payment settings.</p>
         </div>
       </div>
@@ -140,14 +140,14 @@ export default function PaymentsSettingsPage() {
     return (
       <div className="max-w-3xl">
         <div className="flex items-center gap-2 mb-4">
-          <h1 className="text-2xl font-semibold text-slate-900">Payments</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Payments</h1>
           <HelpAnchor topicId="payments-config" label="Payments setup help" />
         </div>
         <div className="space-y-4">
           {/* Skeleton loading state */}
-          <div className="h-20 bg-gradient-to-r from-slate-100 to-slate-50 rounded-xl animate-pulse" />
-          <div className="h-48 bg-slate-100 rounded-xl animate-pulse" />
-          <div className="h-64 bg-slate-100 rounded-xl animate-pulse" />
+          <div className="h-20 bg-muted rounded-xl animate-pulse" />
+          <div className="h-48 bg-muted rounded-xl animate-pulse" />
+          <div className="h-64 bg-muted rounded-xl animate-pulse" />
         </div>
       </div>
     );
@@ -158,10 +158,10 @@ export default function PaymentsSettingsPage() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold text-slate-900">Payments</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Payments</h1>
           <HelpAnchor topicId="payments-config" label="Payments setup help" />
         </div>
-        <p className="text-slate-600 text-sm mt-1">
+        <p className="text-muted-foreground text-sm mt-1">
           Configure how you accept payments from guests.
         </p>
       </div>

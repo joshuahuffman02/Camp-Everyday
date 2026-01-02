@@ -138,46 +138,46 @@ export default function ApprovalsQueue({ params }: { params: { campgroundId: str
           transition={{ ...SPRING_CONFIG, delay: 0.1 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-4"
         >
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+          <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pending Approval</div>
-                <div className="text-3xl font-bold text-slate-900 mt-1">{submittedCount}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pending Approval</div>
+                <div className="text-3xl font-bold text-foreground mt-1">{submittedCount}</div>
               </div>
               <div className={cn(
                 "w-12 h-12 rounded-xl flex items-center justify-center",
-                submittedCount > 0 ? "bg-amber-100" : "bg-emerald-100"
+                submittedCount > 0 ? "bg-status-warning/15" : "bg-status-success/15"
               )}>
                 {submittedCount > 0 ? (
-                  <Clock className="w-6 h-6 text-amber-600" />
+                  <Clock className="w-6 h-6 text-status-warning" />
                 ) : (
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                  <CheckCircle2 className="w-6 h-6 text-status-success" />
                 )}
               </div>
             </div>
             {submittedCount > 0 && (
-              <p className="text-xs text-amber-600 mt-2">
+              <p className="text-xs text-status-warning mt-2">
                 {submittedCount} timesheet{submittedCount !== 1 ? "s" : ""} waiting for review
               </p>
             )}
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 p-5">
-            <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium">
+          <div className="bg-status-success/10 rounded-xl border border-status-success/20 p-5">
+            <div className="flex items-center gap-2 text-status-success text-sm font-medium">
               <Sparkles className="w-4 h-4" />
               Quick Tip
             </div>
-            <p className="text-xs text-emerald-800 mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               Review timesheets promptly to ensure accurate payroll processing. Check hours against scheduled times.
             </p>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+          <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
             <div className="flex items-center gap-2">
-              <Timer className="w-4 h-4 text-slate-500" />
-              <span className="text-sm font-medium text-slate-700">Approval Workflow</span>
+              <Timer className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Approval Workflow</span>
             </div>
-            <ul className="text-xs text-slate-600 mt-2 space-y-1">
+            <ul className="text-xs text-muted-foreground mt-2 space-y-1">
               <li>1. Staff submits timesheet</li>
               <li>2. Manager reviews & approves</li>
               <li>3. Ready for payroll export</li>
@@ -205,33 +205,33 @@ export default function ApprovalsQueue({ params }: { params: { campgroundId: str
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING_CONFIG, delay: 0.15 }}
-          className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+          className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
         >
-          <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 px-6 py-4">
+          <div className="bg-muted/60 border-b border-border px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
-                <CheckSquare className="w-5 h-5 text-slate-600" />
+              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                <CheckSquare className="w-5 h-5 text-muted-foreground" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Submitted Timesheets</h2>
-                <p className="text-sm text-slate-600">Approve or reject staff timesheet submissions</p>
+                <h2 className="text-lg font-semibold text-foreground">Submitted Timesheets</h2>
+                <p className="text-sm text-muted-foreground">Approve or reject staff timesheet submissions</p>
               </div>
             </div>
           </div>
 
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {loading ? (
-              <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+              <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span className="text-sm">Loading timesheets...</span>
               </div>
             ) : shifts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-                  <Inbox className="w-8 h-8 text-emerald-600" />
+                <div className="w-16 h-16 bg-status-success/15 rounded-full flex items-center justify-center mb-4">
+                  <Inbox className="w-8 h-8 text-status-success" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900">All caught up!</h3>
-                <p className="text-sm text-slate-600 mt-1 max-w-md">
+                <h3 className="text-lg font-semibold text-foreground">All caught up!</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-md">
                   No timesheets waiting for approval. When staff submit their timesheets, they'll appear here.
                 </p>
               </div>
@@ -245,17 +245,17 @@ export default function ApprovalsQueue({ params }: { params: { campgroundId: str
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ ...SPRING_CONFIG, delay: index * 0.03 }}
-                    className="flex flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between hover:bg-slate-50 transition-colors"
+                    className="flex flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between hover:bg-muted/60 transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-                        <User className="w-5 h-5 text-slate-500" />
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                        <User className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <div>
-                        <div className="font-semibold text-slate-900">
+                        <div className="font-semibold text-foreground">
                           {shift.role || "Shift"}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Calendar className="w-3.5 h-3.5" />
                           <span>{new Date(shift.shiftDate).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
                           <span>&middot;</span>
@@ -264,12 +264,12 @@ export default function ApprovalsQueue({ params }: { params: { campgroundId: str
                           </span>
                         </div>
                         {(shift.scheduledMinutes || shift.actualMinutes) && (
-                          <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                             {shift.scheduledMinutes && (
                               <span>Scheduled: {formatDuration(shift.scheduledMinutes)}</span>
                             )}
                             {shift.actualMinutes && (
-                              <span className="text-emerald-600 font-medium">Actual: {formatDuration(shift.actualMinutes)}</span>
+                              <span className="text-status-success font-medium">Actual: {formatDuration(shift.actualMinutes)}</span>
                             )}
                           </div>
                         )}

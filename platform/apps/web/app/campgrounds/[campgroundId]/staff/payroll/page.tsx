@@ -310,7 +310,7 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
               "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all",
               activeTab === "export"
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                : "bg-card border border-border text-muted-foreground hover:bg-muted/60"
             )}
           >
             <Download className="w-4 h-4" />
@@ -322,7 +322,7 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
               "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all",
               activeTab === "history"
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                : "bg-card border border-border text-muted-foreground hover:bg-muted/60"
             )}
           >
             <History className="w-4 h-4" />
@@ -359,16 +359,16 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...SPRING_CONFIG, delay: 0.15 }}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
               >
-                <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 px-6 py-4">
+                <div className="bg-muted/60 border-b border-border px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
-                      <Settings className="w-5 h-5 text-slate-600" />
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                      <Settings className="w-5 h-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-slate-900">Payroll Provider</h2>
-                      <p className="text-sm text-slate-600">Select your payroll system for the correct export format</p>
+                      <h2 className="text-lg font-semibold text-foreground">Payroll Provider</h2>
+                      <p className="text-sm text-muted-foreground">Select your payroll system for the correct export format</p>
                     </div>
                   </div>
                 </div>
@@ -383,8 +383,8 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                       className={cn(
                         "text-left p-4 rounded-lg border-2 transition-all",
                         provider === p.id
-                          ? "border-emerald-500 bg-emerald-50"
-                          : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          ? "border-status-success/40 bg-status-success/10"
+                          : "border-border hover:border-border hover:bg-muted/60"
                       )}
                     >
                       <div className="flex items-center gap-3 mb-2">
@@ -396,10 +396,10 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                         >
                           {p.icon}
                         </div>
-                        {provider === p.id && <CheckCircle2 className="w-4 h-4 text-emerald-600 ml-auto" />}
+                        {provider === p.id && <CheckCircle2 className="w-4 h-4 text-status-success ml-auto" />}
                       </div>
-                      <div className="font-semibold text-slate-900">{p.name}</div>
-                      <div className="text-xs text-slate-500 mt-1">{p.description}</div>
+                      <div className="font-semibold text-foreground">{p.name}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{p.description}</div>
                     </motion.button>
                   ))}
                 </div>
@@ -410,16 +410,16 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...SPRING_CONFIG, delay: 0.2 }}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
               >
-                <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100 px-6 py-4">
+                <div className="bg-status-info/10 border-b border-status-info/20 px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center">
-                      <Calendar className="w-5 h-5 text-teal-600" />
+                    <div className="w-10 h-10 rounded-lg bg-status-info/15 flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-status-info" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-slate-900">Pay Period</h2>
-                      <p className="text-sm text-slate-600">Select the date range for the export</p>
+                      <h2 className="text-lg font-semibold text-foreground">Pay Period</h2>
+                      <p className="text-sm text-muted-foreground">Select the date range for the export</p>
                     </div>
                   </div>
                 </div>
@@ -430,7 +430,7 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                       <button
                         key={preset.days}
                         onClick={() => applyPreset(preset.days)}
-                        className="px-3 py-1.5 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                        className="px-3 py-1.5 text-sm font-medium rounded-lg bg-muted text-foreground hover:bg-muted transition-colors"
                       >
                         {preset.label}
                       </button>
@@ -439,21 +439,21 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
+                      <label className="block text-sm font-medium text-foreground mb-2">Start Date</label>
                       <input
                         type="date"
                         value={periodStart}
                         onChange={(e) => setPeriodStart(e.target.value)}
-                        className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none"
+                        className="w-full border border-border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
+                      <label className="block text-sm font-medium text-foreground mb-2">End Date</label>
                       <input
                         type="date"
                         value={periodEnd}
                         onChange={(e) => setPeriodEnd(e.target.value)}
-                        className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none"
+                        className="w-full border border-border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -463,7 +463,7 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                     whileTap={{ scale: 0.99 }}
                     onClick={loadPreview}
                     disabled={loading || !periodStart || !periodEnd}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-slate-800 text-white font-medium disabled:opacity-50 hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-foreground text-white font-medium disabled:opacity-50 hover:bg-foreground/90 transition-colors focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:ring-offset-2"
                   >
                     {loading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -481,17 +481,17 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={SPRING_CONFIG}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
                 >
-                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 px-6 py-4">
+                  <div className="bg-status-success/10 border-b border-status-success/20 px-6 py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                          <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                        <div className="w-10 h-10 rounded-lg bg-status-success/15 flex items-center justify-center">
+                          <FileSpreadsheet className="w-5 h-5 text-status-success" />
                         </div>
                         <div>
-                          <h2 className="text-lg font-semibold text-slate-900">Preview</h2>
-                          <p className="text-sm text-slate-600">
+                          <h2 className="text-lg font-semibold text-foreground">Preview</h2>
+                          <p className="text-sm text-muted-foreground">
                             {preview.rows.length} employee{preview.rows.length !== 1 ? "s" : ""} &middot;{" "}
                             {totalHours.toFixed(1)} total hours
                           </p>
@@ -516,11 +516,11 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
 
                   {preview.rows.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                        <Clock className="w-8 h-8 text-slate-400" />
+                      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                        <Clock className="w-8 h-8 text-muted-foreground" />
                       </div>
-                      <h3 className="text-lg font-semibold text-slate-900">No time entries</h3>
-                      <p className="text-sm text-slate-600 mt-1 max-w-md">
+                      <h3 className="text-lg font-semibold text-foreground">No time entries</h3>
+                      <p className="text-sm text-muted-foreground mt-1 max-w-md">
                         No approved or submitted time entries found for this period.
                       </p>
                     </div>
@@ -528,55 +528,55 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200">
-                            <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          <tr className="bg-muted/60 border-b border-border">
+                            <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                               Employee
                             </th>
-                            <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                               Role
                             </th>
-                            <th className="text-right px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="text-right px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                               Hours
                             </th>
-                            <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                               Earning Code
                             </th>
-                            <th className="text-right px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="text-right px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                               Rate
                             </th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-border">
                           {preview.rows.map((row, idx) => (
                             <motion.tr
                               key={`${row.userId}-${row.earningCode}-${idx}`}
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: idx * 0.03 }}
-                              className="hover:bg-slate-50 transition-colors"
+                              className="hover:bg-muted/60 transition-colors"
                             >
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                    <User className="w-4 h-4 text-slate-500" />
+                                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                    <User className="w-4 h-4 text-muted-foreground" />
                                   </div>
                                   <div>
-                                    <div className="font-medium text-slate-900">
+                                    <div className="font-medium text-foreground">
                                       {row.user?.firstName || row.user?.lastName
                                         ? `${row.user?.firstName || ""} ${row.user?.lastName || ""}`.trim()
                                         : row.user?.email || row.userId.slice(0, 8)}
                                     </div>
                                     {row.user?.email && (
-                                      <div className="text-xs text-slate-500">{row.user.email}</div>
+                                      <div className="text-xs text-muted-foreground">{row.user.email}</div>
                                     )}
                                   </div>
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="text-sm text-slate-700">{row.roleCode || "—"}</span>
+                                <span className="text-sm text-foreground">{row.roleCode || "—"}</span>
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <span className="font-semibold text-slate-900">{row.hours.toFixed(2)}</span>
+                                <span className="font-semibold text-foreground">{row.hours.toFixed(2)}</span>
                               </td>
                               <td className="px-6 py-4">
                                 <span
@@ -584,14 +584,14 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                                     "inline-flex px-2 py-1 rounded-md text-xs font-medium",
                                     row.earningCode === "OT" || row.earningCode === "overtime"
                                       ? "bg-status-warning/15 text-status-warning"
-                                      : "bg-slate-100 text-slate-700"
+                                      : "bg-muted text-foreground"
                                   )}
                                 >
                                   {row.earningCode || "REG"}
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <span className="text-sm text-slate-600">
+                                <span className="text-sm text-muted-foreground">
                                   {row.rate != null ? `$${row.rate.toFixed(2)}` : "—"}
                                 </span>
                               </td>
@@ -599,11 +599,11 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                           ))}
                         </tbody>
                         <tfoot>
-                          <tr className="bg-slate-50 border-t border-slate-200">
-                            <td colSpan={2} className="px-6 py-3 text-sm font-semibold text-slate-700">
+                          <tr className="bg-muted/60 border-t border-border">
+                            <td colSpan={2} className="px-6 py-3 text-sm font-semibold text-foreground">
                               Total
                             </td>
-                            <td className="px-6 py-3 text-right font-bold text-slate-900">
+                            <td className="px-6 py-3 text-right font-bold text-foreground">
                               {totalHours.toFixed(2)} hrs
                             </td>
                             <td colSpan={2}></td>
@@ -620,13 +620,13 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...SPRING_CONFIG, delay: 0.25 }}
-                className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 p-5"
+                className="bg-status-success/10 rounded-xl border border-status-success/20 p-5"
               >
-                <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium mb-2">
+                <div className="flex items-center gap-2 text-status-success text-sm font-medium mb-2">
                   <Sparkles className="w-4 h-4" />
                   Payroll Export Tips
                 </div>
-                <ul className="text-xs text-emerald-800 space-y-1">
+                <ul className="text-xs text-muted-foreground space-y-1">
                   <li>&bull; Only approved and submitted timesheets are included in exports</li>
                   <li>&bull; Make sure all hours are approved before running payroll</li>
                   <li>&bull; Each provider uses different column formats - select the right one for your payroll system</li>
@@ -639,44 +639,44 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+              className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
             >
-              <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 px-6 py-4">
+              <div className="bg-muted/60 border-b border-border px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
-                    <History className="w-5 h-5 text-slate-600" />
+                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                    <History className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Export History</h2>
-                    <p className="text-sm text-slate-600">Previous payroll exports</p>
+                    <h2 className="text-lg font-semibold text-foreground">Export History</h2>
+                    <p className="text-sm text-muted-foreground">Previous payroll exports</p>
                   </div>
                 </div>
               </div>
 
               {loadingExports ? (
-                <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+                <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span className="text-sm">Loading exports...</span>
                 </div>
               ) : exports.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                    <FileSpreadsheet className="w-8 h-8 text-slate-400" />
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                    <FileSpreadsheet className="w-8 h-8 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-900">No exports yet</h3>
-                  <p className="text-sm text-slate-600 mt-1 max-w-md">
+                  <h3 className="text-lg font-semibold text-foreground">No exports yet</h3>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-md">
                     When you generate payroll exports, they'll appear here for easy re-download.
                   </p>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-border">
                   {exports.map((exp, idx) => (
                     <motion.div
                       key={exp.id}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.03 }}
-                      className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+                      className="flex items-center justify-between px-6 py-4 hover:bg-muted/60 transition-colors"
                     >
                       <div className="flex items-center gap-4">
                         <div
@@ -692,11 +692,11 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                           )}
                         </div>
                         <div>
-                          <div className="font-medium text-slate-900">
+                          <div className="font-medium text-foreground">
                             {new Date(exp.periodStart).toLocaleDateString()} -{" "}
                             {new Date(exp.periodEnd).toLocaleDateString()}
                           </div>
-                          <div className="text-sm text-slate-500 flex items-center gap-2">
+                          <div className="text-sm text-muted-foreground flex items-center gap-2">
                             <span className="capitalize">{exp.provider}</span>
                             <span>&middot;</span>
                             <span>{exp.rowCount || 0} employees</span>
@@ -706,7 +706,7 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="text-xs text-slate-400 text-right">
+                        <div className="text-xs text-muted-foreground text-right">
                           {new Date(exp.createdAt).toLocaleDateString()}
                           <br />
                           {exp.requestedBy?.firstName || exp.requestedBy?.email?.split("@")[0] || "Staff"}
@@ -716,13 +716,13 @@ export default function PayrollExportPage({ params }: { params: { campgroundId: 
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => downloadExport(exp.id)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors text-sm font-medium"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-muted text-foreground hover:bg-muted transition-colors text-sm font-medium"
                           >
                             <Download className="w-3.5 h-3.5" />
                             CSV
                           </motion.button>
                         )}
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>
                     </motion.div>
                   ))}

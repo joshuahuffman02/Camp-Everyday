@@ -77,7 +77,7 @@ const STATUS_STYLES: Record<TimeOffStatus, { bg: string; text: string; icon: Rea
   pending: { bg: "bg-status-warning/15", text: "text-status-warning", icon: <Clock className="w-3.5 h-3.5" /> },
   approved: { bg: "bg-status-success/15", text: "text-status-success", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   rejected: { bg: "bg-status-error/15", text: "text-status-error", icon: <XCircle className="w-3.5 h-3.5" /> },
-  cancelled: { bg: "bg-slate-100", text: "text-slate-500", icon: <XCircle className="w-3.5 h-3.5" /> },
+  cancelled: { bg: "bg-muted", text: "text-muted-foreground", icon: <XCircle className="w-3.5 h-3.5" /> },
 };
 
 export default function TimeOffPage({ params }: { params: { campgroundId: string } }) {
@@ -236,12 +236,12 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <Palmtree className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+              <Palmtree className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Time Off</h1>
-              <p className="text-sm text-slate-600">Request and manage time off</p>
+              <h1 className="text-2xl font-bold text-foreground">Time Off</h1>
+              <p className="text-sm text-muted-foreground">Request and manage time off</p>
             </div>
           </div>
 
@@ -278,16 +278,16 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+              className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
             >
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100 px-6 py-4">
-                <h2 className="text-lg font-semibold text-slate-900">Request Time Off</h2>
-                <p className="text-sm text-slate-600">Select the type and dates for your time-off request</p>
+              <div className="bg-purple-50 border-b border-purple-100 px-6 py-4">
+                <h2 className="text-lg font-semibold text-foreground">Request Time Off</h2>
+                <p className="text-sm text-muted-foreground">Select the type and dates for your time-off request</p>
               </div>
 
               <form onSubmit={submitRequest} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">Type</label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {TIME_OFF_TYPES.map((type) => (
                       <button
@@ -298,7 +298,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
                           "flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all",
                           formType === type.value
                             ? "border-purple-500 bg-status-info/10 text-purple-700"
-                            : "border-slate-200 hover:border-slate-300 text-slate-700"
+                            : "border-border hover:border-border text-foreground"
                         )}
                       >
                         <span>{type.icon}</span>
@@ -310,38 +310,38 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Start Date</label>
                     <input
                       type="date"
                       value={formStartDate}
                       onChange={(e) => setFormStartDate(e.target.value)}
-                      className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                      className="w-full border border-border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">End Date</label>
                     <input
                       type="date"
                       value={formEndDate}
                       onChange={(e) => setFormEndDate(e.target.value)}
                       min={formStartDate}
-                      className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                      className="w-full border border-border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Reason <span className="text-slate-400">(optional)</span>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Reason <span className="text-muted-foreground">(optional)</span>
                   </label>
                   <textarea
                     value={formReason}
                     onChange={(e) => setFormReason(e.target.value)}
                     placeholder="Brief description..."
                     rows={2}
-                    className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none resize-none"
+                    className="w-full border border-border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none resize-none"
                   />
                 </div>
 
@@ -359,7 +359,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}
-                    className="px-4 py-2.5 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
+                    className="px-4 py-2.5 rounded-lg border border-border text-muted-foreground font-medium hover:bg-muted/60 transition-colors"
                   >
                     Cancel
                   </button>
@@ -382,13 +382,13 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
               "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all",
               activeTab === "my"
                 ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                : "bg-card border border-border text-muted-foreground hover:bg-muted/60"
             )}
           >
             <User className="w-4 h-4" />
             My Requests
             {myRequests.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-white/20 text-xs">{myRequests.length}</span>
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-card/20 text-xs">{myRequests.length}</span>
             )}
           </button>
           <button
@@ -397,7 +397,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
               "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all",
               activeTab === "pending"
                 ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                : "bg-card border border-border text-muted-foreground hover:bg-muted/60"
             )}
           >
             <Clock className="w-4 h-4" />
@@ -405,7 +405,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
             {pendingRequests.length > 0 && (
               <span className={cn(
                 "ml-1 px-1.5 py-0.5 rounded-full text-xs",
-                activeTab === "pending" ? "bg-white/20" : "bg-status-warning/15 text-status-warning"
+                activeTab === "pending" ? "bg-card/20" : "bg-status-warning/15 text-status-warning"
               )}>
                 {pendingRequests.length}
               </span>
@@ -418,18 +418,18 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING_CONFIG, delay: 0.2 }}
-          className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+          className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
         >
-          <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 px-6 py-4">
+          <div className="bg-muted/60 border-b border-border px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-slate-600" />
+              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                <FileText className="w-5 h-5 text-muted-foreground" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">
+                <h2 className="text-lg font-semibold text-foreground">
                   {activeTab === "my" ? "Your Requests" : "Pending Requests"}
                 </h2>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-muted-foreground">
                   {activeTab === "my" ? "View your time-off history" : "Review and approve requests"}
                 </p>
               </div>
@@ -437,26 +437,26 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+            <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
               <Loader2 className="w-5 h-5 animate-spin" />
               <span className="text-sm">Loading requests...</span>
             </div>
           ) : displayList.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                <Inbox className="w-8 h-8 text-slate-400" />
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                <Inbox className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">
+              <h3 className="text-lg font-semibold text-foreground">
                 {activeTab === "my" ? "No requests yet" : "All caught up!"}
               </h3>
-              <p className="text-sm text-slate-600 mt-1 max-w-md">
+              <p className="text-sm text-muted-foreground mt-1 max-w-md">
                 {activeTab === "my"
                   ? "Submit a time-off request using the button above."
                   : "No pending time-off requests to review."}
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border">
               <AnimatePresence mode="popLayout">
                 {displayList.map((request, index) => {
                   const typeInfo = TIME_OFF_TYPES.find((t) => t.value === request.type);
@@ -470,14 +470,14 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
                       transition={{ ...SPRING_CONFIG, delay: index * 0.03 }}
-                      className="flex flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between hover:bg-slate-50 transition-colors"
+                      className="flex flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between hover:bg-muted/60 transition-colors"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-lg">
                           {typeInfo?.icon || "📅"}
                         </div>
                         <div>
-                          <div className="font-semibold text-slate-900 flex items-center gap-2">
+                          <div className="font-semibold text-foreground flex items-center gap-2">
                             {typeInfo?.label || request.type}
                             <span className={cn(
                               "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
@@ -488,20 +488,20 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
                               {request.status}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Calendar className="w-3.5 h-3.5" />
                             <span>{formatDateRange(request.startDate, request.endDate)}</span>
                             {activeTab === "pending" && request.user && (
                               <>
                                 <span>&middot;</span>
-                                <span className="text-slate-500">
+                                <span className="text-muted-foreground">
                                   {request.user.firstName || request.user.email.split("@")[0]}
                                 </span>
                               </>
                             )}
                           </div>
                           {request.reason && (
-                            <div className="text-xs text-slate-500 mt-1">{request.reason}</div>
+                            <div className="text-xs text-muted-foreground mt-1">{request.reason}</div>
                           )}
                         </div>
                       </div>
@@ -536,7 +536,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
                       )}
 
                       {request.status !== "pending" && request.reviewer && (
-                        <div className="text-xs text-slate-500 text-right">
+                        <div className="text-xs text-muted-foreground text-right">
                           {request.status === "approved" ? "Approved" : "Reviewed"} by{" "}
                           {request.reviewer.firstName || request.reviewer.email.split("@")[0]}
                         </div>
@@ -554,7 +554,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING_CONFIG, delay: 0.25 }}
-          className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200 p-5"
+          className="bg-purple-50 rounded-xl border border-purple-200 p-5"
         >
           <div className="flex items-center gap-2 text-purple-700 text-sm font-medium mb-2">
             <Sparkles className="w-4 h-4" />

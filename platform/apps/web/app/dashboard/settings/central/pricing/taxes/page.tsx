@@ -58,8 +58,8 @@ async function fetchTaxRules(campgroundId: string): Promise<TaxRule[]> {
   return response.json();
 }
 
-async function deleteTaxRule(taxRuleId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/tax-rules/${taxRuleId}`, {
+async function deleteTaxRule(taxRuleId: string, campgroundId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/tax-rules/${taxRuleId}?campgroundId=${encodeURIComponent(campgroundId)}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -80,7 +80,7 @@ export default function TaxRulesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteTaxRule,
+    mutationFn: (taxRuleId: string) => deleteTaxRule(taxRuleId, selectedCampground!.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tax-rules", selectedCampground?.id] });
     },
@@ -89,7 +89,7 @@ export default function TaxRulesPage() {
   if (!isHydrated || !selectedCampground) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -97,7 +97,7 @@ export default function TaxRulesPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -114,8 +114,8 @@ export default function TaxRulesPage() {
     <div className="max-w-4xl space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Tax Rules</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-foreground">Tax Rules</h2>
+          <p className="text-muted-foreground mt-1">
             Configure tax rates and how they apply to different charges
           </p>
         </div>
@@ -135,17 +135,17 @@ export default function TaxRulesPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200">
+        <Card className="bg-status-success/10 border-status-success/20">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-100">
-                <Percent className="h-5 w-5 text-emerald-600" />
+              <div className="p-2 rounded-lg bg-status-success/15">
+                <Percent className="h-5 w-5 text-status-success" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-emerald-900">
+                <p className="text-2xl font-bold text-foreground">
                   {totalAccommodationTax.toFixed(1)}%
                 </p>
-                <p className="text-sm text-emerald-700">Total Accommodation Tax</p>
+                <p className="text-sm text-muted-foreground">Total Accommodation Tax</p>
               </div>
             </div>
           </CardContent>
@@ -154,14 +154,14 @@ export default function TaxRulesPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-100">
-                <Percent className="h-5 w-5 text-purple-600" />
+              <div className="p-2 rounded-lg bg-status-info/15">
+                <Percent className="h-5 w-5 text-status-info" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold text-foreground">
                   {totalStoreTax.toFixed(1)}%
                 </p>
-                <p className="text-sm text-slate-500">Total Store Tax</p>
+                <p className="text-sm text-muted-foreground">Total Store Tax</p>
               </div>
             </div>
           </CardContent>
@@ -170,18 +170,18 @@ export default function TaxRulesPage() {
 
       {/* Tax Rules List */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-900">
+        <h3 className="text-sm font-medium text-foreground">
           Tax Rules ({taxRules.length})
         </h3>
 
         {taxRules.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="py-12 text-center">
-              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-slate-100 mb-4">
-                <Percent className="h-8 w-8 text-slate-400" />
+              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-muted mb-4">
+                <Percent className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-medium text-slate-900">No tax rules</h3>
-              <p className="text-slate-500 mt-1 max-w-sm mx-auto">
+              <h3 className="text-lg font-medium text-foreground">No tax rules</h3>
+              <p className="text-muted-foreground mt-1 max-w-sm mx-auto">
                 Add tax rules to automatically apply taxes to invoices
               </p>
               <Button className="mt-4" onClick={() => setIsEditorOpen(true)}>
@@ -202,12 +202,12 @@ export default function TaxRulesPage() {
             <CardContent className="py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-slate-100">
-                    <Percent className="h-5 w-5 text-slate-600" />
+                  <div className="p-2 rounded-lg bg-muted">
+                    <Percent className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-slate-900">{rule.name}</p>
+                      <p className="font-medium text-foreground">{rule.name}</p>
                       {!rule.isActive && (
                         <Badge variant="secondary" className="text-xs">
                           Inactive
@@ -235,7 +235,7 @@ export default function TaxRulesPage() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <span className="text-lg font-semibold text-slate-900">
+                  <span className="text-lg font-semibold text-foreground">
                     {rule.rate}%
                   </span>
 
@@ -296,7 +296,7 @@ export default function TaxRulesPage() {
               <Label htmlFor="rate">Tax Rate (%)</Label>
               <div className="flex items-center gap-2">
                 <Input id="rate" type="number" step="0.1" defaultValue="6.5" className="w-24" />
-                <span className="text-slate-500">%</span>
+                <span className="text-muted-foreground">%</span>
               </div>
             </div>
 

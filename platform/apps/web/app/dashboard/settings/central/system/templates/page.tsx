@@ -68,7 +68,7 @@ const categoryColors: Record<string, string> = {
   reminder: "bg-status-warning/15 text-status-warning",
   confirmation: "bg-status-success/15 text-status-success",
   marketing: "bg-purple-100 text-purple-800",
-  operational: "bg-slate-100 text-slate-800",
+  operational: "bg-muted text-foreground",
   general: "bg-gray-100 text-gray-800",
 };
 
@@ -138,13 +138,13 @@ export default function TemplatesPage() {
     return (
       <div className="max-w-5xl space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Email Templates</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-foreground">Email Templates</h2>
+          <p className="text-muted-foreground mt-1">
             Customize automated email and SMS messages
           </p>
         </div>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </div>
     );
@@ -154,15 +154,15 @@ export default function TemplatesPage() {
     return (
       <div className="max-w-5xl space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Email Templates</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-foreground">Email Templates</h2>
+          <p className="text-muted-foreground mt-1">
             Customize automated email and SMS messages
           </p>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
             <Info className="h-8 w-8 text-amber-500 mx-auto mb-3" />
-            <p className="text-slate-600">Please select a campground first.</p>
+            <p className="text-muted-foreground">Please select a campground first.</p>
           </CardContent>
         </Card>
       </div>
@@ -174,8 +174,8 @@ export default function TemplatesPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Email Templates</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-foreground">Email Templates</h2>
+          <p className="text-muted-foreground mt-1">
             Customize automated email and SMS messages
           </p>
         </div>
@@ -214,10 +214,10 @@ export default function TemplatesPage() {
                 <Mail className="h-5 w-5 text-status-info" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold text-foreground">
                   {templates.filter((t) => t.channel === "email").length}
                 </p>
-                <p className="text-sm text-slate-500">Email Templates</p>
+                <p className="text-sm text-muted-foreground">Email Templates</p>
               </div>
             </div>
           </CardContent>
@@ -229,10 +229,10 @@ export default function TemplatesPage() {
                 <Smartphone className="h-5 w-5 text-status-success" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold text-foreground">
                   {templates.filter((t) => t.channel === "sms").length}
                 </p>
-                <p className="text-sm text-slate-500">SMS Templates</p>
+                <p className="text-sm text-muted-foreground">SMS Templates</p>
               </div>
             </div>
           </CardContent>
@@ -244,10 +244,10 @@ export default function TemplatesPage() {
                 <FileText className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold text-foreground">
                   {templates.length}
                 </p>
-                <p className="text-sm text-slate-500">Total Templates</p>
+                <p className="text-sm text-muted-foreground">Total Templates</p>
               </div>
             </div>
           </CardContent>
@@ -258,11 +258,11 @@ export default function TemplatesPage() {
       {templates.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <FileText className="h-12 w-12 mx-auto text-slate-300 mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
+            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">
               No templates yet
             </h3>
-            <p className="text-slate-500 mb-4 max-w-md mx-auto">
+            <p className="text-muted-foreground mb-4 max-w-md mx-auto">
               Create email and SMS templates to automate your guest communication.
               Start from scratch or use our prebuilt templates.
             </p>
@@ -282,7 +282,7 @@ export default function TemplatesPage() {
 
             return (
               <Card key={category}>
-                <CardHeader className="py-3 px-4 bg-slate-50 border-b">
+                <CardHeader className="py-3 px-4 bg-muted/60 border-b">
                   <CardTitle className="text-sm font-medium capitalize">
                     {category} ({categoryTemplates.length})
                   </CardTitle>
@@ -291,7 +291,7 @@ export default function TemplatesPage() {
                   {categoryTemplates.map((template) => (
                     <div
                       key={template.id}
-                      className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors group"
+                      className="flex items-center justify-between px-4 py-3 hover:bg-muted/60 transition-colors group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`p-2 rounded-lg ${
@@ -312,16 +312,16 @@ export default function TemplatesPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-slate-900 truncate">
+                          <p className="font-medium text-foreground truncate">
                             {template.name}
                           </p>
                           {template.subject && (
-                            <p className="text-sm text-slate-500 truncate">
+                            <p className="text-sm text-muted-foreground truncate">
                               {template.subject}
                             </p>
                           )}
                           {template.textBody && !template.subject && (
-                            <p className="text-sm text-slate-500 truncate">
+                            <p className="text-sm text-muted-foreground truncate">
                               {template.textBody.slice(0, 50)}...
                             </p>
                           )}
@@ -380,18 +380,18 @@ export default function TemplatesPage() {
       )}
 
       {/* Quick Link to Triggers */}
-      <Card className="bg-gradient-to-r from-violet-50 to-indigo-50 border-violet-200">
+      <Card className="bg-status-info/10 border-status-info/20">
         <CardContent className="py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-violet-100">
-                <Mail className="h-5 w-5 text-violet-600" />
+              <div className="p-2 rounded-lg bg-status-info/15">
+                <Mail className="h-5 w-5 text-status-info" />
               </div>
               <div>
-                <p className="font-medium text-slate-900">
+                <p className="font-medium text-foreground">
                   Connect Templates to Triggers
                 </p>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   Set up automatic sending when events occur
                 </p>
               </div>

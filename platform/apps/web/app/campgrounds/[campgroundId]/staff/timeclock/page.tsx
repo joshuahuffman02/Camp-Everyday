@@ -269,16 +269,16 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING_CONFIG, delay: 0.1 }}
-          className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-8 text-center shadow-xl"
+          className="bg-card rounded-2xl border border-border p-8 text-center shadow-sm"
         >
-          <div className="text-slate-400 text-sm font-medium mb-2">
+          <div className="text-muted-foreground text-sm font-medium mb-2">
             {currentTime.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
           </div>
-          <div className="text-5xl md:text-7xl font-bold text-white font-mono tracking-tight">
+          <div className="text-5xl md:text-7xl font-bold text-foreground font-mono tracking-tight">
             {currentTime.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </div>
           {whoami?.user && (
-            <div className="mt-4 flex items-center justify-center gap-2 text-slate-300">
+            <div className="mt-4 flex items-center justify-center gap-2 text-muted-foreground">
               <User className="w-4 h-4" />
               <span className="text-sm">
                 {(() => {
@@ -296,16 +296,16 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SPRING_CONFIG, delay: 0.15 }}
-            className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+            className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
           >
-            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100 px-6 py-4">
+            <div className="bg-status-info/10 border-b border-status-info/20 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-teal-600" />
+                <div className="w-10 h-10 rounded-lg bg-status-info/15 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-status-info" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Select Your Shift</h2>
-                  <p className="text-sm text-slate-600">Choose from your scheduled shifts</p>
+                  <h2 className="text-lg font-semibold text-foreground">Select Your Shift</h2>
+                  <p className="text-sm text-muted-foreground">Choose from your scheduled shifts</p>
                 </div>
               </div>
             </div>
@@ -319,16 +319,16 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
               ) : loadingShifts ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-16 bg-slate-100 rounded-lg animate-pulse" />
+                    <div key={i} className="h-16 bg-muted rounded-lg animate-pulse" />
                   ))}
                 </div>
               ) : shifts.length === 0 ? (
                 <div className="text-center py-8">
-                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Coffee className="w-6 h-6 text-slate-400" />
+                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Coffee className="w-6 h-6 text-muted-foreground" />
                   </div>
-                  <p className="text-slate-600 text-sm">No shifts found for this week.</p>
-                  <p className="text-slate-500 text-xs mt-1">You can still enter a shift ID manually below.</p>
+                  <p className="text-muted-foreground text-sm">No shifts found for this week.</p>
+                  <p className="text-muted-foreground text-xs mt-1">You can still enter a shift ID manually below.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -341,16 +341,16 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
                       className={cn(
                         "w-full text-left rounded-lg border-2 p-4 transition-all",
                         shiftId === shift.id
-                          ? "border-teal-500 bg-teal-50"
-                          : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          ? "border-status-info/40 bg-status-info/10"
+                          : "border-border hover:border-border hover:bg-muted/60"
                       )}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-semibold text-slate-900">
+                          <div className="font-semibold text-foreground">
                             {shift.role || "Shift"}
                           </div>
-                          <div className="text-sm text-slate-600">
+                          <div className="text-sm text-muted-foreground">
                             {new Date(shift.shiftDate).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                             {" "}&middot;{" "}
                             {new Date(shift.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
@@ -359,7 +359,7 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
                           </div>
                         </div>
                         {shiftId === shift.id && (
-                          <div className="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center">
+                          <div className="w-6 h-6 rounded-full bg-status-info flex items-center justify-center">
                             <CheckCircle2 className="w-4 h-4 text-white" />
                           </div>
                         )}
@@ -370,8 +370,8 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
               )}
 
               {/* Manual Entry */}
-              <div className="pt-4 border-t border-slate-100">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+              <div className="pt-4 border-t border-border">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Or enter shift ID manually
                 </label>
                 <input
@@ -379,7 +379,7 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
                   value={shiftId}
                   onChange={(e) => setShiftId(e.target.value)}
                   placeholder="shift_cuid..."
-                  className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow"
+                  className="w-full border border-border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow"
                 />
               </div>
             </div>
@@ -390,16 +390,16 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SPRING_CONFIG, delay: 0.2 }}
-            className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+            className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
           >
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 px-6 py-4">
+            <div className="bg-status-success/10 border-b border-status-success/20 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                  <Timer className="w-5 h-5 text-emerald-600" />
+                <div className="w-10 h-10 rounded-lg bg-status-success/15 flex items-center justify-center">
+                  <Timer className="w-5 h-5 text-status-success" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Record Time</h2>
-                  <p className="text-sm text-slate-600">Clock in or out for your shift</p>
+                  <h2 className="text-lg font-semibold text-foreground">Record Time</h2>
+                  <p className="text-sm text-muted-foreground">Clock in or out for your shift</p>
                 </div>
               </div>
             </div>
@@ -407,10 +407,10 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
             <div className="p-6 space-y-4">
               {/* Selected Shift Display */}
               {selectedShift && (
-                <div className="rounded-lg bg-teal-50 border border-teal-200 p-4">
-                  <div className="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-1">Selected Shift</div>
-                  <div className="font-semibold text-slate-900">{selectedShift.role || "Shift"}</div>
-                  <div className="text-sm text-slate-600">
+                <div className="rounded-lg bg-status-info/10 border border-status-info/20 p-4">
+                  <div className="text-xs font-semibold text-status-info uppercase tracking-wider mb-1">Selected Shift</div>
+                  <div className="font-semibold text-foreground">{selectedShift.role || "Shift"}</div>
+                  <div className="text-sm text-muted-foreground">
                     {new Date(selectedShift.shiftDate).toLocaleDateString()}
                     {" "}&middot;{" "}
                     {new Date(selectedShift.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
@@ -422,15 +422,15 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
 
               {/* Note Field */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Add a note <span className="text-slate-400">(optional)</span>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Add a note <span className="text-muted-foreground">(optional)</span>
                 </label>
                 <input
                   type="text"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="e.g., Front desk, Pool area..."
-                  className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow"
+                  className="w-full border border-border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow"
                 />
               </div>
 
@@ -460,7 +460,7 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
                   whileTap={{ scale: 0.98 }}
                   disabled={!shiftId || clockingOut}
                   onClick={() => call("clock-out")}
-                  className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-slate-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+                  className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl border border-border bg-muted text-foreground font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted/80 transition-all focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:ring-offset-2"
                 >
                   {clockingOut ? (
                     <motion.div
@@ -477,11 +477,11 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
 
               {/* Break Section */}
               {activeTimeEntry && (
-                <div className="pt-4 border-t border-slate-100">
+                <div className="pt-4 border-t border-border">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Coffee className="w-4 h-4 text-amber-600" />
-                      <span className="text-sm font-medium text-slate-700">Break</span>
+                      <span className="text-sm font-medium text-foreground">Break</span>
                     </div>
                     {activeBreak && (
                       <span className="text-xs text-amber-600 font-medium">
@@ -529,36 +529,36 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
-                            className="absolute top-full mt-2 left-0 right-0 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden z-10"
+                            className="absolute top-full mt-2 left-0 right-0 bg-card rounded-lg shadow-lg border border-border overflow-hidden z-10"
                           >
                             <button
                               onClick={() => startBreak("meal")}
-                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-slate-50 transition-colors"
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-muted/60 transition-colors"
                             >
                               <Utensils className="w-4 h-4 text-amber-600" />
                               <div>
-                                <div className="font-medium text-slate-900">Meal Break</div>
-                                <div className="text-xs text-slate-500">Unpaid lunch/dinner</div>
+                                <div className="font-medium text-foreground">Meal Break</div>
+                                <div className="text-xs text-muted-foreground">Unpaid lunch/dinner</div>
                               </div>
                             </button>
                             <button
                               onClick={() => startBreak("rest")}
-                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-slate-50 transition-colors border-t border-slate-100"
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-muted/60 transition-colors border-t border-border"
                             >
-                              <Coffee className="w-4 h-4 text-teal-600" />
+                      <Coffee className="w-4 h-4 text-status-info" />
                               <div>
-                                <div className="font-medium text-slate-900">Rest Break</div>
-                                <div className="text-xs text-slate-500">Paid short break</div>
+                                <div className="font-medium text-foreground">Rest Break</div>
+                                <div className="text-xs text-muted-foreground">Paid short break</div>
                               </div>
                             </button>
                             <button
                               onClick={() => startBreak("unpaid")}
-                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-slate-50 transition-colors border-t border-slate-100"
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-muted/60 transition-colors border-t border-border"
                             >
-                              <Clock className="w-4 h-4 text-slate-600" />
+                              <Clock className="w-4 h-4 text-muted-foreground" />
                               <div>
-                                <div className="font-medium text-slate-900">Unpaid Break</div>
-                                <div className="text-xs text-slate-500">Other unpaid time</div>
+                                <div className="font-medium text-foreground">Unpaid Break</div>
+                                <div className="text-xs text-muted-foreground">Other unpaid time</div>
                               </div>
                             </button>
                           </motion.div>
@@ -570,12 +570,12 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
               )}
 
               {/* Tips */}
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 mt-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+              <div className="rounded-lg bg-muted/60 border border-border p-4 mt-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
                   <Sparkles className="w-4 h-4 text-amber-500" />
                   Quick Tips
                 </div>
-                <ul className="text-xs text-slate-600 space-y-1">
+                <ul className="text-xs text-muted-foreground space-y-1">
                   <li>&bull; Shift IDs are found in Staff Scheduling</li>
                   <li>&bull; Clock-ins and clock-outs are recorded with timestamps</li>
                   <li>&bull; Add notes to explain late arrivals or early departures</li>
