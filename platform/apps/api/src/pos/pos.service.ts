@@ -448,6 +448,30 @@ export class PosService {
                 }
               });
 
+              // Post ledger entries for successful card payments via provider
+              if (status === PosPaymentStatus.succeeded) {
+                await postBalancedLedgerEntries(tx, [
+                  {
+                    campgroundId: cart.campgroundId,
+                    glCode: "CASH",
+                    account: "Cash",
+                    description: `POS card payment (provider) for cart #${cartId.slice(-6)}`,
+                    amountCents: p.amountCents,
+                    direction: "debit" as const,
+                    dedupeKey: `pos_card_${cartId}_${p.idempotencyKey}:debit`
+                  },
+                  {
+                    campgroundId: cart.campgroundId,
+                    glCode: "POS_REVENUE",
+                    account: "POS Revenue",
+                    description: `POS card payment (provider) for cart #${cartId.slice(-6)}`,
+                    amountCents: p.amountCents,
+                    direction: "credit" as const,
+                    dedupeKey: `pos_card_${cartId}_${p.idempotencyKey}:credit`
+                  }
+                ]);
+              }
+
               await this.audit.record({
                 campgroundId: actor?.campgroundId ?? cart.campgroundId,
                 actorId: actor?.id ?? null,
@@ -487,6 +511,28 @@ export class PosService {
                 processorIds: { intentId: intent.id }
               }
             });
+
+            // Post ledger entries for Stripe card payments
+            await postBalancedLedgerEntries(tx, [
+              {
+                campgroundId: cart.campgroundId,
+                glCode: "CASH",
+                account: "Cash",
+                description: `POS card payment (Stripe) for cart #${cartId.slice(-6)}`,
+                amountCents: p.amountCents,
+                direction: "debit" as const,
+                dedupeKey: `pos_stripe_${cartId}_${p.idempotencyKey}:debit`
+              },
+              {
+                campgroundId: cart.campgroundId,
+                glCode: "POS_REVENUE",
+                account: "POS Revenue",
+                description: `POS card payment (Stripe) for cart #${cartId.slice(-6)}`,
+                amountCents: p.amountCents,
+                direction: "credit" as const,
+                dedupeKey: `pos_stripe_${cartId}_${p.idempotencyKey}:credit`
+              }
+            ]);
             continue;
           }
 
@@ -516,6 +562,28 @@ export class PosService {
               }
             });
           }
+
+          // Post ledger entries for cash and other payment methods
+          await postBalancedLedgerEntries(tx, [
+            {
+              campgroundId: cart.campgroundId,
+              glCode: "CASH",
+              account: "Cash",
+              description: `POS ${p.method} payment for cart #${cartId.slice(-6)}`,
+              amountCents: p.amountCents,
+              direction: "debit" as const,
+              dedupeKey: `pos_${p.method}_${cartId}_${p.idempotencyKey}:debit`
+            },
+            {
+              campgroundId: cart.campgroundId,
+              glCode: "POS_REVENUE",
+              account: "POS Revenue",
+              description: `POS ${p.method} payment for cart #${cartId.slice(-6)}`,
+              amountCents: p.amountCents,
+              direction: "credit" as const,
+              dedupeKey: `pos_${p.method}_${cartId}_${p.idempotencyKey}:credit`
+            }
+          ]);
         }
 
         await tx.posCart.update({

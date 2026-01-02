@@ -19,6 +19,7 @@ import { evaluatePricingV2 } from "../reservations/reservation-pricing";
 import { DepositPoliciesService } from "../deposit-policies/deposit-policies.service";
 import { calculateReservationDepositV2 } from "../reservations/reservation-deposit";
 import { StripeService } from "../payments/stripe.service";
+import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
 
 @Injectable()
 export class PublicReservationsService {
@@ -1551,7 +1552,7 @@ export class PublicReservationsService {
                 paymentIntentId = paymentIntent.id;
 
                 // Record the payment
-                await this.prisma.payment.create({
+                const kioskPayment = await this.prisma.payment.create({
                     data: {
                         campgroundId: reservation.campgroundId,
                         reservationId: id,
@@ -1565,6 +1566,31 @@ export class PublicReservationsService {
                         capturedAt: new Date()
                     }
                 });
+
+                // Post balanced ledger entries for kiosk check-in payment
+                const dedupeKey = `kiosk_checkin_${id}_${kioskPayment.id}`;
+                await postBalancedLedgerEntries(this.prisma, [
+                    {
+                        campgroundId: reservation.campgroundId,
+                        reservationId: id,
+                        glCode: "CASH",
+                        account: "Cash",
+                        description: `Kiosk check-in payment for reservation ${id}`,
+                        amountCents: balanceDue,
+                        direction: "debit" as const,
+                        dedupeKey: `${dedupeKey}:debit`
+                    },
+                    {
+                        campgroundId: reservation.campgroundId,
+                        reservationId: id,
+                        glCode: "SITE_REVENUE",
+                        account: "Site Revenue",
+                        description: `Kiosk check-in payment for reservation ${id}`,
+                        amountCents: balanceDue,
+                        direction: "credit" as const,
+                        dedupeKey: `${dedupeKey}:credit`
+                    }
+                ]);
 
                 this.logger.log(`Kiosk - Payment successful: ${paymentIntent.id}`);
             } catch (error: any) {

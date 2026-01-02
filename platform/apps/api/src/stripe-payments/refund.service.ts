@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
+import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
 
 export interface RefundEligibility {
     canRefund: boolean;
@@ -172,7 +173,7 @@ export class RefundService {
         });
 
         // Create refund record (as a negative payment)
-        await this.prisma.payment.create({
+        const refundPayment = await this.prisma.payment.create({
             data: {
                 campgroundId,
                 reservationId: payment.reservationId,
@@ -191,6 +192,54 @@ export class RefundService {
                 originalPaymentId: paymentId,
             },
         });
+
+        // Update reservation paidAmount and balanceAmount
+        if (payment.reservationId) {
+            const reservation = await this.prisma.reservation.findUnique({
+                where: { id: payment.reservationId },
+                select: { totalAmount: true, paidAmount: true }
+            });
+
+            if (reservation) {
+                const newPaidAmount = Math.max(0, (reservation.paidAmount || 0) - refundAmountCents);
+                const newBalanceAmount = (reservation.totalAmount || 0) - newPaidAmount;
+                const paymentStatus = newBalanceAmount <= 0 ? 'paid' : 'partial';
+
+                await this.prisma.reservation.update({
+                    where: { id: payment.reservationId },
+                    data: {
+                        paidAmount: newPaidAmount,
+                        balanceAmount: newBalanceAmount,
+                        paymentStatus
+                    }
+                });
+            }
+
+            // Post balanced ledger entries for refund (reverse the original: credit Cash, debit Revenue)
+            const dedupeKey = `refund_${refund.id}_${refundPayment.id}`;
+            await postBalancedLedgerEntries(this.prisma, [
+                {
+                    campgroundId,
+                    reservationId: payment.reservationId,
+                    glCode: "CASH",
+                    account: "Cash",
+                    description: `Refund for payment ${paymentId}`,
+                    amountCents: refundAmountCents,
+                    direction: "credit" as const, // Credit reduces Cash (money going out)
+                    dedupeKey: `${dedupeKey}:credit`
+                },
+                {
+                    campgroundId,
+                    reservationId: payment.reservationId,
+                    glCode: "SITE_REVENUE",
+                    account: "Site Revenue",
+                    description: `Refund for payment ${paymentId}`,
+                    amountCents: refundAmountCents,
+                    direction: "debit" as const, // Debit reduces Revenue
+                    dedupeKey: `${dedupeKey}:debit`
+                }
+            ]);
+        }
 
         // Log to payment audit log
         await this.prisma.paymentAuditLog.create({

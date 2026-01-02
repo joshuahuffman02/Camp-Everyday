@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChargeStatus, PaymentSchedule, ReservationStatus } from '@prisma/client';
 import { addDays, addMonths, addWeeks, startOfDay } from 'date-fns';
 import { StripeService } from '../payments/stripe.service';
+import { postBalancedLedgerEntries } from '../ledger/ledger-posting.util';
 
 @Injectable()
 export class RepeatChargesService {
@@ -135,6 +136,11 @@ export class RepeatChargesService {
                                 stripeAccountId: true,
                                 perBookingFeeCents: true
                             }
+                        },
+                        site: {
+                            include: {
+                                siteClass: true
+                            }
                         }
                     }
                 }
@@ -247,7 +253,7 @@ export class RepeatChargesService {
             });
 
             // Record the payment
-            await this.prisma.payment.create({
+            const payment = await this.prisma.payment.create({
                 data: {
                     campgroundId: charge.reservation.campgroundId,
                     reservationId: charge.reservationId,
@@ -262,13 +268,52 @@ export class RepeatChargesService {
                 }
             });
 
-            // Update reservation paid amount
+            // Get current reservation to calculate new balance
+            const currentRes = await this.prisma.reservation.findUnique({
+                where: { id: charge.reservationId },
+                select: { totalAmount: true, paidAmount: true }
+            });
+
+            const newPaidAmount = (currentRes?.paidAmount || 0) + charge.amount;
+            const newBalanceAmount = (currentRes?.totalAmount || 0) - newPaidAmount;
+            const paymentStatus = newBalanceAmount <= 0 ? 'paid' : 'partial';
+
+            // Update reservation paid amount, balance, and payment status
             await this.prisma.reservation.update({
                 where: { id: charge.reservationId },
                 data: {
-                    paidAmount: { increment: charge.amount }
+                    paidAmount: newPaidAmount,
+                    balanceAmount: newBalanceAmount,
+                    paymentStatus
                 }
             });
+
+            // Post balanced ledger entries
+            const revenueGl = charge.reservation.site?.siteClass?.glCode || 'SITE_REVENUE';
+            const dedupeKey = `repeat_charge_${chargeId}_${payment.id}`;
+
+            await postBalancedLedgerEntries(this.prisma, [
+                {
+                    campgroundId: charge.reservation.campgroundId,
+                    reservationId: charge.reservationId,
+                    glCode: 'CASH',
+                    account: 'Cash',
+                    direction: 'debit' as const,
+                    amountCents: charge.amount,
+                    description: `Repeat charge payment for ${charge.dueDate.toISOString().split('T')[0]}`,
+                    dedupeKey: `${dedupeKey}:debit`
+                },
+                {
+                    campgroundId: charge.reservation.campgroundId,
+                    reservationId: charge.reservationId,
+                    glCode: revenueGl,
+                    account: 'Site Revenue',
+                    direction: 'credit' as const,
+                    amountCents: charge.amount,
+                    description: `Repeat charge payment for ${charge.dueDate.toISOString().split('T')[0]}`,
+                    dedupeKey: `${dedupeKey}:credit`
+                }
+            ]);
 
             return updated;
         } catch (error: any) {

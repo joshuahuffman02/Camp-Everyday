@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { IdempotencyService } from "../payments/idempotency.service";
 import { StripeService } from "../payments/stripe.service";
 import { ReservationStatus, BackoffStrategy } from "@prisma/client";
+import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
 
 @Injectable()
 export class AutoCollectService {
@@ -176,6 +177,7 @@ export class AutoCollectService {
 
   private async recordSuccessfulPayment(reservation: any, intent: any) {
     const newPaid = (reservation.paidAmount ?? 0) + reservation.balanceAmount;
+    const amountCents = reservation.balanceAmount;
 
     await this.prisma.reservation.update({
       where: { id: reservation.id },
@@ -191,7 +193,7 @@ export class AutoCollectService {
       data: {
         campgroundId: reservation.campgroundId,
         reservationId: reservation.id,
-        amountCents: reservation.balanceAmount,
+        amountCents,
         method: "card",
         direction: "charge",
         note: "Auto-collected balance",
@@ -199,20 +201,32 @@ export class AutoCollectService {
       }
     });
 
-    await this.prisma.ledgerEntry.create({
-      data: {
+    // Post balanced ledger entries (debit Cash, credit Revenue)
+    const dedupeKey = `auto_collect_${reservation.id}_${intent.id}`;
+    await postBalancedLedgerEntries(this.prisma, [
+      {
         campgroundId: reservation.campgroundId,
         reservationId: reservation.id,
         glCode: "CASH",
         account: "Cash",
-        description: `Auto-collect ${intent.id}`,
-        amountCents: reservation.balanceAmount,
-        direction: "debit",
-        occurredAt: new Date()
+        description: `Auto-collect payment ${intent.id}`,
+        amountCents,
+        direction: "debit" as const,
+        dedupeKey: `${dedupeKey}:debit`
+      },
+      {
+        campgroundId: reservation.campgroundId,
+        reservationId: reservation.id,
+        glCode: "SITE_REVENUE",
+        account: "Site Revenue",
+        description: `Auto-collect payment ${intent.id}`,
+        amountCents,
+        direction: "credit" as const,
+        dedupeKey: `${dedupeKey}:credit`
       }
-    });
+    ]);
 
-    this.logger.log(`[AutoCollect] Successfully collected ${reservation.balanceAmount} cents for ${reservation.id}`);
+    this.logger.log(`[AutoCollect] Successfully collected ${amountCents} cents for ${reservation.id}`);
   }
 
   private async scheduleNextAttempt(reservation: any, reason: string, retryPlan?: any) {
