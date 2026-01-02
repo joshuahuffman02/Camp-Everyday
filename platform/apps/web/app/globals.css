@@ -98,70 +98,8 @@
   }
 
   .dark {
-    /* Base UI tokens (dark mode) */
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 223 47% 11%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 217 91% 60%;
-
-    /* Semantic tokens (dark mode) */
-    --action-primary: 158 64% 52%; /* emerald-500 */
-    --action-primary-foreground: 0 0% 100%;
-    --action-primary-hover: 158 64% 42%; /* emerald-600 */
-    --action-secondary: 217 33% 17%; /* slate-800 */
-    --action-secondary-foreground: 210 40% 98%;
-    --action-secondary-hover: 217 33% 23%; /* slate-700 */
-
-    --status-success: 158 64% 52%; /* emerald-500 */
-    --status-success-foreground: 0 0% 100%;
-    --status-success-bg: 158 64% 12%; /* emerald-950 */
-    --status-success-border: 158 64% 22%; /* emerald-800 */
-    --status-success-text: 152 69% 65%; /* emerald-400 - text on dark bg */
-
-    --status-warning: 38 92% 50%; /* amber-500 */
-    --status-warning-foreground: 0 0% 100%;
-    --status-warning-bg: 36 77% 12%; /* amber-950 */
-    --status-warning-border: 36 86% 22%; /* amber-800 */
-    --status-warning-text: 43 96% 60%; /* amber-400 - text on dark bg */
-
-    --status-error: 0 62% 50%; /* red-600 */
-    --status-error-foreground: 0 0% 100%;
-    --status-error-bg: 0 62% 12%; /* red-950 */
-    --status-error-border: 0 62% 22%; /* red-800 */
-    --status-error-text: 0 91% 68%; /* red-400 - text on dark bg */
-
-    --status-info: 217 91% 60%; /* blue-500 */
-    --status-info-foreground: 0 0% 100%;
-    --status-info-bg: 222 84% 12%; /* blue-950 */
-    --status-info-border: 217 91% 22%; /* blue-800 */
-    --status-info-text: 213 94% 68%; /* blue-400 - text on dark bg */
-
-    --chart-1: 217 91% 60%;
-    --chart-2: 158 64% 52%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 0 84% 60%;
-    --chart-5: 262 83% 58%;
-    --chart-6: 192 91% 36%;
-    --chart-7: 24 94% 50%;
-    --chart-8: 340 82% 52%;
-    --heatmap-low: 223 47% 11%;
-    --heatmap-mid: 158 64% 24%;
-    --heatmap-high: 158 64% 52%;
+    /* Dark theme disabled for now; restore dark tokens from git history when needed. */
+    color-scheme: light;
   }
 }
 
@@ -264,17 +202,17 @@
 
   /* Glass background effect */
   .glass {
-    @apply bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm;
+    @apply bg-white/80 backdrop-blur-sm;
   }
 
   /* Glass with stronger blur */
   .glass-strong {
-    @apply bg-white/90 dark:bg-slate-800/70 backdrop-blur-md;
+    @apply bg-white/90 backdrop-blur-md;
   }
 
   /* Glass border styling */
   .glass-border {
-    @apply border border-slate-200/60 dark:border-slate-700/50;
+    @apply border border-slate-200/60;
   }
 
   /* Combined glass card */
