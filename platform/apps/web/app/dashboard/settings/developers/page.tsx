@@ -152,7 +152,7 @@ export default function DevelopersSettingsPage() {
 
     const rotateMutation = useMutation({
         mutationFn: async (clientId: string) => {
-            return apiClient.rotateApiClientSecret(clientId);
+            return apiClient.rotateApiClientSecret(clientId, campgroundId!);
         },
         onSuccess: (data) => {
             setCreatedClientSecret(data.clientSecret);
@@ -167,7 +167,7 @@ export default function DevelopersSettingsPage() {
 
     const toggleMutation = useMutation({
         mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-            return apiClient.toggleApiClient(id, isActive);
+            return apiClient.toggleApiClient(id, isActive, campgroundId!);
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ["api-clients"] });
@@ -182,7 +182,7 @@ export default function DevelopersSettingsPage() {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            return apiClient.deleteApiClient(id);
+            return apiClient.deleteApiClient(id, campgroundId!);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["api-clients"] });

@@ -91,7 +91,7 @@ export default function WebhooksSettingsPage() {
 
     const toggleMutation = useMutation({
         mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-            return apiClient.toggleWebhook(id, isActive);
+            return apiClient.toggleWebhook(id, isActive, campgroundId!);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["webhooks"] });
@@ -101,7 +101,7 @@ export default function WebhooksSettingsPage() {
 
     const replayMutation = useMutation({
         mutationFn: async (id: string) => {
-            return apiClient.replayWebhookDelivery(id);
+            return apiClient.replayWebhookDelivery(id, campgroundId!);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["webhook-deliveries"] });

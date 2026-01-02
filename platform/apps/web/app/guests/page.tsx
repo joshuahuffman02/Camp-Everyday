@@ -22,7 +22,7 @@ const TIER_COLORS: Record<string, string> = {
   Bronze: "bg-amber-600",
   Silver: "bg-slate-400",
   Gold: "bg-yellow-500",
-  Platinum: "bg-gradient-to-r from-slate-300 to-slate-500"
+  Platinum: "bg-slate-600"
 };
 
 function GuestLoyaltyBadge({ guestId }: { guestId: string }) {
@@ -41,7 +41,7 @@ function GuestLoyaltyBadge({ guestId }: { guestId: string }) {
         <Trophy className="h-3 w-3 mr-1" />
         {loyalty.tier}
       </Badge>
-      <span className="text-xs text-slate-500 flex items-center gap-1">
+      <span className="text-xs text-muted-foreground flex items-center gap-1">
         <Star className="h-3 w-3" />
         {loyalty.pointsBalance.toLocaleString()} pts
       </span>
@@ -60,19 +60,19 @@ function GuestRewardsSection({ guestId, expanded, onToggle }: { guestId: string;
   });
 
   return (
-    <div className="mt-3 border-t border-slate-200 pt-3">
+    <div className="mt-3 border-t border-border pt-3">
       <button
         onClick={onToggle}
-        className="flex items-center gap-2 text-sm font-medium text-emerald-700 hover:text-emerald-800"
+        className="flex items-center gap-2 text-sm font-medium text-action-primary hover:text-action-primary-hover"
       >
         <Trophy className="h-4 w-4" />
         {expanded ? "Hide Rewards" : "View Rewards"}
       </button>
 
       {expanded && (
-        <div className="mt-3 p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg border border-emerald-100">
+        <div className="mt-3 p-4 bg-status-success/10 rounded-lg border border-status-success/20">
           {isLoading ? (
-            <div className="text-center text-slate-500 py-4">Loading rewards...</div>
+            <div className="text-center text-muted-foreground py-4">Loading rewards...</div>
           ) : loyalty ? (
             <div className="space-y-4">
               {/* Tier and Points */}
@@ -82,20 +82,20 @@ function GuestRewardsSection({ guestId, expanded, onToggle }: { guestId: string;
                     <Trophy className="h-6 w-6" />
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-slate-900">{loyalty.tier} Member</div>
-                    <div className="text-sm text-slate-500">Member since {new Date(Date.now()).toLocaleDateString()}</div>
+                    <div className="text-lg font-bold text-foreground">{loyalty.tier} Member</div>
+                    <div className="text-sm text-muted-foreground">Member since {new Date(Date.now()).toLocaleDateString()}</div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-emerald-600">{loyalty.pointsBalance.toLocaleString()}</div>
-                  <div className="text-xs text-slate-500">Points Balance</div>
+                  <div className="text-2xl font-bold text-status-success">{loyalty.pointsBalance.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Points Balance</div>
                 </div>
               </div>
 
               {/* Points Progress Bar (to next tier) */}
               {loyalty.tier !== "Platinum" && (
                 <div className="mt-2">
-                  <div className="flex justify-between text-xs text-slate-500 mb-1">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
                     <span>{loyalty.tier}</span>
                     <span>
                       {loyalty.tier === "Bronze" ? "Silver (1,000 pts)" :
@@ -103,9 +103,9 @@ function GuestRewardsSection({ guestId, expanded, onToggle }: { guestId: string;
                           "Platinum (10,000 pts)"}
                     </span>
                   </div>
-                  <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
+                      className="h-full bg-status-success transition-all"
                       style={{
                         width: `${Math.min(100,
                           loyalty.tier === "Bronze" ? (loyalty.pointsBalance / 1000) * 100 :
@@ -121,15 +121,15 @@ function GuestRewardsSection({ guestId, expanded, onToggle }: { guestId: string;
               {/* Recent Transactions */}
               {loyalty.transactions && loyalty.transactions.length > 0 && (
                 <div className="mt-4">
-                  <h5 className="text-sm font-semibold text-slate-700 mb-2">Recent Activity</h5>
+                  <h5 className="text-sm font-semibold text-muted-foreground mb-2">Recent Activity</h5>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {loyalty.transactions.slice(0, 10).map((tx) => (
-                      <div key={tx.id} className="flex items-center justify-between text-sm p-2 bg-white rounded border border-slate-100">
+                      <div key={tx.id} className="flex items-center justify-between text-sm p-2 bg-card rounded border border-border">
                         <div>
-                          <div className="font-medium text-slate-800">{tx.reason}</div>
-                          <div className="text-xs text-slate-400">{new Date(tx.createdAt).toLocaleDateString()}</div>
+                          <div className="font-medium text-foreground">{tx.reason}</div>
+                          <div className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</div>
                         </div>
-                        <div className={cn("font-bold", tx.amount >= 0 ? "text-emerald-600" : "text-red-600")}>
+                        <div className={cn("font-bold", tx.amount >= 0 ? "text-status-success" : "text-red-600")}>
                           {tx.amount >= 0 ? "+" : ""}{tx.amount.toLocaleString()} pts
                         </div>
                       </div>
@@ -139,7 +139,7 @@ function GuestRewardsSection({ guestId, expanded, onToggle }: { guestId: string;
               )}
 
               {(!loyalty.transactions || loyalty.transactions.length === 0) && (
-                <div className="overflow-hidden rounded border border-slate-200 bg-white">
+                <div className="overflow-hidden rounded border border-border bg-card">
                   <table className="w-full text-sm">
                     <tbody>
                       <TableEmpty>No transactions yet.</TableEmpty>
@@ -149,7 +149,7 @@ function GuestRewardsSection({ guestId, expanded, onToggle }: { guestId: string;
               )}
             </div>
           ) : (
-            <div className="overflow-hidden rounded border border-slate-200 bg-white">
+            <div className="overflow-hidden rounded border border-border bg-card">
               <table className="w-full text-sm">
                 <tbody>
                   <TableEmpty>No rewards profile found.</TableEmpty>
@@ -205,28 +205,28 @@ function GuestEquipmentSection({ guestId, expanded, onToggle }: { guestId: strin
   });
 
   return (
-    <div className="mt-3 border-t border-slate-200 pt-3">
+    <div className="mt-3 border-t border-border pt-3">
       <button
         onClick={onToggle}
-        className="flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-800"
+        className="flex items-center gap-2 text-sm font-medium text-action-primary hover:text-action-primary-hover"
       >
         <Car className="h-4 w-4" />
         {expanded ? "Hide Equipment" : "View Equipment"}
       </button>
 
       {expanded && (
-        <div className="mt-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+        <div className="mt-3 p-4 bg-muted rounded-lg border border-border">
           {isLoading ? (
-            <div className="text-center text-slate-500 py-2">Loading equipment...</div>
+            <div className="text-center text-muted-foreground py-2">Loading equipment...</div>
           ) : (
             <div className="space-y-3">
               {equipment?.map((eq) => (
-                <div key={eq.id} className="flex items-center justify-between bg-white p-3 rounded border border-slate-200">
+                <div key={eq.id} className="flex items-center justify-between bg-card p-3 rounded border border-border">
                   <div>
-                    <div className="font-medium text-slate-900">
+                    <div className="font-medium text-foreground">
                       {eq.type.toUpperCase()} {eq.length ? `• ${eq.length}ft` : ""}
                     </div>
-                    <div className="text-sm text-slate-500">
+                    <div className="text-sm text-muted-foreground">
                       {eq.make} {eq.model} {eq.plateNumber ? `• ${eq.plateNumber} (${eq.plateState || "-"})` : ""}
                     </div>
                   </div>
@@ -242,7 +242,7 @@ function GuestEquipmentSection({ guestId, expanded, onToggle }: { guestId: strin
               ))}
 
               {!equipment?.length && !isAdding && (
-                <div className="overflow-hidden rounded border border-slate-200 bg-white">
+                <div className="overflow-hidden rounded border border-border bg-card">
                   <table className="w-full text-sm">
                     <tbody>
                       <TableEmpty>No equipment recorded.</TableEmpty>
@@ -252,10 +252,10 @@ function GuestEquipmentSection({ guestId, expanded, onToggle }: { guestId: strin
               )}
 
               {isAdding ? (
-                <div className="bg-white p-3 rounded border border-slate-200 space-y-3">
+                <div className="bg-card p-3 rounded border border-border space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <select
-                      className="rounded border border-slate-300 px-2 py-1 text-sm"
+                      className="rounded border border-border px-2 py-1 text-sm"
                       value={newEq.type}
                       onChange={(e) => setNewEq({ ...newEq, type: e.target.value })}
                     >
@@ -265,32 +265,32 @@ function GuestEquipmentSection({ guestId, expanded, onToggle }: { guestId: strin
                       <option value="car">Car</option>
                     </select>
                     <input
-                      className="rounded border border-slate-300 px-2 py-1 text-sm"
+                      className="rounded border border-border px-2 py-1 text-sm"
                       placeholder="Length (ft)"
                       type="number"
                       value={newEq.length}
                       onChange={(e) => setNewEq({ ...newEq, length: e.target.value })}
                     />
                     <input
-                      className="rounded border border-slate-300 px-2 py-1 text-sm"
+                      className="rounded border border-border px-2 py-1 text-sm"
                       placeholder="Make"
                       value={newEq.make}
                       onChange={(e) => setNewEq({ ...newEq, make: e.target.value })}
                     />
                     <input
-                      className="rounded border border-slate-300 px-2 py-1 text-sm"
+                      className="rounded border border-border px-2 py-1 text-sm"
                       placeholder="Model"
                       value={newEq.model}
                       onChange={(e) => setNewEq({ ...newEq, model: e.target.value })}
                     />
                     <input
-                      className="rounded border border-slate-300 px-2 py-1 text-sm"
+                      className="rounded border border-border px-2 py-1 text-sm"
                       placeholder="Plate #"
                       value={newEq.plateNumber}
                       onChange={(e) => setNewEq({ ...newEq, plateNumber: e.target.value })}
                     />
                     <input
-                      className="rounded border border-slate-300 px-2 py-1 text-sm"
+                      className="rounded border border-border px-2 py-1 text-sm"
                       placeholder="State"
                       value={newEq.plateState}
                       onChange={(e) => setNewEq({ ...newEq, plateState: e.target.value })}
@@ -640,10 +640,10 @@ export default function GuestsPage() {
           <div
             className={`rounded-md border px-3 py-2 text-sm ${
               flash.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                ? "border-status-success/30 bg-status-success/10 text-status-success-text"
                 : flash.type === "error"
                   ? "border-rose-200 bg-rose-50 text-rose-700"
-                  : "border-slate-200 bg-slate-50 text-slate-700"
+                  : "border-border bg-muted text-muted-foreground"
             }`}
           >
             {flash.message}
@@ -654,52 +654,52 @@ export default function GuestsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Total Guests</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">Total Guests</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
-              <div className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                <Users className="h-5 w-5 text-slate-400" />
+              <div className="text-2xl font-semibold text-foreground flex items-center gap-2">
+                <Users className="h-5 w-5 text-muted-foreground" />
                 {totalGuests}
               </div>
-              <div className="text-xs text-slate-600">In database</div>
+              <div className="text-xs text-muted-foreground">In database</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">VIP Guests</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">VIP Guests</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
-              <div className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+              <div className="text-2xl font-semibold text-foreground flex items-center gap-2">
                 <Crown className="h-5 w-5 text-amber-500" />
                 {vipGuests}
               </div>
-              <div className="text-xs text-slate-600">{totalGuests > 0 ? Math.round((vipGuests / totalGuests) * 100) : 0}% of total</div>
+              <div className="text-xs text-muted-foreground">{totalGuests > 0 ? Math.round((vipGuests / totalGuests) * 100) : 0}% of total</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Marketing Opt-in</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">Marketing Opt-in</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
-              <div className="text-2xl font-semibold text-slate-900">{optedInGuests}</div>
-              <div className="text-xs text-slate-600">Can receive marketing</div>
+              <div className="text-2xl font-semibold text-foreground">{optedInGuests}</div>
+              <div className="text-xs text-muted-foreground">Can receive marketing</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Showing</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">Showing</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
-              <div className="text-2xl font-semibold text-slate-900">{filteredAndSortedGuests.length}</div>
-              <div className="text-xs text-slate-600">of {totalGuests} guests</div>
+              <div className="text-2xl font-semibold text-foreground">{filteredAndSortedGuests.length}</div>
+              <div className="text-xs text-muted-foreground">of {totalGuests} guests</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Filters & Actions Bar */}
-        <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+        <div className="rounded-lg border border-border bg-card p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
               Filters & exports
               {hasFilters && (
                 <span className="rounded-full bg-status-success-bg text-status-success-text border border-status-success-border px-2 py-0.5 text-[11px] font-semibold">
@@ -723,13 +723,13 @@ export default function GuestsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <input
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm w-64"
+              className="rounded-md border border-border px-2 py-1 text-sm w-64"
               placeholder="Search name, email, phone…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <select
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm"
+              className="rounded-md border border-border px-2 py-1 text-sm"
               value={vipFilter}
               onChange={(e) => setVipFilter(e.target.value as "all" | "vip" | "regular")}
             >
@@ -747,8 +747,8 @@ export default function GuestsPage() {
             </Button>
             <div className="flex-1" />
             {selectedGuestIds.size > 0 && (
-              <div className="flex items-center gap-2 px-2 py-1 bg-slate-100 rounded-md text-sm">
-                <span className="text-slate-600">{selectedGuestIds.size} selected</span>
+              <div className="flex items-center gap-2 px-2 py-1 bg-muted rounded-md text-sm">
+                <span className="text-muted-foreground">{selectedGuestIds.size} selected</span>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -781,8 +781,8 @@ export default function GuestsPage() {
 
           {/* Active Filter Pills */}
           {hasFilters && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 mt-2">
-              <span className="text-xs text-slate-500 font-medium">Active:</span>
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/60 mt-2">
+              <span className="text-xs text-muted-foreground font-medium">Active:</span>
               {search.trim() && (
                 <FilterChip
                   label={`Search: "${search.trim().length > 20 ? search.trim().slice(0, 20) + '...' : search.trim()}"`}
@@ -820,132 +820,132 @@ export default function GuestsPage() {
 
         {/* Collapsible Add Guest Form */}
         {showAddForm && (
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <h3 className="text-lg font-semibold text-slate-900 mb-3">Add new guest</h3>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h3 className="text-lg font-semibold text-foreground mb-3">Add new guest</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="First name"
               value={form.primaryFirstName}
               onChange={(e) => setForm((s) => ({ ...s, primaryFirstName: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Last name"
               value={form.primaryLastName}
               onChange={(e) => setForm((s) => ({ ...s, primaryLastName: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Email"
               value={form.email}
               onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Phone"
               value={form.phone}
               onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Preferred contact (email/phone/sms)"
               value={form.preferredContact}
               onChange={(e) => setForm((s) => ({ ...s, preferredContact: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Preferred language"
               value={form.preferredLanguage}
               onChange={(e) => setForm((s) => ({ ...s, preferredLanguage: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Address 1"
               value={form.address1}
               onChange={(e) => setForm((s) => ({ ...s, address1: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Address 2"
               value={form.address2}
               onChange={(e) => setForm((s) => ({ ...s, address2: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="City"
               value={form.city}
               onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="State/Province"
               value={form.state}
               onChange={(e) => setForm((s) => ({ ...s, state: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Postal code"
               value={form.postalCode}
               onChange={(e) => setForm((s) => ({ ...s, postalCode: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Country"
               value={form.country}
               onChange={(e) => setForm((s) => ({ ...s, country: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Rig type"
               value={form.rigType}
               onChange={(e) => setForm((s) => ({ ...s, rigType: e.target.value }))}
             />
             <input
               type="number"
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Rig length (ft)"
               value={form.rigLength}
               onChange={(e) => setForm((s) => ({ ...s, rigLength: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Vehicle plate"
               value={form.vehiclePlate}
               onChange={(e) => setForm((s) => ({ ...s, vehiclePlate: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Vehicle state"
               value={form.vehicleState}
               onChange={(e) => setForm((s) => ({ ...s, vehicleState: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2 md:col-span-2"
+              className="rounded-md border border-border px-3 py-2 md:col-span-2"
               placeholder="Notes (optional)"
               value={form.notes}
               onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Lead source"
               value={form.leadSource}
               onChange={(e) => setForm((s) => ({ ...s, leadSource: e.target.value }))}
             />
             <input
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Tags (comma separated)"
               value={form.tags}
               onChange={(e) => setForm((s) => ({ ...s, tags: e.target.value }))}
             />
             <input
               type="number"
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="rounded-md border border-border px-3 py-2"
               placeholder="Repeat stays"
               value={form.repeatStays}
               onChange={(e) => setForm((s) => ({ ...s, repeatStays: e.target.value }))}
             />
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={form.vip}
@@ -953,7 +953,7 @@ export default function GuestsPage() {
               />
               VIP
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={form.marketingOptIn}
@@ -988,9 +988,9 @@ export default function GuestsPage() {
         )}
 
         {/* Guests Table */}
-        <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
+        <div className="rounded-lg border border-border bg-card overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
+            <thead className="bg-muted text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 w-10">
                   <Checkbox
@@ -1030,7 +1030,7 @@ export default function GuestsPage() {
             <tbody className="divide-y">
               {filteredAndSortedGuests.map((g, index) => (
                 <Fragment key={g.id}>
-                <StaggeredTableRow index={index} className={cn("hover:bg-slate-50", selectedGuestIds.has(g.id) && "bg-emerald-50")}>
+                <StaggeredTableRow index={index} className={cn("hover:bg-muted/60", selectedGuestIds.has(g.id) && "bg-status-success/10")}>
                   <td className="px-3 py-2">
                     <Checkbox
                       checked={selectedGuestIds.has(g.id)}
@@ -1038,28 +1038,28 @@ export default function GuestsPage() {
                       aria-label={`Select ${g.primaryFirstName} ${g.primaryLastName}`}
                     />
                   </td>
-                  <td className="px-3 py-2 text-slate-800">
+                  <td className="px-3 py-2 text-foreground">
                     <div className="font-medium">{g.primaryLastName}, {g.primaryFirstName}</div>
                     {(g as GuestWithExtras).city && (g as GuestWithExtras).state && (
-                      <div className="text-xs text-slate-500">{(g as GuestWithExtras).city}, {(g as GuestWithExtras).state}</div>
+                      <div className="text-xs text-muted-foreground">{(g as GuestWithExtras).city}, {(g as GuestWithExtras).state}</div>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-slate-800">{g.email}</td>
-                  <td className="px-3 py-2 text-slate-800">{g.phone}</td>
+                  <td className="px-3 py-2 text-foreground">{g.email}</td>
+                  <td className="px-3 py-2 text-foreground">{g.phone}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
                       {(g as GuestWithExtras).vip && (
-                        <span className="rounded-full border border-amber-300 bg-amber-50 text-amber-800 px-2 py-0.5 text-xs font-medium flex items-center gap-1">
+                        <span className="rounded-full border border-status-warning-border bg-status-warning-bg text-status-warning-text px-2 py-0.5 text-xs font-medium flex items-center gap-1">
                           <Crown className="h-3 w-3" /> VIP
                         </span>
                       )}
                       {(g as GuestWithExtras).marketingOptIn && (
-                        <span className="rounded-full border border-emerald-300 bg-emerald-50 text-emerald-800 px-2 py-0.5 text-xs">
+                        <span className="rounded-full border border-status-success-border bg-status-success-bg text-status-success-text px-2 py-0.5 text-xs">
                           Opt-in
                         </span>
                       )}
                       {!(g as GuestWithExtras).vip && !(g as GuestWithExtras).marketingOptIn && (
-                        <span className="text-slate-400 text-xs">—</span>
+                        <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </div>
                   </td>
@@ -1101,20 +1101,20 @@ export default function GuestsPage() {
                 </StaggeredTableRow>
                 {/* Expanded row for additional details */}
                 {expandedGuestId === g.id && (
-                  <tr className="bg-slate-50">
+                  <tr className="bg-muted">
                     <td colSpan={7} className="px-3 py-4">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Contact Info</h4>
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Contact Info</h4>
                           <div className="text-sm space-y-1">
                             {(g as GuestWithExtras).preferredContact && (
-                              <div><span className="text-slate-500">Preferred:</span> {(g as GuestWithExtras).preferredContact}</div>
+                              <div><span className="text-muted-foreground">Preferred:</span> {(g as GuestWithExtras).preferredContact}</div>
                             )}
                             {(g as GuestWithExtras).preferredLanguage && (
-                              <div><span className="text-slate-500">Language:</span> {(g as GuestWithExtras).preferredLanguage}</div>
+                              <div><span className="text-muted-foreground">Language:</span> {(g as GuestWithExtras).preferredLanguage}</div>
                             )}
                             {(g as GuestWithExtras).address1 && (
-                              <div className="text-slate-600">
+                              <div className="text-muted-foreground">
                                 {(g as GuestWithExtras).address1}
                                 {(g as GuestWithExtras).address2 && <>, {(g as GuestWithExtras).address2}</>}
                                 {(g as GuestWithExtras).city && <>, {(g as GuestWithExtras).city}</>}
@@ -1125,16 +1125,16 @@ export default function GuestsPage() {
                           </div>
                         </div>
                         <div>
-                          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Equipment</h4>
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Equipment</h4>
                           <div className="text-sm space-y-1">
                             {(g as GuestWithExtras).rigType && (
-                              <div><span className="text-slate-500">Rig:</span> {(g as GuestWithExtras).rigType} {(g as GuestWithExtras).rigLength ? `• ${(g as GuestWithExtras).rigLength}ft` : ""}</div>
+                              <div><span className="text-muted-foreground">Rig:</span> {(g as GuestWithExtras).rigType} {(g as GuestWithExtras).rigLength ? `• ${(g as GuestWithExtras).rigLength}ft` : ""}</div>
                             )}
                             {(g as GuestWithExtras).vehiclePlate && (
-                              <div><span className="text-slate-500">Vehicle:</span> {(g as GuestWithExtras).vehiclePlate} {(g as GuestWithExtras).vehicleState ? `(${(g as GuestWithExtras).vehicleState})` : ""}</div>
+                              <div><span className="text-muted-foreground">Vehicle:</span> {(g as GuestWithExtras).vehiclePlate} {(g as GuestWithExtras).vehicleState ? `(${(g as GuestWithExtras).vehicleState})` : ""}</div>
                             )}
                             {!(g as GuestWithExtras).rigType && !(g as GuestWithExtras).vehiclePlate && (
-                              <div className="text-slate-400">No equipment on file</div>
+                              <div className="text-muted-foreground">No equipment on file</div>
                             )}
                           </div>
                           <GuestEquipmentSection
@@ -1144,19 +1144,19 @@ export default function GuestsPage() {
                           />
                         </div>
                         <div>
-                          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Other Info</h4>
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Other Info</h4>
                           <div className="text-sm space-y-1">
                             {(g as GuestWithExtras).leadSource && (
-                              <div><span className="text-slate-500">Source:</span> {(g as GuestWithExtras).leadSource}</div>
+                              <div><span className="text-muted-foreground">Source:</span> {(g as GuestWithExtras).leadSource}</div>
                             )}
                             {(g as GuestWithExtras).tags && ((g as GuestWithExtras).tags?.length ?? 0) > 0 && (
-                              <div><span className="text-slate-500">Tags:</span> {(g as GuestWithExtras).tags?.join(", ")}</div>
+                              <div><span className="text-muted-foreground">Tags:</span> {(g as GuestWithExtras).tags?.join(", ")}</div>
                             )}
                             {(g as GuestWithExtras).repeatStays && ((g as GuestWithExtras).repeatStays ?? 0) > 0 && (
-                              <div><span className="text-slate-500">Repeat stays:</span> {(g as GuestWithExtras).repeatStays}</div>
+                              <div><span className="text-muted-foreground">Repeat stays:</span> {(g as GuestWithExtras).repeatStays}</div>
                             )}
                             {g.notes && (
-                              <div><span className="text-slate-500">Notes:</span> {g.notes}</div>
+                              <div><span className="text-muted-foreground">Notes:</span> {g.notes}</div>
                             )}
                           </div>
                           <GuestRewardsSection
@@ -1176,13 +1176,13 @@ export default function GuestsPage() {
                   <td colSpan={7} className="px-4 py-8">
                     <div className="space-y-3">
                       {[...Array(3)].map((_, i) => (
-                        <div key={i} className="animate-pulse flex items-center gap-4 p-3 bg-slate-50 rounded">
-                          <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                        <div key={i} className="animate-pulse flex items-center gap-4 p-3 bg-muted/60 rounded">
+                          <div className="w-10 h-10 bg-muted rounded-full" />
                           <div className="flex-1 space-y-2">
-                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-48" />
-                            <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                            <div className="h-4 bg-muted rounded w-48" />
+                            <div className="h-3 bg-muted rounded w-32" />
                           </div>
-                          <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                          <div className="h-6 w-20 bg-muted rounded" />
                         </div>
                       ))}
                     </div>
@@ -1193,8 +1193,8 @@ export default function GuestsPage() {
                 <tr>
                   <td colSpan={7} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center gap-4">
-                      <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
-                        <Users className="h-10 w-10 text-blue-600" />
+                      <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center">
+                        <Users className="h-10 w-10 text-muted-foreground" />
                       </div>
                       <div className="space-y-2">
                         <p className="text-lg font-semibold text-foreground">

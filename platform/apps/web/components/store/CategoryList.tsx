@@ -38,12 +38,13 @@ export function CategoryList({ campgroundId }: CategoryListProps) {
     });
 
     const updateMutation = useMutation({
-        mutationFn: (payload: { id: string; data: any }) => apiClient.updateStoreCategory(payload.id, payload.data),
+        mutationFn: (payload: { id: string; data: any }) =>
+            apiClient.updateStoreCategory(payload.id, payload.data, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-categories"] })
     });
 
     const deleteMutation = useMutation({
-        mutationFn: (id: string) => apiClient.deleteStoreCategory(id),
+        mutationFn: (id: string) => apiClient.deleteStoreCategory(id, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-categories"] })
     });
 

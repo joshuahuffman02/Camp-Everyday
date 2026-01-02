@@ -94,7 +94,7 @@ export default function WebhooksPage() {
 
   const handleToggle = async (webhook: WebhookEndpoint) => {
     try {
-      await apiClient.toggleWebhook(webhook.id, !webhook.isActive);
+      await apiClient.toggleWebhook(webhook.id, !webhook.isActive, campgroundId ?? undefined);
       if (campgroundId) loadWebhooks(campgroundId);
     } catch (err) {
       console.error("Failed to toggle webhook:", err);

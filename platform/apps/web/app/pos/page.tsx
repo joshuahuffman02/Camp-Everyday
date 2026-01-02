@@ -578,7 +578,7 @@ export default function POSPage() {
     const handleRefundSubmit = async (orderId: string, payload: OrderAdjustmentPayload) => {
         setSavingRefund(true);
         try {
-            await apiClient.createStoreOrderAdjustment(orderId, payload);
+            await apiClient.createStoreOrderAdjustment(orderId, payload, campgroundId ?? undefined);
             recordTelemetry({
                 source: "pos",
                 type: "sync",

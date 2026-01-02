@@ -97,7 +97,7 @@ export default function StoreOrdersPage() {
 
   const markSeen = async (id: string) => {
     try {
-      await apiClient.markStoreOrderSeen(id);
+      await apiClient.markStoreOrderSeen(id, campgroundId ?? undefined);
       await load();
     } catch (err) {
       toast({ title: "Error", description: "Failed to mark seen", variant: "destructive" });
@@ -106,7 +106,7 @@ export default function StoreOrdersPage() {
 
   const complete = async (id: string) => {
     try {
-      await apiClient.completeStoreOrder(id);
+      await apiClient.completeStoreOrder(id, campgroundId ?? undefined);
       toast({ title: "Order completed" });
       await load();
     } catch (err) {
@@ -129,7 +129,7 @@ export default function StoreOrdersPage() {
 
   const setStatus = async (id: string, status: "ready" | "delivered" | "completed") => {
     try {
-      await apiClient.updateStoreOrderStatus(id, status);
+      await apiClient.updateStoreOrderStatus(id, status, campgroundId ?? undefined);
       toast({ title: `Order marked ${status}` });
       await load();
     } catch (err) {
@@ -315,4 +315,3 @@ export default function StoreOrdersPage() {
     </div>
   );
 }
-

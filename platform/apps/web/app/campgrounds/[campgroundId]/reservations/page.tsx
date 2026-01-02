@@ -416,7 +416,7 @@ export default function ReservationsPage() {
           return next;
         });
         try {
-          const rows = await apiClient.getLedgerByReservation(res.id);
+          const rows = await apiClient.getLedgerByReservation(res.id, campgroundId);
           setLedgerByRes((prev) => ({ ...prev, [res.id]: rows }));
         } catch (e) {
           setLedgerErrors((prev) => ({ ...prev, [res.id]: "Failed to load ledger." }));

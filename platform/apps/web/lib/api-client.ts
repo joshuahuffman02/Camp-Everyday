@@ -672,6 +672,26 @@ function scopedHeaders(extra?: Record<string, string>) {
   return headers;
 }
 
+function resolveCampgroundId(preferred?: string) {
+  if (preferred) return preferred;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("campreserv:selectedCampground");
+      if (stored) return stored;
+    } catch {
+      // ignore storage access errors
+    }
+  }
+  return undefined;
+}
+
+function withCampgroundId(path: string, campgroundId?: string) {
+  const resolved = resolveCampgroundId(campgroundId);
+  if (!resolved) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}campgroundId=${encodeURIComponent(resolved)}`;
+}
+
 async function fetchJSON<T>(path: string, headers?: Record<string, string>) {
   const res = await fetch(`${API_BASE}${path}`, { next: { revalidate: 0 }, headers: scopedHeaders(headers) });
   return parseResponse<T>(res);
@@ -1783,8 +1803,9 @@ export const apiClient = {
     ignoreCategoryRestrictions: boolean;
     feeMode: string;
     webhookSecret: string;
-  }>) {
-    const res = await fetch(`${API_BASE}/ota/channels/${id}`, {
+  }>, campgroundId?: string) {
+    const path = withCampgroundId(`/ota/channels/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -1792,16 +1813,16 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return OtaChannelSchema.parse(data);
   },
-  async listOtaMappings(channelId: string) {
-    const data = await fetchJSON<unknown>(`/ota/channels/${channelId}/mappings`);
+  async listOtaMappings(channelId: string, campgroundId?: string) {
+    const data = await fetchJSON<unknown>(withCampgroundId(`/ota/channels/${channelId}/mappings`, campgroundId));
     return z.array(OtaMappingSchema).parse(data);
   },
-  async listOtaImports(channelId: string) {
-    const data = await fetchJSON<unknown>(`/ota/channels/${channelId}/imports`);
+  async listOtaImports(channelId: string, campgroundId?: string) {
+    const data = await fetchJSON<unknown>(withCampgroundId(`/ota/channels/${channelId}/imports`, campgroundId));
     return z.array(OtaImportSchema).parse(data);
   },
-  async listOtaLogs(channelId: string) {
-    const data = await fetchJSON<unknown>(`/ota/channels/${channelId}/logs`);
+  async listOtaLogs(channelId: string, campgroundId?: string) {
+    const data = await fetchJSON<unknown>(withCampgroundId(`/ota/channels/${channelId}/logs`, campgroundId));
     return z.array(OtaLogSchema).parse(data);
   },
   async listIntegrationConnections(campgroundId: string) {
@@ -1903,8 +1924,9 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return IntegrationExportJobSchema.parse(data);
   },
-  async pushOtaAvailability(channelId: string) {
-    const res = await fetch(`${API_BASE}/ota/channels/${channelId}/push`, {
+  async pushOtaAvailability(channelId: string, campgroundId?: string) {
+    const path = withCampgroundId(`/ota/channels/${channelId}/push`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: scopedHeaders()
     });
@@ -1951,8 +1973,9 @@ export const apiClient = {
     siteId?: string;
     siteClassId?: string;
     status?: string;
-  }) {
-    const res = await fetch(`${API_BASE}/ota/channels/${channelId}/mappings`, {
+  }, campgroundId?: string) {
+    const path = withCampgroundId(`/ota/channels/${channelId}/mappings`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -1960,24 +1983,27 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return OtaMappingSchema.parse(data);
   },
-  async ensureOtaIcalToken(mappingId: string) {
-    const res = await fetch(`${API_BASE}/ota/mappings/${mappingId}/ical/token`, {
+  async ensureOtaIcalToken(mappingId: string, campgroundId?: string) {
+    const path = withCampgroundId(`/ota/mappings/${mappingId}/ical/token`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: scopedHeaders()
     });
     const token = await parseResponse<string>(res);
     return token;
   },
-  async setOtaIcalUrl(mappingId: string, url: string) {
-    const res = await fetch(`${API_BASE}/ota/mappings/${mappingId}/ical/url`, {
+  async setOtaIcalUrl(mappingId: string, url: string, campgroundId?: string) {
+    const path = withCampgroundId(`/ota/mappings/${mappingId}/ical/url`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify({ url })
     });
     return parseResponse<{ ok: boolean }>(res);
   },
-  async importOtaIcal(mappingId: string) {
-    const res = await fetch(`${API_BASE}/ota/mappings/${mappingId}/ical/import`, {
+  async importOtaIcal(mappingId: string, campgroundId?: string) {
+    const path = withCampgroundId(`/ota/mappings/${mappingId}/ical/import`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: scopedHeaders()
     });
@@ -2910,12 +2936,17 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return ReservationSchema.parse(data);
   },
-  async getAccessStatus(reservationId: string) {
-    const data = await fetchJSON<unknown>(`/reservations/${reservationId}/access`);
+  async getAccessStatus(reservationId: string, campgroundId?: string) {
+    const data = await fetchJSON<unknown>(withCampgroundId(`/reservations/${reservationId}/access`, campgroundId));
     return AccessStatusSchema.parse(data);
   },
-  async upsertVehicle(reservationId: string, payload: { plate?: string; state?: string; rigType?: string; rigLength?: number; description?: string }) {
-    const res = await fetch(`${API_BASE}/reservations/${reservationId}/access/vehicle`, {
+  async upsertVehicle(
+    reservationId: string,
+    payload: { plate?: string; state?: string; rigType?: string; rigLength?: number; description?: string },
+    campgroundId?: string
+  ) {
+    const path = withCampgroundId(`/reservations/${reservationId}/access/vehicle`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -2923,8 +2954,13 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return VehicleSchema.parse(data);
   },
-  async grantAccess(reservationId: string, payload: { provider: string; credentialType?: string; credentialValue?: string; startsAt?: string; endsAt?: string; idempotencyKey?: string; vehicleId?: string }) {
-    const res = await fetch(`${API_BASE}/reservations/${reservationId}/access/grant`, {
+  async grantAccess(
+    reservationId: string,
+    payload: { provider: string; credentialType?: string; credentialValue?: string; startsAt?: string; endsAt?: string; idempotencyKey?: string; vehicleId?: string },
+    campgroundId?: string
+  ) {
+    const path = withCampgroundId(`/reservations/${reservationId}/access/grant`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -2933,8 +2969,13 @@ export const apiClient = {
     const grant = data?.grant ?? data;
     return AccessGrantSchema.parse(grant);
   },
-  async revokeAccess(reservationId: string, payload: { provider: string; providerAccessId?: string; idempotencyKey?: string; reason?: string }) {
-    const res = await fetch(`${API_BASE}/reservations/${reservationId}/access/revoke`, {
+  async revokeAccess(
+    reservationId: string,
+    payload: { provider: string; providerAccessId?: string; idempotencyKey?: string; reason?: string },
+    campgroundId?: string
+  ) {
+    const path = withCampgroundId(`/reservations/${reservationId}/access/revoke`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -3509,34 +3550,46 @@ export const apiClient = {
       siteNumber: z.string().nullable()
     })).parse(data);
   },
-  async markStoreOrderSeen(id: string) {
-    const res = await fetch(`${API_BASE}/store/orders/${id}/seen`, {
+  async markStoreOrderSeen(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/store/orders/${id}/seen`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: scopedHeaders()
     });
     return parseResponse<unknown>(res);
   },
-  async completeStoreOrder(id: string) {
-    const res = await fetch(`${API_BASE}/store/orders/${id}/complete`, {
+  async completeStoreOrder(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/store/orders/${id}/complete`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: scopedHeaders()
     });
     return parseResponse<unknown>(res);
   },
-  async updateStoreOrderStatus(id: string, status: "pending" | "ready" | "delivered" | "completed" | "cancelled" | "refunded") {
-    const res = await fetch(`${API_BASE}/store/orders/${id}/status`, {
+  async updateStoreOrderStatus(
+    id: string,
+    status: "pending" | "ready" | "delivered" | "completed" | "cancelled" | "refunded",
+    campgroundId?: string
+  ) {
+    const path = withCampgroundId(`/store/orders/${id}/status`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify({ status })
     });
     return parseResponse<unknown>(res);
   },
-  async getStoreOrderHistory(id: string) {
-    const data = await fetchJSON<unknown>(`/store/orders/${id}/history`);
+  async getStoreOrderHistory(id: string, campgroundId?: string) {
+    const data = await fetchJSON<unknown>(withCampgroundId(`/store/orders/${id}/history`, campgroundId));
     return z.array(StoreOrderAdjustmentSchema).parse(data);
   },
-  async createStoreOrderAdjustment(id: string, payload: { type?: "refund" | "exchange"; items?: Array<{ itemId?: string; qty?: number; amountCents?: number }>; amountCents?: number; note?: string | null }) {
-    const res = await fetch(`${API_BASE}/store/orders/${id}/refunds`, {
+  async createStoreOrderAdjustment(
+    id: string,
+    payload: { type?: "refund" | "exchange"; items?: Array<{ itemId?: string; qty?: number; amountCents?: number }>; amountCents?: number; note?: string | null },
+    campgroundId?: string
+  ) {
+    const path = withCampgroundId(`/store/orders/${id}/refunds`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -3722,8 +3775,8 @@ export const apiClient = {
     const data = await fetchJSON<unknown>(`/campgrounds/${campgroundId}/ledger${qs ? `?${qs}` : ""}`);
     return z.array(LedgerEntrySchema).parse(data);
   },
-  async getLedgerByReservation(reservationId: string) {
-    const data = await fetchJSON<unknown>(`/reservations/${reservationId}/ledger`);
+  async getLedgerByReservation(reservationId: string, campgroundId?: string) {
+    const data = await fetchJSON<unknown>(withCampgroundId(`/reservations/${reservationId}/ledger`, campgroundId));
     return z.array(LedgerEntrySchema).parse(data);
   },
   async getLedgerSummary(campgroundId: string, opts?: { start?: string; end?: string }) {
@@ -4800,8 +4853,9 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return ProductCategorySchema.parse(data);
   },
-  async updateStoreCategory(id: string, payload: Partial<z.input<typeof CreateProductCategorySchema>>) {
-    const res = await fetch(`${API_BASE}/store/categories/${id}`, {
+  async updateStoreCategory(id: string, payload: Partial<z.input<typeof CreateProductCategorySchema>>, campgroundId?: string) {
+    const path = withCampgroundId(`/store/categories/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -4809,8 +4863,9 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return ProductCategorySchema.parse(data);
   },
-  async deleteStoreCategory(id: string) {
-    const res = await fetch(`${API_BASE}/store/categories/${id}`, { method: "DELETE", headers: scopedHeaders() });
+  async deleteStoreCategory(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/store/categories/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: scopedHeaders() });
     if (!res.ok) throw new Error("Failed to delete category");
     return true;
   },
@@ -4828,8 +4883,9 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return ProductSchema.parse(data);
   },
-  async updateStoreProduct(id: string, payload: Partial<z.input<typeof CreateProductSchema>>) {
-    const res = await fetch(`${API_BASE}/store/products/${id}`, {
+  async updateStoreProduct(id: string, payload: Partial<z.input<typeof CreateProductSchema>>, campgroundId?: string) {
+    const path = withCampgroundId(`/store/products/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -4846,8 +4902,9 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return ProductSchema.parse(data);
   },
-  async deleteStoreProduct(id: string) {
-    const res = await fetch(`${API_BASE}/store/products/${id}`, { method: "DELETE", headers: scopedHeaders() });
+  async deleteStoreProduct(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/store/products/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: scopedHeaders() });
     if (!res.ok) throw new Error("Failed to delete product");
     return true;
   },
@@ -4865,8 +4922,9 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return AddOnSchema.parse(data);
   },
-  async updateStoreAddOn(id: string, payload: Partial<z.input<typeof CreateAddOnSchema>>) {
-    const res = await fetch(`${API_BASE}/store/addons/${id}`, {
+  async updateStoreAddOn(id: string, payload: Partial<z.input<typeof CreateAddOnSchema>>, campgroundId?: string) {
+    const path = withCampgroundId(`/store/addons/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify(payload)
@@ -4874,8 +4932,9 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return AddOnSchema.parse(data);
   },
-  async deleteStoreAddOn(id: string) {
-    const res = await fetch(`${API_BASE}/store/addons/${id}`, { method: "DELETE", headers: scopedHeaders() });
+  async deleteStoreAddOn(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/store/addons/${id}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: scopedHeaders() });
     if (!res.ok) throw new Error("Failed to delete add-on");
     return true;
   },
@@ -8365,16 +8424,18 @@ export const apiClient = {
     return parseResponse<{ client: any; clientSecret: string }>(res);
   },
 
-  async rotateApiClientSecret(clientId: string) {
-    const res = await fetch(`${API_BASE}/developer/clients/${clientId}/rotate`, {
+  async rotateApiClientSecret(clientId: string, campgroundId?: string) {
+    const path = withCampgroundId(`/developer/clients/${clientId}/rotate`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
     });
     return parseResponse<{ client: any; clientSecret: string }>(res);
   },
 
-  async toggleApiClient(clientId: string, isActive: boolean) {
-    const res = await fetch(`${API_BASE}/developer/clients/${clientId}/toggle`, {
+  async toggleApiClient(clientId: string, isActive: boolean, campgroundId?: string) {
+    const path = withCampgroundId(`/developer/clients/${clientId}/toggle`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify({ isActive })
@@ -8382,8 +8443,9 @@ export const apiClient = {
     return parseResponse<unknown>(res);
   },
 
-  async deleteApiClient(clientId: string) {
-    const res = await fetch(`${API_BASE}/developer/clients/${clientId}`, {
+  async deleteApiClient(clientId: string, campgroundId?: string) {
+    const path = withCampgroundId(`/developer/clients/${clientId}`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "DELETE",
       headers: { ...scopedHeaders() },
     });
@@ -8408,8 +8470,9 @@ export const apiClient = {
     return parseResponse<{ endpoint: any; secret: string }>(res);
   },
 
-  async toggleWebhook(id: string, isActive: boolean) {
-    const res = await fetch(`${API_BASE}/developer/webhooks/${id}/toggle`, {
+  async toggleWebhook(id: string, isActive: boolean, campgroundId?: string) {
+    const path = withCampgroundId(`/developer/webhooks/${id}/toggle`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
       body: JSON.stringify({ isActive })
@@ -8425,8 +8488,9 @@ export const apiClient = {
     return parseResponse<any[]>(res);
   },
 
-  async replayWebhookDelivery(id: string) {
-    const res = await fetch(`${API_BASE}/developer/webhooks/deliveries/${id}/replay`, {
+  async replayWebhookDelivery(id: string, campgroundId?: string) {
+    const path = withCampgroundId(`/developer/webhooks/deliveries/${id}/replay`, campgroundId);
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
     });

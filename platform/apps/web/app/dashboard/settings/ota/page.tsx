@@ -428,20 +428,20 @@ export default function OtaSettingsPage() {
 
   const mappingsQuery = useQuery({
     queryKey: ["ota-mappings", selectedChannelId],
-    queryFn: () => apiClient.listOtaMappings(selectedChannelId!),
+    queryFn: () => apiClient.listOtaMappings(selectedChannelId!, campgroundId),
     enabled: !!selectedChannelId
   });
 
   const importsQuery = useQuery({
     queryKey: ["ota-imports", selectedChannelId],
-    queryFn: () => apiClient.listOtaImports(selectedChannelId!),
+    queryFn: () => apiClient.listOtaImports(selectedChannelId!, campgroundId),
     enabled: !!selectedChannelId,
     staleTime: 15_000
   });
 
   const logsQuery = useQuery({
     queryKey: ["ota-logs", selectedChannelId],
-    queryFn: () => apiClient.listOtaLogs(selectedChannelId!),
+    queryFn: () => apiClient.listOtaLogs(selectedChannelId!, campgroundId),
     enabled: !!selectedChannelId,
     staleTime: 15_000
   });
@@ -489,7 +489,7 @@ export default function OtaSettingsPage() {
               externalId: newExternalId,
               siteId: site.id,
               status: "mapped"
-            })
+            }, campgroundId)
           );
         } else if (newExternalId && existing && existing.externalId !== newExternalId) {
           // Update existing mapping
@@ -498,7 +498,7 @@ export default function OtaSettingsPage() {
               externalId: newExternalId,
               siteId: site.id,
               status: "mapped"
-            })
+            }, campgroundId)
           );
         }
       }
@@ -515,7 +515,7 @@ export default function OtaSettingsPage() {
               externalId: newExternalId,
               siteClassId: siteClass.id,
               status: "mapped"
-            })
+            }, campgroundId)
           );
         } else if (newExternalId && existing && existing.externalId !== newExternalId) {
           // Update existing mapping
@@ -524,7 +524,7 @@ export default function OtaSettingsPage() {
               externalId: newExternalId,
               siteClassId: siteClass.id,
               status: "mapped"
-            })
+            }, campgroundId)
           );
         }
       }
@@ -609,7 +609,7 @@ export default function OtaSettingsPage() {
         externalId: mappingForm.externalId.trim(),
         siteId: mappingForm.siteId || undefined,
         status: mappingForm.status
-      }),
+      }, campgroundId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ota-mappings", selectedChannelId] });
       toast({
@@ -626,7 +626,7 @@ export default function OtaSettingsPage() {
   });
 
   const ensureIcalToken = useMutation({
-    mutationFn: (mappingId: string) => apiClient.ensureOtaIcalToken(mappingId),
+    mutationFn: (mappingId: string) => apiClient.ensureOtaIcalToken(mappingId, campgroundId),
     onSuccess: (_, mappingId) => {
       queryClient.invalidateQueries({ queryKey: ["ota-mappings", selectedChannelId] });
       toast({
@@ -639,7 +639,8 @@ export default function OtaSettingsPage() {
   });
 
   const setIcalUrl = useMutation({
-    mutationFn: (payload: { mappingId: string; url: string }) => apiClient.setOtaIcalUrl(payload.mappingId, payload.url),
+    mutationFn: (payload: { mappingId: string; url: string }) =>
+      apiClient.setOtaIcalUrl(payload.mappingId, payload.url, campgroundId),
     onSuccess: () => {
       toast({
         title: "Import feed saved",
@@ -652,7 +653,7 @@ export default function OtaSettingsPage() {
   });
 
   const importIcal = useMutation({
-    mutationFn: (mappingId: string) => apiClient.importOtaIcal(mappingId),
+    mutationFn: (mappingId: string) => apiClient.importOtaIcal(mappingId, campgroundId),
     onSuccess: (res) => {
       toast({
         title: "Import complete",
@@ -665,7 +666,7 @@ export default function OtaSettingsPage() {
   });
 
   const pushAvailability = useMutation({
-    mutationFn: () => apiClient.pushOtaAvailability(selectedChannelId!),
+    mutationFn: () => apiClient.pushOtaAvailability(selectedChannelId!, campgroundId),
     onSuccess: (res) => {
       toast({
         title: "Sync started",

@@ -44,12 +44,13 @@ export function ProductList({ campgroundId }: ProductListProps) {
     });
 
     const updateMutation = useMutation({
-        mutationFn: (payload: { id: string; data: any }) => apiClient.updateStoreProduct(payload.id, payload.data),
+        mutationFn: (payload: { id: string; data: any }) =>
+            apiClient.updateStoreProduct(payload.id, payload.data, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-products"] })
     });
 
     const deleteMutation = useMutation({
-        mutationFn: (id: string) => apiClient.deleteStoreProduct(id),
+        mutationFn: (id: string) => apiClient.deleteStoreProduct(id, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-products"] })
     });
 

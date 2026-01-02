@@ -527,7 +527,7 @@ function WebhooksTab({ campgroundId }: { campgroundId: string }) {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => apiClient.toggleWebhook(id, isActive),
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => apiClient.toggleWebhook(id, isActive, campgroundId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["webhooks", campgroundId] });
     },

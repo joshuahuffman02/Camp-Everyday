@@ -38,12 +38,13 @@ export function AddOnList({ campgroundId }: AddOnListProps) {
     });
 
     const updateMutation = useMutation({
-        mutationFn: (payload: { id: string; data: any }) => apiClient.updateStoreAddOn(payload.id, payload.data),
+        mutationFn: (payload: { id: string; data: any }) =>
+            apiClient.updateStoreAddOn(payload.id, payload.data, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-addons"] })
     });
 
     const deleteMutation = useMutation({
-        mutationFn: (id: string) => apiClient.deleteStoreAddOn(id),
+        mutationFn: (id: string) => apiClient.deleteStoreAddOn(id, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-addons"] })
     });
 

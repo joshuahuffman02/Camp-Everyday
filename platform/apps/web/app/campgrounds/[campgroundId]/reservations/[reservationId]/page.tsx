@@ -193,7 +193,7 @@ export default function ReservationDetailPage() {
 
   const accessQuery = useQuery({
     queryKey: ["access-status", reservationId],
-    queryFn: () => apiClient.getAccessStatus(reservationId),
+    queryFn: () => apiClient.getAccessStatus(reservationId, campgroundId),
     enabled: !!reservationId
   });
   const accessStatus = accessQuery.data;
@@ -268,7 +268,7 @@ export default function ReservationDetailPage() {
 
   const vehicleMutation = useMutation({
     mutationFn: (payload: { plate?: string; state?: string; rigType?: string; rigLength?: number }) =>
-      apiClient.upsertVehicle(reservationId, payload),
+      apiClient.upsertVehicle(reservationId, payload, campgroundId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["access-status", reservationId] });
       queryClient.invalidateQueries({ queryKey: ["reservation", reservationId] });
@@ -277,7 +277,7 @@ export default function ReservationDetailPage() {
 
   const grantAccessMutation = useMutation({
     mutationFn: (payload: { provider: string; credentialType: string; credentialValue?: string; idempotencyKey: string }) =>
-      apiClient.grantAccess(reservationId, payload),
+      apiClient.grantAccess(reservationId, payload, campgroundId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["access-status", reservationId] });
     }
@@ -285,7 +285,7 @@ export default function ReservationDetailPage() {
 
   const revokeAccessMutation = useMutation({
     mutationFn: (payload: { provider: string; providerAccessId?: string }) =>
-      apiClient.revokeAccess(reservationId, payload),
+      apiClient.revokeAccess(reservationId, payload, campgroundId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["access-status", reservationId] });
     }
