@@ -1,7 +1,7 @@
 "use client";
 
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import Link from "next/link";
 import { useEffect } from "react";
 import { useSession } from "next-auth/react";

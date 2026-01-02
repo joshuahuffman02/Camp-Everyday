@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { apiClient } from "../../lib/api-client";
 import { useState, useMemo, useEffect, Fragment } from "react";
 import { Button } from "../../components/ui/button";

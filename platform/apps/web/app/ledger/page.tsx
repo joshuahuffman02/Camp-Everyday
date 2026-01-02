@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Button } from "../../components/ui/button";
 import { TableEmpty } from "../../components/ui/table";
 import { apiClient } from "../../lib/api-client";

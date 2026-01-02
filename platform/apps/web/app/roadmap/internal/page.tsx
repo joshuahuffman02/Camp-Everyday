@@ -2,7 +2,7 @@
 
 import fs from "fs";
 import path from "path";
-import { Breadcrumbs } from "../../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
 
 async function loadDoc() {

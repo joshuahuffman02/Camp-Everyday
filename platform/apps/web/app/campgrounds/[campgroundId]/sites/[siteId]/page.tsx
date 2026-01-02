@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardShell } from "../../../../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../../../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { apiClient } from "../../../../../lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
 import { Badge } from "../../../../../components/ui/badge";

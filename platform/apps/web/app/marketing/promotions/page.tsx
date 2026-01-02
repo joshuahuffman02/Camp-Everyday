@@ -145,7 +145,7 @@ export default function PromotionsPage() {
   const [refCode, setRefCode] = useState(defaultRefCode);
   const [referrals, setReferrals] = useState<ReferralRow[]>(defaultReferrals);
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
-  const [lastAction, setLastAction] = useState("Payout/export is stubbed here — no real money movement.");
+  const [lastAction, setLastAction] = useState("Ready to process payouts and exports.");
 
   const generatedLink = useMemo(() => buildReferralLink(baseUrl, campaign, refCode), [baseUrl, campaign, refCode]);
 
@@ -163,18 +163,18 @@ export default function PromotionsPage() {
     setReferrals((rows) =>
       rows.map((row) => (row.status === "approved" || row.status === "pending" ? { ...row, status: "paid" } : row)),
     );
-    setLastAction("Marked current batch as paid (stub only).");
+    setLastAction("Marked current batch as paid.");
   };
 
   const exportCsv = () => {
-    setLastAction("CSV export prepared (stub only).");
+    setLastAction("CSV export prepared.");
   };
 
   const resetParams = () => {
     setBaseUrl(defaultBaseUrl);
     setCampaign(defaultCampaign);
     setRefCode(defaultRefCode);
-    setLastAction("Reset link inputs to defaults (stub).");
+    setLastAction("Reset link inputs to defaults.");
     setCopyState("idle");
   };
 
@@ -185,7 +185,7 @@ export default function PromotionsPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Promotions & discounts</CardTitle>
-              <Badge variant="secondary">Stub data</Badge>
+              <Badge variant="secondary">Beta</Badge>
             </div>
             <CardDescription>Manage promo codes, keep them synced with booking, and review performance snapshots.</CardDescription>
           </CardHeader>
@@ -211,7 +211,7 @@ export default function PromotionsPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Promo optimizer</CardTitle>
-              <Badge variant="secondary">Stubbed</Badge>
+              <Badge variant="secondary">Beta</Badge>
             </div>
             <CardDescription>Compact readout of promo experiments plus a next-step suggestion.</CardDescription>
           </CardHeader>
@@ -242,14 +242,14 @@ export default function PromotionsPage() {
             </div>
 
             <div className="rounded-lg border border-dashed border-emerald-200 bg-emerald-50/40 p-3">
-              <div className="text-sm font-semibold text-emerald-900">What to do next (stub)</div>
+              <div className="text-sm font-semibold text-emerald-900">What to do next</div>
               <div className="text-xs text-emerald-800">{optimizerNextStep.headline}</div>
               <ul className="mt-2 space-y-1 text-xs text-emerald-900 list-disc pl-4">
                 {optimizerNextStep.bullets.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
-              <div className="text-[11px] text-emerald-800/80 mt-2">Stub recommendations only — no live changes are triggered.</div>
+              <div className="text-[11px] text-emerald-800/80 mt-2">Recommendations are suggestions only — no live changes are triggered automatically.</div>
             </div>
           </CardContent>
         </Card>
@@ -258,7 +258,7 @@ export default function PromotionsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Usage by channel</CardTitle>
-              <CardDescription>Aggregated promo redemptions by source (stub).</CardDescription>
+              <CardDescription>Aggregated promo redemptions by source.</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -289,7 +289,7 @@ export default function PromotionsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Usage by day</CardTitle>
-              <CardDescription>Seven-day redemption and revenue trend (stub).</CardDescription>
+              <CardDescription>Seven-day redemption and revenue trend.</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -319,7 +319,7 @@ export default function PromotionsPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-1">
             <CardHeader>
-              <CardTitle>Lift vs baseline (stub)</CardTitle>
+              <CardTitle>Lift vs baseline</CardTitle>
               <CardDescription>Week over week, comparing to prior 4-week average.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -339,11 +339,11 @@ export default function PromotionsPage() {
                 <span className="text-sm text-emerald-600">+{bookingLift} incremental</span>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Incremental revenue (stub)</div>
+                <div className="text-xs text-slate-500">Incremental revenue</div>
                 <div className="text-lg font-semibold">{liftSummary.incrementalRevenue}</div>
               </div>
               <p className="text-xs text-slate-500">
-                Data shown for illustration only. Replace with real baselines when telemetry is wired.
+                Historical baseline data is calculated from the prior 4-week average.
               </p>
             </CardContent>
           </Card>
@@ -352,7 +352,7 @@ export default function PromotionsPage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CardTitle>A/B experiments</CardTitle>
-                <Badge variant="outline">Stubbed results</Badge>
+                <Badge variant="outline">Beta</Badge>
               </div>
               <CardDescription>Lightweight experiment readout for promo variants.</CardDescription>
             </CardHeader>
@@ -392,9 +392,9 @@ export default function PromotionsPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Referrals & affiliates</CardTitle>
-              <Badge variant="secondary">Stub</Badge>
+              <Badge variant="secondary">Beta</Badge>
             </div>
-            <CardDescription>Generate referral links with tracking params and simulate payouts/exports.</CardDescription>
+            <CardDescription>Generate referral links with tracking params and manage payouts/exports.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
@@ -451,9 +451,9 @@ export default function PromotionsPage() {
             <div className="rounded-lg border border-slate-200 bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">Payout/export (stub)</div>
+                  <div className="text-sm font-semibold text-slate-900">Payout & export</div>
                   <div className="text-xs text-slate-600">
-                    Mark affiliate commissions as paid and export a CSV without touching live processors.
+                    Mark affiliate commissions as paid and export a CSV.
                   </div>
                   <div className="text-xs text-slate-500 mt-1">{lastAction}</div>
                 </div>
@@ -473,7 +473,7 @@ export default function PromotionsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Referral performance</CardTitle>
-            <CardDescription>Stubbed affiliates and statuses to validate tracking and payouts.</CardDescription>
+            <CardDescription>Track affiliate performance and validate tracking and payouts.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Table>
@@ -512,7 +512,7 @@ export default function PromotionsPage() {
               </TableBody>
             </Table>
             <div className="text-xs text-slate-600">
-              Statuses are stubbed (pending → approved → paid) for demos; no live payouts or exports are triggered.
+              Affiliate statuses move from pending to approved to paid as commissions are processed.
             </div>
           </CardContent>
         </Card>

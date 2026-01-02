@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient, useQueries } from "@tanstack/react-query";
 import { apiClient } from "../../../../lib/api-client";
-import { Breadcrumbs } from "../../../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";

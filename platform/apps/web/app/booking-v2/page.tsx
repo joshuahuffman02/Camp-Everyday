@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -83,15 +83,15 @@ const PAYMENT_METHODS = [
   { value: "folio", label: "Folio" }
 ];
 
-export default function BookingLabPage() {
+export default function BookingPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading booking lab...</div>}>
-      <BookingLabPageInner />
+    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading booking...</div>}>
+      <BookingPageInner />
     </Suspense>
   );
 }
 
-function BookingLabPageInner() {
+function BookingPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();

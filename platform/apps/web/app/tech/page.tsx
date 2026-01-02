@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 
 type PerfSnapshot = {
   timestamp: string;

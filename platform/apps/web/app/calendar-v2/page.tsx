@@ -26,11 +26,15 @@ import {
   XCircle,
   CheckCircle,
   Clock,
-  DollarSign
+  DollarSign,
+  LayoutList,
+  AlignJustify,
+  Rows3,
+  Building2
 } from "lucide-react";
 
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
@@ -56,6 +60,47 @@ const SITE_TYPE_STYLES: Record<string, { label: string; badge: string; border: s
   group: { label: "Group", badge: "bg-indigo-100 text-indigo-700", border: "border-l-indigo-400" },
   glamping: { label: "Glamp", badge: "bg-cyan-100 text-cyan-700", border: "border-l-cyan-400" },
   default: { label: "Site", badge: "bg-slate-100 text-slate-600", border: "border-l-slate-300" }
+};
+
+// Density configuration for calendar grid
+type DensityMode = "compact" | "standard" | "expanded";
+
+const DENSITY_CONFIG: Record<DensityMode, {
+  rowHeight: number;
+  chipHeight: number;
+  padding: string;
+  fontSize: string;
+  showDetails: boolean;
+  icon: typeof LayoutList;
+  label: string;
+}> = {
+  compact: {
+    rowHeight: 40,
+    chipHeight: 28,
+    padding: "py-1",
+    fontSize: "text-[9px]",
+    showDetails: false,
+    icon: LayoutList,
+    label: "Compact"
+  },
+  standard: {
+    rowHeight: 64,
+    chipHeight: 48,
+    padding: "py-3",
+    fontSize: "text-[11px]",
+    showDetails: true,
+    icon: AlignJustify,
+    label: "Standard"
+  },
+  expanded: {
+    rowHeight: 88,
+    chipHeight: 72,
+    padding: "py-4",
+    fontSize: "text-xs",
+    showDetails: true,
+    icon: Rows3,
+    label: "Expanded"
+  }
 };
 
 // Status configuration for legend and chips
@@ -123,7 +168,7 @@ interface DragState {
   pointerId: number | null;
 }
 
-export default function CalendarLabPage() {
+export default function CalendarPage() {
   const router = useRouter();
   const data = useCalendarData();
   const { state, actions, queries, derived } = data;
@@ -217,7 +262,12 @@ export default function CalendarLabPage() {
 
   const [todayKey, setTodayKey] = useState("");
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [density, setDensity] = useState<DensityMode>("standard");
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Get campgrounds list for the inline selector
+  const campgrounds = queries.campgrounds.data || [];
+  const selectedCampgroundDetails = derived.selectedCampgroundDetails;
 
   useEffect(() => {
     setTodayKey(formatLocalDateInput(new Date()));
@@ -426,6 +476,58 @@ export default function CalendarLabPage() {
                 <CalendarCheck className="h-4 w-4 text-blue-600" />
                 <span>{rangeLabel}</span>
               </div>
+
+              {/* Density Toggle */}
+              <div className="flex items-center bg-white rounded-xl border border-slate-200 shadow-sm p-1">
+                {(Object.keys(DENSITY_CONFIG) as DensityMode[]).map((mode) => {
+                  const config = DENSITY_CONFIG[mode];
+                  const Icon = config.icon;
+                  return (
+                    <Button
+                      key={mode}
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-8 px-2.5 gap-1.5",
+                        density === mode ? "bg-slate-100 text-blue-700" : "text-slate-500"
+                      )}
+                      onClick={() => setDensity(mode)}
+                      title={`${config.label} view`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">
+                        {config.label}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {/* Inline Campground Selector */}
+              {campgrounds.length > 0 && (
+                <div className="flex items-center bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-2 pl-3 pr-1">
+                    <Building2 className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <Select
+                    value={state.selectedCampground || ""}
+                    onValueChange={(value) => actions.setSelectedCampground(value)}
+                  >
+                    <SelectTrigger className="h-9 min-w-[160px] border-0 shadow-none focus:ring-0 text-sm font-semibold">
+                      <SelectValue placeholder="Select campground">
+                        {selectedCampgroundDetails?.name || "Select campground"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {campgrounds.map((cg) => (
+                        <SelectItem key={cg.id} value={cg.id}>
+                          {cg.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -593,7 +695,7 @@ export default function CalendarLabPage() {
                 No sites match that guest search in this view.
               </Card>
             ) : (
-              <CalendarLabGrid
+              <CalendarGrid
                 days={derived.days}
                 dayCount={state.dayCount}
                 isLoading={queries.sites.isLoading || queries.reservations.isLoading}
@@ -602,6 +704,7 @@ export default function CalendarLabPage() {
                 selectionDraft={bookingDraft}
                 onSelectionComplete={actions.selectRange}
                 onReservationClick={actions.setSelectedReservationId}
+                density={density}
               />
             )}
           </div>
@@ -940,7 +1043,7 @@ function StatusFilterChips({ activeFilter, onFilterChange, reservationCounts = {
   );
 }
 
-interface CalendarLabGridProps {
+interface CalendarGridProps {
   days: DayMeta[];
   dayCount: number;
   isLoading: boolean;
@@ -949,9 +1052,10 @@ interface CalendarLabGridProps {
   selectionDraft: QuotePreview | null;
   onSelectionComplete: (siteId: string, arrival: Date, departure: Date) => void;
   onReservationClick: (id: string) => void;
+  density: DensityMode;
 }
 
-function CalendarLabGrid({
+function CalendarGrid({
   days,
   dayCount,
   isLoading,
@@ -959,8 +1063,10 @@ function CalendarLabGrid({
   reservationsBySite,
   selectionDraft,
   onSelectionComplete,
-  onReservationClick
-}: CalendarLabGridProps) {
+  onReservationClick,
+  density
+}: CalendarGridProps) {
+  const densityConfig = DENSITY_CONFIG[density];
   const gridRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<DragState>({
     siteId: null,
@@ -1123,7 +1229,7 @@ function CalendarLabGrid({
           onPointerCancel={finishDrag}
         >
           {sites.map((site, idx) => (
-            <CalendarLabRow
+            <CalendarRow
               key={site.id}
               site={site}
               days={days}
@@ -1135,6 +1241,7 @@ function CalendarLabGrid({
               draftSelection={selectionDraft}
               onCellPointerDown={handleCellPointerDown}
               onReservationClick={onReservationClick}
+              densityConfig={densityConfig}
             />
           ))}
         </div>
@@ -1143,7 +1250,7 @@ function CalendarLabGrid({
   );
 }
 
-interface CalendarLabRowProps {
+interface CalendarRowProps {
   site: CalendarSite;
   days: DayMeta[];
   dayCount: number;
@@ -1154,9 +1261,10 @@ interface CalendarLabRowProps {
   draftSelection: QuotePreview | null;
   onCellPointerDown: (siteId: string, dayIdx: number, e: React.PointerEvent) => void;
   onReservationClick: (id: string) => void;
+  densityConfig: typeof DENSITY_CONFIG[DensityMode];
 }
 
-function CalendarLabRow({
+function CalendarRow({
   site,
   days,
   dayCount,
@@ -1166,8 +1274,9 @@ function CalendarLabRow({
   activeSelection,
   draftSelection,
   onCellPointerDown,
-  onReservationClick
-}: CalendarLabRowProps) {
+  onReservationClick,
+  densityConfig
+}: CalendarRowProps) {
   const active = activeSelection && activeSelection.siteId === site.id ? activeSelection : null;
   const typeKey = (site.siteType || "").toLowerCase();
   const typeMeta = SITE_TYPE_STYLES[typeKey] || SITE_TYPE_STYLES.default;
@@ -1177,18 +1286,24 @@ function CalendarLabRow({
   const activeSpan = activeStart !== null && activeEnd !== null ? activeEnd - activeStart + 1 : 0;
   const activeLabel = activeSpan === 1 ? "night" : "nights";
 
+  // Calculate chip height based on density
+  const chipHeightClass = densityConfig.rowHeight === 40 ? "h-7" : densityConfig.rowHeight === 88 ? "h-[68px]" : "h-12";
+  const selectionHeightClass = densityConfig.rowHeight === 40 ? "h-6" : densityConfig.rowHeight === 88 ? "h-16" : "h-12";
+
   return (
     <div
       className="grid relative group"
       style={{ gridTemplateColumns: gridTemplate }}
       data-site-id={site.id}
     >
-      <div className={cn("px-4 py-3 sticky left-0 z-10 border-r border-l-4 border-slate-200", zebra, typeMeta.border)}>
-        <div className="text-sm font-bold text-slate-900 truncate" title={site.name}>{site.name}</div>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-wider">
-          <span className={cn("px-2 py-0.5 rounded-full font-bold", typeMeta.badge)}>{typeMeta.label}</span>
-          {site.siteNumber && <span className="text-slate-400">#{site.siteNumber}</span>}
-        </div>
+      <div className={cn("px-4 sticky left-0 z-10 border-r border-l-4 border-slate-200", zebra, typeMeta.border, densityConfig.padding)}>
+        <div className={cn("font-bold text-slate-900 truncate", densityConfig.rowHeight === 40 ? "text-xs" : "text-sm")} title={site.name}>{site.name}</div>
+        {densityConfig.showDetails && (
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-wider">
+            <span className={cn("px-2 py-0.5 rounded-full font-bold", typeMeta.badge)}>{typeMeta.label}</span>
+            {site.siteNumber && <span className="text-slate-400">#{site.siteNumber}</span>}
+          </div>
+        )}
       </div>
 
       <div className="relative" style={{ gridColumn: "2 / -1" }}>
@@ -1198,12 +1313,13 @@ function CalendarLabRow({
               key={i}
               data-day-idx={i}
               className={cn(
-                "border-r border-slate-100 h-16 cursor-crosshair transition-colors select-none touch-none",
+                "border-r border-slate-100 cursor-crosshair transition-colors select-none touch-none",
                 zebra,
                 d.weekend && "bg-slate-50/60",
                 d.isToday && "bg-blue-50/50",
                 "hover:bg-blue-50/40"
               )}
+              style={{ height: `${densityConfig.rowHeight}px` }}
               onPointerDown={(e) => onCellPointerDown(site.id, i, e)}
             />
           ))}
@@ -1215,12 +1331,12 @@ function CalendarLabRow({
         >
           {active && activeStart !== null && activeEnd !== null && (
             <div
-              className="my-1 mx-1 h-12 rounded-xl bg-blue-500/25 border border-blue-500/70 shadow-[0_0_20px_rgba(59,130,246,0.25)] flex items-center justify-center z-20"
+              className={cn("my-1 mx-1 rounded-xl bg-blue-500/25 border border-blue-500/70 shadow-[0_0_20px_rgba(59,130,246,0.25)] flex items-center justify-center z-20", selectionHeightClass)}
               style={{ gridColumn: `${activeStart + 1} / span ${activeSpan}` }}
             >
-              <div className="px-3 py-1 rounded-full bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                <span className="opacity-80">{site.name}</span>
-                <span>{activeSpan} {activeLabel} selected</span>
+              <div className={cn("px-3 py-1 rounded-full bg-blue-600 text-white font-black uppercase tracking-widest flex items-center gap-2", densityConfig.fontSize)}>
+                {densityConfig.showDetails && <span className="opacity-80">{site.name}</span>}
+                <span>{activeSpan} {activeLabel}</span>
               </div>
             </div>
           )}
@@ -1236,11 +1352,11 @@ function CalendarLabRow({
             return (
               <div
                 key="draft-selection"
-                className="mx-1 rounded-lg bg-purple-500/10 border-2 border-purple-500 border-dashed h-12 flex items-center justify-center z-10"
+                className={cn("mx-1 rounded-lg bg-purple-500/10 border-2 border-purple-500 border-dashed flex items-center justify-center z-10", selectionHeightClass)}
                 style={{ gridColumn: `${startIdx + 1} / span ${span}` }}
               >
-                <span className="text-[10px] font-bold text-purple-700 bg-white/90 px-2 py-0.5 rounded">
-                  Draft selected
+                <span className={cn("font-bold text-purple-700 bg-white/90 px-2 py-0.5 rounded", densityConfig.fontSize)}>
+                  Draft
                 </span>
               </div>
             );
@@ -1261,7 +1377,11 @@ function CalendarLabRow({
                 className="relative h-full w-full pointer-events-auto z-10"
                 style={{ gridColumn: `${startIdx + 1} / span ${span}` }}
               >
-                <ReservationChip reservation={res} onClick={() => onReservationClick(res.id)} />
+                <ReservationChip
+                  reservation={res}
+                  onClick={() => onReservationClick(res.id)}
+                  densityConfig={densityConfig}
+                />
               </div>
             );
           })}
@@ -1271,7 +1391,13 @@ function CalendarLabRow({
   );
 }
 
-function ReservationChip({ reservation, onClick }: { reservation: CalendarReservation; onClick: () => void }) {
+interface ReservationChipProps {
+  reservation: CalendarReservation;
+  onClick: () => void;
+  densityConfig: typeof DENSITY_CONFIG[DensityMode];
+}
+
+function ReservationChip({ reservation, onClick, densityConfig }: ReservationChipProps) {
   const statusStyles: Record<string, string> = {
     confirmed: "bg-gradient-to-br from-status-success/90 to-status-success/95 border-status-success/40",
     checked_in: "bg-gradient-to-br from-status-info/90 to-status-info/95 border-status-info/40",
@@ -1283,25 +1409,38 @@ function ReservationChip({ reservation, onClick }: { reservation: CalendarReserv
   const status = reservation.status || "pending";
   const statusClass = statusStyles[status] || statusStyles.pending;
 
+  // Compact mode uses smaller margins and simpler layout
+  const isCompact = densityConfig.rowHeight === 40;
+  const isExpanded = densityConfig.rowHeight === 88;
+
   return (
     <div
       className={cn(
-        "absolute top-1.5 bottom-1.5 left-1.5 right-1.5 rounded-lg text-[11px] text-white flex items-center px-2.5 overflow-hidden border shadow-sm cursor-pointer transition-transform",
+        "absolute rounded-lg text-white flex items-center overflow-hidden border shadow-sm cursor-pointer transition-transform",
         "hover:scale-[1.01] active:scale-[0.98]",
-        statusClass
+        statusClass,
+        isCompact ? "top-1 bottom-1 left-1 right-1 px-2" : "top-1.5 bottom-1.5 left-1.5 right-1.5 px-2.5",
+        densityConfig.fontSize
       )}
       title={`${guestName} - ${reservation.status}`}
       onClick={onClick}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-2 min-w-0 w-full">
-        <div className="flex flex-col min-w-0">
+        <div className={cn("flex min-w-0", isExpanded ? "flex-col gap-0.5" : isCompact ? "flex-row items-center" : "flex-col")}>
           <span className="font-bold truncate tracking-tight">{guestName}</span>
-          <span className="text-[9px] opacity-80 truncate uppercase tracking-wider">{status.replace("_", " ")}</span>
+          {densityConfig.showDetails && (
+            <span className={cn("opacity-80 truncate uppercase tracking-wider", isCompact ? "hidden" : "block", isExpanded ? "text-[10px]" : "text-[9px]")}>
+              {status.replace("_", " ")}
+            </span>
+          )}
+          {isExpanded && reservation.guest?.phone && (
+            <span className="text-[9px] opacity-70 truncate">{reservation.guest.phone}</span>
+          )}
         </div>
         {reservation.siteLocked && (
           <span className="ml-auto inline-flex items-center text-white/90">
-            <Lock className="h-3 w-3" aria-label="Site locked" />
+            <Lock className={isCompact ? "h-2.5 w-2.5" : "h-3 w-3"} aria-label="Site locked" />
           </span>
         )}
       </div>

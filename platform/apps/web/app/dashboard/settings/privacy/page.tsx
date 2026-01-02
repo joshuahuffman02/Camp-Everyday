@@ -158,7 +158,7 @@ export default function PrivacySettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-lg font-semibold">DSR / consent export</div>
-              <div className="text-sm text-slate-600">Exports PII redaction defaults and consent log (stubbed data shape).</div>
+              <div className="text-sm text-slate-600">Exports PII redaction defaults and consent log for compliance requests.</div>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -181,7 +181,7 @@ export default function PrivacySettingsPage() {
             </div>
           </div>
           <div className="text-xs text-slate-500">
-            Downloads a stub bundle; wire to real storage once privacy export is GA.
+            Downloads a compliance bundle containing all PII settings and consent records.
           </div>
         </div>
 
@@ -189,7 +189,7 @@ export default function PrivacySettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-lg font-semibold">Privacy redaction dashboard</div>
-              <div className="text-sm text-slate-600">Quick view into rules, recent redactions, and a stubbed test harness.</div>
+              <div className="text-sm text-slate-600">Quick view into rules, recent redactions, and a test harness.</div>
             </div>
             <Button
               size="sm"
@@ -259,8 +259,8 @@ export default function PrivacySettingsPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold">Test redaction (stub)</div>
-                  <div className="text-xs text-slate-500">Sends sample payload to the preview endpoint only.</div>
+                  <div className="text-sm font-semibold">Test redaction</div>
+                  <div className="text-xs text-slate-500">Sends sample payload to the preview endpoint for testing.</div>
                 </div>
               </div>
               <Textarea

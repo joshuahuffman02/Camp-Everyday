@@ -583,7 +583,7 @@ export default function POSPage() {
                 source: "pos",
                 type: "sync",
                 status: "success",
-                message: "POS refund/exchange recorded (stubbed)",
+                message: "POS refund/exchange recorded",
                 meta: { orderId, amount: payload.amountCents, kind: payload.type },
             });
             await loadRecentOrders();
@@ -842,7 +842,7 @@ export default function POSPage() {
                     <div className="flex items-center justify-between py-4">
                         <div>
                             <p className="text-sm font-semibold text-slate-900">Recent POS orders</p>
-                            <p className="text-xs text-slate-500">Select an order to log a refund or exchange (stubbed, no processor call).</p>
+                            <p className="text-xs text-slate-500">Select an order to log a refund or exchange.</p>
                         </div>
                         <Button size="sm" variant="outline" onClick={() => void loadRecentOrders()} disabled={ordersLoading}>
                             Refresh

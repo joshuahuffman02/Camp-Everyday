@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { apiClient } from "../../../../lib/api-client";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "../../../../components/ui/button";

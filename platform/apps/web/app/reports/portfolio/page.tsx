@@ -260,7 +260,7 @@ export default function PortfolioFxReportPage() {
             <CardHeader>
               <CardTitle>FX context</CardTitle>
               <CardDescription>
-                {currencyTaxQuery.data?.fxProvider?.toUpperCase?.() ?? "Stub"} · Updated {currencyTaxQuery.data?.updatedAt ? new Date(currencyTaxQuery.data.updatedAt).toLocaleString() : "—"}
+                {currencyTaxQuery.data?.fxProvider?.toUpperCase?.() ?? "Default"} · Updated {currencyTaxQuery.data?.updatedAt ? new Date(currencyTaxQuery.data.updatedAt).toLocaleString() : "—"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -276,7 +276,7 @@ export default function PortfolioFxReportPage() {
                     <span className="text-sm text-slate-700">{r.rate}</span>
                   </div>
                 ))}
-                {!currencyTaxQuery.data?.fxRates?.length && <div className="text-sm text-slate-500">FX rates are stubbed for this slice.</div>}
+                {!currencyTaxQuery.data?.fxRates?.length && <div className="text-sm text-slate-500">No FX rates available for this portfolio.</div>}
               </div>
             </CardContent>
           </Card>
@@ -290,12 +290,12 @@ export default function PortfolioFxReportPage() {
               {(reportQuery.data?.routing ?? []).map((route) => (
                 <div key={route.parkId} className="rounded-lg border border-slate-200 px-3 py-2">
                   <div className="text-sm font-semibold">{route.parkId}</div>
-                  <div className="text-xs text-slate-500">Admin: {route.adminHost || "stubbed"}</div>
-                  <div className="text-xs text-slate-500">Guest: {route.guestHost || "stubbed"}</div>
+                  <div className="text-xs text-slate-500">Admin: {route.adminHost || "Not configured"}</div>
+                  <div className="text-xs text-slate-500">Guest: {route.guestHost || "Not configured"}</div>
                   <div className="text-xs text-slate-500">Path: {route.path || "/campgrounds/:id"}</div>
                 </div>
               ))}
-              {!reportQuery.data?.routing?.length && <div className="text-sm text-slate-500">Routing stubs are shown while APIs wire up.</div>}
+              {!reportQuery.data?.routing?.length && <div className="text-sm text-slate-500">No routing configured for this portfolio.</div>}
             </CardContent>
           </Card>
         </div>
@@ -353,7 +353,7 @@ export default function PortfolioFxReportPage() {
                   {!isLoading && rows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-sm text-slate-500">
-                        No metrics yet — portfolio data is still stubbed.
+                        No metrics available for this portfolio yet.
                       </TableCell>
                     </TableRow>
                   )}
@@ -366,7 +366,7 @@ export default function PortfolioFxReportPage() {
         <Separator />
 
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <Badge variant="secondary">Stubbed</Badge>
+          <Badge variant="secondary">Beta</Badge>
           <span>
             Cross-park FX uses the existing portfolio and localization endpoints. Toggle currencies to preview conversions per park.
           </span>

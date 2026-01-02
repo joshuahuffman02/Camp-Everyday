@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { apiClient } from "../../../lib/api-client";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../../components/ui/button";

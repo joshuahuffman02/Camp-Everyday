@@ -217,13 +217,13 @@ export default function PortfolioPage() {
               routing.map((r) => (
                 <div key={r.parkId} className="rounded-lg border border-slate-200 px-3 py-2">
                   <div className="text-sm font-semibold">{r.parkId}</div>
-                  <div className="text-xs text-slate-500">Admin: {r.adminHost || "stubbed"}</div>
-                  <div className="text-xs text-slate-500">Guest: {r.guestHost || "stubbed"}</div>
+                  <div className="text-xs text-slate-500">Admin: {r.adminHost || "Not configured"}</div>
+                  <div className="text-xs text-slate-500">Guest: {r.guestHost || "Not configured"}</div>
                   <div className="text-xs text-slate-500">Path: {r.path || "/campgrounds/:id"}</div>
                 </div>
               ))
             ) : (
-              <div className="text-sm text-slate-500">Routing stubbed for this slice.</div>
+              <div className="text-sm text-slate-500">No routing configured for this portfolio.</div>
             )}
           </CardContent>
         </Card>

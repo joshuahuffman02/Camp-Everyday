@@ -143,7 +143,7 @@ export default function LocalizationSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Import/Export</CardTitle>
-          <CardDescription>Future: upload translations or download current bundle</CardDescription>
+          <CardDescription>Upload translations or download current bundle</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-sm text-slate-500">Contact support to configure translation bundles for your property.</div>

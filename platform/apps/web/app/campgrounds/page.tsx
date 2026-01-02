@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../lib/api-client";
 import { Button } from "../../components/ui/button";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { CampgroundSchema } from "@campreserv/shared";
 import type { z } from "zod";

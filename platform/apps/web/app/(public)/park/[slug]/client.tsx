@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import { trackEvent } from "@/lib/analytics";
 import { AiChatWidget } from "@/components/ai/AiChatWidget";
-import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RecentBookingNotification } from "@/components/public/RecentBookingNotification";
 import {
     Wifi, Waves, Flame, Droplets, Store, Fish, Ship, PlayCircle, ShowerHead, Dog,

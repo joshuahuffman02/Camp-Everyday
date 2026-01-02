@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as LucideIcons from "lucide-react";
