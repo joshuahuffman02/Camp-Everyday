@@ -137,15 +137,19 @@ export default function PrivacySettingsPage() {
     <div className="space-y-6">
         <Breadcrumbs items={[{ label: "Settings" }, { label: "Privacy & PII" }]} />
 
-        {/* How It Works Section */}
+        {/* Overview Section */}
         <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <div className="text-2xl">🔐</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+              <svg className="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
             <div className="space-y-2">
-              <h4 className="font-semibold text-emerald-900">How Privacy Settings Work</h4>
+              <h4 className="font-semibold text-emerald-900">Privacy & Data Protection</h4>
               <div className="text-sm text-slate-700 space-y-1">
                 <p><strong>DSR Export:</strong> Generate Data Subject Request exports for GDPR/CCPA compliance. Downloads all PII rules and consent records for a guest or campground.</p>
-                <p><strong>Redaction Dashboard:</strong> Test how your PII rules work by running sample data through the redaction engine. Great for verifying your privacy setup.</p>
+                <p><strong>Redaction Dashboard:</strong> Test how your PII rules work by running sample data through the redaction engine to verify your privacy setup.</p>
                 <p><strong>Privacy Defaults:</strong> Enable/disable PII redaction in logs, require consent for communications, and set backup retention windows.</p>
                 <p><strong>Consent Log:</strong> Track when and how guests gave consent for data processing—required for marketing communications in some regions.</p>
                 <p><strong>PII Tags:</strong> Define which fields contain sensitive data and how they should be handled (masked or removed).</p>
@@ -158,7 +162,7 @@ export default function PrivacySettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-lg font-semibold">DSR / consent export</div>
-              <div className="text-sm text-slate-600">Exports PII redaction defaults and consent log for compliance requests.</div>
+              <div className="text-sm text-slate-600">Export PII redaction settings and consent log for compliance requests.</div>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -189,7 +193,7 @@ export default function PrivacySettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-lg font-semibold">Privacy redaction dashboard</div>
-              <div className="text-sm text-slate-600">Quick view into rules, recent redactions, and a test harness.</div>
+              <div className="text-sm text-slate-600">View redaction rules, recent activity, and test your configuration.</div>
             </div>
             <Button
               size="sm"

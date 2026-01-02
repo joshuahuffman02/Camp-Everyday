@@ -1128,19 +1128,35 @@ export default function GuestsPage() {
                 )}
                 </Fragment>
               ))}
-              {filteredAndSortedGuests.length === 0 && (
+              {guestsQuery.isLoading && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8">
+                    <div className="space-y-3">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="animate-pulse flex items-center gap-4 p-3 bg-slate-50 rounded">
+                          <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-48" />
+                            <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                          </div>
+                          <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!guestsQuery.isLoading && filteredAndSortedGuests.length === 0 && (
                 <TableEmpty colSpan={7}>
                   {!campgroundChecked
-                    ? "Loading..."
+                    ? "Checking campground..."
                     : !campgroundId
                       ? "No campground selected. Please select a campground from the sidebar."
-                      : guestsQuery.isLoading
-                        ? "Loading guests..."
-                        : guestsQuery.isError
+                      : guestsQuery.isError
                           ? `Error loading guests: ${guestsQuery.error?.message || "Unknown error"}`
                           : hasFilters
                             ? "No guests match the current filters."
-                            : "No guests yet."}
+                            : "No guests yet. Create your first booking to add a guest."}
                 </TableEmpty>
               )}
             </tbody>

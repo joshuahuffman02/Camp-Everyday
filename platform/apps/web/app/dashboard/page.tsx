@@ -572,7 +572,7 @@ export default function Dashboard() {
             transition={SPRING_CONFIG}
           >
             <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-foreground">Welcome to Camp Everyday Host</h2>
+              <h2 className="text-2xl font-bold text-foreground">Welcome to Camp Everyday</h2>
               <p className="text-muted-foreground">Select a campground from the dropdown to get started.</p>
             </div>
           </motion.div>

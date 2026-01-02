@@ -249,7 +249,7 @@ export default function PromotionsPage() {
                   <li key={item}>{item}</li>
                 ))}
               </ul>
-              <div className="text-[11px] text-emerald-800/80 mt-2">Recommendations are suggestions only — no live changes are triggered automatically.</div>
+              <div className="text-[11px] text-emerald-800/80 mt-2">These recommendations are suggestions only. No changes are applied automatically.</div>
             </div>
           </CardContent>
         </Card>
@@ -512,7 +512,7 @@ export default function PromotionsPage() {
               </TableBody>
             </Table>
             <div className="text-xs text-slate-600">
-              Affiliate statuses move from pending to approved to paid as commissions are processed.
+              Commission statuses update from pending to approved to paid as they're processed.
             </div>
           </CardContent>
         </Card>

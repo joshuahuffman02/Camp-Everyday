@@ -276,7 +276,7 @@ export default function PortfolioFxReportPage() {
                     <span className="text-sm text-slate-700">{r.rate}</span>
                   </div>
                 ))}
-                {!currencyTaxQuery.data?.fxRates?.length && <div className="text-sm text-slate-500">No FX rates available for this portfolio.</div>}
+                {!currencyTaxQuery.data?.fxRates?.length && <div className="text-sm text-slate-500">No exchange rates configured.</div>}
               </div>
             </CardContent>
           </Card>
@@ -295,7 +295,7 @@ export default function PortfolioFxReportPage() {
                   <div className="text-xs text-slate-500">Path: {route.path || "/campgrounds/:id"}</div>
                 </div>
               ))}
-              {!reportQuery.data?.routing?.length && <div className="text-sm text-slate-500">No routing configured for this portfolio.</div>}
+              {!reportQuery.data?.routing?.length && <div className="text-sm text-slate-500">No routing configuration found.</div>}
             </CardContent>
           </Card>
         </div>
@@ -353,7 +353,7 @@ export default function PortfolioFxReportPage() {
                   {!isLoading && rows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-sm text-slate-500">
-                        No metrics available for this portfolio yet.
+                        No metrics available for this portfolio.
                       </TableCell>
                     </TableRow>
                   )}

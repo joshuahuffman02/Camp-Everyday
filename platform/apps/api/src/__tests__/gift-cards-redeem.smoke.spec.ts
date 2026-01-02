@@ -9,12 +9,28 @@ import { StoredValueService } from "../stored-value/stored-value.service";
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard } from "../auth/guards/roles.guard";
 
+// Mock the ledger posting utility
+jest.mock("../ledger/ledger-posting.util", () => ({
+  postBalancedLedgerEntries: jest.fn().mockResolvedValue(undefined)
+}));
+
 describe("Gift cards & store credit redeem smoke", () => {
   let app: any;
   let storedValue: any;
 
   const prisma = {
     storedValueCode: {
+      findUnique: jest.fn()
+    },
+    $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
+    reservation: {
+      update: jest.fn()
+    },
+    payment: {
+      create: jest.fn()
+    },
+    site: {
       findUnique: jest.fn()
     }
   };
@@ -76,6 +92,40 @@ describe("Gift cards & store credit redeem smoke", () => {
       if (code === "CARD-BOOK-100") return { accountId: "acc-book", balanceCents: 7500 };
       if (code === "CREDIT-POS-20") return { accountId: "acc-pos", balanceCents: 500 };
       return { accountId: "acc-unknown", balanceCents: 0 };
+    });
+
+    // Mock transaction to execute the callback immediately
+    prisma.$transaction.mockImplementation(async (callback) => {
+      const mockTx = {
+        ...prisma,
+        $queryRaw: jest.fn().mockResolvedValue([{
+          id: "booking-1",
+          campgroundId: "camp-1",
+          guestId: "guest-1",
+          siteId: "site-1",
+          paidAmount: 0,
+          totalAmount: 10000,
+          status: "confirmed"
+        }])
+      };
+      return callback(mockTx);
+    });
+
+    prisma.site.findUnique.mockResolvedValue({
+      id: "site-1",
+      siteClass: {
+        glCode: "SITE_REVENUE",
+        clientAccount: "Site Revenue"
+      }
+    });
+
+    prisma.reservation.update.mockResolvedValue({
+      id: "booking-1",
+      paidAmount: 2500
+    });
+
+    prisma.payment.create.mockResolvedValue({
+      id: "payment-1"
     });
   });
 

@@ -104,14 +104,55 @@ export class LedgerService {
   }
 
   async summaryByGl(campgroundId: string, start?: Date, end?: Date) {
-    // For summary, we need all entries - use a high limit
-    const rows = await this.list(campgroundId, { start, end, limit: 10000 });
+    // Use Prisma aggregation to avoid fetching all entries
+    const dateFilter = start || end
+      ? {
+          occurredAt: {
+            gte: start,
+            lte: end
+          }
+        }
+      : {};
+
+    // Aggregate debits and credits separately, then combine
+    const [debits, credits] = await Promise.all([
+      this.prisma.ledgerEntry.groupBy({
+        by: ["glCode"],
+        where: {
+          campgroundId,
+          direction: "debit",
+          ...dateFilter
+        },
+        _sum: {
+          amountCents: true
+        }
+      }),
+      this.prisma.ledgerEntry.groupBy({
+        by: ["glCode"],
+        where: {
+          campgroundId,
+          direction: "credit",
+          ...dateFilter
+        },
+        _sum: {
+          amountCents: true
+        }
+      })
+    ]);
+
+    // Combine debits (negative) and credits (positive)
     const map: Record<string, number> = {};
-    for (const r of rows) {
-      const key = r.glCode || "Unassigned";
-      const sign = r.direction === "credit" ? 1 : -1;
-      map[key] = (map[key] || 0) + sign * r.amountCents;
+
+    for (const entry of debits) {
+      const key = entry.glCode || "Unassigned";
+      map[key] = (map[key] || 0) - (entry._sum.amountCents || 0);
     }
+
+    for (const entry of credits) {
+      const key = entry.glCode || "Unassigned";
+      map[key] = (map[key] || 0) + (entry._sum.amountCents || 0);
+    }
+
     return Object.entries(map).map(([glCode, netCents]) => ({ glCode, netCents }));
   }
 

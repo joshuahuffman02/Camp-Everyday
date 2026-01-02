@@ -2214,7 +2214,7 @@ export default function SeasonalsPage() {
               <CardContent>
                 <div className="text-center py-8 text-slate-500">
                   <Shield className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                  Contact your account manager to enable COI tracking
+                  Contact support to enable certificate of insurance tracking
                 </div>
               </CardContent>
             </Card>

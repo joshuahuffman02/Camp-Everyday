@@ -824,7 +824,7 @@ export function DashboardShell({ children, className, title, subtitle }: { child
           <div className="px-4 py-4 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="relative w-8 h-8">
-                <Image src="/logo.png" alt="Host" fill sizes="32px" className="object-contain" />
+                <Image src="/logo.png" alt="Camp Everyday" fill sizes="32px" className="object-contain" />
               </div>
               <span className="font-semibold text-sm text-slate-100">Navigate</span>
             </div>
@@ -908,14 +908,14 @@ export function DashboardShell({ children, className, title, subtitle }: { child
           <div className={cn("w-full border-b border-slate-800 flex items-center", collapsed ? "justify-center p-3" : "justify-between p-4 gap-2")}>
             {collapsed ? (
               <div className="relative w-8 h-8">
-                <Image src="/logo.png" alt="Host" fill sizes="32px" className="object-contain" />
+                <Image src="/logo.png" alt="Camp Everyday" fill sizes="32px" className="object-contain" />
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <div className="relative w-8 h-8">
-                  <Image src="/logo.png" alt="Camp Everyday Host" fill sizes="32px" className="object-contain" />
+                  <Image src="/logo.png" alt="Camp Everyday" fill sizes="32px" className="object-contain" />
                 </div>
-                <div className="text-lg font-semibold text-white">Host</div>
+                <div className="text-lg font-semibold text-white">Camp Everyday</div>
               </div>
             )}
             <button

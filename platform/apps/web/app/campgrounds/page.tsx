@@ -44,7 +44,25 @@ function CampgroundsPageContent() {
           <h2 className="text-xl font-semibold text-slate-900">Campgrounds</h2>
           <div className="text-xs text-slate-500">Creation is admin-only</div>
         </div>
-        {isLoading && <p className="text-slate-600">Loading…</p>}
+        {isLoading && (
+          <div className="grid gap-3">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="card p-4 animate-pulse">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-48" />
+                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-9 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+                    <div className="h-9 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                    <div className="h-9 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {error && <p className="text-red-600">Error loading campgrounds</p>}
         <div className="grid gap-3">
           {data?.map((cg) => (
@@ -87,7 +105,17 @@ function CampgroundsPageContent() {
               </div>
             </div>
           ))}
-          {!isLoading && !data?.length && <div className="text-slate-600">No campgrounds available.</div>}
+          {!isLoading && !data?.length && (
+            <div className="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+              <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-slate-900 mb-1">No campgrounds yet</p>
+              <p className="text-xs text-slate-500">Contact your administrator to set up your first campground</p>
+            </div>
+          )}
         </div>
       </div>
     </DashboardShell>
@@ -100,7 +128,26 @@ export default function CampgroundsPage() {
       <DashboardShell>
         <div className="space-y-4">
           <Breadcrumbs items={[{ label: "Campgrounds" }]} />
-          <p className="text-slate-600">Loading...</p>
+          <div className="flex items-center justify-between">
+            <div className="h-7 w-40 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+          </div>
+          <div className="grid gap-3">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="card p-4 animate-pulse">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-48" />
+                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-9 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+                    <div className="h-9 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                    <div className="h-9 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </DashboardShell>
     }>

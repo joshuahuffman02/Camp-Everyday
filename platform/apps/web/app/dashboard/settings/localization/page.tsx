@@ -146,7 +146,7 @@ export default function LocalizationSettingsPage() {
           <CardDescription>Upload translations or download current bundle</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-slate-500">Contact support to configure translation bundles for your property.</div>
+          <div className="text-sm text-slate-500">Contact support to enable translation bundle management for your property.</div>
         </CardContent>
       </Card>
     </div>

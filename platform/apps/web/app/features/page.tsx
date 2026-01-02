@@ -743,9 +743,19 @@ function FeaturesPageContent() {
         {activeTab === "completed" && (
           <div className="space-y-4">
             {queueLoading ? (
-              <div className="text-center py-12">
-                <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-slate-500">Loading...</p>
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="animate-pulse bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                      <div className="flex-1 space-y-3">
+                        <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-48" />
+                        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full" />
+                        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : filteredQueueItems.length === 0 ? (
               <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">

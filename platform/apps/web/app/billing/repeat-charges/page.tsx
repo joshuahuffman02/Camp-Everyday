@@ -51,9 +51,6 @@ export default function RepeatChargesPage() {
         }
     };
 
-    if (error) return <div>Failed to load charges</div>;
-    if (isLoading || !charges) return <div>Loading...</div>;
-
     return (
         <DashboardShell>
             <div className="space-y-6">
@@ -75,10 +72,42 @@ export default function RepeatChargesPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {charges.length === 0 ? (
+                                    {isLoading ? (
                                         <tr>
-                                            <td colSpan={6} className="h-24 text-center text-muted-foreground">
-                                                No scheduled charges found.
+                                            <td colSpan={6} className="p-4">
+                                                <div className="space-y-3">
+                                                    {[...Array(3)].map((_, i) => (
+                                                        <div key={i} className="animate-pulse flex items-center gap-4 p-3">
+                                                            <div className="flex-1 space-y-2">
+                                                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24" />
+                                                                <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                                                            </div>
+                                                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                                                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16" />
+                                                            <div className="h-8 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : error ? (
+                                        <tr>
+                                            <td colSpan={6} className="h-24 text-center text-red-600">
+                                                Failed to load charges. Please try refreshing.
+                                            </td>
+                                        </tr>
+                                    ) : !charges || charges.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="h-24 text-center">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                                                        <CreditCard className="w-6 h-6 text-slate-400" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-slate-900">No scheduled charges</p>
+                                                        <p className="text-xs text-slate-500">All balances are paid or no recurring charges set up</p>
+                                                    </div>
+                                                </div>
                                             </td>
                                         </tr>
                                     ) : (

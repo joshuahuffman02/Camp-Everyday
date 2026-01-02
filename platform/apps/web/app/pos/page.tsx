@@ -793,7 +793,15 @@ export default function POSPage() {
 
                             <div id="pos-product-grid" className="flex-1 overflow-y-auto min-h-0">
                                 {loading ? (
-                                    <div className="p-12 text-center text-slate-400">Loading products...</div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
+                                        {[...Array(8)].map((_, i) => (
+                                            <div key={i} className="animate-pulse">
+                                                <div className="aspect-square bg-slate-200 dark:bg-slate-700 rounded-lg mb-3" />
+                                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2" />
+                                                <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+                                            </div>
+                                        ))}
+                                    </div>
                                 ) : (
                                     <ProductGrid products={filteredProducts} onAdd={addToCart} />
                                 )}
@@ -842,7 +850,7 @@ export default function POSPage() {
                     <div className="flex items-center justify-between py-4">
                         <div>
                             <p className="text-sm font-semibold text-slate-900">Recent POS orders</p>
-                            <p className="text-xs text-slate-500">Select an order to log a refund or exchange.</p>
+                            <p className="text-xs text-slate-500">Click an order to process a refund or exchange.</p>
                         </div>
                         <Button size="sm" variant="outline" onClick={() => void loadRecentOrders()} disabled={ordersLoading}>
                             Refresh
@@ -850,14 +858,43 @@ export default function POSPage() {
                     </div>
                     {ordersError && <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{ordersError}</div>}
                     {ordersLoading ? (
-                        <div className="p-4 text-sm text-slate-500">Loading orders…</div>
+                        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                            {[...Array(3)].map((_, i) => (
+                                <div key={i} className="animate-pulse rounded-lg border border-slate-200 bg-white p-4">
+                                    <div className="flex items-start justify-between gap-2 mb-3">
+                                        <div className="flex-1 space-y-2">
+                                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                                            <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-48" />
+                                        </div>
+                                        <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
+                                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-5/6" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     ) : recentOrders.length === 0 ? (
-                        <div className="overflow-hidden rounded border bg-white">
-                            <table className="w-full text-sm">
-                                <tbody>
-                                    <TableEmpty>No recent POS orders.</TableEmpty>
-                                </tbody>
-                            </table>
+                        <div className="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                            <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                </svg>
+                            </div>
+                            <p className="text-sm font-medium text-slate-900 mb-1">No POS orders yet</p>
+                            <p className="text-xs text-slate-500 mb-4">Start selling by adding products to your cart</p>
+                            {cart.length > 0 ? (
+                                <Button size="sm" onClick={() => setIsCheckoutOpen(true)}>
+                                    Checkout {cart.length} {cart.length === 1 ? 'item' : 'items'}
+                                </Button>
+                            ) : (
+                                <Link href="/store">
+                                    <Button size="sm" variant="outline">
+                                        Manage inventory
+                                    </Button>
+                                </Link>
+                            )}
                         </div>
                     ) : (
                         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">

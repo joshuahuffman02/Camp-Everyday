@@ -20,9 +20,11 @@ export class LedgerController {
     @Query("end") end?: string,
     @Query("glCode") glCode?: string
   ) {
-    const startDate = start ? new Date(start) : undefined;
-    const endDate = end ? new Date(end) : undefined;
-    return this.ledger.list(campgroundId, startDate, endDate, glCode);
+    return this.ledger.list(campgroundId, {
+      start: start ? new Date(start) : undefined,
+      end: end ? new Date(end) : undefined,
+      glCode
+    });
   }
 
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
@@ -34,12 +36,12 @@ export class LedgerController {
     @Query("glCode") glCode: string,
     @Res() res: Response
   ) {
-    const rows = await this.ledger.list(
-      campgroundId,
-      start ? new Date(start) : undefined,
-      end ? new Date(end) : undefined,
-      glCode || undefined
-    );
+    const rows = await this.ledger.list(campgroundId, {
+      start: start ? new Date(start) : undefined,
+      end: end ? new Date(end) : undefined,
+      glCode: glCode || undefined,
+      limit: 10000
+    });
     const headers = ["date", "glCode", "account", "reservationId", "amountCents", "direction", "description"];
     const csv = [headers.join(",")]
       .concat(

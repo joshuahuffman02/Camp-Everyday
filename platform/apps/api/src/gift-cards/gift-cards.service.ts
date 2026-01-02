@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { PrismaService } from "../prisma/prisma.service";
 import { StoredValueStatus } from "@prisma/client";
 import { StoredValueService } from "../stored-value/stored-value.service";
+import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
 
 type RedemptionChannel = "booking" | "pos";
 
@@ -11,6 +12,18 @@ export type GiftCardRecord = {
   currency?: string;
   kind?: "gift_card" | "store_credit";
   accountId?: string;
+};
+
+type LedgerEntryInput = {
+  campgroundId: string;
+  reservationId?: string;
+  glCode: string;
+  account: string;
+  description: string;
+  amountCents: number;
+  direction: "debit" | "credit";
+  externalRef?: string | null;
+  dedupeKey?: string;
 };
 
 @Injectable()
@@ -36,7 +49,126 @@ export class GiftCardsService {
   }
 
   async redeemAgainstBooking(code: string, amountCents: number, bookingId: string, actor?: any) {
-    return this.redeem(code, amountCents, { channel: "booking", referenceId: bookingId }, actor);
+    if (!code) throw new BadRequestException("code is required");
+    if (!amountCents || amountCents <= 0) throw new BadRequestException("amount must be positive");
+
+    const card = await this.loadCard(code);
+    if (!card) throw new NotFoundException("Gift card or store credit not found");
+    if (card.balanceCents < amountCents) throw new BadRequestException("Insufficient balance");
+
+    // Wrap everything in a transaction: redeem stored value + create payment + update reservation + post ledger entries
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Lock the reservation to prevent concurrent modifications
+      const [lockedReservation] = await tx.$queryRaw<Array<{
+        id: string;
+        campgroundId: string;
+        guestId: string;
+        siteId: string;
+        paidAmount: number | null;
+        totalAmount: number;
+        status: string;
+      }>>`
+        SELECT id, "campgroundId", "guestId", "siteId", "paidAmount", "totalAmount", status
+        FROM "Reservation"
+        WHERE id = ${bookingId}
+        FOR UPDATE
+      `;
+      if (!lockedReservation) throw new NotFoundException("Reservation not found");
+
+      // 2. Redeem the stored value (debits the gift card balance)
+      const redeemResult = await this.storedValue.redeem(
+        {
+          code,
+          amountCents,
+          currency: card.currency ?? "usd",
+          redeemCampgroundId: actor?.campgroundId ?? null,
+          referenceType: "reservation",
+          referenceId: bookingId,
+          channel: "booking"
+        },
+        undefined,
+        actor
+      );
+
+      // 3. Calculate new paid amount
+      const newPaid = (lockedReservation.paidAmount ?? 0) + amountCents;
+      const newBalance = lockedReservation.totalAmount - newPaid;
+
+      // 4. Determine payment status fields based on new balance
+      const paymentFields = this.buildPaymentFields(lockedReservation.totalAmount, newPaid);
+
+      // 5. Update reservation with new paid amount and status
+      await tx.reservation.update({
+        where: { id: bookingId },
+        data: {
+          paidAmount: newPaid,
+          ...paymentFields
+        }
+      });
+
+      // 6. Create Payment record
+      const paymentRef = `GIFT-${code}-${Date.now()}`;
+      await tx.payment.create({
+        data: {
+          campgroundId: lockedReservation.campgroundId,
+          reservationId: bookingId,
+          amountCents,
+          method: "gift_card",
+          direction: "charge",
+          note: `Gift card redemption: ${code}`,
+          capturedAt: new Date()
+        }
+      });
+
+      // 7. Get site info for GL codes
+      const site = await tx.site.findUnique({
+        where: { id: lockedReservation.siteId },
+        include: { siteClass: true }
+      });
+
+      const revenueGl = site?.siteClass?.glCode ?? "REVENUE_UNMAPPED";
+      const revenueAccount = site?.siteClass?.clientAccount ?? "Revenue";
+
+      // 8. Post balanced ledger entries
+      // Debit: Stored Value Liability (decrease liability as card is redeemed)
+      // Credit: Site Revenue (recognize revenue)
+      const ledgerEntries: LedgerEntryInput[] = [
+        {
+          campgroundId: lockedReservation.campgroundId,
+          reservationId: bookingId,
+          glCode: "STORED_VALUE_LIABILITY",
+          account: "Gift Card Liability",
+          description: `Gift card redemption: ${code}`,
+          amountCents,
+          direction: "debit",
+          externalRef: paymentRef,
+          dedupeKey: `res:${bookingId}:gift-card:${paymentRef}:debit`
+        },
+        {
+          campgroundId: lockedReservation.campgroundId,
+          reservationId: bookingId,
+          glCode: revenueGl,
+          account: revenueAccount,
+          description: `Gift card redemption: ${code}`,
+          amountCents,
+          direction: "credit",
+          externalRef: paymentRef,
+          dedupeKey: `res:${bookingId}:gift-card:${paymentRef}:credit`
+        }
+      ];
+
+      await postBalancedLedgerEntries(tx, ledgerEntries);
+
+      return {
+        code,
+        balanceCents: redeemResult.balanceCents,
+        redeemedCents: amountCents,
+        channel: "booking",
+        referenceId: bookingId,
+        reservationPaidAmount: newPaid,
+        reservationBalance: newBalance
+      };
+    });
   }
 
   async redeemAgainstPosOrder(code: string, amountCents: number, orderId: string, actor?: any) {
@@ -102,5 +234,33 @@ export class GiftCardsService {
     }
 
     return null;
+  }
+
+  /**
+   * Build payment status fields based on total and paid amounts
+   * Follows same logic as ReservationsService.buildPaymentFields
+   */
+  private buildPaymentFields(totalAmount: number, paidAmount: number) {
+    const balanceAmount = totalAmount - paidAmount;
+
+    if (paidAmount <= 0) {
+      return {
+        balanceAmount,
+        paymentStatus: "unpaid",
+        paymentStatusAt: null
+      };
+    } else if (balanceAmount <= 0) {
+      return {
+        balanceAmount: 0,
+        paymentStatus: "paid",
+        paymentStatusAt: new Date()
+      };
+    } else {
+      return {
+        balanceAmount,
+        paymentStatus: "partial",
+        paymentStatusAt: new Date()
+      };
+    }
   }
 }

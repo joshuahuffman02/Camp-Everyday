@@ -216,7 +216,25 @@ export default function FulfillmentQueuePage() {
 
                 {/* Order List */}
                 {loading ? (
-                    <div className="text-center py-12 text-slate-500">Loading orders...</div>
+                    <div className="grid gap-4">
+                        {[...Array(3)].map((_, i) => (
+                            <Card key={i} className="overflow-hidden">
+                                <CardContent className="p-4 animate-pulse">
+                                    <div className="flex items-start justify-between gap-4 mb-3">
+                                        <div className="flex-1 space-y-2">
+                                            <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-32" />
+                                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-48" />
+                                        </div>
+                                        <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
+                                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
                 ) : orders.length === 0 ? (
                     <Card>
                         <CardContent className="py-12 text-center">

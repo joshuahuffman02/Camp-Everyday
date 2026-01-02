@@ -60,7 +60,7 @@ export default function SignInPage() {
               priority
             />
           </div>
-          <h1 className="text-3xl font-bold">Camp Everyday Host</h1>
+          <h1 className="text-3xl font-bold">Camp Everyday</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Sign in to your account
           </p>
@@ -123,7 +123,7 @@ export default function SignInPage() {
         </form>
 
         <div className="mt-4 text-center text-xs text-muted-foreground">
-          <p>Use your Camp Everyday Host credentials to sign in.</p>
+          <p>Use your Camp Everyday credentials to sign in.</p>
         </div>
       </div>
     </div>

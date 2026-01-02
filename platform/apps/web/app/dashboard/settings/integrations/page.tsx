@@ -212,10 +212,10 @@ export default function IntegrationsSettingsPage() {
             );
 
             if (oauthData.error) {
-                // Integration not configured yet
+                // Integration not configured
                 toast({
-                    title: "Not available",
-                    description: oauthData.message || "This integration requires additional configuration. Contact support for assistance.",
+                    title: "Setup Required",
+                    description: oauthData.message || "Contact support to enable this integration for your account.",
                     variant: "destructive"
                 });
                 return;
