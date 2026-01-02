@@ -52,12 +52,14 @@ function CategoryBadge({ category }: { category: UpdateCategory }) {
     improvement: "Improvement",
     bugfix: "Bug Fix",
     infrastructure: "Infrastructure",
+    enhancement: "Enhancement",
   };
   const icons: Record<UpdateCategory, React.ReactNode> = {
     feature: <Sparkles className="h-3.5 w-3.5" />,
     improvement: <Wrench className="h-3.5 w-3.5" />,
     bugfix: <Bug className="h-3.5 w-3.5" />,
     infrastructure: <Building2 className="h-3.5 w-3.5" />,
+    enhancement: <Wrench className="h-3.5 w-3.5" />,
   };
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>

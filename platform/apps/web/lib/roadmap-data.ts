@@ -3,7 +3,7 @@
 
 export type MilestoneStatus = 'completed' | 'in_progress' | 'planned';
 export type PhaseStatus = 'completed' | 'in_progress' | 'planned';
-export type UpdateCategory = 'feature' | 'improvement' | 'bugfix' | 'infrastructure';
+export type UpdateCategory = 'feature' | 'improvement' | 'bugfix' | 'infrastructure' | 'enhancement';
 export type UpdateType = 'new' | 'update' | 'enhancement' | 'fix';
 
 export interface Milestone {
@@ -1413,6 +1413,7 @@ export const categoryColors: Record<UpdateCategory, { bg: string; text: string; 
     improvement: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     bugfix: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
     infrastructure: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+    enhancement: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
 };
 
 export const statusColors: Record<PhaseStatus, { bg: string; text: string }> = {
