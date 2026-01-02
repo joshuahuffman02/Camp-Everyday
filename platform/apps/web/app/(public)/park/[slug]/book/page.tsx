@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RoundUpForCharity } from "@/components/checkout/RoundUpForCharity";
 import { BookingFormsSection } from "@/components/booking/BookingFormsSection";
 import { NaturalLanguageSearch } from "@/components/booking/NaturalLanguageSearch";
+import { ThirdPartyAnalytics } from "@/components/analytics";
 
 const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 if (!stripeKey) {
@@ -3236,6 +3237,12 @@ export default function BookingPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
+            {/* Third-party analytics (GA4 and Meta Pixel) */}
+            <ThirdPartyAnalytics
+                gaMeasurementId={campground.gaMeasurementId}
+                metaPixelId={campground.metaPixelId}
+            />
+
             {/* Header */}
             <header className="bg-white shadow-sm">
                 <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">

@@ -26,3 +26,6 @@ export {
   useRenderTracking,
   useTrackedClick,
 } from "./tracked-components";
+
+// Third-party analytics scripts
+export { ThirdPartyAnalytics } from "./ThirdPartyAnalytics";

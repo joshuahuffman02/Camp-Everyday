@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   DollarSign,
   AlertCircle,
+  Filter,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { apiClient } from "@/lib/api-client";
 import { StaggeredList, StaggeredItem } from "@/components/ui/staggered-list";
+import { FilterChip } from "@/components/ui/filter-chip";
 
 interface Product {
   id: string;
@@ -52,6 +54,8 @@ export default function ProductsPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     const id = localStorage.getItem("campreserv:selectedCampground");
@@ -78,6 +82,41 @@ export default function ProductsPage() {
   const lowStockProducts = products.filter(
     (p) => p.trackInventory && p.inventoryCount !== null && p.inventoryCount <= 5
   );
+
+  // Filter products based on current filters
+  const filteredProducts = products.filter((p) => {
+    if (categoryFilter !== "all") {
+      if (categoryFilter === "uncategorized") {
+        if (p.categoryId !== null) return false;
+      } else if (p.categoryId !== categoryFilter) {
+        return false;
+      }
+    }
+    if (statusFilter !== "all") {
+      const isActive = p.isActive !== false;
+      if (statusFilter === "active" && !isActive) return false;
+      if (statusFilter === "inactive" && isActive) return false;
+    }
+    return true;
+  });
+
+  // Count active filters
+  const activeFilterCount =
+    (categoryFilter !== "all" ? 1 : 0) +
+    (statusFilter !== "all" ? 1 : 0);
+
+  // Get category name for display
+  const getCategoryName = (categoryId: string) => {
+    if (categoryId === "uncategorized") return "Uncategorized";
+    const category = categories.find((c) => c.id === categoryId);
+    return category?.name || categoryId;
+  };
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setCategoryFilter("all");
+    setStatusFilter("all");
+  };
 
   if (loading) {
     return (
@@ -205,6 +244,100 @@ export default function ProductsPage() {
         </Card>
       </StaggeredList>
 
+      {/* Filters */}
+      {products.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
+              <Filter className="h-3.5 w-3.5" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[11px] font-semibold">
+                  {activeFilterCount} active
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7"
+                disabled={activeFilterCount === 0}
+                onClick={clearAllFilters}
+              >
+                Clear all filters
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Category filter dropdown */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-500">Category:</label>
+              <select
+                className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                <option value="all">All Categories</option>
+                <option value="uncategorized">Uncategorized</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Status filter dropdown */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-500">Status:</label>
+              <select
+                className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+          {/* Active filter pills */}
+          {activeFilterCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+              <span className="text-xs text-slate-500 font-medium">Active:</span>
+              {categoryFilter !== "all" && (
+                <FilterChip
+                  label={`Category: ${getCategoryName(categoryFilter)}`}
+                  selected
+                  removable
+                  onRemove={() => setCategoryFilter("all")}
+                  variant="subtle"
+                />
+              )}
+              {statusFilter !== "all" && (
+                <FilterChip
+                  label={`Status: ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`}
+                  selected
+                  removable
+                  onRemove={() => setStatusFilter("all")}
+                  variant="subtle"
+                />
+              )}
+              {activeFilterCount > 1 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs h-7 px-2"
+                  onClick={clearAllFilters}
+                >
+                  Clear all
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Products List */}
       {products.length === 0 ? (
         <Card className="border-dashed">
@@ -228,7 +361,7 @@ export default function ProductsPage() {
         <Card>
           <CardHeader className="py-3 px-4 bg-slate-50 border-b flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-medium">
-              Products ({products.length})
+              Products ({filteredProducts.length}{activeFilterCount > 0 ? ` of ${products.length}` : ""})
             </CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/pos">
@@ -238,7 +371,7 @@ export default function ProductsPage() {
             </Button>
           </CardHeader>
           <CardContent className="p-0 divide-y">
-            {products.slice(0, 10).map((product, index) => (
+            {filteredProducts.slice(0, 10).map((product, index) => (
               <StaggeredItem key={product.id} delay={0.1 + index * 0.04} variant="slideRight">
               <div
                 className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors group"
@@ -298,13 +431,27 @@ export default function ProductsPage() {
               </div>
               </StaggeredItem>
             ))}
-            {products.length > 10 && (
+            {filteredProducts.length > 10 && (
               <div className="px-4 py-3 text-center">
                 <Button variant="ghost" asChild>
                   <Link href="/pos">
-                    View all {products.length} products
+                    View all {filteredProducts.length} products
                     <ArrowRight className="h-4 w-4 ml-1" />
                   </Link>
+                </Button>
+              </div>
+            )}
+            {filteredProducts.length === 0 && activeFilterCount > 0 && (
+              <div className="px-4 py-8 text-center">
+                <Package className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+                <p className="text-slate-500 text-sm">No products match your filters</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={clearAllFilters}
+                >
+                  Clear all filters
                 </Button>
               </div>
             )}

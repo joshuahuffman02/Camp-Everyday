@@ -2,6 +2,7 @@ import { Metadata, ResolvingMetadata } from "next";
 import { apiClient } from "@/lib/api-client";
 import { CampgroundV2Client } from "./client";
 import Script from "next/script";
+import { ThirdPartyAnalytics } from "@/components/analytics";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -135,6 +136,13 @@ export default async function Page({ params, searchParams }: Props) {
 
   return (
     <>
+      {/* Third-party analytics (GA4 and Meta Pixel) */}
+      {initialData && (
+        <ThirdPartyAnalytics
+          gaMeasurementId={initialData.gaMeasurementId}
+          metaPixelId={initialData.metaPixelId}
+        />
+      )}
       {jsonLd && (
         <Script id="campground-json-ld-v2" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       )}

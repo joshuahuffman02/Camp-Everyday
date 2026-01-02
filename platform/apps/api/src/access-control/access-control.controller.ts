@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Post, Req, UseGuards, Query, BadRequestException } from "@nestjs/common";
 import { AccessProviderType, UserRole } from "@prisma/client";
 import { AccessControlService } from "./access-control.service";
 import { GrantAccessDto, RevokeAccessDto } from "./dto/access-grant.dto";
@@ -11,32 +11,63 @@ import { ScopeGuard } from "../permissions/scope.guard";
 export class AccessControlController {
   constructor(private readonly service: AccessControlService) {}
 
+  private requireCampgroundId(req: any, fallback?: string): string {
+    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+    if (!campgroundId) {
+      throw new BadRequestException("campgroundId is required");
+    }
+    return campgroundId;
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Get("/reservations/:reservationId/access")
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk)
-  getStatus(@Param("reservationId") reservationId: string) {
-    return this.service.getAccessStatus(reservationId);
+  getStatus(
+    @Param("reservationId") reservationId: string,
+    @Query("campgroundId") campgroundId: string | undefined,
+    @Req() req: any
+  ) {
+    const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
+    return this.service.getAccessStatus(reservationId, requiredCampgroundId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Post("/reservations/:reservationId/access/vehicle")
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk)
-  upsertVehicle(@Param("reservationId") reservationId: string, @Body() dto: UpsertVehicleDto) {
-    return this.service.upsertVehicle(reservationId, dto);
+  upsertVehicle(
+    @Param("reservationId") reservationId: string,
+    @Body() dto: UpsertVehicleDto,
+    @Query("campgroundId") campgroundId: string | undefined,
+    @Req() req: any
+  ) {
+    const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
+    return this.service.upsertVehicle(reservationId, dto, requiredCampgroundId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Post("/reservations/:reservationId/access/grant")
   @Roles(UserRole.owner, UserRole.manager)
-  grant(@Param("reservationId") reservationId: string, @Body() dto: GrantAccessDto) {
-    return this.service.grantAccess(reservationId, dto);
+  grant(
+    @Param("reservationId") reservationId: string,
+    @Body() dto: GrantAccessDto,
+    @Query("campgroundId") campgroundId: string | undefined,
+    @Req() req: any
+  ) {
+    const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
+    return this.service.grantAccess(reservationId, dto, requiredCampgroundId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Post("/reservations/:reservationId/access/revoke")
   @Roles(UserRole.owner, UserRole.manager)
-  revoke(@Param("reservationId") reservationId: string, @Body() dto: RevokeAccessDto) {
-    return this.service.revokeAccess(reservationId, dto);
+  revoke(
+    @Param("reservationId") reservationId: string,
+    @Body() dto: RevokeAccessDto,
+    @Query("campgroundId") campgroundId: string | undefined,
+    @Req() req: any
+  ) {
+    const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
+    return this.service.revokeAccess(reservationId, dto, requiredCampgroundId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)

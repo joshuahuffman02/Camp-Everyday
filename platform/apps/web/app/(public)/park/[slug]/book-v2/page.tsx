@@ -36,6 +36,7 @@ import {
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { RoundUpForCharity } from "@/components/checkout/RoundUpForCharity";
 import { NaturalLanguageSearch } from "@/components/booking/NaturalLanguageSearch";
+import { ThirdPartyAnalytics } from "@/components/analytics";
 
 // Import new booking v2 components
 import {
@@ -1159,6 +1160,12 @@ export default function BookingPageV2() {
 
   return (
     <BookingLayout sidebar={sidebar} footer={mobileFooter}>
+      {/* Third-party analytics (GA4 and Meta Pixel) */}
+      <ThirdPartyAnalytics
+        gaMeasurementId={campground.gaMeasurementId}
+        metaPixelId={campground.metaPixelId}
+      />
+
       {/* Header */}
       <div className="mb-4">
         <Link

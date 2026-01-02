@@ -14,6 +14,7 @@ import { saveReport, type SavedReport } from "@/components/reports/savedReports"
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FileDown, Calendar, FileSpreadsheet, X, Info, ChevronDown, ChevronUp, LayoutList, TrendingUp, Users, BarChart3, Megaphone, LineChart, Calculator, ClipboardList, ExternalLink, SlidersHorizontal, Filter } from "lucide-react";
+import { FilterChip } from "@/components/ui/filter-chip";
 import { SaveReportDialog } from "@/components/reports/SaveReportDialog";
 import { SavedReportsDropdown } from "@/components/reports/SavedReportsDropdown";
 
@@ -4291,6 +4292,66 @@ function ReportsPageInner() {
               </div>
             )}
           </div>
+
+          {/* Visible Filter Pills Row */}
+          {(reportFilters.status !== 'all' || reportFilters.siteType !== 'all' || reportFilters.groupBy !== 'none' || dateRange.start || dateRange.end) && (
+            <div className="flex flex-wrap items-center gap-2 py-3 px-1">
+              <span className="text-xs text-slate-500 font-medium">Active:</span>
+              {reportFilters.status !== 'all' && (
+                <FilterChip
+                  label={`Status: ${reportFilters.status.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}`}
+                  selected
+                  removable
+                  onRemove={() => setReportFilters({ ...reportFilters, status: 'all' })}
+                  variant="subtle"
+                />
+              )}
+              {reportFilters.siteType !== 'all' && (
+                <FilterChip
+                  label={`Site Type: ${reportFilters.siteType}`}
+                  selected
+                  removable
+                  onRemove={() => setReportFilters({ ...reportFilters, siteType: 'all' })}
+                  variant="subtle"
+                />
+              )}
+              {reportFilters.groupBy !== 'none' && (
+                <FilterChip
+                  label={`Grouped: ${reportFilters.groupBy.replace(/\b\w/g, (c) => c.toUpperCase())}`}
+                  selected
+                  removable
+                  onRemove={() => setReportFilters({ ...reportFilters, groupBy: 'none' })}
+                  variant="subtle"
+                />
+              )}
+              {dateRange.start && dateRange.end && (
+                <FilterChip
+                  label={`Date: ${new Date(dateRange.start + "T00:00:00").toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${new Date(dateRange.end + "T00:00:00").toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+                  selected
+                  removable
+                  onRemove={() => {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(start.getDate() - 30);
+                    setDateRange({
+                      start: start.toISOString().slice(0, 10),
+                      end: end.toISOString().slice(0, 10)
+                    });
+                  }}
+                  variant="subtle"
+                />
+              )}
+              {[reportFilters.status !== 'all', reportFilters.siteType !== 'all', reportFilters.groupBy !== 'none'].filter(Boolean).length >= 2 && (
+                <button
+                  className="text-xs text-slate-500 hover:text-slate-700 underline ml-2"
+                  onClick={() => setReportFilters({ status: 'all', siteType: 'all', groupBy: 'none' })}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Legacy renderSubReportContent() removed - now using ReportRenderer component */}
         </div>
 

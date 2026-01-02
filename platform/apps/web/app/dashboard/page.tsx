@@ -969,28 +969,43 @@ export default function Dashboard() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: "spring" as const, duration: 0.5 }}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-4 py-4",
+                  "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-lg px-4 py-4",
                   "border-2 border-emerald-300 bg-emerald-50",
                   "dark:border-emerald-700 dark:bg-emerald-950/30"
                 )}
               >
-                <motion.div
-                  animate={{
-                    rotate: [0, 10, -10, 10, 0],
-                    scale: [1, 1.2, 1.2, 1.2, 1]
-                  }}
-                  transition={{ duration: 0.6 }}
-                >
-                  <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                </motion.div>
-                <div>
-                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                    All clear — no outstanding balances!
-                  </p>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-500">
-                    You're on top of collections. Keep it up!
-                  </p>
+                <div className="flex items-center gap-3">
+                  <motion.div
+                    animate={{
+                      rotate: [0, 10, -10, 10, 0],
+                      scale: [1, 1.2, 1.2, 1.2, 1]
+                    }}
+                    transition={{ duration: 0.6 }}
+                  >
+                    <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  </motion.div>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                      All clear - no outstanding balances!
+                    </p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-500">
+                      You're on top of collections. Keep it up!
+                    </p>
+                  </div>
                 </div>
+                <Link
+                  href="/finance/overview"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap",
+                    "border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100",
+                    "dark:border-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-300 dark:hover:bg-emerald-800/50",
+                    "shadow-sm transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                  )}
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  View Reports
+                </Link>
               </motion.div>
             ) : (
               <div className="space-y-2">
@@ -1284,14 +1299,40 @@ export default function Dashboard() {
             </div>
             {occupancy14.length === 0 ? (
               <div className={cn(
-                "rounded-lg p-6 text-center space-y-2",
+                "rounded-lg p-6 text-center space-y-3",
                 "border-2 border-dashed border-border bg-muted"
               )}>
                 <div className="flex justify-center mb-2">
                   <BarChart3 className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <p className="text-sm font-semibold text-foreground">No occupancy data yet</p>
-                <p className="text-xs text-muted-foreground">Data will appear as you add reservations and sites</p>
+                <p className="text-xs text-muted-foreground">Add sites and create reservations to see your occupancy forecast</p>
+                <div className="flex justify-center gap-2 pt-2">
+                  <Link
+                    href="/campgrounds"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
+                      "bg-emerald-600 text-white hover:bg-emerald-500",
+                      "shadow-sm transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                    )}
+                  >
+                    <Tent className="h-3.5 w-3.5" />
+                    Add Sites
+                  </Link>
+                  <Link
+                    href="/booking-v2"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
+                      "border border-border bg-card text-foreground hover:bg-muted",
+                      "shadow-sm transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                    )}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Create Booking
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
@@ -1612,7 +1653,7 @@ function BoardCard({
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: "spring" as const, duration: 0.4 }}
           className={cn(
-            "rounded-lg p-6 text-center space-y-2",
+            "rounded-lg p-6 text-center space-y-3",
             "border-2 border-dashed border-border bg-muted"
           )}
         >
@@ -1625,14 +1666,40 @@ function BoardCard({
           </div>
           <p className="text-sm font-semibold text-foreground">
             {title === "Arrivals"
-              ? "No check-ins today"
-              : "No checkouts today"}
+              ? "No check-ins scheduled for today"
+              : "No checkouts scheduled for today"}
           </p>
           <p className="text-xs text-muted-foreground">
             {title === "Arrivals"
-              ? "A quiet day to catch up on other tasks"
+              ? "A quiet day - perfect time to prepare for upcoming guests"
               : "Everyone's staying another night!"}
           </p>
+          <div className="flex justify-center gap-2 pt-2">
+            <Link
+              href="/booking-v2"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
+                "bg-emerald-600 text-white hover:bg-emerald-500",
+                "shadow-sm transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              )}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Create Booking
+            </Link>
+            <Link
+              href="/calendar"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
+                "border border-border bg-card text-foreground hover:bg-muted",
+                "shadow-sm transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              )}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              View Calendar
+            </Link>
+          </div>
         </motion.div>
       ) : (
         <div className="space-y-2">
@@ -1824,13 +1891,41 @@ function ActivityList({
         <div className={cn("text-xs font-semibold", accent)}>{rows.length}</div>
       </div>
       {rows.length === 0 ? (
-        <div className="px-3 py-4 text-sm text-muted-foreground flex items-center gap-2">
-          {title === "Arrivals" ? (
-            <Sunrise className="h-4 w-4 text-amber-500" />
-          ) : (
-            <Moon className="h-4 w-4 text-indigo-500" />
-          )}
-          No {title.toLowerCase()} yet today.
+        <div className="px-3 py-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {title === "Arrivals" ? (
+              <Sunrise className="h-4 w-4 text-amber-500" />
+            ) : (
+              <Moon className="h-4 w-4 text-indigo-500" />
+            )}
+            No {title.toLowerCase()} scheduled for today
+          </div>
+          <div className="flex gap-2">
+            <Link
+              href="/booking-v2"
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium",
+                "bg-muted text-foreground hover:bg-accent",
+                "transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1"
+              )}
+            >
+              <Plus className="h-3 w-3" />
+              New Booking
+            </Link>
+            <Link
+              href="/calendar"
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium",
+                "text-muted-foreground hover:text-foreground hover:bg-muted",
+                "transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1"
+              )}
+            >
+              <Calendar className="h-3 w-3" />
+              Calendar
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="divide-y divide-border">

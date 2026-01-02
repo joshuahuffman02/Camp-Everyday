@@ -32,6 +32,35 @@ export class FormsService {
     }
   }
 
+  private requireCampgroundId(campgroundId?: string | null): string {
+    if (!campgroundId) {
+      throw new BadRequestException("campgroundId is required");
+    }
+    return campgroundId;
+  }
+
+  private async assertTemplateAccess(id: string, campgroundId: string) {
+    const template = await this.prisma.formTemplate.findUnique({
+      where: { id },
+      select: { id: true, campgroundId: true }
+    });
+    if (!template || template.campgroundId !== campgroundId) {
+      throw new NotFoundException("Form template not found");
+    }
+    return template;
+  }
+
+  private async assertSubmissionAccess(id: string, campgroundId: string) {
+    const submission = await this.prisma.formSubmission.findUnique({
+      where: { id },
+      select: { id: true, formTemplate: { select: { campgroundId: true } } }
+    });
+    if (!submission || submission.formTemplate?.campgroundId !== campgroundId) {
+      throw new NotFoundException("Form submission not found");
+    }
+    return submission;
+  }
+
   listByCampground(campgroundId: string) {
     return this.prisma.formTemplate.findMany({
       where: { campgroundId },
@@ -39,7 +68,11 @@ export class FormsService {
     });
   }
 
-  create(data: CreateFormTemplateDto) {
+  create(data: CreateFormTemplateDto, campgroundId: string) {
+    const requiredCampgroundId = this.requireCampgroundId(campgroundId);
+    if (data.campgroundId !== requiredCampgroundId) {
+      throw new BadRequestException("campgroundId does not match request scope");
+    }
     return this.prisma.formTemplate.create({
       data: {
         campgroundId: data.campgroundId,
@@ -52,9 +85,9 @@ export class FormsService {
     });
   }
 
-  async update(id: string, data: UpdateFormTemplateDto) {
-    const existing = await this.prisma.formTemplate.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("Form template not found");
+  async update(id: string, data: UpdateFormTemplateDto, campgroundId: string) {
+    const requiredCampgroundId = this.requireCampgroundId(campgroundId);
+    const existing = await this.assertTemplateAccess(id, requiredCampgroundId);
     return this.prisma.formTemplate.update({
       where: { id },
       data: {
@@ -68,9 +101,9 @@ export class FormsService {
     });
   }
 
-  async remove(id: string) {
-    const existing = await this.prisma.formTemplate.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("Form template not found");
+  async remove(id: string, campgroundId: string) {
+    const requiredCampgroundId = this.requireCampgroundId(campgroundId);
+    await this.assertTemplateAccess(id, requiredCampgroundId);
     await this.prisma.formTemplate.delete({ where: { id } });
     return { id };
   }
@@ -80,14 +113,42 @@ export class FormsService {
     guestId?: string;
     limit?: number;
     offset?: number;
+    campgroundId?: string;
   }) {
     const limit = Math.min(filters.limit ?? 100, 500);
     const offset = filters.offset ?? 0;
+    const campgroundId = filters.campgroundId;
+
+    if (campgroundId && filters.reservationId) {
+      // Ensure reservation belongs to campground when filtering by reservationId
+      return this.prisma.reservation.findFirst({
+        where: { id: filters.reservationId, campgroundId },
+        select: { id: true }
+      }).then((reservation) => {
+        if (!reservation) {
+          throw new NotFoundException("Reservation not found");
+        }
+        return this.prisma.formSubmission.findMany({
+          where: {
+            reservationId: filters.reservationId,
+            guestId: filters.guestId,
+            formTemplate: { campgroundId }
+          },
+          include: {
+            formTemplate: { select: { id: true, title: true, type: true } }
+          },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          skip: offset
+        });
+      });
+    }
 
     return this.prisma.formSubmission.findMany({
       where: {
         reservationId: filters.reservationId,
-        guestId: filters.guestId
+        guestId: filters.guestId,
+        ...(campgroundId ? { formTemplate: { campgroundId } } : {})
       },
       include: {
         formTemplate: { select: { id: true, title: true, type: true } }
@@ -98,9 +159,24 @@ export class FormsService {
     });
   }
 
-  async createSubmission(data: CreateFormSubmissionDto) {
-    const template = await this.prisma.formTemplate.findUnique({ where: { id: data.formTemplateId } });
-    if (!template) throw new NotFoundException("Form template not found");
+  async createSubmission(data: CreateFormSubmissionDto, campgroundId: string) {
+    const requiredCampgroundId = this.requireCampgroundId(campgroundId);
+    const template = await this.prisma.formTemplate.findUnique({
+      where: { id: data.formTemplateId },
+      select: { id: true, campgroundId: true }
+    });
+    if (!template || template.campgroundId !== requiredCampgroundId) {
+      throw new NotFoundException("Form template not found");
+    }
+    if (data.reservationId) {
+      const reservation = await this.prisma.reservation.findFirst({
+        where: { id: data.reservationId, campgroundId: requiredCampgroundId },
+        select: { id: true }
+      });
+      if (!reservation) {
+        throw new NotFoundException("Reservation not found");
+      }
+    }
     return this.prisma.formSubmission.create({
       data: {
         formTemplateId: data.formTemplateId,
@@ -112,9 +188,9 @@ export class FormsService {
     });
   }
 
-  async updateSubmission(id: string, data: UpdateFormSubmissionDto) {
-    const existing = await this.prisma.formSubmission.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("Form submission not found");
+  async updateSubmission(id: string, data: UpdateFormSubmissionDto, campgroundId: string) {
+    const requiredCampgroundId = this.requireCampgroundId(campgroundId);
+    await this.assertSubmissionAccess(id, requiredCampgroundId);
     return this.prisma.formSubmission.update({
       where: { id },
       data: {
@@ -126,9 +202,9 @@ export class FormsService {
     });
   }
 
-  async deleteSubmission(id: string) {
-    const existing = await this.prisma.formSubmission.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("Form submission not found");
+  async deleteSubmission(id: string, campgroundId: string) {
+    const requiredCampgroundId = this.requireCampgroundId(campgroundId);
+    await this.assertSubmissionAccess(id, requiredCampgroundId);
     await this.prisma.formSubmission.delete({ where: { id } });
     return { id };
   }

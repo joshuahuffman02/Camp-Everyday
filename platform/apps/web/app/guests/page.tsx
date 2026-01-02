@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Trophy, Star, Car, Plus, Trash2, Download, ChevronDown, ChevronUp, Users, Crown, UserPlus, Merge } from "lucide-react";
+import { FilterChip } from "../../components/ui/filter-chip";
 import { StaggeredTableRow } from "../../components/ui/staggered-list";
 import { MergeGuestsDialog } from "../../components/guests/MergeGuestsDialog";
 import { Checkbox } from "../../components/ui/checkbox";
@@ -585,6 +586,7 @@ export default function GuestsPage() {
   }, [guestsQuery.data, search, vipFilter, sortBy, sortDir]);
 
   const hasFilters = search || vipFilter !== "all";
+  const activeFilterCount = (search ? 1 : 0) + (vipFilter !== "all" ? 1 : 0);
   const totalGuests = guestsQuery.data?.length || 0;
   const vipGuests = guestsQuery.data?.filter((g) => (g as GuestWithExtras).vip).length || 0;
   const optedInGuests = guestsQuery.data?.filter((g) => (g as GuestWithExtras).marketingOptIn).length || 0;
@@ -773,6 +775,44 @@ export default function GuestsPage() {
               {showAddForm ? "Hide form" : "Add guest"}
             </Button>
           </div>
+
+          {/* Active Filter Pills */}
+          {hasFilters && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 mt-2">
+              <span className="text-xs text-slate-500 font-medium">Active:</span>
+              {search.trim() && (
+                <FilterChip
+                  label={`Search: "${search.trim().length > 20 ? search.trim().slice(0, 20) + '...' : search.trim()}"`}
+                  selected
+                  removable
+                  onRemove={() => setSearch("")}
+                  variant="subtle"
+                />
+              )}
+              {vipFilter !== "all" && (
+                <FilterChip
+                  label={`Status: ${vipFilter === "vip" ? "VIP only" : "Regular only"}`}
+                  selected
+                  removable
+                  onRemove={() => setVipFilter("all")}
+                  variant="subtle"
+                />
+              )}
+              {activeFilterCount > 1 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs h-7 px-2"
+                  onClick={() => {
+                    setSearch("");
+                    setVipFilter("all");
+                  }}
+                >
+                  Clear all
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Collapsible Add Guest Form */}
