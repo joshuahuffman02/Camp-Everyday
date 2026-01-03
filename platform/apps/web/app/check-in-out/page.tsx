@@ -41,6 +41,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { PaymentCollectionModal } from "@/components/payments/PaymentCollectionModal";
+import { cn } from "@/lib/utils";
 
 type Reservation = {
   id: string;
@@ -68,6 +69,7 @@ export default function CheckInOutPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [campgroundId, setCampgroundId] = useState<string>("");
+  const dateLabel = useMemo(() => format(new Date(`${date}T00:00:00`), "EEE, MMM d"), [date]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "balance" | "unassigned">("all");
   const [tab, setTab] = useState<"arrivals" | "departures" | "onsite">("arrivals");
@@ -362,18 +364,25 @@ export default function CheckInOutPage() {
       <div className="space-y-5">
         {/* Header */}
         <PageHeader
-          eyebrow={`Operations · ${date}`}
-          title="Arrivals & Departures"
-          subtitle="Move guests smoothly with balances, site status, and quick actions."
+          eyebrow={`Front desk · ${dateLabel}`}
+          title={(
+            <span className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-status-success/15 text-status-success">
+                <UserCheck className="h-5 w-5" />
+              </span>
+              <span>Arrivals & Departures</span>
+            </span>
+          )}
+          subtitle="Guide guests through arrivals, departures, and onsite needs in one command center."
           actions={(
             <>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <Input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="pl-9 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="h-7 w-[150px] border-0 bg-transparent p-0 text-sm font-semibold focus-visible:ring-0"
                 />
               </div>
               <Button variant="outline" onClick={() => {
@@ -408,14 +417,14 @@ export default function CheckInOutPage() {
 
         {/* Controls */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3 bg-card p-3 rounded-lg border border-border shadow-sm w-full lg:max-w-md">
+          <div className="flex items-center gap-3 bg-card px-4 py-2.5 rounded-xl border border-border shadow-sm w-full lg:max-w-md">
             <Search className="h-5 w-5 text-muted-foreground" />
-            <input
+            <Input
               type="text"
               placeholder="Search guest, site, or notes"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 bg-transparent border-none focus:outline-none text-sm"
+              className="h-8 border-0 bg-transparent p-0 text-sm focus-visible:ring-0"
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -572,18 +581,17 @@ export default function CheckInOutPage() {
               const isSelected = selectedIds.has(res.id);
               const needsPayment = (res.balanceAmount ?? 0) > 0;
               const needsSite = !res.siteId;
+              const hasIssues = needsPayment || needsSite;
               const readinessLabel = tab === "departures" ? "Ready to check out" : "Ready to check in";
 
               return (
                 <Card
                   key={res.id}
-                  className={`overflow-hidden border ${
-                    isSelected
-                      ? "border-blue-300 bg-blue-50/40"
-                      : needsPayment || needsSite
-                      ? "border-amber-200 bg-amber-50/40"
-                      : "border-border"
-                  } shadow-sm`}
+                  className={cn(
+                    "overflow-hidden border border-l-4 bg-card shadow-sm transition-colors",
+                    hasIssues ? "border-amber-200 border-l-amber-400" : "border-border border-l-border",
+                    isSelected && "ring-2 ring-emerald-200"
+                  )}
                 >
                   <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex items-start gap-3">
@@ -1092,19 +1100,37 @@ export default function CheckInOutPage() {
 
 function SummaryCard({ label, value, icon, href, onClick, highlight }: { label: string; value: string | number; icon: React.ReactNode; href?: string; onClick?: () => void; highlight?: boolean }) {
   const content = (
-    <div className={`card border p-4 shadow-sm flex items-center justify-between ${
-      highlight
-        ? "border-status-success/40 bg-status-success/10"
-        : "border-border bg-card"
-    }`}>
+    <div
+      className={cn(
+        "flex items-center justify-between rounded-xl border p-4 shadow-sm transition-colors",
+        highlight
+          ? "border-emerald-200 bg-emerald-50"
+          : "border-border bg-card hover:border-muted-foreground/30"
+      )}
+    >
       <div className="flex items-center gap-3">
-        <span className={`rounded-md p-2 ${highlight ? "bg-status-success/15 text-status-success" : "bg-muted text-muted-foreground"}`}>{icon}</span>
+        <span className={cn(
+          "rounded-lg p-2",
+          highlight ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+        )}>
+          {icon}
+        </span>
         <div>
-          <div className={`text-xs font-semibold uppercase tracking-wide ${highlight ? "text-status-success" : "text-muted-foreground"}`}>{label}</div>
-          <div className={`text-xl font-bold ${highlight ? "text-status-success" : "text-foreground"}`}>{value}</div>
+          <div className={cn(
+            "text-xs font-semibold tracking-wide",
+            highlight ? "text-emerald-700" : "text-muted-foreground"
+          )}>
+            {label}
+          </div>
+          <div className={cn(
+            "text-xl font-bold",
+            highlight ? "text-emerald-700" : "text-foreground"
+          )}>
+            {value}
+          </div>
         </div>
       </div>
-      <ArrowRight className={`h-4 w-4 ${highlight ? "text-status-success/60" : "text-muted-foreground"}`} />
+      <ArrowRight className={cn("h-4 w-4", highlight ? "text-emerald-400" : "text-muted-foreground")} />
     </div>
   );
   if (href) {
