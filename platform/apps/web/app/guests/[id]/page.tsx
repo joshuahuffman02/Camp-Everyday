@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
+import { PageHeader } from "../../../components/ui/layout/PageHeader";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { apiClient } from "../../../lib/api-client";
 import { useEffect, useMemo, useState } from "react";
@@ -15,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { Badge } from "../../../components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
-import { Trophy, Star, History, ArrowLeft, Trash2, Plus, Car, Truck, Mail, MessageSquare, GitBranch, RotateCcw, PlusCircle, Send, Wallet, DollarSign, ClipboardList, CreditCard, Calendar, ExternalLink, Phone, StickyNote, PhoneCall } from "lucide-react";
+import { Trophy, Star, History, ArrowLeft, Trash2, Plus, Car, Truck, Mail, MessageSquare, GitBranch, RotateCcw, PlusCircle, Send, Wallet, DollarSign, ClipboardList, CreditCard, Calendar, ExternalLink, Phone, StickyNote, PhoneCall, User } from "lucide-react";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -336,27 +337,36 @@ export default function GuestDetailPage() {
             <div className="space-y-6">
                 <Breadcrumbs items={[{ label: "Guests", href: "/guests" }, { label: `${guest.primaryFirstName} ${guest.primaryLastName}` }]} />
 
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Button variant="ghost" size="icon" onClick={() => router.push("/guests")}>
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                        <div>
-                            <h1 className="text-2xl font-bold text-foreground">{guest.primaryFirstName} {guest.primaryLastName}</h1>
-                            <div className="text-sm text-muted-foreground">{guest.email} • {guest.phone}</div>
-                        </div>
-                    </div>
-                    {guest.reservations?.[0] && (
-                        <Button
-                            variant="outline"
-                            className="gap-2"
-                            onClick={() => router.push(`/booking?guestId=${guest.id}`)}
-                        >
-                            <History className="h-4 w-4" />
-                            Rebook Last Trip
-                        </Button>
+                <PageHeader
+                    eyebrow="Guest"
+                    title={(
+                        <span className="flex items-center gap-3">
+                            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+                                <User className="h-5 w-5" />
+                            </span>
+                            <span>{guest.primaryFirstName} {guest.primaryLastName}</span>
+                        </span>
                     )}
-                </div>
+                    subtitle={`${guest.email ?? "No email"}${guest.phone ? ` • ${guest.phone}` : ""}`}
+                    actions={(
+                        <>
+                            <Button variant="secondary" onClick={() => router.push("/guests")}>
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Back to Guests
+                            </Button>
+                            {guest.reservations?.[0] && (
+                                <Button
+                                    variant="outline"
+                                    className="gap-2"
+                                    onClick={() => router.push(`/booking?guestId=${guest.id}`)}
+                                >
+                                    <History className="h-4 w-4" />
+                                    Rebook Last Trip
+                                </Button>
+                            )}
+                        </>
+                    )}
+                />
 
                 <Tabs defaultValue="overview" className="space-y-4">
                     <TabsList>

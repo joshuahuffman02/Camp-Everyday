@@ -2,12 +2,15 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
+import { PageHeader } from "../../components/ui/layout/PageHeader";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { apiClient } from "../../lib/api-client";
 import { useState, useMemo, useEffect, Fragment } from "react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Trophy, Star, Car, Plus, Trash2, Download, ChevronDown, ChevronUp, Users, Crown, UserPlus, Merge } from "lucide-react";
 import { FilterChip } from "../../components/ui/filter-chip";
 import { StaggeredTableRow } from "../../components/ui/staggered-list";
@@ -629,12 +632,33 @@ export default function GuestsPage() {
   };
 
   return (
-    <DashboardShell
-      title="Guests"
-      subtitle="Search, segment, and manage guest profiles."
-    >
+    <DashboardShell>
       <div className="space-y-4">
         <Breadcrumbs items={[{ label: "Guests" }]} />
+        <PageHeader
+          eyebrow="Guests"
+          title={(
+            <span className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+                <Users className="h-5 w-5" />
+              </span>
+              <span>Guest profiles</span>
+            </span>
+          )}
+          subtitle="Search, segment, and manage guest profiles."
+          actions={(
+            <>
+              <Button variant="secondary" onClick={handleExportCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button onClick={() => setShowAddForm(!showAddForm)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                {showAddForm ? "Hide form" : "Add guest"}
+              </Button>
+            </>
+          )}
+        />
 
         {flash && (
           <div
@@ -652,42 +676,52 @@ export default function GuestsPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <Card>
+          <Card className="border-border shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Total Guests</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Total Guests
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
               <div className="text-2xl font-semibold text-foreground flex items-center gap-2">
-                <Users className="h-5 w-5 text-muted-foreground" />
                 {totalGuests}
               </div>
               <div className="text-xs text-muted-foreground">In database</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-border shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">VIP Guests</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                <Crown className="h-4 w-4 text-status-warning" />
+                VIP Guests
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
               <div className="text-2xl font-semibold text-foreground flex items-center gap-2">
-                <Crown className="h-5 w-5 text-status-warning" />
                 {vipGuests}
               </div>
               <div className="text-xs text-muted-foreground">{totalGuests > 0 ? Math.round((vipGuests / totalGuests) * 100) : 0}% of total</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-border shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Marketing Opt-in</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                <Star className="h-4 w-4 text-muted-foreground" />
+                Marketing Opt-in
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
               <div className="text-2xl font-semibold text-foreground">{optedInGuests}</div>
               <div className="text-xs text-muted-foreground">Can receive marketing</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-border shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Showing</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Showing
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-1">
               <div className="text-2xl font-semibold text-foreground">{filteredAndSortedGuests.length}</div>
@@ -697,87 +731,83 @@ export default function GuestsPage() {
         </div>
 
         {/* Filters & Actions Bar */}
-        <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
-              Filters & exports
-              {hasFilters && (
-                <span className="rounded-full bg-status-success-bg text-status-success-text border border-status-success-border px-2 py-0.5 text-[11px] font-semibold">
-                  filters on
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={!hasFilters}
-                onClick={() => {
-                  setSearch("");
-                  setVipFilter("all");
-                }}
-              >
-                Clear all filters
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              className="rounded-md border border-border px-2 py-1 text-sm w-64"
-              placeholder="Search name, email, phone…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <select
-              className="rounded-md border border-border px-2 py-1 text-sm"
-              value={vipFilter}
-              onChange={(e) => setVipFilter(e.target.value as "all" | "vip" | "regular")}
-            >
-              <option value="all">All guests</option>
-              <option value="vip">VIP only</option>
-              <option value="regular">Regular only</option>
-            </select>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setVipFilter("vip")}
-            >
-              <Crown className="h-3 w-3 mr-1" />
-              VIP guests
-            </Button>
-            <div className="flex-1" />
-            {selectedGuestIds.size > 0 && (
-              <div className="flex items-center gap-2 px-2 py-1 bg-muted rounded-md text-sm">
-                <span className="text-muted-foreground">{selectedGuestIds.size} selected</span>
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+                Filters & exports
+                {hasFilters && (
+                  <span className="rounded-full bg-status-success/15 text-status-success border border-status-success/30 px-2 py-0.5 text-[11px] font-semibold">
+                    filters on
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2"
-                  onClick={() => setSelectedGuestIds(new Set())}
+                  disabled={!hasFilters}
+                  onClick={() => {
+                    setSearch("");
+                    setVipFilter("all");
+                  }}
                 >
-                  Clear
+                  Clear all filters
                 </Button>
               </div>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowMergeDialog(true)}
-              disabled={!canMerge}
-              title={canMerge ? "Merge selected guests" : "Select exactly 2 guests to merge"}
-            >
-              <Merge className="h-4 w-4 mr-1" />
-              Merge
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-1" />
-              Export CSV
-            </Button>
-            <Button size="sm" onClick={() => setShowAddForm(!showAddForm)}>
-              <UserPlus className="h-4 w-4 mr-1" />
-              {showAddForm ? "Hide form" : "Add guest"}
-            </Button>
-          </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                className="h-9 w-full sm:w-64"
+                placeholder="Search name, email, phone…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <Select value={vipFilter} onValueChange={(value) => setVipFilter(value as "all" | "vip" | "regular")}>
+                <SelectTrigger className="h-9 w-full sm:w-40">
+                  <SelectValue placeholder="All guests" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All guests</SelectItem>
+                  <SelectItem value="vip">VIP only</SelectItem>
+                  <SelectItem value="regular">Regular only</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setVipFilter("vip")}
+              >
+                <Crown className="h-3 w-3 mr-1" />
+                VIP guests
+              </Button>
+              <div className="flex-1" />
+              {selectedGuestIds.size > 0 && (
+                <div className="flex items-center gap-2 px-2 py-1 bg-muted rounded-md text-sm">
+                  <span className="text-muted-foreground">{selectedGuestIds.size} selected</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2"
+                    onClick={() => setSelectedGuestIds(new Set())}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMergeDialog(true)}
+                disabled={!canMerge}
+                title={canMerge ? "Merge selected guests" : "Select exactly 2 guests to merge"}
+              >
+                <Merge className="h-4 w-4 mr-1" />
+                Merge
+              </Button>
+            </div>
 
           {/* Active Filter Pills */}
           {hasFilters && (
@@ -816,7 +846,8 @@ export default function GuestsPage() {
               )}
             </div>
           )}
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Collapsible Add Guest Form */}
         {showAddForm && (
