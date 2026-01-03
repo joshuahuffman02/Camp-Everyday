@@ -48,6 +48,39 @@ export default function AccountSettingsPage() {
   const displayEmail = whoamiUser?.email || sessionUser?.email || "";
   const platformRole = whoamiUser?.platformRole || null;
   const memberships = (whoamiUser?.memberships ?? []) as Membership[];
+  const isAuthenticated = Boolean(displayEmail || displayName !== "Signed in");
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <PageHeader
+          eyebrow="Account"
+          title={(
+            <span className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+                <User className="h-5 w-5" />
+              </span>
+              <span>My Profile</span>
+            </span>
+          )}
+          subtitle="Sign in to view your profile and access details."
+          actions={(
+            <Button asChild>
+              <Link href="/auth/signin">Sign in</Link>
+            </Button>
+          )}
+        />
+
+        <div className="mt-6">
+          <Card className="border-border">
+            <CardContent className="p-6 text-sm text-muted-foreground">
+              You're currently signed out. Sign in to view your profile, team role, and campground access.
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

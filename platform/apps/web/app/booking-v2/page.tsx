@@ -196,6 +196,8 @@ function BookingPageInner() {
     siteId: initialSiteId,
     siteClassId: initialSiteClassId,
     lockSite: false,
+    assignSpecificSite: false,
+    siteAssignmentNote: "",
     notes: "",
     referralSource: "",
     stayReason: "",
@@ -258,6 +260,8 @@ function BookingPageInner() {
       siteId: restoredData.siteId || prev.siteId,
       siteClassId: restoredData.siteClassId || prev.siteClassId,
       lockSite: restoredData.lockSite ?? prev.lockSite,
+      assignSpecificSite: restoredData.assignSpecificSite ?? prev.assignSpecificSite,
+      siteAssignmentNote: restoredData.siteAssignmentNote || prev.siteAssignmentNote,
       notes: restoredData.notes || prev.notes,
       referralSource: restoredData.referralSource || prev.referralSource,
       stayReason: restoredData.stayReason || prev.stayReason,
@@ -310,7 +314,13 @@ function BookingPageInner() {
     }
 
     if (!formData.siteId) {
-      errors.site = "Please select a site";
+      if (!formData.siteClassId) {
+        errors.site = "Please select a site class";
+      } else if (formData.assignSpecificSite) {
+        errors.site = "Select a specific site or turn off manual assignment";
+      } else {
+        errors.site = "No available sites match this class and stay details";
+      }
     }
 
     // Only validate payment if we're collecting payment now
@@ -414,6 +424,10 @@ function BookingPageInner() {
   const siteClassByName = useMemo(() => {
     return new Map((siteClassesQuery.data || []).map((siteClass) => [siteClass.name.toLowerCase(), siteClass]));
   }, [siteClassesQuery.data]);
+  const selectedSiteClass = useMemo(() => {
+    if (!formData.siteClassId) return null;
+    return (siteClassesQuery.data || []).find((siteClass) => siteClass.id === formData.siteClassId) || null;
+  }, [formData.siteClassId, siteClassesQuery.data]);
 
   useEffect(() => {
     if (siteClassFilter === "all") return;
@@ -422,6 +436,7 @@ function BookingPageInner() {
       setSiteClassFilter("all");
     }
   }, [siteClassesQuery.data, siteClassFilter]);
+  const activeSiteClassFilter = formData.siteClassId || siteClassFilter;
   const rigLengthValue = Number(formData.rigLength);
   const hasRigLength = Number.isFinite(rigLengthValue) && rigLengthValue > 0;
   const isRvRigType = RV_RIG_TYPES.has(formData.rigType);
@@ -438,7 +453,7 @@ function BookingPageInner() {
     return sites.filter((site) => {
       if (availableOnly && site.status !== "available") return false;
       if (siteTypeFilter !== "all" && site.siteType !== siteTypeFilter) return false;
-      if (siteClassFilter !== "all" && site.siteClassId !== siteClassFilter) return false;
+      if (activeSiteClassFilter !== "all" && site.siteClassId !== activeSiteClassFilter) return false;
       if (rigTypeFilter && !rigTypeFilter.has(site.siteType)) return false;
       if (hasRigLength && rigTypeFilter?.has("rv")) {
         const siteMaxLength =
@@ -453,7 +468,7 @@ function BookingPageInner() {
     siteStatusQuery.data,
     availableOnly,
     siteTypeFilter,
-    siteClassFilter,
+    activeSiteClassFilter,
     isRvRigType,
     rigTypeFilter,
     hasRigLength,
@@ -461,13 +476,56 @@ function BookingPageInner() {
     siteClassById
   ]);
 
+  const autoAssignableSites = useMemo(() => {
+    const sites = siteStatusQuery.data || [];
+    return sites.filter((site) => {
+      if (site.status !== "available") return false;
+      if (formData.siteClassId && site.siteClassId !== formData.siteClassId) return false;
+      if (rigTypeFilter && !rigTypeFilter.has(site.siteType)) return false;
+      if (hasRigLength && rigTypeFilter?.has("rv")) {
+        const siteMaxLength =
+          (site as { rigMaxLength?: number | null }).rigMaxLength ??
+          siteClassById.get(site.siteClassId ?? "")?.rigMaxLength ??
+          null;
+        if (siteMaxLength && rigLengthValue > siteMaxLength) return false;
+      }
+      return true;
+    });
+  }, [siteStatusQuery.data, formData.siteClassId, rigTypeFilter, hasRigLength, rigLengthValue, siteClassById]);
+
+  const siteClassStats = useMemo(() => {
+    const stats = new Map<string, { total: number; available: number }>();
+    const sites = siteStatusQuery.data || [];
+    sites.forEach((site) => {
+      if (rigTypeFilter && !rigTypeFilter.has(site.siteType)) return;
+      if (hasRigLength && rigTypeFilter?.has("rv")) {
+        const siteMaxLength =
+          (site as { rigMaxLength?: number | null }).rigMaxLength ??
+          siteClassById.get(site.siteClassId ?? "")?.rigMaxLength ??
+          null;
+        if (siteMaxLength && rigLengthValue > siteMaxLength) return;
+      }
+      const classId = site.siteClassId || "unknown";
+      const current = stats.get(classId) || { total: 0, available: 0 };
+      current.total += 1;
+      if (site.status === "available") current.available += 1;
+      stats.set(classId, current);
+    });
+    return stats;
+  }, [siteStatusQuery.data, rigTypeFilter, hasRigLength, rigLengthValue, siteClassById]);
+
   useEffect(() => {
-    if (formData.siteId || !formData.siteClassId) return;
-    const match = filteredSites.find((site) => site.siteClassId === formData.siteClassId);
+    if (formData.siteId || !formData.siteClassId || formData.assignSpecificSite) return;
+    const match = autoAssignableSites[0];
     if (match) {
       setFormData((prev) => ({ ...prev, siteId: match.id }));
     }
-  }, [filteredSites, formData.siteId, formData.siteClassId]);
+  }, [autoAssignableSites, formData.siteId, formData.siteClassId, formData.assignSpecificSite]);
+
+  useEffect(() => {
+    if (!formData.siteClassId) return;
+    setSiteClassFilter(formData.siteClassId);
+  }, [formData.siteClassId]);
 
   const selectedSite = useMemo(() => {
     const all = siteStatusQuery.data || [];
@@ -492,7 +550,10 @@ function BookingPageInner() {
     enabled: !!selectedCampground?.id && !!formData.siteId && dateRangeValid
   });
 
-  const lockFeeCents = formData.lockSite && siteLockFeeCents > 0 ? siteLockFeeCents : 0;
+  const lockFeeCents =
+    formData.assignSpecificSite && formData.lockSite && siteLockFeeCents > 0
+      ? siteLockFeeCents
+      : 0;
   const fallbackRateCents = (() => {
     if (selectedSite?.defaultRate !== null && selectedSite?.defaultRate !== undefined) {
       return selectedSite.defaultRate;
@@ -696,6 +757,15 @@ function BookingPageInner() {
           ? `Cash received $${(cashReceivedCents / 100).toFixed(2)}${cashChangeDueCents ? ` • Change due $${(cashChangeDueCents / 100).toFixed(2)}` : ""}`
           : "";
       const paymentNotes = [formData.paymentNotes, cashNote].filter(Boolean).join(" • ") || undefined;
+      const staffAssignmentNote =
+        formData.assignSpecificSite && selectedSite
+          ? `[Staff override] Assigned site ${selectedSite.name}${formData.lockSite ? " (site selection fee applied)" : " (fee waived)"}`
+          : null;
+      const staffOnlyNote =
+        formData.assignSpecificSite && formData.siteAssignmentNote
+          ? `[Staff note] ${formData.siteAssignmentNote}`
+          : null;
+      const combinedNotes = [formData.notes, staffAssignmentNote, staffOnlyNote].filter(Boolean).join("\n") || undefined;
       const needsOverride = lockFeeCents > 0 || pricingIsEstimate || quoteQuery.isError;
       const overrideReason = lockFeeCents > 0 ? "Site lock fee" : needsOverride ? "Manual rate estimate" : undefined;
       const overrideApprovedBy = overrideReason ? whoami?.user?.id || undefined : undefined;
@@ -713,7 +783,7 @@ function BookingPageInner() {
         pets: formData.pets,
         rigType: formData.rigType || undefined,
         rigLength: formData.rigLength ? Number(formData.rigLength) : undefined,
-        notes: formData.notes || undefined,
+        notes: combinedNotes,
         referralSource: formData.referralSource || undefined,
         stayReasonPreset: formData.stayReason || undefined,
         totalAmount: totalCents,
@@ -892,9 +962,19 @@ function BookingPageInner() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
+                    <span>Class</span>
+                    <span className="text-foreground/80">
+                      {selectedSiteClass?.name || "Select class"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
                     <span>Site</span>
                     <span className="text-foreground/80">
-                      {selectedSite?.name || "Not selected"}
+                      {formData.assignSpecificSite
+                        ? (selectedSite?.name || "Select site")
+                        : selectedSite
+                        ? `Auto: ${selectedSite.name}`
+                        : "Auto-assign"}
                     </span>
                   </div>
                 </div>
@@ -910,7 +990,7 @@ function BookingPageInner() {
         )}
 
         {selectedCampground && (
-          <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)_320px]">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
             <div className="space-y-6">
               <Card
                 className={cn(
@@ -1264,6 +1344,261 @@ function BookingPageInner() {
                 </div>
               </Card>
 
+              <Card
+                className={cn(
+                  "p-6",
+                  validationErrors.site && "border-destructive/40 ring-2 ring-destructive/10"
+                )}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Site selection
+                    </div>
+                    <div className="text-base font-semibold text-foreground">Choose a site class</div>
+                    <p className="text-xs text-muted-foreground">
+                      Guests book by class. Specific site numbers add a selection fee, with staff override available.
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="h-fit text-[10px]">
+                    {formData.assignSpecificSite ? "Manual override" : "Auto-assign"}
+                  </Badge>
+                </div>
+                {validationErrors.site && (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-destructive" role="alert">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{validationErrors.site}</span>
+                  </div>
+                )}
+
+                <div className="mt-4 space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {(siteClassesQuery.data || []).map((siteClass) => {
+                      const stats = siteClassStats.get(siteClass.id);
+                      const available = stats?.available ?? 0;
+                      const total = stats?.total ?? 0;
+                      const isSelected = formData.siteClassId === siteClass.id;
+                      const availabilityLabel = dateRangeValid
+                        ? `${available} of ${total} available`
+                        : "Select dates for availability";
+
+                      return (
+                        <button
+                          key={siteClass.id}
+                          type="button"
+                          className={cn(
+                            "rounded-xl border p-3 text-left transition",
+                            isSelected
+                              ? "border-status-success-border bg-status-success-bg ring-1 ring-status-success/20"
+                              : "border-border hover:border-status-success/40 hover:bg-muted/30"
+                          )}
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              siteClassId: siteClass.id,
+                              siteId: ""
+                            }));
+                            if (validationErrors.site) {
+                              setValidationErrors((prev) => ({ ...prev, site: undefined }));
+                            }
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold text-foreground">{siteClass.name}</div>
+                            {isSelected && (
+                              <Badge variant="outline" className="text-[10px]">Selected</Badge>
+                            )}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">{availabilityLabel}</div>
+                          {typeof siteClass.defaultRate === "number" && (
+                            <div className="mt-2 text-xs text-foreground/80">
+                              From ${(siteClass.defaultRate / 100).toFixed(0)}/night
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {siteClassesQuery.data && siteClassesQuery.data.length === 0 && (
+                      <div className="col-span-full rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                        No site classes configured yet.
+                      </div>
+                    )}
+                  </div>
+
+                  {!formData.siteClassId && (
+                    <div className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                      Select a site class to continue.
+                    </div>
+                  )}
+
+                  {formData.siteClassId && !formData.assignSpecificSite && (
+                    <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-foreground">Auto-assigned site</span>
+                        <span className="text-foreground/80">
+                          {selectedSite?.name || "Pending availability"}
+                        </span>
+                      </div>
+                      <p className="mt-1">
+                        We'll assign the next available site in {selectedSiteClass?.name || "this class"}.
+                        Specific site numbers add a selection fee.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-dashed border-border px-4 py-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-foreground">Assign a specific site (staff override)</div>
+                        <p className="text-xs text-muted-foreground">
+                          Guests pay a site selection fee to choose a specific site. Staff can waive or apply the fee and leave a note.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formData.assignSpecificSite}
+                        onCheckedChange={(value) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            assignSpecificSite: value,
+                            lockSite: value ? prev.lockSite : false,
+                            siteId: value ? prev.siteId : ""
+                          }));
+                        }}
+                      />
+                    </div>
+
+                    {formData.assignSpecificSite && (
+                      <div className="mt-4 space-y-4">
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <Switch checked={availableOnly} onCheckedChange={setAvailableOnly} />
+                            Available only
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={formData.lockSite}
+                              onCheckedChange={(value) => setFormData((prev) => ({ ...prev, lockSite: value }))}
+                              disabled={siteLockFeeCents <= 0}
+                            />
+                            {siteLockFeeCents > 0
+                              ? `Charge site selection fee (+$${(siteLockFeeCents / 100).toFixed(2)})`
+                              : "No site selection fee configured"}
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Site type</Label>
+                            <Select value={siteTypeFilter} onValueChange={setSiteTypeFilter}>
+                              <SelectTrigger className="h-9" disabled={!formData.siteClassId}>
+                                <SelectValue placeholder="All types" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="rv">RV</SelectItem>
+                                <SelectItem value="tent">Tent</SelectItem>
+                                <SelectItem value="cabin">Cabin</SelectItem>
+                                <SelectItem value="group">Group</SelectItem>
+                                <SelectItem value="glamping">Glamping</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                            <span>Matches</span>
+                            <span className="font-semibold text-foreground">
+                              {formData.siteClassId ? filteredSites.length : 0}
+                            </span>
+                          </div>
+                        </div>
+
+                        {!formData.siteClassId && (
+                          <div className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                            Select a site class to view sites.
+                          </div>
+                        )}
+
+                        {formData.siteClassId && !dateRangeValid && (
+                          <div className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                            Select arrival and departure dates to view available sites.
+                          </div>
+                        )}
+
+                        {formData.siteClassId && dateRangeValid && (
+                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {filteredSites.map((site) => {
+                              const typeKey = (site.siteType || "").toLowerCase();
+                              const meta = SITE_TYPE_STYLES[typeKey] || SITE_TYPE_STYLES.default;
+                              const displayName = site.name.replace(new RegExp(`^${meta.label}\\s+`, "i"), "");
+                              const displayNum = site.siteNumber.replace(new RegExp(`^${meta.label}`, "i"), "");
+                              const displayClass = (site.siteClassName || "Class").replace(new RegExp(`\\s+${meta.label}$`, "i"), "");
+                              const isSelected = formData.siteId === site.id;
+                              const isDisabled = site.status !== "available";
+
+                              return (
+                                <button
+                                  key={site.id}
+                                  type="button"
+                                  className={cn(
+                                    "rounded-xl border border-l-4 p-3 text-left transition-all",
+                                    isSelected
+                                      ? "border-status-success-border bg-status-success-bg ring-1 ring-status-success/20"
+                                      : "border-border hover:border-status-success/40 hover:bg-muted/30",
+                                    isDisabled && "opacity-60 cursor-not-allowed",
+                                    meta.border
+                                  )}
+                                  disabled={isDisabled}
+                                  onClick={() => {
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      siteId: site.id,
+                                      assignSpecificSite: true
+                                    }));
+                                    if (validationErrors.site) {
+                                      setValidationErrors((prev) => ({ ...prev, site: undefined }));
+                                    }
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-sm font-semibold text-foreground">{displayName}</div>
+                                    <Badge className={cn("text-[10px]", meta.badge)}>{meta.label}</Badge>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">#{displayNum} • {displayClass}</div>
+                                  <div className="mt-2 flex items-center justify-between text-xs">
+                                    <span className="text-muted-foreground">{site.statusDetail || site.status}</span>
+                                    {site.defaultRate ? (
+                                      <span className="font-semibold text-foreground/80">${(site.defaultRate / 100).toFixed(0)}/night</span>
+                                    ) : null}
+                                  </div>
+                                </button>
+                              );
+                            })}
+
+                            {filteredSites.length === 0 && (
+                              <div className="col-span-full rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                                No sites match your filters. Try changing the site type or availability.
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Staff-only note</Label>
+                          <Textarea
+                            rows={3}
+                            value={formData.siteAssignmentNote}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, siteAssignmentNote: e.target.value }))}
+                            placeholder="Why was this specific site assigned?"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Internal-only. Helps document why a specific site was assigned.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+
               {filteredMatches.length > 0 && (
                 <Card className="p-6">
                   <div className="flex items-center justify-between">
@@ -1272,6 +1607,9 @@ function BookingPageInner() {
                         Recommendations
                       </div>
                       <div className="text-base font-semibold text-foreground">Suggested sites</div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Choosing a site here enables manual assignment.
+                      </p>
                     </div>
                     <Sparkles className="h-4 w-4 text-status-info" />
                   </div>
@@ -1299,7 +1637,11 @@ function BookingPageInner() {
                           key={match.site.id}
                           type="button"
                           className="w-full rounded-lg border border-status-info-border bg-status-info-bg px-3 py-2.5 text-left text-sm hover:bg-status-info-bg/70 transition-colors"
-                          onClick={() => setFormData((prev) => ({ ...prev, siteId: match.site.id }))}
+                          onClick={() => setFormData((prev) => ({
+                            ...prev,
+                            siteId: match.site.id,
+                            assignSpecificSite: true
+                          }))}
                         >
                           <div className="flex items-center justify-between mb-1.5">
                             <div className="font-semibold text-foreground">{match.site.name}</div>
@@ -1323,130 +1665,7 @@ function BookingPageInner() {
               )}
             </div>
 
-            <div className="space-y-6">
-              <Card
-                className={cn(
-                  "p-6",
-                  validationErrors.site && "border-destructive/40 ring-2 ring-destructive/10"
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                      Availability
-                    </div>
-                    <div className="text-base font-semibold text-foreground">Select a site</div>
-                    <p className="text-xs text-muted-foreground">
-                      Filter by type or class, then pick the best fit.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Switch checked={availableOnly} onCheckedChange={setAvailableOnly} />
-                    Available only
-                  </div>
-                </div>
-                {validationErrors.site && (
-                  <div className="mt-3 flex items-center gap-2 text-sm text-destructive" role="alert">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{validationErrors.site}</span>
-                  </div>
-                )}
-
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Site type</Label>
-                    <Select value={siteTypeFilter} onValueChange={setSiteTypeFilter}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="All types" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="rv">RV</SelectItem>
-                        <SelectItem value="tent">Tent</SelectItem>
-                        <SelectItem value="cabin">Cabin</SelectItem>
-                        <SelectItem value="group">Group</SelectItem>
-                        <SelectItem value="glamping">Glamping</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Site class</Label>
-                    <Select value={siteClassFilter} onValueChange={setSiteClassFilter}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="All classes" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        {(siteClassesQuery.data || []).map((cls) => (
-                          <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    <span>Matches</span>
-                    <span className="font-semibold text-foreground">{filteredSites.length}</span>
-                  </div>
-                </div>
-
-                {!dateRangeValid && (
-                  <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                    Select arrival and departure dates to view availability.
-                  </div>
-                )}
-
-                {dateRangeValid && (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {filteredSites.map((site) => {
-                      const typeKey = (site.siteType || "").toLowerCase();
-                      const meta = SITE_TYPE_STYLES[typeKey] || SITE_TYPE_STYLES.default;
-                      const displayName = site.name.replace(new RegExp(`^${meta.label}\\s+`, 'i'), '');
-                      const displayNum = site.siteNumber.replace(new RegExp(`^${meta.label}`, 'i'), '');
-                      const displayClass = (site.siteClassName || "Class").replace(new RegExp(`\\s+${meta.label}$`, 'i'), '');
-                      const isSelected = formData.siteId === site.id;
-                      const isDisabled = site.status !== "available";
-
-                      return (
-                        <button
-                          key={site.id}
-                          type="button"
-                          className={cn(
-                            "rounded-xl border border-l-4 p-3 text-left transition-all",
-                            isSelected
-                              ? "border-status-success-border bg-status-success-bg ring-1 ring-status-success/20"
-                              : "border-border hover:border-status-success/40 hover:bg-muted/30",
-                            isDisabled && "opacity-60 cursor-not-allowed",
-                            meta.border
-                          )}
-                          disabled={isDisabled}
-                          onClick={() => setFormData((prev) => ({ ...prev, siteId: site.id }))}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-foreground">{displayName}</div>
-                            <Badge className={cn("text-[10px]", meta.badge)}>{meta.label}</Badge>
-                          </div>
-                          <div className="text-xs text-muted-foreground">#{displayNum} • {displayClass}</div>
-                          <div className="mt-2 flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">{site.statusDetail || site.status}</span>
-                            {site.defaultRate ? (
-                              <span className="font-semibold text-foreground/80">${(site.defaultRate / 100).toFixed(0)}/night</span>
-                            ) : null}
-                          </div>
-                        </button>
-                      );
-                    })}
-
-                    {filteredSites.length === 0 && (
-                      <div className="col-span-full rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-                        No sites match your filters. Try changing the site type or class.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Card>
-            </div>
-
-            <div className="space-y-6">
+            <div className="space-y-6 lg:sticky lg:top-20 self-start h-fit">
               <Card className="p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
@@ -1464,8 +1683,20 @@ function BookingPageInner() {
                 {/* Booking summary */}
                 <div className="mt-4 space-y-2 text-sm">
                   <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Class</span>
+                    <span className="font-semibold text-foreground">
+                      {selectedSiteClass?.name || "Select class"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Site</span>
-                    <span className="font-semibold text-foreground">{selectedSite?.name || "Select a site"}</span>
+                    <span className="font-semibold text-foreground">
+                      {formData.assignSpecificSite
+                        ? (selectedSite?.name || "Select site")
+                        : selectedSite
+                        ? `Auto: ${selectedSite.name}`
+                        : "Auto-assign"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Dates</span>
@@ -1487,6 +1718,18 @@ function BookingPageInner() {
                       {formData.pets > 0 && `, ${formData.pets} pet${formData.pets !== 1 ? "s" : ""}`}
                     </span>
                   </div>
+                  {formData.assignSpecificSite && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Site selection fee</span>
+                      <span className="font-semibold text-foreground">
+                        {siteLockFeeCents > 0
+                          ? formData.lockSite
+                            ? `+$${(siteLockFeeCents / 100).toFixed(2)}`
+                            : "Waived"
+                          : "Not configured"}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {(quoteQuery.isError || pricingIsEstimate) && (
@@ -1616,7 +1859,7 @@ function BookingPageInner() {
                           <div className="flex items-center gap-1.5">
                             <span className="flex items-center gap-1 text-muted-foreground">
                               <Lock className="h-3 w-3" />
-                              Site reservation fee
+                              Site selection fee
                             </span>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1626,8 +1869,8 @@ function BookingPageInner() {
                               </TooltipTrigger>
                               <TooltipContent className="max-w-xs">
                                 <p className="text-xs">
-                                  One-time fee to guarantee this specific site for your stay.
-                                  Without this, you'll receive a site from the same class but not a specific site number.
+                                  One-time fee to guarantee a specific site number for this stay.
+                                  Without this, the guest is assigned the next available site within the selected class.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
@@ -1658,17 +1901,6 @@ function BookingPageInner() {
                     </CollapsibleContent>
                   </Collapsible>
                 </TooltipProvider>
-
-                <div className="mt-4 flex items-center gap-2">
-                  <Switch
-                    checked={formData.lockSite}
-                    onCheckedChange={(value) => setFormData((prev) => ({ ...prev, lockSite: value }))}
-                  />
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Lock className="h-3 w-3" />
-                    Lock this site {siteLockFeeCents > 0 ? `(+$${(siteLockFeeCents / 100).toFixed(2)})` : ""}
-                  </div>
-                </div>
 
                 <div className="mt-4 border-t border-border pt-4">
                   <div className="flex items-center justify-between mb-3">

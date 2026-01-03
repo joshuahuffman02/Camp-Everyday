@@ -219,9 +219,10 @@ export function AdminTopBar({
     const userId = session?.user?.id;
     const userName = session?.user?.name?.trim();
     const userEmail = session?.user?.email?.trim();
-    const displayName = userName || userEmail || "Signed in";
-    const displayEmail = userName && userEmail && userEmail !== userName ? userEmail : "";
-    const initialsSource = userName || userEmail || "U";
+    const isAuthenticated = !!userId;
+    const displayName = isAuthenticated ? (userName || userEmail || "Signed in") : "Sign in";
+    const displayEmail = isAuthenticated && userName && userEmail && userEmail !== userName ? userEmail : "";
+    const initialsSource = isAuthenticated ? (userName || userEmail || "U") : "SI";
     const initials = initialsSource
         .split(" ")
         .filter(Boolean)
@@ -342,15 +343,15 @@ export function AdminTopBar({
                 {/* Right - Operations, Notifications & Menu */}
                 <div className="flex items-center gap-2">
                     <Link
-                        href="/dashboard/settings/account"
+                        href={isAuthenticated ? "/dashboard/settings/account" : "/auth/signin"}
                         className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-muted text-foreground text-xs font-semibold transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2 sm:hidden"
-                        aria-label="View profile"
+                        aria-label={isAuthenticated ? "View profile" : "Sign in"}
                         title={displayEmail ? `${displayName} · ${displayEmail}` : displayName}
                     >
                         {initials}
                     </Link>
                     <Link
-                        href="/dashboard/settings/account"
+                        href={isAuthenticated ? "/dashboard/settings/account" : "/auth/signin"}
                         className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2"
                         title={displayEmail ? `${displayName} · ${displayEmail}` : displayName}
                     >
@@ -358,7 +359,9 @@ export function AdminTopBar({
                             {initials}
                         </div>
                         <div className="min-w-0 leading-tight">
-                            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Signed in</div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                {isAuthenticated ? "Signed in" : "Not signed in"}
+                            </div>
                             <div className="text-sm font-semibold text-foreground max-w-[140px] truncate">
                                 {displayName}
                             </div>
@@ -540,17 +543,30 @@ export function AdminTopBar({
                                 </Link>
 
                                 {/* My Profile */}
-                                <Link
-                                    href="/dashboard/settings/account"
-                                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/40 transition-colors"
-                                    onClick={() => setIsMenuOpen(false)}
-                                >
-                                    <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                        <circle cx="12" cy="8" r="4" />
-                                        <path d="M4 20c0-4.418 3.582-8 8-8s8 3.582 8 8" />
-                                    </svg>
-                                    My Profile
-                                </Link>
+                                {isAuthenticated ? (
+                                    <Link
+                                        href="/dashboard/settings/account"
+                                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/40 transition-colors"
+                                        onClick={() => setIsMenuOpen(false)}
+                                    >
+                                        <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                            <circle cx="12" cy="8" r="4" />
+                                            <path d="M4 20c0-4.418 3.582-8 8-8s8 3.582 8 8" />
+                                        </svg>
+                                        My Profile
+                                    </Link>
+                                ) : (
+                                    <Link
+                                        href="/auth/signin"
+                                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/40 transition-colors"
+                                        onClick={() => setIsMenuOpen(false)}
+                                    >
+                                        <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12H3m0 0 4-4m-4 4 4 4M21 19V5a2 2 0 0 0-2-2h-6" />
+                                        </svg>
+                                        Sign in
+                                    </Link>
+                                )}
 
                                 {/* Billing */}
                                 <Link
@@ -617,19 +633,20 @@ export function AdminTopBar({
                                 {/* Divider */}
                                 <div className="my-2 border-t border-border/70" />
 
-                                {/* Sign Out */}
-                                <button
-                                    onClick={() => {
-                                        localStorage.removeItem("campreserv:authToken");
-                                        signOut({ callbackUrl: "/auth/signin" });
-                                    }}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-status-error-bg hover:text-status-error-text transition-colors"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                    </svg>
-                                    Sign Out
-                                </button>
+                                {isAuthenticated && (
+                                    <button
+                                        onClick={() => {
+                                            localStorage.removeItem("campreserv:authToken");
+                                            signOut({ callbackUrl: "/auth/signin" });
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-status-error-bg hover:text-status-error-text transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                        </svg>
+                                        Sign Out
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

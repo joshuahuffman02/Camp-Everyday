@@ -47,6 +47,8 @@ export interface BookingFormData {
   siteTypeFilter: string;
   siteClassFilter: string;
   lockSite: boolean;
+  assignSpecificSite?: boolean;
+  siteAssignmentNote?: string;
 
   // Notes and preferences
   notes: string;
