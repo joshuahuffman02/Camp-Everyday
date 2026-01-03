@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/layout/PageHeader";
-import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { useWhoami } from "@/hooks/use-whoami";
 import { User, Shield, Users } from "lucide-react";
 
@@ -51,7 +50,7 @@ export default function AccountSettingsPage() {
   const memberships = (whoamiUser?.memberships ?? []) as Membership[];
 
   return (
-    <DashboardShell>
+    <>
       <PageHeader
         eyebrow="Account"
         title={(
@@ -145,6 +144,6 @@ export default function AccountSettingsPage() {
           </CardContent>
         </Card>
       </div>
-    </DashboardShell>
+    </>
   );
 }
