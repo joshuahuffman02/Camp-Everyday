@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { CharityImpactWidget } from "@/components/charity/CharityImpactWidget";
 import { SetupQueueWidget } from "@/components/onboarding/SetupQueueWidget";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Reservation = {
@@ -260,16 +261,16 @@ function TodaysWins({
       transition={{ ...SPRING_CONFIG, delay: 0.15 }}
       className={cn(
         "rounded-xl p-4",
-        "bg-emerald-50",
-        "border border-emerald-200"
+        "bg-muted/30",
+        "border border-border/70"
       )}
     >
       <div className="flex items-center gap-2 mb-3">
-        <Trophy className="h-4 w-4 text-emerald-600" />
-        <span className="text-sm font-semibold text-emerald-700">
+        <Trophy className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-semibold text-foreground">
           Today's Wins
         </span>
-        <span className="text-xs text-emerald-600">
+        <span className="text-xs text-muted-foreground">
           {achievements.length} achievement{achievements.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -283,8 +284,7 @@ function TodaysWins({
             className={cn(
               "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm",
               "bg-card",
-              "border border-emerald-200",
-              "shadow-sm"
+              "border border-border/70"
             )}
           >
             {achievement.icon}
@@ -315,7 +315,7 @@ function CelebrationBadge({
       transition={{ type: "spring" as const, duration: 0.5, delay: 0.3 }}
       className={cn(
         "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
-        "bg-emerald-600 text-white",
+        "bg-card text-foreground border border-border",
         "shadow-sm"
       )}
     >
@@ -326,7 +326,7 @@ function CelebrationBadge({
         }}
         transition={{ duration: 0.6, delay: 0.5 }}
       >
-        <Sparkles className="h-4 w-4" />
+        <Sparkles className="h-4 w-4 text-amber-500" />
       </motion.div>
       {message}
     </motion.div>
@@ -624,7 +624,7 @@ export default function Dashboard() {
       />
 
       <motion.div
-        className="space-y-8"
+        className="space-y-6"
         initial="initial"
         animate="animate"
         variants={staggerContainer}
@@ -642,6 +642,31 @@ export default function Dashboard() {
             </div>
           </motion.div>
         ) : null}
+
+        {/* Impact highlights: NPS + Charity */}
+        <motion.div
+          className="grid gap-4 lg:grid-cols-2"
+          {...motionProps}
+          transition={{ ...SPRING_CONFIG, delay: 0.02 }}
+        >
+          <NpsSummaryCard npsData={npsQuery.data} />
+          <div className="h-full flex flex-col">
+            {hasMounted && selectedId ? (
+              <CharityImpactWidget campgroundId={selectedId} />
+            ) : (
+              <div className={cn(
+                "rounded-2xl p-6 animate-pulse",
+                "border border-border bg-card"
+              )}>
+                <div className="space-y-3">
+                  <div className="h-5 w-32 bg-muted rounded" />
+                  <div className="h-10 w-20 bg-muted rounded" />
+                  <div className="h-4 w-40 bg-muted rounded" />
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
 
         {/* Onboarding Hint */}
         <PageOnboardingHint
@@ -669,39 +694,11 @@ export default function Dashboard() {
           ]}
         />
 
-        {/* Impact highlights: NPS + Charity */}
-        <motion.div
-          className="grid gap-4 lg:grid-cols-2"
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.02 }}
-        >
-          <NpsSummaryCard npsData={npsQuery.data} />
-          <div className="h-full flex flex-col">
-            {hasMounted && selectedId ? (
-              <CharityImpactWidget campgroundId={selectedId} />
-            ) : (
-              <div className={cn(
-                "rounded-2xl p-6 animate-pulse",
-                "border border-border bg-card"
-              )}>
-                <div className="space-y-3">
-                  <div className="h-5 w-32 bg-muted rounded" />
-                  <div className="h-10 w-20 bg-muted rounded" />
-                  <div className="h-4 w-40 bg-muted rounded" />
-                </div>
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* PERSONALIZED HERO - Time-of-day greeting */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* Daily briefing */}
         <motion.div
           className={cn(
-            "flex flex-col gap-4 rounded-2xl p-6 transition-all duration-500",
-            "border",
-            timeOfDay.tone
+            "flex flex-col gap-4 rounded-2xl p-6 shadow-sm transition-colors",
+            "border border-border bg-card"
           )}
           {...motionProps}
           transition={{ ...SPRING_CONFIG, delay: 0.05 }}
@@ -714,17 +711,22 @@ export default function Dashboard() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ ...SPRING_CONFIG, delay: 0.1 }}
               >
-                {timeOfDay.icon}
-                <h1 className="text-3xl font-bold text-foreground">
-                  {timeOfDay.greeting}
-                </h1>
+                <span className="rounded-xl bg-muted p-2">
+                  {timeOfDay.icon}
+                </span>
+                <div>
+                  <div className="text-xs font-semibold text-muted-foreground">Daily briefing</div>
+                  <h1 className="text-2xl font-semibold text-foreground">
+                    {timeOfDay.greeting}
+                  </h1>
+                </div>
               </motion.div>
 
               <div className="text-sm text-muted-foreground">
-                {today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} · {selectedCampground?.name ?? "Loading campground"}
+                {today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} · {selectedCampground?.name ?? "Loading campground"}
               </div>
 
-              <p className="text-base text-muted-foreground font-medium">
+              <p className="text-sm text-muted-foreground font-medium">
                 {timeOfDay.message}
               </p>
             </div>
@@ -735,7 +737,7 @@ export default function Dashboard() {
                   href="/booking"
                   aria-label="Create a new booking"
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white",
+                    "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white",
                     "bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover",
                     "shadow-sm transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2"
@@ -750,10 +752,10 @@ export default function Dashboard() {
                   href="/pos"
                   aria-label="Open point of sale"
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold",
-                    "border border-border bg-card text-card-foreground",
-                    "hover:border-action-primary/40 hover:text-action-primary hover:bg-action-primary/10",
-                    "shadow-sm hover:shadow-md transition-colors",
+                    "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold",
+                    "border border-border bg-muted/30 text-foreground",
+                    "hover:border-muted-foreground/30 hover:bg-muted/60",
+                    "shadow-sm transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2"
                   )}
                 >
@@ -766,9 +768,9 @@ export default function Dashboard() {
                   href="/dashboard/settings/central/property/profile"
                   aria-label="Open profile settings"
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold",
-                    "border border-border bg-card text-card-foreground",
-                    "hover:border-action-primary/40 hover:text-action-primary hover:bg-action-primary/10",
+                    "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold",
+                    "border border-border bg-muted/30 text-foreground",
+                    "hover:border-muted-foreground/30 hover:bg-muted/60",
                     "shadow-sm transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2"
                   )}
@@ -780,7 +782,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Celebration badges */}
           <div className="flex flex-wrap gap-2">
             <CelebrationBadge
               show={occupancyRate >= 90 && !isLoading}
@@ -793,23 +794,6 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Today's Wins */}
-        {!isLoading && !isError && (
-          <TodaysWins
-            todayArrivals={todayArrivals}
-            todayDepartures={todayDepartures}
-            outstandingBalanceCents={outstandingBalanceCents}
-            occupancyRate={occupancyRate}
-            reservationsCount={reservations?.length ?? 0}
-            prefersReducedMotion={prefersReducedMotion}
-          />
-        )}
-
-        {/* Setup Queue Widget - shows pending feature configurations */}
-        {hasMounted && selectedId && (
-          <SetupQueueWidget campgroundId={selectedId} />
-        )}
-
         {/* Error State */}
         {isError && (
           <ErrorState
@@ -821,630 +805,634 @@ export default function Dashboard() {
           />
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* TODAY'S NUMBERS - Most important metrics at a glance */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <motion.div
-          className={cn(
-            "rounded-2xl p-6 space-y-5 transition-colors",
-            "bg-muted border border-border"
-          )}
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.1 }}
-          data-tour="quick-stats"
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            Today's Numbers
-            <HelpTooltip
-              title="Daily Metrics"
-              content={
-                <HelpTooltipContent>
-                  <HelpTooltipSection>
-                    These cards show your most important daily metrics:
-                  </HelpTooltipSection>
-                  <HelpTooltipSection title="Arrivals">
-                    Guests checking in today. Click to view the check-in list.
-                  </HelpTooltipSection>
-                  <HelpTooltipSection title="Departures">
-                    Guests checking out today. Review to ensure checkout tasks are complete.
-                  </HelpTooltipSection>
-                  <HelpTooltipSection title="In-house">
-                    Total number of occupied sites right now.
-                  </HelpTooltipSection>
-                  <HelpTooltipSection title="Occupancy">
-                    Percentage of sites currently occupied. High occupancy (90%+) means you're nearly full!
-                  </HelpTooltipSection>
-                  <HelpTooltipSection title="Balance due">
-                    Total unpaid balances across all active reservations. The breakdown shows:
-                    Overdue (past arrival date), Due Today (arriving today), and Future (not yet due).
-                  </HelpTooltipSection>
-                  <HelpTooltipSection title="Revenue">
-                    Total revenue collected today. Click to view detailed revenue analytics and trends.
-                  </HelpTooltipSection>
-                </HelpTooltipContent>
-              }
-              side="bottom"
-              maxWidth={380}
-            />
-          </div>
-
-          {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <SkeletonCard key={i} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-              <OpsCard label="Arrivals" value={todayArrivals.length} href="/check-in-out" icon={<UserCheck className="h-4 w-4" />} tone="emerald" index={0} prefersReducedMotion={prefersReducedMotion} celebrate={todayArrivals.length >= 5} />
-              <OpsCard label="Departures" value={todayDepartures.length} href="/check-in-out" icon={<LogOut className="h-4 w-4" />} tone="amber" index={1} prefersReducedMotion={prefersReducedMotion} />
-              <OpsCard label="In-house" value={inHouse.length} href="/reservations" icon={<Users className="h-4 w-4" />} tone="blue" index={2} prefersReducedMotion={prefersReducedMotion} />
-              <OpsCard label="Occupancy" value={`${occupancyRate}%`} href="/calendar" icon={<Calendar className="h-4 w-4" />} tone="purple" index={3} prefersReducedMotion={prefersReducedMotion} celebrate={occupancyRate >= 90} />
-              <OpsCard
-                label="Balance due"
-                value={formatMoney(outstandingBalanceCents)}
-                href="/billing/repeat-charges"
-                icon={<DollarSign className="h-4 w-4" />}
-                tone={outstandingBalanceCents === 0 ? "emerald" : "rose"}
-                index={4}
-                prefersReducedMotion={prefersReducedMotion}
-                celebrate={outstandingBalanceCents === 0 && (reservations?.length ?? 0) > 0}
-                breakdown={outstandingBalanceCents > 0 ? [
-                  ...(balanceOverdue > 0 ? [{ label: "overdue", value: formatMoney(balanceOverdue), tone: "danger" as const }] : []),
-                  ...(balanceDueToday > 0 ? [{ label: "due today", value: formatMoney(balanceDueToday), tone: "warning" as const }] : []),
-                  ...(balanceFuture > 0 ? [{ label: "future", value: formatMoney(balanceFuture), tone: "success" as const }] : []),
-                ] : undefined}
-              />
-              <OpsCard
-                label="Revenue"
-                value={formatMoney(yieldMetrics?.todayRevenue ?? 0)}
-                href="/ai/yield"
-                icon={<Banknote className="h-4 w-4" />}
-                tone="emerald"
-                index={5}
-                prefersReducedMotion={prefersReducedMotion}
-                celebrate={(yieldMetrics?.todayRevenue ?? 0) >= 100000}
-                breakdown={yieldMetrics?.yoyChange ? [
-                  {
-                    label: "vs last year",
-                    value: `${yieldMetrics.yoyChange.revenue >= 0 ? "+" : ""}${yieldMetrics.yoyChange.revenue.toFixed(0)}%`,
-                    tone: yieldMetrics.yoyChange.revenue >= 0 ? "success" as const : "danger" as const
-                  }
-                ] : undefined}
-              />
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <Link href="/calendar" className={cn(
-              "inline-flex items-center gap-1 rounded px-3 py-1.5 transition-colors",
-              "border border-border bg-card hover:border-emerald-300 hover:text-emerald-600",
-              "",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-            )}>
-              <Calendar className="h-3 w-3" /> Jump to today
-            </Link>
-            <Link href="/check-in-out" className={cn(
-              "inline-flex items-center gap-1 rounded px-3 py-1.5 transition-colors",
-              "border border-border bg-card hover:border-emerald-300 hover:text-emerald-600",
-              "",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-            )}>
-              <UserCheck className="h-3 w-3" /> Today's arrivals/departures
-            </Link>
-            <Link href={`/reservations?focus=today`} className={cn(
-              "inline-flex items-center gap-1 rounded px-3 py-1.5 transition-colors",
-              "border border-border bg-card hover:border-emerald-300 hover:text-emerald-600",
-              "",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-            )}>
-              <ClipboardList className="h-3 w-3" /> View reservations list
-            </Link>
-          </div>
-        </motion.div>
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ACTION ITEMS - Reframed from "Needs Attention" */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <motion.div
-          className="space-y-3"
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.15 }}
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground pl-1">
-            <ClipboardList className="h-4 w-4" />
-            Action Items
-            <HelpTooltip
-              title="Outstanding Balances"
-              content={
-                <div className="space-y-2">
-                  <p>Quick actions to keep your finances on track.</p>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="space-y-6">
+            <motion.div
+              className={cn(
+                "rounded-2xl p-6 space-y-6 shadow-sm transition-colors",
+                "bg-card border border-border"
+              )}
+              {...motionProps}
+              transition={{ ...SPRING_CONFIG, delay: 0.1 }}
+              data-tour="quick-stats"
+            >
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                    Operations snapshot
+                    <HelpTooltip
+                      title="Daily Metrics"
+                      content={
+                        <HelpTooltipContent>
+                          <HelpTooltipSection>
+                            These cards show your most important daily metrics:
+                          </HelpTooltipSection>
+                          <HelpTooltipSection title="Arrivals">
+                            Guests checking in today. Click to view the check-in list.
+                          </HelpTooltipSection>
+                          <HelpTooltipSection title="Departures">
+                            Guests checking out today. Review to ensure checkout tasks are complete.
+                          </HelpTooltipSection>
+                          <HelpTooltipSection title="In-house">
+                            Total number of occupied sites right now.
+                          </HelpTooltipSection>
+                          <HelpTooltipSection title="Occupancy">
+                            Percentage of sites currently occupied. High occupancy (90%+) means you're nearly full!
+                          </HelpTooltipSection>
+                          <HelpTooltipSection title="Balance due">
+                            Total unpaid balances across all active reservations. The breakdown shows:
+                            Overdue (past arrival date), Due Today (arriving today), and Future (not yet due).
+                          </HelpTooltipSection>
+                          <HelpTooltipSection title="Revenue">
+                            Total revenue collected today. Click to view detailed revenue analytics and trends.
+                          </HelpTooltipSection>
+                        </HelpTooltipContent>
+                      }
+                      side="bottom"
+                      maxWidth={380}
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Click "Collect" to process payment or send a friendly reminder.
+                    Occupancy, revenue, and balances for today.
                   </p>
                 </div>
-              }
-              side="right"
-              maxWidth={300}
-            />
-          </div>
-
-          <div className={cn(
-            "rounded-xl p-6 space-y-4 backdrop-blur-sm transition-colors",
-            "border-2 bg-card",
-            attentionList.length > 0
-              ? "border-amber-200"
-              : "border-emerald-200"
-          )}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">
-                  {attentionList.length === 0 ? "All Caught Up!" : "Balances to Collect"}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {attentionList.length === 0
-                    ? "Every reservation is fully paid. Nice work!"
-                    : `${attentionList.length} reservation${attentionList.length !== 1 ? 's' : ''} to follow up on`}
-                </p>
-              </div>
-              {attentionList.length > 0 && (
-                <span className={cn(
-                  "rounded-full text-xs font-bold px-3 py-1",
-                  "bg-status-warning/15 text-status-warning border border-status-warning/30"
-                )}>
-                  {attentionList.length}
-                </span>
-              )}
-            </div>
-
-            {attentionList.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring" as const, duration: 0.5 }}
-                className={cn(
-                  "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-lg px-4 py-4",
-                  "border-2 border-emerald-300 bg-emerald-50",
-                  ""
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    animate={{
-                      rotate: [0, 10, -10, 10, 0],
-                      scale: [1, 1.2, 1.2, 1.2, 1]
-                    }}
-                    transition={{ duration: 0.6 }}
-                  >
-                    <CheckCircle className="h-5 w-5 text-emerald-600" />
-                  </motion.div>
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-700">
-                      All clear - no outstanding balances!
-                    </p>
-                    <p className="text-xs text-emerald-600">
-                      You're on top of collections. Keep it up!
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href="/finance/overview"
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap",
-                    "border border-emerald-300 bg-card text-emerald-700 hover:bg-emerald-100",
-                    "",
-                    "shadow-sm transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-                  )}
-                >
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  View Reports
-                </Link>
-              </motion.div>
-            ) : (
-              <div className="space-y-2">
-                {attentionList.map((r, index) => (
-                  <motion.div
-                    key={r.id}
-                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ ...SPRING_FAST, delay: getStaggerDelay(index) }}
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <Link
+                    href="/calendar"
                     className={cn(
-                      "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3",
-                      "rounded-lg px-3 py-2.5 shadow-sm",
-                      "border border-amber-200 bg-amber-50/50",
-                      "",
-                      "hover:border-amber-300",
-                      "hover:shadow-md transition-all duration-200"
+                      "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 transition-colors",
+                      "border border-border bg-muted/30 hover:border-muted-foreground/30 hover:text-foreground",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "h-8 w-8 rounded-full font-semibold flex items-center justify-center text-xs",
-                        "bg-status-warning/15 text-status-warning border border-status-warning/30"
-                      )}>
-                        {r.guest?.primaryFirstName?.[0] ?? "?"}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-foreground">
-                          {r.guest?.primaryFirstName ?? "Guest"} {r.guest?.primaryLastName ?? ""}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Site {r.siteId ?? "—"}</div>
-                      </div>
+                    <Calendar className="h-3.5 w-3.5" /> Calendar
+                  </Link>
+                  <Link
+                    href="/check-in-out"
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 transition-colors",
+                      "border border-border bg-muted/30 hover:border-muted-foreground/30 hover:text-foreground",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                    )}
+                  >
+                    <UserCheck className="h-3.5 w-3.5" /> Check-ins
+                  </Link>
+                  <Link
+                    href="/reservations?focus=today"
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 transition-colors",
+                      "border border-border bg-muted/30 hover:border-muted-foreground/30 hover:text-foreground",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                    )}
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" /> Reservations
+                  </Link>
+                </div>
+              </div>
+
+              {isLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <SkeletonCard key={i} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <OpsCard label="Arrivals" value={todayArrivals.length} href="/check-in-out" icon={<UserCheck className="h-4 w-4" />} tone="emerald" index={0} prefersReducedMotion={prefersReducedMotion} celebrate={todayArrivals.length >= 5} />
+                  <OpsCard label="Departures" value={todayDepartures.length} href="/check-in-out" icon={<LogOut className="h-4 w-4" />} tone="amber" index={1} prefersReducedMotion={prefersReducedMotion} />
+                  <OpsCard label="In-house" value={inHouse.length} href="/reservations" icon={<Users className="h-4 w-4" />} tone="blue" index={2} prefersReducedMotion={prefersReducedMotion} />
+                  <OpsCard label="Occupancy" value={`${occupancyRate}%`} href="/calendar" icon={<Calendar className="h-4 w-4" />} tone="purple" index={3} prefersReducedMotion={prefersReducedMotion} celebrate={occupancyRate >= 90} />
+                  <OpsCard
+                    label="Balance due"
+                    value={formatMoney(outstandingBalanceCents)}
+                    href="/billing/repeat-charges"
+                    icon={<DollarSign className="h-4 w-4" />}
+                    tone={outstandingBalanceCents === 0 ? "emerald" : "rose"}
+                    index={4}
+                    prefersReducedMotion={prefersReducedMotion}
+                    celebrate={outstandingBalanceCents === 0 && (reservations?.length ?? 0) > 0}
+                    breakdown={outstandingBalanceCents > 0 ? [
+                      ...(balanceOverdue > 0 ? [{ label: "overdue", value: formatMoney(balanceOverdue), tone: "danger" as const }] : []),
+                      ...(balanceDueToday > 0 ? [{ label: "due today", value: formatMoney(balanceDueToday), tone: "warning" as const }] : []),
+                      ...(balanceFuture > 0 ? [{ label: "future", value: formatMoney(balanceFuture), tone: "success" as const }] : []),
+                    ] : undefined}
+                  />
+                  <OpsCard
+                    label="Revenue"
+                    value={formatMoney(yieldMetrics?.todayRevenue ?? 0)}
+                    href="/ai/yield"
+                    icon={<Banknote className="h-4 w-4" />}
+                    tone="emerald"
+                    index={5}
+                    prefersReducedMotion={prefersReducedMotion}
+                    celebrate={(yieldMetrics?.todayRevenue ?? 0) >= 100000}
+                    breakdown={yieldMetrics?.yoyChange ? [
+                      {
+                        label: "vs last year",
+                        value: `${yieldMetrics.yoyChange.revenue >= 0 ? "+" : ""}${yieldMetrics.yoyChange.revenue.toFixed(0)}%`,
+                        tone: yieldMetrics.yoyChange.revenue >= 0 ? "success" as const : "danger" as const
+                      }
+                    ] : undefined}
+                  />
+                </div>
+              )}
+
+              {!isLoading && !isError && (
+                <TodaysWins
+                  todayArrivals={todayArrivals}
+                  todayDepartures={todayDepartures}
+                  outstandingBalanceCents={outstandingBalanceCents}
+                  occupancyRate={occupancyRate}
+                  reservationsCount={reservations?.length ?? 0}
+                  prefersReducedMotion={prefersReducedMotion}
+                />
+              )}
+
+              <div className="border-t border-border pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-foreground">Occupancy outlook</div>
+                  <span className="text-xs text-muted-foreground">Next 14 days</span>
+                </div>
+                {occupancy14.length === 0 ? (
+                  <div className={cn(
+                    "rounded-lg p-6 text-center space-y-3",
+                    "border border-dashed border-border bg-muted/40"
+                  )}>
+                    <div className="flex justify-center mb-2">
+                      <BarChart3 className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                      <span className="text-sm font-bold text-amber-600 whitespace-nowrap">
-                        {formatMoney(r.balance)}
-                      </span>
+                    <p className="text-sm font-semibold text-foreground">No occupancy data yet</p>
+                    <p className="text-xs text-muted-foreground">Add sites and create reservations to see your occupancy forecast</p>
+                    <div className="flex justify-center gap-2 pt-2">
+                      <Link
+                        href="/campgrounds"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
+                          "bg-emerald-600 text-white hover:bg-emerald-500",
+                          "shadow-sm transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                        )}
+                      >
+                        <Tent className="h-3.5 w-3.5" />
+                        Add Sites
+                      </Link>
+                      <Link
+                        href="/booking-v2"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
+                          "border border-border bg-card text-foreground hover:bg-muted",
+                          "shadow-sm transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                        )}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Create Booking
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                    {occupancy14.map((d, index) => (
                       <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        key={d.label}
+                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ ...SPRING_FAST, delay: getStaggerDelay(index, 0.05) }}
                       >
                         <Link
-                          href={`/campgrounds/${selectedId}/reservations/${r.id}`}
-                          aria-label={`Collect payment from ${r.guest?.primaryFirstName ?? 'Guest'}`}
+                          href="/calendar"
+                          aria-label={`${d.label}: ${d.rate}% occupancy`}
                           className={cn(
-                            "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold text-white",
-                            "bg-emerald-600 hover:bg-emerald-500",
-                            "shadow-sm hover:shadow-md transition-all duration-200",
+                            "flex flex-col gap-1 rounded-lg px-3 py-2 transition-all",
+                            "border border-border bg-muted/30",
+                            "hover:border-muted-foreground/30 hover:bg-muted/50",
                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                           )}
                         >
-                          Collect
+                          <span className="text-xs text-muted-foreground">{d.label}</span>
+                          <div className={cn(
+                            "h-2 w-full rounded",
+                            "bg-muted"
+                          )}>
+                            <div
+                              className={cn(
+                                "h-2 rounded transition-all",
+                                d.rate >= 90 ? "bg-amber-500" : "bg-emerald-500"
+                              )}
+                              style={{ width: `${Math.min(100, d.rate)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold text-foreground">{d.rate}%</span>
                         </Link>
                       </motion.div>
-                    </div>
-                  </motion.div>
-                ))}
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </motion.div>
+            </motion.div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* QUICK ACTIONS - Common tasks */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <motion.div
-          className={cn(
-            "rounded-2xl p-5 space-y-3 shadow-lg transition-colors",
-            "bg-card border-2 border-emerald-200",
-            ""
-          )}
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.2 }}
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground">
-            <Plus className="h-4 w-4 text-emerald-500" />
-            Quick Actions
-            <HelpTooltip
-              title="Common Tasks"
-              content={
-                <div className="space-y-2">
-                  <p>Tap these buttons to quickly perform common front desk tasks without navigating through menus.</p>
-                  <p className="text-xs text-muted-foreground">Tip: Use keyboard shortcuts to speed up your workflow even more!</p>
-                </div>
-              }
-              side="right"
-              maxWidth={280}
-            />
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            <QuickActionButton
-              href="/booking"
-              label="New booking"
-              icon={<Plus className="h-5 w-5" />}
-              tone="emerald"
-              index={0}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-            <QuickActionButton
-              href="/reservations"
-              label="Extend / Move"
-              icon={<ArrowRight className="h-5 w-5" />}
-              tone="blue"
-              index={1}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-            <QuickActionButton
-              href="/pos"
-              label="POS order"
-              icon={<ShoppingBag className="h-5 w-5" />}
-              tone="purple"
-              index={2}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-            <QuickActionButton
-              href="/finance/gift-cards"
-              label="Credit / Refund"
-              icon={<DollarSign className="h-5 w-5" />}
-              tone="amber"
-              index={3}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-            <QuickActionButton
-              href="/messages"
-              label="Pre-arrival message"
-              icon={<MessageCircle className="h-5 w-5" />}
-              tone="slate"
-              index={4}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-          </div>
-        </motion.div>
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ARRIVALS & DEPARTURES - Detailed boards */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <motion.div
-          className="space-y-3"
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.25 }}
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground pl-1">
-            <UserCheck className="h-4 w-4" />
-            Arrivals & Departures
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <BoardCard
-              title="Arrivals"
-              count={todayArrivals.length}
-              ctaLabel="Open arrivals"
-              ctaHref="/check-in-out"
-              rows={todayArrivals}
-              prefersReducedMotion={prefersReducedMotion}
-              isLoading={isLoading}
-            />
-            <BoardCard
-              title="Departures"
-              count={todayDepartures.length}
-              ctaLabel="Open departures"
-              ctaHref="/check-in-out"
-              rows={todayDepartures}
-              tone="amber"
-              prefersReducedMotion={prefersReducedMotion}
-              isLoading={isLoading}
-            />
-          </div>
-        </motion.div>
-
-        {/* Alerts, Additional Metrics, and 14-day occupancy */}
-        <motion.div
-          className="grid grid-cols-1 xl:grid-cols-3 gap-4"
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.3 }}
-        >
-          <div className={cn(
-            "rounded-xl p-5 space-y-3 backdrop-blur-sm transition-colors",
-            "bg-card border border-border",
-            ""
-          )}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Alerts</h3>
-              <span className="text-xs text-muted-foreground">{alerts.length} items</span>
-            </div>
-            {alerts.length === 0 ? (
-              <div className={cn(
-                "rounded-lg border-2 border-dashed px-4 py-3 text-sm flex items-center gap-2",
-                "border-emerald-200 bg-emerald-50 text-emerald-700",
-                ""
-              )}>
-                <CheckCircle className="h-4 w-4" />
-                All clear — nothing needs your attention!
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {alerts.map((a, index) => (
-                  <motion.div
-                    key={a.id}
-                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ ...SPRING_FAST, delay: getStaggerDelay(index) }}
-                  >
-                    <Link
-                      href={a.href}
-                      className={cn(
-                        "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all",
-                        "border border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:shadow-sm",
-                        "",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
-                      )}
-                    >
-                      <span>{a.label}</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-            <div className="pt-3 border-t border-border space-y-2">
-              <StatCard label="Future bookings" value={futureReservations} hint="Upcoming arrivals" icon={<ClipboardList className="h-4 w-4" />} />
-            </div>
-          </div>
-
-          <div className={cn(
-            "rounded-xl p-5 space-y-3 xl:col-span-2 backdrop-blur-sm transition-colors",
-            "bg-card border border-border",
-            ""
-          )}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">14-day occupancy</h3>
-              <span className="text-xs text-muted-foreground">Tap a day to open calendar</span>
-            </div>
-            {occupancy14.length === 0 ? (
-              <div className={cn(
-                "rounded-lg p-6 text-center space-y-3",
-                "border-2 border-dashed border-border bg-muted"
-              )}>
-                <div className="flex justify-center mb-2">
-                  <BarChart3 className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <p className="text-sm font-semibold text-foreground">No occupancy data yet</p>
-                <p className="text-xs text-muted-foreground">Add sites and create reservations to see your occupancy forecast</p>
-                <div className="flex justify-center gap-2 pt-2">
-                  <Link
-                    href="/campgrounds"
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
-                      "bg-emerald-600 text-white hover:bg-emerald-500",
-                      "shadow-sm transition-colors",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-                    )}
-                  >
-                    <Tent className="h-3.5 w-3.5" />
-                    Add Sites
-                  </Link>
-                  <Link
-                    href="/booking-v2"
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
-                      "border border-border bg-card text-foreground hover:bg-muted",
-                      "shadow-sm transition-colors",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-                    )}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Booking
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-                {occupancy14.map((d, index) => (
-                  <motion.div
-                    key={d.label}
-                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ ...SPRING_FAST, delay: getStaggerDelay(index, 0.05) }}
-                  >
-                    <Link
-                      href="/calendar"
-                      aria-label={`${d.label}: ${d.rate}% occupancy`}
-                      className={cn(
-                        "flex flex-col gap-1 rounded-lg px-3 py-2 transition-all hover:shadow-md",
-                        "border border-border bg-card",
-                        "hover:border-emerald-300",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-                      )}
-                    >
-                      <span className="text-xs text-muted-foreground">{d.label}</span>
-                      <div className={cn(
-                        "h-2 w-full rounded",
-                        "bg-muted"
-                      )}>
-                        <div
-                          className={cn(
-                            "h-2 rounded transition-all",
-                            d.rate >= 90 ? "bg-amber-500" : "bg-emerald-500"
-                          )}
-                          style={{ width: `${Math.min(100, d.rate)}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-foreground">{d.rate}%</span>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Search */}
-        <motion.div
-          className={cn(
-            "rounded-xl p-5 space-y-3 backdrop-blur-sm transition-colors",
-            "bg-card border border-border",
-            ""
-          )}
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.35 }}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">Quick search</h3>
-            <span className="text-xs text-muted-foreground">Guest, site, or reservation ID</span>
-          </div>
-          <input
-            className={cn(
-              "w-full rounded-lg px-4 py-2.5 text-sm transition-all duration-200",
-              "border-2 border-border bg-background text-foreground placeholder:text-muted-foreground",
-              "focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10",
-              ""
-            )}
-            placeholder="Search guest, site, reservation…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search reservations"
-          />
-          {search && (
-            <div className="space-y-2">
-              {searchResults.length === 0 && (
-                <div className="text-sm text-muted-foreground flex items-center gap-2 py-2">
-                  <Search className="h-4 w-4" />
-                  No matches found. Try a different search term.
-                </div>
-              )}
-              {searchResults.map((r, index) => (
-                <motion.div
-                  key={r.id}
-                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ ...SPRING_FAST, delay: getStaggerDelay(index) }}
-                >
-                  <Link
-                    href={`/campgrounds/${selectedId}/reservations/${r.id}`}
-                    className={cn(
-                      "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all",
-                      "border border-border bg-card hover:border-emerald-300 hover:shadow-sm",
-                      "",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-                    )}
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-foreground">
-                        {(r.guest?.primaryFirstName || "Guest") + " " + (r.guest?.primaryLastName || "")}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()} • Site {r.siteId}
-                      </span>
-                    </div>
-                    <span className="text-xs uppercase text-muted-foreground">{r.status}</span>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </motion.div>
-
-        {/* Recent activity */}
-        <motion.div
-          className={cn(
-            "rounded-xl p-5 space-y-3 backdrop-blur-sm transition-colors",
-            "bg-card border border-border",
-            ""
-          )}
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.4 }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">Recent activity</h3>
-              <p className="text-sm text-muted-foreground">Latest arrivals, departures, and moves.</p>
-            </div>
-            <Link
-              href="/reservations"
+            <motion.div
               className={cn(
-                "text-sm font-semibold text-emerald-600 hover:text-emerald-500 flex items-center gap-1",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded"
+                "rounded-2xl p-6 space-y-6 shadow-sm transition-colors",
+                "bg-card border border-border"
               )}
+              {...motionProps}
+              transition={{ ...SPRING_CONFIG, delay: 0.18 }}
             >
-              View reservations <ArrowRight className="h-4 w-4" />
-            </Link>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <UserCheck className="h-4 w-4 text-muted-foreground" />
+                  Guest flow
+                </div>
+                <Link
+                  href="/check-in-out"
+                  className={cn(
+                    "text-xs font-semibold text-emerald-600 hover:text-emerald-500 flex items-center gap-1",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded"
+                  )}
+                >
+                  Open check-in/out <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <BoardCard
+                  title="Arrivals"
+                  count={todayArrivals.length}
+                  ctaLabel="Open arrivals"
+                  ctaHref="/check-in-out"
+                  rows={todayArrivals}
+                  prefersReducedMotion={prefersReducedMotion}
+                  isLoading={isLoading}
+                />
+                <BoardCard
+                  title="Departures"
+                  count={todayDepartures.length}
+                  ctaLabel="Open departures"
+                  ctaHref="/check-in-out"
+                  rows={todayDepartures}
+                  tone="amber"
+                  prefersReducedMotion={prefersReducedMotion}
+                  isLoading={isLoading}
+                />
+              </div>
+              <div className="border-t border-border pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-foreground">Recent movement</div>
+                  <Link
+                    href="/reservations"
+                    className={cn(
+                      "text-xs font-semibold text-emerald-600 hover:text-emerald-500 flex items-center gap-1",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded"
+                    )}
+                  >
+                    View reservations <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <ActivityList title="Arrivals" tone="emerald" rows={todayArrivals.slice(0, 6)} prefersReducedMotion={prefersReducedMotion} />
+                  <ActivityList title="Departures" tone="amber" rows={todayDepartures.slice(0, 6)} prefersReducedMotion={prefersReducedMotion} />
+                </div>
+              </div>
+            </motion.div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <ActivityList title="Arrivals" tone="emerald" rows={todayArrivals.slice(0, 6)} prefersReducedMotion={prefersReducedMotion} />
-            <ActivityList title="Departures" tone="amber" rows={todayDepartures.slice(0, 6)} prefersReducedMotion={prefersReducedMotion} />
+
+          <div className="space-y-6">
+            <motion.div
+              className={cn(
+                "rounded-2xl p-6 space-y-6 shadow-sm transition-colors",
+                "bg-card border border-border"
+              )}
+              {...motionProps}
+              transition={{ ...SPRING_CONFIG, delay: 0.14 }}
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Hand className="h-4 w-4 text-muted-foreground" />
+                  Front desk console
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Collections, quick actions, and guest communication in one place.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <ClipboardList className="h-4 w-4" />
+                  Action items
+                  <HelpTooltip
+                    title="Outstanding Balances"
+                    content={
+                      <div className="space-y-2">
+                        <p>Quick actions to keep your finances on track.</p>
+                        <p className="text-xs text-muted-foreground">
+                          Click "Collect" to process payment or send a friendly reminder.
+                        </p>
+                      </div>
+                    }
+                    side="right"
+                    maxWidth={300}
+                  />
+                </div>
+
+                <div className={cn(
+                  "rounded-xl p-4 space-y-4 transition-colors",
+                  "border border-border/70 bg-muted/30"
+                )}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">
+                        {attentionList.length === 0 ? "All Caught Up!" : "Balances to Collect"}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {attentionList.length === 0
+                          ? "Every reservation is fully paid. Nice work!"
+                          : `${attentionList.length} reservation${attentionList.length !== 1 ? 's' : ''} to follow up on`}
+                      </p>
+                    </div>
+                    {attentionList.length > 0 && (
+                      <span className={cn(
+                        "rounded-full text-xs font-bold px-3 py-1",
+                        "bg-card text-foreground border border-border"
+                      )}>
+                        {attentionList.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {attentionList.length === 0 ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ type: "spring" as const, duration: 0.5 }}
+                      className={cn(
+                        "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-lg px-4 py-4",
+                        "border border-border bg-card"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <motion.div
+                          animate={{
+                            rotate: [0, 10, -10, 10, 0],
+                            scale: [1, 1.2, 1.2, 1.2, 1]
+                          }}
+                          transition={{ duration: 0.6 }}
+                        >
+                          <CheckCircle className="h-5 w-5 text-emerald-600" />
+                        </motion.div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            All clear - no outstanding balances!
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            You're on top of collections. Keep it up!
+                          </p>
+                        </div>
+                      </div>
+                      <Link
+                        href="/finance/overview"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap",
+                          "border border-border bg-card text-foreground hover:bg-muted",
+                          "shadow-sm transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                        )}
+                      >
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        View Reports
+                      </Link>
+                    </motion.div>
+                  ) : (
+                    <div className="space-y-2">
+                      {attentionList.map((r, index) => (
+                        <motion.div
+                          key={r.id}
+                          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ ...SPRING_FAST, delay: getStaggerDelay(index) }}
+                          className={cn(
+                            "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3",
+                            "rounded-lg px-3 py-2.5 shadow-sm",
+                            "border border-border bg-muted/40",
+                            "hover:border-muted-foreground/30",
+                            "hover:shadow-md transition-all duration-200"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "h-8 w-8 rounded-full font-semibold flex items-center justify-center text-xs",
+                              "bg-muted text-muted-foreground border border-border"
+                            )}>
+                              {r.guest?.primaryFirstName?.[0] ?? "?"}
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-foreground">
+                                {r.guest?.primaryFirstName ?? "Guest"} {r.guest?.primaryLastName ?? ""}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Site {r.siteId ?? "—"}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                            <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+                              {formatMoney(r.balance)}
+                            </span>
+                            <motion.div
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              <Link
+                                href={`/campgrounds/${selectedId}/reservations/${r.id}`}
+                                aria-label={`Collect payment from ${r.guest?.primaryFirstName ?? 'Guest'}`}
+                                className={cn(
+                                  "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold text-white",
+                                  "bg-emerald-600 hover:bg-emerald-500",
+                                  "shadow-sm hover:shadow-md transition-all duration-200",
+                                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                                )}
+                              >
+                                Collect
+                              </Link>
+                            </motion.div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-border pt-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                  Quick actions
+                  <HelpTooltip
+                    title="Common Tasks"
+                    content={
+                      <div className="space-y-2">
+                        <p>Tap these buttons to quickly perform common front desk tasks without navigating through menus.</p>
+                        <p className="text-xs text-muted-foreground">Tip: Use keyboard shortcuts to speed up your workflow even more!</p>
+                      </div>
+                    }
+                    side="right"
+                    maxWidth={280}
+                  />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <QuickActionButton
+                    href="/booking"
+                    label="New booking"
+                    icon={<Plus className="h-5 w-5" />}
+                    tone="emerald"
+                    index={0}
+                    prefersReducedMotion={prefersReducedMotion}
+                  />
+                  <QuickActionButton
+                    href="/reservations"
+                    label="Extend / Move"
+                    icon={<ArrowRight className="h-5 w-5" />}
+                    tone="blue"
+                    index={1}
+                    prefersReducedMotion={prefersReducedMotion}
+                  />
+                  <QuickActionButton
+                    href="/pos"
+                    label="POS order"
+                    icon={<ShoppingBag className="h-5 w-5" />}
+                    tone="purple"
+                    index={2}
+                    prefersReducedMotion={prefersReducedMotion}
+                  />
+                  <QuickActionButton
+                    href="/finance/gift-cards"
+                    label="Credit / Refund"
+                    icon={<DollarSign className="h-5 w-5" />}
+                    tone="amber"
+                    index={3}
+                    prefersReducedMotion={prefersReducedMotion}
+                  />
+                  <QuickActionButton
+                    href="/messages"
+                    label="Pre-arrival message"
+                    icon={<MessageCircle className="h-5 w-5" />}
+                    tone="slate"
+                    index={4}
+                    prefersReducedMotion={prefersReducedMotion}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                    Alerts
+                  </div>
+                  <Badge variant="secondary" className="text-xs font-semibold">
+                    {alerts.length}
+                  </Badge>
+                </div>
+                {alerts.length === 0 ? (
+                  <div className={cn(
+                    "rounded-lg border border-dashed px-4 py-3 text-sm flex items-center gap-2",
+                    "border-border bg-muted/30 text-muted-foreground"
+                  )}>
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    All clear - nothing needs your attention.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {alerts.map((a, index) => (
+                      <motion.div
+                        key={a.id}
+                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...SPRING_FAST, delay: getStaggerDelay(index) }}
+                      >
+                        <Link
+                          href={a.href}
+                          className={cn(
+                            "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all",
+                            "border border-border bg-muted/30 text-foreground hover:border-muted-foreground/30 hover:shadow-sm",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+                          )}
+                        >
+                          <span>{a.label}</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+                <div className="pt-2">
+                  <StatCard label="Future bookings" value={futureReservations} hint="Upcoming arrivals" icon={<ClipboardList className="h-4 w-4" />} />
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    Quick search
+                  </div>
+                  <span className="text-xs text-muted-foreground">Guest, site, or reservation ID</span>
+                </div>
+                <Input
+                  className="h-11"
+                  placeholder="Search guest, site, reservation..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Search reservations"
+                />
+                {search && (
+                  <div className="space-y-2">
+                    {searchResults.length === 0 && (
+                      <div className="text-sm text-muted-foreground flex items-center gap-2 py-2">
+                        <Search className="h-4 w-4" />
+                        No matches found. Try a different search term.
+                      </div>
+                    )}
+                    {searchResults.map((r, index) => (
+                      <motion.div
+                        key={r.id}
+                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...SPRING_FAST, delay: getStaggerDelay(index) }}
+                      >
+                        <Link
+                          href={`/campgrounds/${selectedId}/reservations/${r.id}`}
+                          className={cn(
+                            "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all",
+                            "border border-border bg-muted/30 hover:border-muted-foreground/30 hover:shadow-sm",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                          )}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-foreground">
+                              {(r.guest?.primaryFirstName || "Guest") + " " + (r.guest?.primaryLastName || "")}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()} • Site {r.siteId}
+                            </span>
+                          </div>
+                          <span className="text-xs uppercase text-muted-foreground">{r.status}</span>
+                        </Link>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            {hasMounted && selectedId && (
+              <motion.div
+                {...motionProps}
+                transition={{ ...SPRING_CONFIG, delay: 0.18 }}
+              >
+                <SetupQueueWidget campgroundId={selectedId} />
+              </motion.div>
+            )}
           </div>
-        </motion.div>
+        </div>
       </motion.div>
     </DashboardShell>
   );
@@ -1471,65 +1459,51 @@ function OpsCard({
   celebrate?: boolean;
   breakdown?: Array<{ label: string; value: string; tone?: "success" | "warning" | "danger" }>;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  const toneMap: Record<typeof tone, string> = {
-    emerald: "bg-emerald-50 text-emerald-800 border-emerald-200",
-    amber: "bg-amber-50 text-amber-800 border-amber-200",
-    blue: "bg-blue-50 text-blue-800 border-blue-200",
-    purple: "bg-purple-50 text-purple-800 border-purple-200",
-    rose: "bg-rose-50 text-rose-800 border-rose-200",
+  const toneMap: Record<typeof tone, { dot: string; icon: string }> = {
+    emerald: { dot: "bg-emerald-500", icon: "text-emerald-600" },
+    amber: { dot: "bg-amber-500", icon: "text-amber-600" },
+    blue: { dot: "bg-blue-500", icon: "text-blue-600" },
+    purple: { dot: "bg-purple-500", icon: "text-purple-600" },
+    rose: { dot: "bg-rose-500", icon: "text-rose-600" },
   };
+  const toneStyle = toneMap[tone];
 
   return (
     <motion.div
       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...SPRING_CONFIG, delay: getStaggerDelay(index) }}
-      whileHover={prefersReducedMotion ? {} : { scale: 1.02, y: -2 }}
-      whileTap={prefersReducedMotion ? {} : { scale: 0.98 }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
     >
       <Link
         href={href}
         aria-label={`${label}: ${value}`}
           className={cn(
-          "flex items-center justify-between gap-3 rounded-xl border p-4 transition-all hover:shadow-lg hover:shadow-emerald-500/10",
-          toneMap[tone],
-          celebrate && "ring-2 ring-emerald-500 ring-offset-2",
+          "flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-muted/30 p-4 transition-colors",
+          "hover:border-muted-foreground/30 hover:bg-muted/50",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
         )}
       >
-        <div className="flex items-center gap-3 flex-1">
-          <motion.span
-            className={cn(
-              "rounded-lg p-2",
-              "bg-card/70 text-foreground",
-              ""
-            )}
-            animate={isHovered && !prefersReducedMotion ? {
-              rotate: [0, -10, 10, -10, 0],
-              scale: [1, 1.1, 1.1, 1.1, 1]
-            } : {}}
-            transition={{ duration: 0.4 }}
-          >
+        <div className="flex items-start gap-3 flex-1">
+          <span className={cn("rounded-lg p-2 bg-muted", toneStyle.icon)}>
             {icon}
-          </motion.span>
+          </span>
           <div className="flex-1">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-            <div className="text-xl font-bold text-foreground">{value}</div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <span className={cn("h-2 w-2 rounded-full", toneStyle.dot)} />
+              {label}
+            </div>
+            <div className="text-xl font-semibold text-foreground">{value}</div>
             {breakdown && breakdown.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
                 {breakdown.map((item, idx) => (
                   <span
                     key={idx}
                     className={cn(
-                      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded",
-                      item.tone === "danger" && "bg-red-100 text-red-700",
-                      item.tone === "warning" && "bg-amber-100 text-amber-700",
-                      item.tone === "success" && "bg-emerald-100 text-emerald-700",
-                      !item.tone && "bg-muted text-foreground"
+                      "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]",
+                      item.tone === "danger" && "border-red-200 text-red-700 bg-red-50",
+                      item.tone === "warning" && "border-amber-200 text-amber-700 bg-amber-50",
+                      item.tone === "success" && "border-emerald-200 text-emerald-700 bg-emerald-50",
+                      !item.tone && "border-border text-muted-foreground bg-muted"
                     )}
                   >
                     <span className="font-semibold">{item.value}</span>
@@ -1545,7 +1519,7 @@ function OpsCard({
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring" as const, delay: 0.2 }}
-            className="text-emerald-500"
+            className="text-emerald-600"
           >
             <CheckCircle className="h-5 w-5" />
           </motion.div>
@@ -1576,27 +1550,25 @@ function BoardCard({
   prefersReducedMotion: boolean | null;
   isLoading?: boolean;
 }) {
-  const colorClasses = tone === "emerald"
-    ? "text-emerald-600 bg-emerald-50"
-    : "text-amber-600 bg-amber-50";
-
   return (
     <motion.div
       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={SPRING_CONFIG}
       className={cn(
-        "rounded-xl p-5 space-y-3 backdrop-blur-sm transition-colors",
-        "bg-card border border-border",
+        "rounded-xl p-4 space-y-3 transition-colors",
+        "bg-muted/30 border border-border/70",
         ""
       )}
     >
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-          <p className="text-sm text-muted-foreground">{count} scheduled</p>
+          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          <p className="text-xs text-muted-foreground">{count} scheduled</p>
         </div>
-        <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", colorClasses)}>{count}</span>
+        <Badge variant="secondary" className="text-xs font-semibold">
+          {count}
+        </Badge>
       </div>
 
       {isLoading ? (
@@ -1612,7 +1584,7 @@ function BoardCard({
           transition={{ type: "spring" as const, duration: 0.4 }}
           className={cn(
             "rounded-lg p-6 text-center space-y-3",
-            "border-2 border-dashed border-border bg-muted"
+            "border border-dashed border-border bg-muted/40"
           )}
         >
           <div className="flex justify-center mb-2">
@@ -1670,7 +1642,7 @@ function BoardCard({
               className={cn(
                 "flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors",
                 "border border-border bg-card",
-                "hover:border-emerald-300"
+                "hover:border-muted-foreground/30"
               )}
             >
               <div className="flex items-center gap-3">
@@ -1727,62 +1699,32 @@ function QuickActionButton({
   index: number;
   prefersReducedMotion: boolean | null;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  const toneMap: Record<typeof tone, { shell: string; icon: string }> = {
-    emerald: {
-      shell: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300",
-      icon: "text-emerald-600"
-    },
-    blue: {
-      shell: "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300",
-      icon: "text-blue-600"
-    },
-    purple: {
-      shell: "bg-purple-50 border-purple-200 hover:bg-purple-100 hover:border-purple-300",
-      icon: "text-purple-600"
-    },
-    amber: {
-      shell: "bg-amber-50 border-amber-200 hover:bg-amber-100 hover:border-amber-300",
-      icon: "text-amber-600"
-    },
-    slate: {
-      shell: "bg-muted border-border hover:bg-muted hover:border-border",
-      icon: "text-muted-foreground"
-    }
+  const toneMap: Record<typeof tone, string> = {
+    emerald: "text-emerald-600",
+    blue: "text-blue-600",
+    purple: "text-purple-600",
+    amber: "text-amber-600",
+    slate: "text-muted-foreground"
   };
-
-  const colors = toneMap[tone];
 
   return (
     <motion.div
       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...SPRING_CONFIG, delay: getStaggerDelay(index) }}
-      whileHover={prefersReducedMotion ? {} : { scale: 1.03, y: -3 }}
-      whileTap={prefersReducedMotion ? {} : { scale: 0.97 }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
     >
       <Link
         href={href}
         aria-label={label}
         className={cn(
-          "flex flex-col items-center justify-center gap-2 rounded-xl border-2 px-4 py-5 text-center transition-all shadow-sm hover:shadow-lg",
-          colors.shell,
+          "flex items-center gap-3 rounded-xl border border-border/70 bg-muted/30 px-4 py-3 transition-colors",
+          "hover:bg-muted/50 hover:border-muted-foreground/30",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
         )}
       >
-        <motion.span
-          className={colors.icon}
-          animate={isHovered && !prefersReducedMotion ? {
-            rotate: [0, -10, 10, -10, 0],
-            scale: [1, 1.1, 1.1, 1.1, 1]
-          } : {}}
-          transition={{ duration: 0.4 }}
-        >
+        <span className={cn("rounded-lg p-2 bg-muted", toneMap[tone])}>
           {icon}
-        </motion.span>
+        </span>
         <span className="text-sm font-semibold text-foreground">{label}</span>
       </Link>
     </motion.div>
@@ -1802,17 +1744,17 @@ function StatCard({
 }) {
   return (
     <div className={cn(
-      "rounded-lg p-4 shadow-sm transition-colors",
-      "border border-border bg-card"
+      "rounded-lg p-3 transition-colors",
+      "border border-border/70 bg-muted/30"
     )}>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-xs font-semibold text-muted-foreground">{label}</div>
         <span className={cn(
           "rounded-md p-2",
           "bg-muted text-muted-foreground"
         )}>{icon}</span>
       </div>
-      <div className="text-2xl font-bold text-foreground">{value}</div>
+      <div className="text-xl font-semibold text-foreground">{value}</div>
       <div className="text-xs text-muted-foreground mt-1">{hint}</div>
     </div>
   );
@@ -1833,54 +1775,58 @@ function NpsSummaryCard({
         "rounded-2xl p-6 shadow-sm transition-colors",
         "border border-border bg-card"
       )}>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">NPS</div>
-            <div className="text-2xl font-bold text-foreground mt-1">{npsValue ?? "—"}</div>
+            <div className="text-sm font-semibold text-foreground">Guest sentiment</div>
+            <div className="text-xs text-muted-foreground">NPS and response rate</div>
           </div>
           <span className={cn(
-            "rounded-xl p-3",
+            "rounded-xl p-2",
             "bg-muted text-muted-foreground"
           )}>
             <MessageCircle className="h-5 w-5" />
           </span>
         </div>
-        <div className="flex items-center gap-2 mb-2">
-          {npsInterpretation ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <Badge variant={npsInterpretation.variant} className="cursor-help">
-                    {npsInterpretation.label}
-                  </Badge>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-xs">
-                <div className="space-y-2">
-                  <p className="font-semibold">What is NPS?</p>
-                  <p className="text-xs">
-                    Net Promoter Score measures guest loyalty on a scale from -100 to 100.
-                  </p>
-                  <div className="text-xs space-y-1 border-t border-border pt-2">
-                    <p><strong>70+:</strong> Excellent - World-class</p>
-                    <p><strong>50-69:</strong> Good - Room to improve</p>
-                    <p><strong>30-49:</strong> Needs attention</p>
-                    <p><strong>&lt;30:</strong> Critical - Urgent action</p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
+          <div className="text-4xl font-semibold text-foreground">{npsValue ?? "—"}</div>
+          <div className="space-y-2">
+            {npsInterpretation ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <Badge variant={npsInterpretation.variant} className="cursor-help">
+                      {npsInterpretation.label}
+                    </Badge>
                   </div>
-                  <div className="text-xs border-t border-border pt-2">
-                    <p className={npsInterpretation.color}>
-                      {npsInterpretation.description}
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
+                  <div className="space-y-2">
+                    <p className="font-semibold">What is NPS?</p>
+                    <p className="text-xs">
+                      Net Promoter Score measures guest loyalty on a scale from -100 to 100.
                     </p>
+                    <div className="text-xs space-y-1 border-t border-border pt-2">
+                      <p><strong>70+:</strong> Excellent - World-class</p>
+                      <p><strong>50-69:</strong> Good - Room to improve</p>
+                      <p><strong>30-49:</strong> Needs attention</p>
+                      <p><strong>&lt;30:</strong> Critical - Urgent action</p>
+                    </div>
+                    <div className="text-xs border-t border-border pt-2">
+                      <p className={npsInterpretation.color}>
+                        {npsInterpretation.description}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <Badge variant="secondary">No data yet</Badge>
-          )}
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {npsData?.totalResponses ?? 0} responses · {npsData?.responseRate ?? "—"}% rate
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Badge variant="secondary">No data yet</Badge>
+            )}
+            <div className="text-xs text-muted-foreground">
+              {npsData?.totalResponses ?? 0} responses · {npsData?.responseRate ?? "—"}% response rate
+            </div>
+          </div>
         </div>
       </div>
     </TooltipProvider>
@@ -1904,8 +1850,8 @@ function ActivityList({
 
   return (
     <div className={cn(
-      "rounded-lg overflow-hidden transition-colors",
-      "border border-border bg-card"
+      "rounded-xl overflow-hidden transition-colors",
+      "border border-border/70 bg-muted/30"
     )}>
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="text-sm font-semibold text-foreground">{title}</div>

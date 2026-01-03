@@ -118,16 +118,16 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
   // Only show full skeleton while initial settings load
   if (loadingSettings && !charitySettings) {
     return (
-      <div className="rounded-2xl bg-rose-50 border border-rose-100 p-6">
+      <div className="rounded-2xl bg-card border border-border p-6">
         <div className="animate-pulse space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-rose-200" />
+            <div className="w-12 h-12 rounded-xl bg-muted" />
             <div className="flex-1">
-              <div className="h-5 w-32 bg-rose-200 rounded" />
-              <div className="h-4 w-24 bg-rose-100 rounded mt-1" />
+              <div className="h-5 w-32 bg-muted rounded" />
+              <div className="h-4 w-24 bg-muted rounded mt-1" />
             </div>
           </div>
-          <div className="h-16 bg-rose-100 rounded-xl" />
+          <div className="h-16 bg-muted rounded-xl" />
         </div>
       </div>
     );
@@ -140,23 +140,22 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="rounded-2xl bg-rose-50 border border-rose-100 p-6"
+        className="rounded-2xl bg-card border border-border p-6"
       >
         <div className="flex items-start gap-4">
-          <div className="p-3 rounded-xl bg-rose-100">
-            <Heart className="h-6 w-6 text-rose-500" />
+          <div className="p-3 rounded-xl bg-muted">
+            <Heart className="h-6 w-6 text-rose-600" />
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-foreground mb-1">
-              Give Back with Round-Up
+              Community impact
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Let your guests round up payments to donate to a charity of your choice.
-              It's a small gesture with a big impact!
+              Enable round-up donations so guests can support a charity with every stay.
             </p>
             <Link
               href="/dashboard/settings/charity"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
             >
               <Settings className="h-4 w-4" />
               Set Up Charity
@@ -175,7 +174,7 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="rounded-2xl bg-rose-50 border border-rose-100 p-6 relative overflow-hidden"
+      className="rounded-2xl bg-card border border-border p-6 relative overflow-hidden"
     >
       {/* Decorative sparkle */}
       <motion.div
@@ -189,15 +188,15 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
       {/* Header */}
       <div className="flex items-start gap-4 mb-4">
         <motion.div
-        className="p-3 rounded-xl bg-rose-500 shadow-sm"
+        className="p-3 rounded-xl bg-rose-100 shadow-sm"
         animate={!prefersReducedMotion && hasAnimated ? { scale: [1, 1.1, 1] } : {}}
         transition={{ duration: 0.5, delay: 1.5 }}
       >
-        <Heart className="h-6 w-6 text-white fill-white" />
+        <Heart className="h-6 w-6 text-rose-600 fill-rose-600" />
       </motion.div>
       <div className="flex-1">
           <h3 className="font-semibold text-foreground">
-            Your Impact
+            Community impact
           </h3>
           <p className="text-sm text-muted-foreground">
             Donations to {charityName}
@@ -213,11 +212,11 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
       </div>
 
       {/* Main Stat */}
-      <div className="bg-card/60 rounded-xl p-4 mb-4">
+      <div className="bg-muted/40 rounded-xl p-4 mb-4">
         {loadingStats && !stats ? (
           <div className="animate-pulse">
-            <div className="h-4 w-20 bg-rose-100 rounded mb-2" />
-            <div className="h-8 w-24 bg-rose-200 rounded" />
+            <div className="h-4 w-20 bg-muted rounded mb-2" />
+            <div className="h-8 w-24 bg-muted rounded" />
           </div>
         ) : (
           <div className="flex items-end justify-between">
@@ -244,7 +243,7 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
 
       {/* Secondary Stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-card/40 rounded-lg p-3 text-center">
+        <div className="bg-muted/30 rounded-lg p-3 text-center">
           <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
             <Users className="h-4 w-4" />
           </div>
@@ -263,7 +262,7 @@ export function CharityImpactWidget({ campgroundId }: CharityImpactWidgetProps) 
           )}
         </div>
 
-        <div className="bg-card/40 rounded-lg p-3 text-center">
+        <div className="bg-muted/30 rounded-lg p-3 text-center">
           <div className="flex items-center justify-center gap-1 text-purple-600 mb-1">
             <Heart className="h-4 w-4" />
           </div>
