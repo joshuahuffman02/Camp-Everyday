@@ -37,7 +37,7 @@ import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { PageHeader } from "../../components/ui/layout/PageHeader";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
@@ -536,106 +536,101 @@ export default function CalendarPage() {
         />
 
         <Card className="border-border shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-semibold text-foreground">Filters & Search</CardTitle>
-                {hasFilters && (
-                  <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                    {activeFilterCount} on
-                  </span>
-                )}
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 px-4 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Filters
+              </span>
               {hasFilters && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={() => {
-                    actions.setGuestSearch("");
-                    actions.setStatusFilter("all");
-                    actions.setSiteTypeFilter("all");
-                    actions.setArrivalsNowOnly(false);
-                  }}
-                >
-                  Clear filters
-                </Button>
+                <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                  {activeFilterCount} on
+                </span>
               )}
             </div>
-          </CardHeader>
-          <CardContent className="pt-0 space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Search guests</Label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
-                  <Input
-                    ref={searchInputRef}
-                    className="h-10 pl-9"
-                    placeholder="Name, phone, email... (Press / to search)"
-                    value={state.guestSearch}
-                    onChange={(e) => actions.setGuestSearch(e.target.value)}
-                  />
-                </div>
-                {state.guestSearch && (
-                  <div className="text-[11px] text-muted-foreground">
-                    {queries.guests.isLoading
-                      ? "Searching guests..."
-                      : guestSearchStats.count > 0
-                        ? `Matches ${guestSearchStats.count} guests`
-                        : "No guests found"}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Status</Label>
-                <Select value={state.statusFilter} onValueChange={actions.setStatusFilter}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="checked_in">Checked In</SelectItem>
-                    <SelectItem value="pending">Pending / Hold</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Site type</Label>
-                <Select value={state.siteTypeFilter} onValueChange={actions.setSiteTypeFilter}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="All types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="rv">RV</SelectItem>
-                    <SelectItem value="tent">Tent</SelectItem>
-                    <SelectItem value="cabin">Cabin</SelectItem>
-                    <SelectItem value="group">Group</SelectItem>
-                    <SelectItem value="glamping">Glamping</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {hasFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 text-[11px]"
+                onClick={() => {
+                  actions.setGuestSearch("");
+                  actions.setStatusFilter("all");
+                  actions.setSiteTypeFilter("all");
+                  actions.setArrivalsNowOnly(false);
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+            <div className="relative flex-1 min-w-[220px]">
+              <Label className="sr-only">Search guests</Label>
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
+              <Input
+                ref={searchInputRef}
+                className="h-9 pl-9 text-sm"
+                placeholder="Search guests (press /)"
+                value={state.guestSearch}
+                onChange={(e) => actions.setGuestSearch(e.target.value)}
+              />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Switch checked={state.arrivalsNowOnly} onCheckedChange={actions.setArrivalsNowOnly} />
-                  <span>Arrivals today only</span>
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground font-medium">
+            <div className="min-w-[150px]">
+              <Label className="sr-only">Status</Label>
+              <Select value={state.statusFilter} onValueChange={actions.setStatusFilter}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="checked_in">Checked In</SelectItem>
+                  <SelectItem value="pending">Pending / Hold</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="min-w-[150px]">
+              <Label className="sr-only">Site type</Label>
+              <Select value={state.siteTypeFilter} onValueChange={actions.setSiteTypeFilter}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="rv">RV</SelectItem>
+                  <SelectItem value="tent">Tent</SelectItem>
+                  <SelectItem value="cabin">Cabin</SelectItem>
+                  <SelectItem value="group">Group</SelectItem>
+                  <SelectItem value="glamping">Glamping</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground">
+              <Switch checked={state.arrivalsNowOnly} onCheckedChange={actions.setArrivalsNowOnly} />
+              <span>Arrivals today</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground ml-auto">
+              {state.guestSearch && (
+                <span>
+                  {queries.guests.isLoading
+                    ? "Searching guests..."
+                    : guestSearchStats.count > 0
+                      ? `Matches ${guestSearchStats.count} guests`
+                      : "No guests found"}
+                </span>
+              )}
+              <span>
                 {state.guestSearch || state.statusFilter !== "all" || state.siteTypeFilter !== "all" || state.arrivalsNowOnly
                   ? `${visibleReservations.length} stays match filters`
                   : `${visibleReservations.length} stays in view`}
-              </div>
+              </span>
             </div>
-          </CardContent>
+          </div>
         </Card>
 
         {!state.selectedCampground && (
@@ -961,39 +956,33 @@ interface StatusLegendProps {
 
 function StatusLegend({ className }: StatusLegendProps) {
   return (
-    <Card className={cn("p-4 border-border shadow-sm", className)}>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="h-5 w-5 rounded-md bg-muted flex items-center justify-center">
-          <CalendarDays className="h-3 w-3 text-muted-foreground" />
+    <Card className={cn("border-border shadow-sm", className)}>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <div className="h-4 w-4 rounded-md bg-muted flex items-center justify-center">
+            <CalendarDays className="h-2.5 w-2.5 text-muted-foreground" />
+          </div>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Status legend
+          </span>
         </div>
-        <span className="text-xs font-medium text-muted-foreground">Status Legend</span>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {Object.entries(STATUS_CONFIG).map(([key, config]) => {
-          const Icon = config.icon;
-          return (
-            <div
-              key={key}
-              className="flex items-center gap-2 group"
-              title={config.description}
-            >
-              <div className={cn(
-                "h-6 w-6 rounded-md flex items-center justify-center text-white shadow-sm",
-                config.bgColor
-              )}>
-                <Icon className="h-3.5 w-3.5" />
+        <div className="flex flex-wrap items-center gap-2">
+          {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+            const Icon = config.icon;
+            return (
+              <div
+                key={key}
+                className="flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-2 py-1 text-[11px] font-semibold text-muted-foreground"
+                title={config.description}
+              >
+                <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded-full text-white", config.bgColor)}>
+                  <Icon className="h-2.5 w-2.5" />
+                </span>
+                <span className="text-foreground">{config.label}</span>
               </div>
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-foreground truncate">
-                  {config.label}
-                </div>
-                <div className="text-[10px] text-muted-foreground/70 truncate hidden sm:block">
-                  {config.description}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </Card>
   );

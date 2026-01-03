@@ -1080,7 +1080,7 @@ export function DashboardShell({ children, className, title, subtitle, density =
             )}
           </nav>
         </aside>
-        <main className={cn("flex-1", className)}>
+        <main className={cn("flex-1 min-w-0", className)}>
           <ErrorBoundary>
             <div className={cn(
               "mx-auto px-6 py-6 space-y-4",
