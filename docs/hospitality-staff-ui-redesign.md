@@ -1,18 +1,25 @@
 # Hospitality Staff UI Redesign Blueprint
 
-Goal: rebuild the staff-facing experience to be hospitality industry standard for campgrounds. The system should feel calm, predictable, and operationally fast. No dark mode, no gradients.
+Goal: rebuild the staff-facing experience to be hospitality industry standard for campgrounds. The system should feel calm, predictable, and operationally fast. Light theme only. No gradients. NPS + Charity must be the first metrics visible on the dashboard.
 
-## Design principles
-- Calm control: soft surfaces, minimal shadow, strong borders, consistent spacing.
-- Scan in 3 seconds: top row answers "what is happening today" without scrolling.
-- One source of truth: same data shown across calendar, list, and detail views.
-- Operational safety: every action shows what will change, with undo when possible.
-- Role-based clarity: front desk, ops, and revenue teams see the right default views.
+## Inputs and references
+- docs/cloudbeds-competitive-analysis.md
+- docs/staff-dashboard-ux-audit.md
+- docs/staff-dashboard-modern-ui-audit.md
+- docs/professional-feel-checklist.md
+- docs/staff-dashboard-repolish-plan.md
+- docs/staff-dashboard-ux-audit.md
 
-## Visual system (tokens)
+## Non-negotiables
+- Light UI only (no dark mode).
+- Flat surfaces (no gradients).
+- NPS and Charity are first in the dashboard.
+- Remove or hide lab/v2/prototype routes from staff-facing nav.
+
+## Global design system (light, no gradients)
 
 ### Typography
-- Heading: Source Serif 4 (600-700)
+- Headings: Source Serif 4 (600-700)
 - Body: Source Sans 3 (400-600)
 - Numbers: Source Sans 3 (600), tabular if possible
 
@@ -23,7 +30,7 @@ Scale:
 - Body 14/20
 - Caption 12/16
 
-### Color palette (light, no gradients)
+### Color palette
 - Background: #F7F6F2
 - Surface: #FFFFFF
 - Surface muted: #F1EFE9
@@ -39,321 +46,351 @@ Scale:
 - Info: #2B6CB0
 - Info soft: #D9E8F7
 
-### Spacing
-- 4, 8, 12, 16, 24, 32, 40, 48
+### Layout and spacing
+- 8pt grid with 4, 8, 12, 16, 24, 32, 40, 48
 - Page padding: 24 desktop, 16 mobile
 - Card padding: 16-24
+- Data-dense layout mode for calendar, reservations, reports, messages
 
-### Shadows and borders
-- Shadows: 1 level only (0 2px 8px rgba(0,0,0,0.04))
-- Borders: 1px #E3E0D8, 2px for emphasis only
+### Surfaces and elevation
+- One shadow level only (0 2px 8px rgba(0,0,0,0.04))
+- Borders 1px; 2px only for emphasis
+- Use semantic tokens everywhere (no hard-coded slate or bg-white)
 
-## Component system
+## Global IA and navigation
+- Left nav grouped by workflow: Dashboard, Calendar, Reservations, Guests, Operations, Finance, Reports, Settings
+- Top bar: Campground switcher, global search, quick actions, alerts, profile
+- Day Bar in header: date, occupancy, arrivals, departures, weather, fire ban
 
-### Core components
-- PageHeader: title + subtitle + actions + optional right rail toggles
-- MetricCard: label, value, delta, status chip
-- StatusChip: Confirmed, Checked in, Pending, Cancelled, OOO
-- FilterBar: search + date range + status + saved views
-- TableRow: consistent row height, sticky header, zebra optional
-- Drawer: reservation details, right side, persistent action bar
-- Toast: success, warning, error
-- InlineEdit: quick update with undo
+## Execution plan (priority order)
 
-### Buttons
-- Primary: evergreen, white text
-- Secondary: white background, border
-- Ghost: text only for low risk actions
+### Phase 0: Foundation (must do first)
+- Unify PageHeader and PageFrame (title, subtitle, actions, breadcrumbs, right-rail controls).
+- Add layout modes (standard vs data-dense) controlled by DashboardShell.
+- Enforce tokens (bg-card, text-foreground, border-border).
+- Remove lab/v2 routes from staff nav.
+- Normalize loading/empty states (skeletons + action prompts).
 
-### Inputs
-- Uniform height 40
-- Left icons for search and filters
-- Strong focus ring (primary 20 percent)
-
-## Navigation and IA
-
-Primary nav:
+### Phase 1: Core daily ops
 - Dashboard
 - Calendar
-- Reservations
+- Reservations list
+- Reservation detail (drawer or page)
+- Check-in/out board
+- Messages
+
+### Phase 2: Support systems
 - Guests
-- Operations
-  - Check-in/out
-  - Housekeeping
-  - Maintenance
-- Rates
+- Operations (tasks, housekeeping, maintenance)
+- Maintenance details
+- Finance
 - Reports
+- POS
 - Settings
+- Reviews/Feedback
+- Site map and inventory
+- Groups
 
-Top bar:
-- Campground switcher
-- Global search (guest, reservation, site)
-- Quick actions (New booking, Check-in, Post payment)
+## Page-by-page redesign plan
 
-## Page wireframes (core)
+Each section includes strengths from current pages worth keeping, then the redesign direction and implementation steps.
 
-### 1) Dashboard (front desk)
+### Dashboard (home)
+Current strengths worth keeping:
+- Quick actions row (New booking, POS, Profile settings).
+- Alerts panel with clear zero-state messaging.
+- NPS card with interpretation tooltip.
+- Charity Impact widget.
+- 14-day occupancy chart and Today stats.
 
-```
-Top bar: Campground | Search | Quick actions
+Redesign direction:
+- Top row: NPS + Charity side by side, full width.
+- Day Bar beneath header (occupancy, arrivals, departures, weather).
+- Action queue centered (payments due, unassigned sites, late arrivals).
+- Ops snapshot (arrivals/departures/in-house) with next actions.
+- Shift handoff notes pinned.
 
-Today strip (6 tiles):
-[Arrivals] [Departures] [In-house] [OOO] [Balance due] [Occupancy]
+Execution steps:
+1) Rebuild header and top row to prioritize NPS + Charity.
+2) Replace mixed panels with a consistent card grid.
+3) Standardize alerts and action queue components.
 
-Action queue (cards, ordered by urgency):
-- Overdue balances
-- Unassigned sites
-- Late arrivals
-- Maintenance ready
+Priority: Phase 1
 
-Ops snapshot (2 columns):
-Left: Arrivals list (next 6)
-Right: Departures list (next 6)
+### Calendar
+Current strengths worth keeping:
+- Density toggle (compact, standard, expanded).
+- Site type filter and status legend.
+- Search with guest filtering.
+- Reservation chip details with status colors.
 
-Performance snapshot (3 tiles):
-[ADR] [RevPAR] [Revenue today]
+Redesign direction:
+- Calm, data-dense grid with a fixed left site column.
+- Right drawer for reservation details and quick actions.
+- Persistent filter bar (date range, density, site type, status).
+- Visual OOO blocks and maintenance overlays.
 
-Footer:
-Recent notes + shift handoff
-```
+Execution steps:
+1) Normalize chip styling and legend tokens.
+2) Add right drawer with check-in, move, extend actions.
+3) Add draggable OOO blocks and site readiness indicators.
 
-Key interactions:
-- Clicking any tile filters the Reservations view
-- Action queue items open detail drawer
-- Handoff note pinned to top of shift
+Priority: Phase 1
 
-### 2) Calendar (timeline)
+### Reservations list (campground scoped)
+Current strengths worth keeping:
+- Filter chips, bulk actions, export flows.
+- Tabs for All vs In-house.
+- Comms filter and quick payment tools.
 
-```
-Header:
-Date range controls | Density toggle | Status filter | Site type filter
+Redesign direction:
+- Table with consistent row height and a sticky header.
+- Summary row with totals and balances.
+- Right-side drawer for quick edits and comms.
 
-Left column (Sites):
-Loop, site name, constraints icons (rig length, hookups)
+Execution steps:
+1) Convert filters into a unified filter bar at top.
+2) Create summary strip and compact row layout.
+3) Add right drawer with actions and comms.
 
-Right grid:
-Reservations as chips (name, status, balance flag)
+Priority: Phase 1
 
-Right drawer:
-Reservation detail + actions (Check-in, Move, Extend, Charge)
-```
+### Reservation detail
+Current strengths worth keeping:
+- Tabs (overview, folio, comms, documents, history).
+- Audit log timeline.
+- Payment collection modal and check-in/out celebration.
+- Access control settings and forms.
 
-Key interactions:
-- Drag to create hold, release -> pricing preview
-- Right click or menu on chip -> Move, Split, Extend
-- OOO blocks visible and draggable
+Redesign direction:
+- Split layout: left essentials, center timeline, right actions.
+- Sticky action bar for check-in/out, charge, move.
+- Clear financial summary with balance and payments.
 
-### 3) Reservations list
+Execution steps:
+1) Reorganize content into three columns.
+2) Standardize action bar and primary actions.
+3) Add contextual status chips and warnings.
 
-```
-Header:
-Saved views | Filters | Bulk actions | Export
+Priority: Phase 1
 
-Summary row:
-Total reservations | Total balance | ADR | Avg length of stay
+### Check-in/out
+Current strengths worth keeping:
+- Tabs for arrivals, departures, onsite.
+- Bulk check-in/out.
+- Inline messaging and payment collection.
 
-Table:
-Status | Guest | Site | Dates | Balance | Source | Notes
+Redesign direction:
+- Queue-first layout with big action buttons.
+- Add check-in readiness indicators (forms, payments, site assigned).
+- Add quick notes and handoff tags.
 
-Right drawer:
-Reservation details and action bar
-```
+Execution steps:
+1) Rebuild list as a queue with readiness chips.
+2) Add inline payment capture and message templates.
+3) Add bulk action bar with progress feedback.
 
-Key interactions:
-- Bulk select -> collect payment / send message
-- Inline status change with audit
+Priority: Phase 1
 
-### 4) Reservation detail drawer
+### Messages
+Current strengths worth keeping:
+- Guest vs team tabs.
+- Compose modal and multi-channel send.
+- Keyboard shortcuts.
+- SLA indicators.
 
-```
-Header:
-Guest name + status chip + balance
+Redesign direction:
+- Unified inbox with context panel (reservation + guest + balance).
+- Clear unread priority and SLA countdown.
+- Templates and quick replies in composer.
 
-Tabs:
-Overview | Folio | Comms | Documents | History
+Execution steps:
+1) Add right context panel for selected conversation.
+2) Standardize filters and unread states.
+3) Add saved replies and note templates.
 
-Sticky actions:
-Check-in / Check-out / Charge / Refund / Move site
-```
-
-### 5) Check-in/out board
-
-```
-Tabs: Arrivals | Departures | In-house
-
-Each row:
-Guest | Site | ETA | Balance | Notes | Quick actions
-```
-
-### 6) Housekeeping
-
-```
-List of sites:
-Status (Dirty, Clean, Inspect) | Assigned staff | SLA timer
-```
-
-### 7) Maintenance
-
-```
-Kanban:
-Open | In Progress | Waiting | Done
-```
-
-### 8) POS
-
-```
-Header:
-Location | Shift status | Sync status
-
-Left:
-Product grid + category tabs + search
-
-Right:
-Cart, totals, payments, receipts
-```
-
-### 9) Guests
-
-```
-Search + filters
-Guest list with badges (VIP, Repeat, Outstanding balance)
-Profile drawer with stays + notes
-```
-
-### 10) Rates and Yield
-
-```
-Calendar-based rates | occupancy forecast | competitor comp (optional)
-Explainable suggestions with reasons and overrides
-```
-
-### 11) Reports
-
-```
-Quick presets + export
-KPIs with clear footnotes
-```
-
-## Interaction standards
-- Everything has a keyboard path
-- Drawer closes with ESC, preserves scroll position
-- Optimistic UI for non-critical changes, confirm for money moves
-- Always show "last updated" for operational confidence
-
-## Values-first dashboard (must-have)
-- NPS and Charity are the first visible cards on the dashboard, above all operational KPIs.
-- NPS card shows: current score, delta vs last period, sample verbatim, and "learn why" link.
-- Charity card shows: month-to-date total, top charity, and last donation time.
-- Values row is visually calm but prominent; use the same card size as ops metrics for parity.
-
-## Detailed page specs
-
-### Dashboard (command center)
-- Intent: immediate understanding of today, plus the brand values (NPS + Charity) front and center.
-- Top row: NPS, Charity, Arrivals, Departures, In-house, Balance due.
-- Ops queue: overdue balances, unassigned sites, late arrivals, maintenance ready.
-- Arrivals and departures lists: show 6 each with status chip, balance flag, and ETA.
-- Performance row: Occupancy, ADR, RevPAR, Revenue today.
-- Handoff module: shift notes + "next shift checklist".
-
-### Calendar (timeline + map)
-- Intent: visual planning and fast rework of stays.
-- Modes: Timeline (grid) and Map (site layout), with shared selection state.
-- Sticky controls: date range, density, status filter, site type, "today".
-- Chip content: guest name, status icon, balance dot, length of stay.
-- Drag actions: create hold, move, extend, split, shorten.
-- OOO blocks: same behavior as reservations, visible across timeline and map.
-- Right drawer: reservation detail with action bar (check-in, move, charge, extend).
-
-### Reservations list
-- Intent: operational back office for filtering and bulk actions.
-- Filter bar: search, date range, status, site type, balance due, source, saved views.
-- Summary row: total count, total balance, ADR, avg length of stay.
-- Table columns: status, guest, site, dates, balance, source, flags.
-- Bulk actions: send message, collect payment, export, change status.
-- Inline edit: status, assigned site, arrival/departure dates.
-
-### Reservation detail drawer
-- Intent: edit and transact without leaving the list or calendar.
-- Header: guest name, status chip, balance, stay dates.
-- Tabs: Overview, Folio, Comms, Documents, History.
-- Sticky actions: check-in/out, post payment, refund, move site.
-- Signals: late arrival, early departure, special requests.
-
-### Check-in/out board
-- Intent: reduce front desk decision time.
-- Tabs: Arrivals, Departures, In-house.
-- Rows: guest, site, ETA, balance, key notes, quick actions.
-- Quick actions: check-in, check-out, send message, post payment.
+Priority: Phase 1
 
 ### Guests
-- Intent: faster recognition and repeat guest care.
-- Search: name, phone, email, rig plate.
-- Badges: VIP, repeat, balance due, accessibility needs.
-- Profile drawer: stays, folio, notes, documents, preferences.
+Current strengths worth keeping:
+- Loyalty tier badges and points.
+- Equipment/rig info sections.
+- Merge guest flow.
 
-### Housekeeping
-- Intent: clear task ownership and SLA visibility.
-- View: list by site with status (dirty, clean, inspect), assigned staff, time since checkout.
-- Filters: today, overdue, staff member, loop.
-- Quick action: mark clean, assign staff, add note.
+Redesign direction:
+- Split list and profile drawer.
+- Quick badges for VIP, repeat, balance due.
+- One-click send message or open reservation.
+
+Execution steps:
+1) Convert details to right drawer.
+2) Standardize badges and profile summary.
+3) Add direct links to reservation and billing.
+
+Priority: Phase 2
+
+### Operations (task board)
+Current strengths worth keeping:
+- Task board, SLA metrics, templates, teams, leaderboard.
+- Category badges and priority tags.
+
+Redesign direction:
+- Kanban with SLA status badges and due times.
+- Quick create task modal.
+- Staff workload summary at top.
+
+Execution steps:
+1) Normalize board layout and status colors.
+2) Add staff workload summary row.
+3) Add task creation shortcuts and templates.
+
+Priority: Phase 2
 
 ### Maintenance
-- Intent: repair workflow with accountability.
-- Kanban: open, in progress, waiting, done.
-- Card: site, issue, priority, SLA, assigned tech.
-- Links: site history and related reservations.
+Current strengths worth keeping:
+- Tabs by status, priority ribbons, quick notes.
+- Create ticket flow.
 
-### Rates and yield
-- Intent: manage seasonal pricing with confidence.
-- Calendar view: base rate + overrides by date and loop.
-- Rules panel: min stay, blackout, promos, deposits.
-- Explainable suggestions: show reason and allow override.
+Redesign direction:
+- Maintenance list integrated with operations board.
+- Site readiness and ETA visible on each card.
+- Quick assign and close actions.
 
-### POS
-- Intent: register-style speed with clear totals.
-- Layout: left product grid, right cart and totals.
-- Controls: location, shift status, sync status.
-- Search: always visible, keyboard first.
-- Payments: card, cash, split, refund flow from order history.
+Execution steps:
+1) Standardize ticket cards and status chips.
+2) Add site readiness and ETA labels.
+3) Merge key views with operations tasks.
+
+Priority: Phase 2
+
+### Finance
+Current strengths worth keeping:
+- Next payout card and revenue totals.
+- Dispute alert panel.
+- Payout and dispute quick links.
+
+Redesign direction:
+- Finance overview with clear cash flow summary.
+- Disputes and chargebacks in right rail.
+- Daily, weekly, monthly revenue summary.
+
+Execution steps:
+1) Rebuild top summary row and quick actions.
+2) Add finance timeline chart with payouts.
+3) Add dispute deadlines and risk panel.
+
+Priority: Phase 2
 
 ### Reports
-- Intent: fast export with hospitality KPIs.
-- Presets: occupancy, ADR, RevPAR, LOS, cancellation rate.
-- Export: CSV, PDF, email scheduled.
-- Footnotes: data ranges and refresh time.
+Current strengths worth keeping:
+- Saved reports and export flow.
+- Report catalog and filters.
+
+Redesign direction:
+- Report preset cards with short summary and insights.
+- Clear filter drawer and export guidance.
+- Consistent chart styling across reports.
+
+Execution steps:
+1) Build a report home with presets.
+2) Standardize charts and legends.
+3) Add an insight panel for each report.
+
+Priority: Phase 2
+
+### POS
+Current strengths worth keeping:
+- Product grid + cart + checkout flow.
+- Offline queue and sync status.
+- Voice commands.
+
+Redesign direction:
+- Larger touch targets, kiosk-ready mode.
+- Order history and refunds in a right drawer.
+- Clear staff shift status.
+
+Execution steps:
+1) Rebuild POS shell with kiosk mode.
+2) Add order history drawer.
+3) Standardize receipts and refund UI.
+
+Priority: Phase 2
 
 ### Settings
-- Intent: predictable control without hunting.
-- Sections: property, billing, policies, communications, integrations, roles.
-- Consistent left nav with inline search.
+Current strengths worth keeping:
+- Category cards with descriptions and deep links.
+- Clear grouping (pricing, communications, security, property).
 
-## Data and content standards
-- Status naming is consistent everywhere (Confirmed, Checked In, Pending, Cancelled, OOO).
-- Money is always formatted and includes currency.
-- Dates are always in local property timezone.
+Redesign direction:
+- Central settings index with search and filters.
+- Page-level setting summaries and last-updated metadata.
+- One-click access to Profile settings from dashboard.
 
-## Empty and error states
-- Empty states include a single next action (add reservation, create rate rule, add staff).
-- Error states show "what failed" plus a retry and a link to support.
+Execution steps:
+1) Build central settings search and filter.
+2) Add summaries and consistency in section layouts.
+3) Consolidate breadcrumb and header patterns.
 
-## Performance and reliability
-- Use skeletons for grids and lists.
-- Keep drawer state in URL for shareable context.
-- Cache critical queries (sites, reservations, guests) with background refresh.
+Priority: Phase 2
 
-## Accessibility and usability
-- Contrast meets AA.
-- Keyboard shortcuts for search, new booking, jump to today, open drawer.
-- Touch targets at least 40px.
+### Reviews and feedback
+Current strengths worth keeping:
+- Review stats cards and reply flow.
+- Status filtering and search.
 
-## Campground-specific enhancements
-- Site constraints always visible (rig length, hookups, slope)
-- OOO (out of order) blocks handled like reservations
-- Rate rules by season and loop
-- Quiet hours banner for staff reminder
+Redesign direction:
+- Unified guest feedback hub (NPS + reviews).
+- Actionable insights for low scores.
 
-## Implementation guidance
-- Use existing shells: DashboardShell, PageHeader, Card, Table, Drawer
-- Add: StatusChip, MetricCard, FilterBar, ReservationDrawer
-- Keep a single spacing and typography scale across all staff pages
+Execution steps:
+1) Merge NPS insights into reviews hub.
+2) Add SLA for replies and templates.
+
+Priority: Phase 2
+
+### Site map and inventory (sites, site classes, map)
+Current strengths worth keeping:
+- Site layout editor and map upload.
+- Keyboard shortcuts and unsaved changes badge.
+
+Redesign direction:
+- Map + list split view.
+- Site readiness and constraints visible on hover.
+
+Execution steps:
+1) Add list panel next to map.
+2) Add readiness indicators and OOO controls.
+3) Standardize site constraints and badges.
+
+Priority: Phase 2
+
+### Groups
+Current strengths worth keeping:
+- Split list + detail layout.
+- Shared payment and comms chips.
+
+Redesign direction:
+- Group booking hub with linked reservations and shared balance.
+- Quick actions for shared payments and messaging.
+
+Execution steps:
+1) Add shared balance and payment actions.
+2) Add group activity timeline.
+
+Priority: Phase 2
+
+## Shared components to build or standardize
+- PageHeader (title, subtitle, actions, breadcrumbs)
+- FilterBar (search, filters, saved views)
+- MetricCard (value, delta, status chip)
+- StatusChip (consistent statuses across all pages)
+- RightDrawer (details and actions)
+- ActionQueue (time-sensitive actions)
+- EmptyState (with clear CTA)
+- DayBar (date, occupancy, weather, alerts)
+
+## Success metrics
+- Time to complete check-in < 30 seconds
+- Training time for new staff under 1 day
+- Fewer than 2 clicks to reach critical actions
+- NPS and Charity visible without scrolling
