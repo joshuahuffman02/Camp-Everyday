@@ -189,6 +189,47 @@ export default function CheckInOutPage() {
     isSameLocalDate(r.departureDate, date)
   );
   const onsite = reservations.filter((r) => r.status === "checked_in");
+  const arrivalsWithBalance = arrivals.filter((r) => (r.balanceAmount ?? 0) > 0);
+  const departuresWithBalance = departures.filter((r) => (r.balanceAmount ?? 0) > 0);
+  const onsiteWithBalance = onsite.filter((r) => (r.balanceAmount ?? 0) > 0);
+  const arrivalsUnassigned = arrivals.filter((r) => !r.siteId);
+  const departuresUnassigned = departures.filter((r) => !r.siteId);
+  const onsiteUnassigned = onsite.filter((r) => !r.siteId);
+
+  const clearSelections = () => setSelectedIds(new Set());
+
+  const handleTabSummaryClick = (nextTab: typeof tab) => {
+    setTab(nextTab);
+    setStatusFilter("all");
+    setSearch("");
+    clearSelections();
+  };
+
+  const handleOutstandingClick = () => {
+    setStatusFilter("balance");
+    setSearch("");
+    clearSelections();
+    if (arrivalsWithBalance.length > 0) {
+      setTab("arrivals");
+    } else if (departuresWithBalance.length > 0) {
+      setTab("departures");
+    } else if (onsiteWithBalance.length > 0) {
+      setTab("onsite");
+    }
+  };
+
+  const handleUnassignedClick = () => {
+    setStatusFilter("unassigned");
+    setSearch("");
+    clearSelections();
+    if (arrivalsUnassigned.length > 0) {
+      setTab("arrivals");
+    } else if (departuresUnassigned.length > 0) {
+      setTab("departures");
+    } else if (onsiteUnassigned.length > 0) {
+      setTab("onsite");
+    }
+  };
 
   const filteredList = useMemo(() => {
     const list = tab === "arrivals" ? arrivals : tab === "departures" ? departures : onsite;
@@ -401,18 +442,37 @@ export default function CheckInOutPage() {
             label="On Site Now"
             value={onsite.length}
             icon={<Home className="h-4 w-4" />}
-            onClick={() => setTab("onsite")}
-            highlight
+            onClick={() => handleTabSummaryClick("onsite")}
+            highlight={statusFilter === "all" && tab === "onsite"}
           />
-          <SummaryCard label="Arrivals today" value={arrivals.length} icon={<UserCheck className="h-4 w-4" />} onClick={() => setTab("arrivals")} />
-          <SummaryCard label="Departures today" value={departures.length} icon={<LogOut className="h-4 w-4" />} onClick={() => setTab("departures")} />
+          <SummaryCard
+            label="Arrivals today"
+            value={arrivals.length}
+            icon={<UserCheck className="h-4 w-4" />}
+            onClick={() => handleTabSummaryClick("arrivals")}
+            highlight={statusFilter === "all" && tab === "arrivals"}
+          />
+          <SummaryCard
+            label="Departures today"
+            value={departures.length}
+            icon={<LogOut className="h-4 w-4" />}
+            onClick={() => handleTabSummaryClick("departures")}
+            highlight={statusFilter === "all" && tab === "departures"}
+          />
           <SummaryCard
             label="Outstanding balance"
             value={formatMoney(arrivals.concat(departures).reduce((sum, r) => sum + (r.balanceAmount ?? 0), 0))}
             icon={<CreditCard className="h-4 w-4" />}
-            href="/billing/repeat-charges"
+            onClick={handleOutstandingClick}
+            highlight={statusFilter === "balance"}
           />
-          <SummaryCard label="Unassigned" value={arrivals.concat(departures).filter((r) => !r.siteId).length} icon={<AlertCircle className="h-4 w-4" />} href="/operations" />
+          <SummaryCard
+            label="Unassigned"
+            value={arrivals.concat(departures).filter((r) => !r.siteId).length}
+            icon={<AlertCircle className="h-4 w-4" />}
+            onClick={handleUnassignedClick}
+            highlight={statusFilter === "unassigned"}
+          />
         </div>
 
         {/* Controls */}
