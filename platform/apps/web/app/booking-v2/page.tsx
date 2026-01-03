@@ -46,12 +46,12 @@ import { diffInDays, formatLocalDateInput, parseLocalDateInput } from "../calend
 import { useBookingFormPersistence, createDebouncedSave, BookingFormData } from "@/hooks/use-booking-form-persistence";
 
 const SITE_TYPE_STYLES: Record<string, { label: string; badge: string; border: string }> = {
-  rv: { label: "RV", badge: "bg-status-success/15 text-status-success", border: "border-l-status-success" },
-  tent: { label: "Tent", badge: "bg-status-warning/15 text-status-warning", border: "border-l-status-warning" },
-  cabin: { label: "Cabin", badge: "bg-rose-100 text-rose-700", border: "border-l-rose-400" },
-  group: { label: "Group", badge: "bg-indigo-100 text-indigo-700", border: "border-l-indigo-400" },
-  glamping: { label: "Glamp", badge: "bg-cyan-100 text-cyan-700", border: "border-l-cyan-400" },
-  default: { label: "Site", badge: "bg-slate-100 text-slate-600", border: "border-l-slate-300" }
+  rv: { label: "RV", badge: "bg-status-success-bg text-status-success-text", border: "border-l-status-success" },
+  tent: { label: "Tent", badge: "bg-status-warning-bg text-status-warning-text", border: "border-l-status-warning" },
+  cabin: { label: "Cabin", badge: "bg-status-info-bg text-status-info-text", border: "border-l-status-info-border" },
+  group: { label: "Group", badge: "bg-accent text-accent-foreground", border: "border-l-accent" },
+  glamping: { label: "Glamp", badge: "bg-secondary text-secondary-foreground", border: "border-l-secondary" },
+  default: { label: "Site", badge: "bg-muted text-muted-foreground", border: "border-l-border" }
 };
 
 const RIG_TYPE_OPTIONS = [
@@ -788,6 +788,30 @@ function BookingPageInner() {
     hasPricing &&
     paymentReady;
 
+  const steps = useMemo(() => {
+    const paymentStepComplete = formData.collectPayment
+      ? paymentReady && hasPricing
+      : hasPricing;
+    const items = [
+      { id: "guest", label: "Guest", complete: !!formData.guestId },
+      { id: "stay", label: "Stay", complete: dateRangeValid },
+      { id: "site", label: "Site", complete: !!formData.siteId },
+      { id: "payment", label: formData.collectPayment ? "Payment" : "Invoice", complete: paymentStepComplete }
+    ];
+    const firstIncomplete = items.findIndex((item) => !item.complete);
+    return items.map((item, index) => ({
+      ...item,
+      state: item.complete ? "complete" : index === firstIncomplete ? "current" : "upcoming"
+    }));
+  }, [
+    dateRangeValid,
+    formData.collectPayment,
+    formData.guestId,
+    formData.siteId,
+    hasPricing,
+    paymentReady
+  ]);
+
   return (
     <DashboardShell density="full">
       <div className="space-y-6">
@@ -798,9 +822,9 @@ function BookingPageInner() {
           ]}
         />
 
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+        <Card className="p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-4">
               <Button
                 variant="ghost"
                 size="icon"
@@ -810,27 +834,74 @@ function BookingPageInner() {
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <div className="h-11 w-11 rounded-2xl bg-status-success/15 text-status-success flex items-center justify-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-status-info-bg text-status-info-text">
                 <CalendarDays className="h-5 w-5" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="space-y-3">
+                <div>
                   <h1 className="text-2xl font-semibold tracking-tight text-foreground">New Booking</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Build a reservation in one flow - guest, stay, site, pricing, and payment.
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Build a reservation in one flow - guest, stay, site, pricing, and payment.
-                </p>
+                <div className="flex flex-wrap gap-2">
+                  {steps.map((step) => (
+                    <div
+                      key={step.id}
+                      className={cn(
+                        "flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold",
+                        step.state === "complete" && "border-status-success-border bg-status-success-bg text-status-success-text",
+                        step.state === "current" && "border-status-info-border bg-status-info-bg text-status-info-text",
+                        step.state === "upcoming" && "border-border bg-muted/40 text-muted-foreground"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-2 w-2 rounded-full",
+                          step.state === "complete" && "bg-status-success",
+                          step.state === "current" && "bg-status-info",
+                          step.state === "upcoming" && "bg-muted-foreground/40"
+                        )}
+                      />
+                      <span>{step.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
             {selectedCampground && (
-              <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-xs font-semibold text-muted-foreground">
-                <MapPin className="h-4 w-4 text-status-success" />
-                <span>{selectedCampground.name}</span>
+              <div className="w-full max-w-xs rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground lg:ml-auto">
+                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <MapPin className="h-4 w-4 text-status-success" />
+                  <span>{selectedCampground.name}</span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Dates</span>
+                    <span className="text-foreground/80">
+                      {dateRangeValid
+                        ? `${formData.arrivalDate} → ${formData.departureDate}`
+                        : "Select dates"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Guests</span>
+                    <span className="text-foreground/80">
+                      {formData.adults + formData.children} total
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Site</span>
+                    <span className="text-foreground/80">
+                      {selectedSite?.name || "Not selected"}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {!selectedCampground && (
           <Card className="p-6 border-dashed border-border text-center text-muted-foreground">
@@ -840,23 +911,30 @@ function BookingPageInner() {
 
         {selectedCampground && (
           <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)_320px]">
-            <div className="space-y-4">
-              <Card className={cn(
-                "p-5 border-slate-200 shadow-sm",
-                validationErrors.guest && "border-red-300 ring-2 ring-red-100"
-              )}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Guest</div>
-                    <div className="text-lg font-black text-slate-900">Find or create</div>
+            <div className="space-y-6">
+              <Card
+                className={cn(
+                  "p-6",
+                  validationErrors.guest && "border-destructive/40 ring-2 ring-destructive/10"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Guest
+                    </div>
+                    <div className="text-base font-semibold text-foreground">Guest profile</div>
+                    <p className="text-xs text-muted-foreground">
+                      Search existing guests or create a new profile.
+                    </p>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setShowNewGuest((prev) => !prev)}>
-                    <UserPlus className="h-4 w-4 mr-1" />
+                  <Button variant="outline" size="sm" onClick={() => setShowNewGuest((prev) => !prev)}>
+                    <UserPlus className="mr-1 h-4 w-4" />
                     Add guest
                   </Button>
                 </div>
                 {validationErrors.guest && (
-                  <div className="mt-2 flex items-center gap-2 text-sm text-red-600" role="alert">
+                  <div className="mt-3 flex items-center gap-2 text-sm text-destructive" role="alert">
                     <AlertCircle className="h-4 w-4" />
                     <span>{validationErrors.guest}</span>
                   </div>
@@ -864,10 +942,10 @@ function BookingPageInner() {
 
                 <div className="mt-4 space-y-3">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       className="h-10 pl-9"
-                      placeholder="Search guest name, email, phone"
+                      placeholder="Search by name, email, or phone"
                       value={guestSearch}
                       onChange={(e) => {
                         setGuestSearch(e.target.value);
@@ -876,9 +954,9 @@ function BookingPageInner() {
                       onFocus={() => setShowGuestResults(true)}
                     />
                     {showGuestResults && guestSearch && (
-                      <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-card shadow-lg">
+                      <div className="absolute z-20 mt-2 w-full rounded-xl border border-border bg-popover shadow-lg">
                         {guestMatches.length === 0 && (
-                          <div className="p-3 text-xs text-slate-500">No matching guests.</div>
+                          <div className="p-3 text-xs text-muted-foreground">No matching guests.</div>
                         )}
                         {guestMatches.map((guest) => {
                           const hasStayed = !guestStayedSet || guestStayedSet.has(guest.id);
@@ -887,8 +965,8 @@ function BookingPageInner() {
                               key={guest.id}
                               type="button"
                               className={cn(
-                                "w-full px-3 py-2 text-left text-sm hover:bg-slate-50",
-                                !hasStayed && "text-slate-400"
+                                "w-full px-3 py-2 text-left text-sm hover:bg-muted/40",
+                                !hasStayed && "text-muted-foreground"
                               )}
                               onClick={() => {
                                 setFormData((prev) => ({ ...prev, guestId: guest.id }));
@@ -896,10 +974,10 @@ function BookingPageInner() {
                                 setShowGuestResults(false);
                               }}
                             >
-                              <div className={cn("font-semibold", hasStayed ? "text-slate-800" : "text-slate-400")}>
+                              <div className={cn("font-semibold", hasStayed ? "text-foreground" : "text-muted-foreground")}>
                                 {guest.primaryFirstName} {guest.primaryLastName}
                               </div>
-                              <div className={cn("text-xs", hasStayed ? "text-slate-500" : "text-slate-400")}>
+                              <div className={cn("text-xs", hasStayed ? "text-muted-foreground" : "text-muted-foreground")}>
                                 {guest.email}
                               </div>
                             </button>
@@ -911,7 +989,7 @@ function BookingPageInner() {
 
                   {selectedGuest ? (
                     <div className="space-y-3">
-                      <div className="rounded-xl border border-status-success/20 bg-status-success/15 px-4 py-3 text-xs text-status-success">
+                      <div className="rounded-xl border border-status-success-border bg-status-success-bg px-4 py-3 text-xs text-status-success-text">
                         <div className="flex items-center gap-2">
                           <BadgeCheck className="h-4 w-4" />
                           <div className="font-semibold">{selectedGuest.primaryFirstName} {selectedGuest.primaryLastName}</div>
@@ -925,7 +1003,7 @@ function BookingPageInner() {
                         )}
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs text-slate-500">Address</Label>
+                        <Label className="text-xs text-muted-foreground">Address</Label>
                         <Input
                           placeholder="Street address"
                           value={formData.guestAddress1}
@@ -951,11 +1029,11 @@ function BookingPageInner() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-xs text-slate-500">Select a guest to unlock personalized recommendations.</div>
+                    <div className="text-xs text-muted-foreground">Select a guest to unlock personalized recommendations.</div>
                   )}
 
                   {showNewGuest && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <Input
                           placeholder="First name"
@@ -1013,13 +1091,21 @@ function BookingPageInner() {
                 </div>
               </Card>
 
-              <Card className={cn(
-                "p-5 border-slate-200 shadow-sm",
-                validationErrors.dates && "border-red-300 ring-2 ring-red-100"
-              )}>
-                <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Stay details</div>
+              <Card
+                className={cn(
+                  "p-6",
+                  validationErrors.dates && "border-destructive/40 ring-2 ring-destructive/10"
+                )}
+              >
+                <div className="space-y-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Stay details
+                  </div>
+                  <div className="text-base font-semibold text-foreground">Dates and party</div>
+                  <p className="text-xs text-muted-foreground">Set dates, guest counts, and rig details.</p>
+                </div>
                 {validationErrors.dates && (
-                  <div className="mt-2 flex items-center gap-2 text-sm text-red-600" role="alert">
+                  <div className="mt-3 flex items-center gap-2 text-sm text-destructive" role="alert">
                     <AlertCircle className="h-4 w-4" />
                     <span>{validationErrors.dates}</span>
                   </div>
@@ -1027,7 +1113,7 @@ function BookingPageInner() {
                 <div className="mt-4 space-y-3">
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Arrival</Label>
+                      <Label className="text-xs text-muted-foreground">Arrival</Label>
                       <Input
                         type="date"
                         value={formData.arrivalDate}
@@ -1035,12 +1121,12 @@ function BookingPageInner() {
                           setFormData((prev) => ({ ...prev, arrivalDate: e.target.value }));
                           if (validationErrors.dates) setValidationErrors((prev) => ({ ...prev, dates: undefined }));
                         }}
-                        className={validationErrors.dates ? "border-red-300" : ""}
+                        className={validationErrors.dates ? "border-destructive/50" : ""}
                         aria-invalid={!!validationErrors.dates}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Departure</Label>
+                      <Label className="text-xs text-muted-foreground">Departure</Label>
                       <Input
                         type="date"
                         value={formData.departureDate}
@@ -1048,20 +1134,20 @@ function BookingPageInner() {
                           setFormData((prev) => ({ ...prev, departureDate: e.target.value }));
                           if (validationErrors.dates) setValidationErrors((prev) => ({ ...prev, dates: undefined }));
                         }}
-                        className={validationErrors.dates ? "border-red-300" : ""}
+                        className={validationErrors.dates ? "border-destructive/50" : ""}
                         aria-invalid={!!validationErrors.dates}
                       />
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <CalendarDays className="h-4 w-4 text-emerald-500" />
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <CalendarDays className="h-4 w-4 text-status-success" />
                     <span>{nights ? `${nights} nights` : "Select dates"}</span>
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-3">
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Adults</Label>
+                      <Label className="text-xs text-muted-foreground">Adults</Label>
                       <Input
                         type="number"
                         min={1}
@@ -1070,7 +1156,7 @@ function BookingPageInner() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Children</Label>
+                      <Label className="text-xs text-muted-foreground">Children</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1079,7 +1165,7 @@ function BookingPageInner() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Pets</Label>
+                      <Label className="text-xs text-muted-foreground">Pets</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1091,7 +1177,7 @@ function BookingPageInner() {
 
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Rig type</Label>
+                      <Label className="text-xs text-muted-foreground">Rig type</Label>
                       <Select
                         value={formData.rigType}
                         onValueChange={(value) => setFormData((prev) => ({ ...prev, rigType: value }))}
@@ -1109,7 +1195,7 @@ function BookingPageInner() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Rig length</Label>
+                      <Label className="text-xs text-muted-foreground">Rig length</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1122,7 +1208,7 @@ function BookingPageInner() {
 
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">How did you hear about us?</Label>
+                      <Label className="text-xs text-muted-foreground">How did you hear about us?</Label>
                       <Select
                         value={formData.referralSource}
                         onValueChange={(value) => setFormData((prev) => ({ ...prev, referralSource: value }))}
@@ -1145,7 +1231,7 @@ function BookingPageInner() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Reason for visit</Label>
+                      <Label className="text-xs text-muted-foreground">Reason for visit</Label>
                       <Select
                         value={formData.stayReason}
                         onValueChange={(value) => setFormData((prev) => ({ ...prev, stayReason: value }))}
@@ -1167,7 +1253,7 @@ function BookingPageInner() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-500">Internal notes</Label>
+                    <Label className="text-xs text-muted-foreground">Internal notes</Label>
                     <Textarea
                       rows={3}
                       value={formData.notes}
@@ -1179,12 +1265,17 @@ function BookingPageInner() {
               </Card>
 
               {filteredMatches.length > 0 && (
-                <Card className="p-5 border-slate-200 shadow-sm">
+                <Card className="p-6">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-bold uppercase tracking-widest text-slate-500">AI suggestions</div>
-                    <Sparkles className="h-4 w-4 text-emerald-500" />
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                        Recommendations
+                      </div>
+                      <div className="text-base font-semibold text-foreground">Suggested sites</div>
+                    </div>
+                    <Sparkles className="h-4 w-4 text-status-info" />
                   </div>
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-4 space-y-2">
                     {filteredMatches.slice(0, 3).map((match) => {
                       // Get up to 2 reasons, or generate fallback reasons based on site attributes
                       const displayReasons = match.reasons && match.reasons.length > 0
@@ -1207,17 +1298,17 @@ function BookingPageInner() {
                         <button
                           key={match.site.id}
                           type="button"
-                          className="w-full rounded-lg border border-status-success/20 bg-status-success/15 px-3 py-2.5 text-left text-sm hover:bg-status-success/20 transition-colors"
+                          className="w-full rounded-lg border border-status-info-border bg-status-info-bg px-3 py-2.5 text-left text-sm hover:bg-status-info-bg/70 transition-colors"
                           onClick={() => setFormData((prev) => ({ ...prev, siteId: match.site.id }))}
                         >
                           <div className="flex items-center justify-between mb-1.5">
-                            <div className="font-semibold text-status-success">{match.site.name}</div>
-                            <Badge className="bg-status-success text-white text-[10px]">{match.score}%</Badge>
+                            <div className="font-semibold text-foreground">{match.site.name}</div>
+                            <Badge variant="info" className="text-[10px]">{match.score}%</Badge>
                           </div>
                           {displayReasons.length > 0 && (
                             <div className="space-y-0.5">
                               {displayReasons.map((reason, idx) => (
-                                <div key={idx} className="flex items-start gap-1.5 text-[11px] text-status-success/80">
+                                <div key={idx} className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
                                   <span className="mt-0.5">•</span>
                                   <span className="flex-1">{reason}</span>
                                 </div>
@@ -1232,23 +1323,30 @@ function BookingPageInner() {
               )}
             </div>
 
-            <div className="space-y-4">
-              <Card className={cn(
-                "p-5 border-slate-200 shadow-sm",
-                validationErrors.site && "border-red-300 ring-2 ring-red-100"
-              )}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Availability</div>
-                    <div className="text-lg font-black text-slate-900">Choose a site</div>
+            <div className="space-y-6">
+              <Card
+                className={cn(
+                  "p-6",
+                  validationErrors.site && "border-destructive/40 ring-2 ring-destructive/10"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Availability
+                    </div>
+                    <div className="text-base font-semibold text-foreground">Select a site</div>
+                    <p className="text-xs text-muted-foreground">
+                      Filter by type or class, then pick the best fit.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Switch checked={availableOnly} onCheckedChange={setAvailableOnly} />
                     Available only
                   </div>
                 </div>
                 {validationErrors.site && (
-                  <div className="mt-2 flex items-center gap-2 text-sm text-red-600" role="alert">
+                  <div className="mt-3 flex items-center gap-2 text-sm text-destructive" role="alert">
                     <AlertCircle className="h-4 w-4" />
                     <span>{validationErrors.site}</span>
                   </div>
@@ -1256,7 +1354,7 @@ function BookingPageInner() {
 
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-500">Site type</Label>
+                    <Label className="text-xs text-muted-foreground">Site type</Label>
                     <Select value={siteTypeFilter} onValueChange={setSiteTypeFilter}>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="All types" />
@@ -1272,7 +1370,7 @@ function BookingPageInner() {
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-500">Site class</Label>
+                    <Label className="text-xs text-muted-foreground">Site class</Label>
                     <Select value={siteClassFilter} onValueChange={setSiteClassFilter}>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="All classes" />
@@ -1285,14 +1383,14 @@ function BookingPageInner() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 flex items-center justify-between">
+                  <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                     <span>Matches</span>
-                    <span className="font-semibold text-slate-700">{filteredSites.length}</span>
+                    <span className="font-semibold text-foreground">{filteredSites.length}</span>
                   </div>
                 </div>
 
                 {!dateRangeValid && (
-                  <div className="mt-4 rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
+                  <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
                     Select arrival and departure dates to view availability.
                   </div>
                 )}
@@ -1314,7 +1412,9 @@ function BookingPageInner() {
                           type="button"
                           className={cn(
                             "rounded-xl border border-l-4 p-3 text-left transition-all",
-                            isSelected ? "border-status-success bg-status-success/15" : "border-slate-200 hover:border-status-success/50",
+                            isSelected
+                              ? "border-status-success-border bg-status-success-bg ring-1 ring-status-success/20"
+                              : "border-border hover:border-status-success/40 hover:bg-muted/30",
                             isDisabled && "opacity-60 cursor-not-allowed",
                             meta.border
                           )}
@@ -1322,14 +1422,14 @@ function BookingPageInner() {
                           onClick={() => setFormData((prev) => ({ ...prev, siteId: site.id }))}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-slate-900">{displayName}</div>
+                            <div className="text-sm font-semibold text-foreground">{displayName}</div>
                             <Badge className={cn("text-[10px]", meta.badge)}>{meta.label}</Badge>
                           </div>
-                          <div className="text-xs text-slate-500">#{displayNum} • {displayClass}</div>
+                          <div className="text-xs text-muted-foreground">#{displayNum} • {displayClass}</div>
                           <div className="mt-2 flex items-center justify-between text-xs">
-                            <span className="text-slate-500">{site.statusDetail || site.status}</span>
+                            <span className="text-muted-foreground">{site.statusDetail || site.status}</span>
                             {site.defaultRate ? (
-                              <span className="font-semibold text-slate-700">${(site.defaultRate / 100).toFixed(0)}/night</span>
+                              <span className="font-semibold text-foreground/80">${(site.defaultRate / 100).toFixed(0)}/night</span>
                             ) : null}
                           </div>
                         </button>
@@ -1337,7 +1437,7 @@ function BookingPageInner() {
                     })}
 
                     {filteredSites.length === 0 && (
-                      <div className="col-span-full rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+                      <div className="col-span-full rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
                         No sites match your filters. Try changing the site type or class.
                       </div>
                     )}
@@ -1346,37 +1446,42 @@ function BookingPageInner() {
               </Card>
             </div>
 
-            <div className="space-y-4">
-              <Card className="p-5 border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Pricing</div>
-                    <div className="text-lg font-black text-slate-900">Reservation total</div>
+            <div className="space-y-6">
+              <Card className="p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Pricing
+                    </div>
+                    <div className="text-base font-semibold text-foreground">Reservation total</div>
+                    <p className="text-xs text-muted-foreground">
+                      Review totals, fees, and payment timing.
+                    </p>
                   </div>
-                  <CircleDollarSign className="h-5 w-5 text-emerald-500" />
+                  <CircleDollarSign className="h-5 w-5 text-status-success" />
                 </div>
 
                 {/* Booking summary */}
                 <div className="mt-4 space-y-2 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Site</span>
-                    <span className="font-semibold text-slate-800">{selectedSite?.name || "Select a site"}</span>
+                    <span className="text-muted-foreground">Site</span>
+                    <span className="font-semibold text-foreground">{selectedSite?.name || "Select a site"}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Dates</span>
-                    <span className="font-semibold text-slate-800">
+                    <span className="text-muted-foreground">Dates</span>
+                    <span className="font-semibold text-foreground">
                       {formData.arrivalDate && formData.departureDate
                         ? `${formData.arrivalDate} → ${formData.departureDate}`
                         : "Set dates"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Duration</span>
-                    <span className="font-semibold text-slate-800">{nights ? `${nights} night${nights === 1 ? "" : "s"}` : "-"}</span>
+                    <span className="text-muted-foreground">Duration</span>
+                    <span className="font-semibold text-foreground">{nights ? `${nights} night${nights === 1 ? "" : "s"}` : "-"}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Guests</span>
-                    <span className="font-semibold text-slate-800">
+                    <span className="text-muted-foreground">Guests</span>
+                    <span className="font-semibold text-foreground">
                       {formData.adults} adult{formData.adults !== 1 ? "s" : ""}
                       {formData.children > 0 && `, ${formData.children} child${formData.children !== 1 ? "ren" : ""}`}
                       {formData.pets > 0 && `, ${formData.pets} pet${formData.pets !== 1 ? "s" : ""}`}
@@ -1385,7 +1490,7 @@ function BookingPageInner() {
                 </div>
 
                 {(quoteQuery.isError || pricingIsEstimate) && (
-                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 flex items-start gap-2">
+                  <div className="mt-4 flex items-start gap-2 rounded-xl border border-status-warning-border bg-status-warning-bg px-3 py-2 text-xs text-status-warning-text">
                     <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
                     <span>
                       {quoteQuery.isError
@@ -1400,25 +1505,25 @@ function BookingPageInner() {
                   <Collapsible
                     open={priceBreakdownExpanded}
                     onOpenChange={setPriceBreakdownExpanded}
-                    className="mt-4 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden"
+                    className="mt-4 overflow-hidden rounded-xl border border-border bg-muted/40"
                   >
-                    <div className="px-3 py-2 bg-slate-100 border-b border-slate-200">
+                    <div className="border-b border-border bg-muted/60 px-3 py-2">
                       <CollapsibleTrigger className="w-full group">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
                             <CircleDollarSign className="h-3.5 w-3.5" />
                             Price Breakdown
                           </div>
                           <div className="flex items-center gap-1">
                             {displayTotalCents !== null && !priceBreakdownExpanded && (
-                              <span className="text-sm font-bold text-slate-900 mr-2">
+                              <span className="mr-2 text-sm font-semibold text-foreground">
                                 ${(displayTotalCents / 100).toFixed(2)}
                               </span>
                             )}
                             {priceBreakdownExpanded ? (
-                              <ChevronUp className="h-4 w-4 text-slate-500 group-hover:text-slate-700" />
+                              <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                             ) : (
-                              <ChevronDown className="h-4 w-4 text-slate-500 group-hover:text-slate-700" />
+                              <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                             )}
                           </div>
                         </div>
@@ -1429,12 +1534,12 @@ function BookingPageInner() {
                       {nights > 0 && pricingSubtotalCents !== null && (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-slate-600">
+                            <span className="text-muted-foreground">
                               ${((pricingSubtotalCents / nights) / 100).toFixed(2)} x {nights} night{nights === 1 ? "" : "s"}
                             </span>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button type="button" className="text-slate-400 hover:text-slate-600">
+                                <button type="button" className="text-muted-foreground hover:text-foreground">
                                   <HelpCircle className="h-3.5 w-3.5" />
                                 </button>
                               </TooltipTrigger>
@@ -1446,13 +1551,13 @@ function BookingPageInner() {
                               </TooltipContent>
                             </Tooltip>
                           </div>
-                          <span className="font-medium text-slate-800">
+                          <span className="font-medium text-foreground">
                             ${(pricingSubtotalCents / 100).toFixed(2)}
                           </span>
                         </div>
                       )}
                       {nights === 0 && (
-                        <div className="flex items-center justify-between text-slate-500">
+                        <div className="flex items-center justify-between text-muted-foreground">
                           <span>Site rate</span>
                           <span>-</span>
                         </div>
@@ -1462,12 +1567,17 @@ function BookingPageInner() {
                       {pricingRulesDeltaCents !== null && pricingRulesDeltaCents !== 0 && (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
-                            <span className={pricingRulesDeltaCents < 0 ? "text-emerald-600" : "text-slate-600"}>
+                            <span className={pricingRulesDeltaCents < 0 ? "text-status-success" : "text-muted-foreground"}>
                               {pricingRulesDeltaCents < 0 ? "Discount applied" : "Rate adjustment"}
                             </span>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button type="button" className={pricingRulesDeltaCents < 0 ? "text-emerald-500 hover:text-emerald-700" : "text-slate-400 hover:text-slate-600"}>
+                                <button
+                                  type="button"
+                                  className={pricingRulesDeltaCents < 0
+                                    ? "text-status-success hover:text-status-success"
+                                    : "text-muted-foreground hover:text-foreground"}
+                                >
                                   <HelpCircle className="h-3.5 w-3.5" />
                                 </button>
                               </TooltipTrigger>
@@ -1488,13 +1598,13 @@ function BookingPageInner() {
                                     </>
                                   )}
                                 </ul>
-                                <p className="text-xs text-slate-500 mt-2">
+                                <p className="mt-2 text-xs text-muted-foreground">
                                   These pricing rules are configured in your campground settings.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
                           </div>
-                          <span className={pricingRulesDeltaCents < 0 ? "font-medium text-emerald-600" : "font-medium text-slate-800"}>
+                          <span className={pricingRulesDeltaCents < 0 ? "font-medium text-status-success" : "font-medium text-foreground"}>
                             {pricingRulesDeltaCents < 0 ? "-" : "+"}${(Math.abs(pricingRulesDeltaCents) / 100).toFixed(2)}
                           </span>
                         </div>
@@ -1504,13 +1614,13 @@ function BookingPageInner() {
                       {lockFeeCents > 0 && (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-slate-600 flex items-center gap-1">
+                            <span className="flex items-center gap-1 text-muted-foreground">
                               <Lock className="h-3 w-3" />
                               Site reservation fee
                             </span>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button type="button" className="text-slate-400 hover:text-slate-600">
+                                <button type="button" className="text-muted-foreground hover:text-foreground">
                                   <HelpCircle className="h-3.5 w-3.5" />
                                 </button>
                               </TooltipTrigger>
@@ -1522,7 +1632,7 @@ function BookingPageInner() {
                               </TooltipContent>
                             </Tooltip>
                           </div>
-                          <span className="font-medium text-slate-800">
+                          <span className="font-medium text-foreground">
                             +${(lockFeeCents / 100).toFixed(2)}
                           </span>
                         </div>
@@ -1532,15 +1642,15 @@ function BookingPageInner() {
                       {/* Examples: cleaning fee, service fee, pet fee, etc. */}
 
                       {/* Divider and total */}
-                      <div className="border-t border-slate-200 pt-2 mt-2">
+                      <div className="mt-2 border-t border-border pt-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900">Total due</span>
-                          <span className="text-lg font-black text-slate-900">
+                          <span className="font-semibold text-foreground">Total due</span>
+                          <span className="text-lg font-semibold text-foreground">
                             {displayTotalCents !== null ? `$${(displayTotalCents / 100).toFixed(2)}` : "-"}
                           </span>
                         </div>
                         {displayTotalCents !== null && displayTotalCents > 0 && (
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             Amount charged at checkout
                           </p>
                         )}
@@ -1554,25 +1664,25 @@ function BookingPageInner() {
                     checked={formData.lockSite}
                     onCheckedChange={(value) => setFormData((prev) => ({ ...prev, lockSite: value }))}
                   />
-                  <div className="text-xs text-slate-600 flex items-center gap-1">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Lock className="h-3 w-3" />
                     Lock this site {siteLockFeeCents > 0 ? `(+$${(siteLockFeeCents / 100).toFixed(2)})` : ""}
                   </div>
                 </div>
 
-                <div className="mt-4 border-t border-slate-200 pt-4">
+                <div className="mt-4 border-t border-border pt-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Payment</div>
-                      <div className="text-sm font-semibold text-slate-900">Collection timing</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Payment</div>
+                      <div className="text-sm font-semibold text-foreground">Collection timing</div>
                     </div>
                     <Switch
                       checked={formData.collectPayment}
                       onCheckedChange={(value) => setFormData((prev) => ({ ...prev, collectPayment: value }))}
                     />
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
-                    <CircleDollarSign className="h-3.5 w-3.5 text-emerald-600" />
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <CircleDollarSign className="h-3.5 w-3.5 text-status-success" />
                     <span>
                       {formData.collectPayment
                         ? "Collect payment now during booking"
@@ -1584,7 +1694,7 @@ function BookingPageInner() {
                 {formData.collectPayment && (
                   <div className="mt-4 space-y-2">
                   {formData.paymentMethod === "card" && (
-                    <div className="rounded-lg border border-slate-200 bg-card px-3 py-2 text-[11px] text-slate-500">
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
                       {formData.cardEntryMode === "reader"
                         ? "Card reader payments require a connected terminal."
                         : "Manual card checkout opens right after the reservation is created."}
@@ -1592,7 +1702,7 @@ function BookingPageInner() {
                   )}
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Amount to charge</Label>
+                      <Label className="text-xs text-muted-foreground">Amount to charge</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1602,7 +1712,7 @@ function BookingPageInner() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-500">Method</Label>
+                      <Label className="text-xs text-muted-foreground">Method</Label>
                       <Select
                         value={formData.paymentMethod}
                         onValueChange={(value) => setFormData((prev) => ({ ...prev, paymentMethod: value }))}
@@ -1619,9 +1729,9 @@ function BookingPageInner() {
                     </div>
                   </div>
                   {formData.paymentMethod === "card" && (
-                    <div className="rounded-lg border border-slate-200 bg-card px-3 py-2">
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
                       <div className="space-y-1">
-                        <Label className="text-xs text-slate-500">Card entry</Label>
+                        <Label className="text-xs text-muted-foreground">Card entry</Label>
                         <Select
                           value={formData.cardEntryMode}
                           onValueChange={(value) => setFormData((prev) => ({ ...prev, cardEntryMode: value }))}
@@ -1636,17 +1746,17 @@ function BookingPageInner() {
                         </Select>
                       </div>
                       {formData.cardEntryMode === "reader" && (
-                        <div className="mt-2 text-[11px] text-amber-600">
+                        <div className="mt-2 text-[11px] text-status-warning">
                           Card reader requires terminal configuration. Go to Settings &gt; Payments to set up.
                         </div>
                       )}
                     </div>
                   )}
                   {formData.paymentMethod === "cash" && (
-                    <div className="rounded-lg border border-slate-200 bg-card px-3 py-2">
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <div className="space-y-1">
-                          <Label className="text-xs text-slate-500">Cash received</Label>
+                          <Label className="text-xs text-muted-foreground">Cash received</Label>
                           <Input
                             type="number"
                             min={0}
@@ -1657,8 +1767,8 @@ function BookingPageInner() {
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-slate-500">Change due</Label>
-                          <div className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm flex items-center">
+                          <Label className="text-xs text-muted-foreground">Change due</Label>
+                          <div className="flex h-10 items-center rounded-md border border-border bg-muted/40 px-3 text-sm">
                             {cashChangeDueCents > 0 ? `$${(cashChangeDueCents / 100).toFixed(2)}` : "—"}
                           </div>
                         </div>
@@ -1713,13 +1823,13 @@ function BookingPageInner() {
                 </div>
               </Card>
 
-              <Card className="p-4 border-slate-200 bg-slate-50 text-xs text-slate-500">
+              <Card className="p-4 border-border bg-muted/40 text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <CheckCircle2 className="h-4 w-4 text-status-success" />
                   <span>Tip: Drag on the calendar to prefill site + dates.</span>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <ChevronsRight className="h-4 w-4 text-slate-400" />
+                  <ChevronsRight className="h-4 w-4 text-muted-foreground" />
                   <span>Use AI suggestions to jump to the best-fit site for the guest.</span>
                 </div>
               </Card>
@@ -1788,16 +1898,16 @@ function BookingPageInner() {
           </DialogHeader>
           <div className="py-4">
             {restoredData && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+              <div className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-sm">
                 {restoredData.arrivalDate && restoredData.departureDate && (
-                  <p className="text-slate-600">
-                    <span className="text-slate-500">Dates:</span>{" "}
+                  <p className="text-muted-foreground">
+                    <span className="text-muted-foreground">Dates:</span>{" "}
                     {restoredData.arrivalDate} to {restoredData.departureDate}
                   </p>
                 )}
                 {restoredData.guestSearch && (
-                  <p className="text-slate-600">
-                    <span className="text-slate-500">Guest:</span> {restoredData.guestSearch}
+                  <p className="text-muted-foreground">
+                    <span className="text-muted-foreground">Guest:</span> {restoredData.guestSearch}
                   </p>
                 )}
               </div>
