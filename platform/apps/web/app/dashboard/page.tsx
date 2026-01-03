@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Scale,
   Search,
+  Settings,
   ShoppingBag,
   Sparkles,
   Sun,
@@ -733,6 +734,22 @@ export default function Dashboard() {
                 >
                   <ShoppingBag className="h-4 w-4" />
                   Open POS
+                </Link>
+              </motion.div>
+              <motion.div {...hoverScale} whileTap={{ scale: 0.95 }}>
+                <Link
+                  href="/dashboard/settings/central/property/profile"
+                  aria-label="Open profile settings"
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold",
+                    "border border-border bg-card text-card-foreground",
+                    "hover:border-action-primary/40 hover:text-action-primary hover:bg-action-primary/10",
+                    "shadow-sm transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2"
+                  )}
+                >
+                  <Settings className="h-4 w-4" />
+                  Profile settings
                 </Link>
               </motion.div>
             </div>
