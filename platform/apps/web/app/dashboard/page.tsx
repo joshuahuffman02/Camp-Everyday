@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
+import { useSession } from "next-auth/react";
 import {
   AlertCircle,
   ArrowRight,
@@ -36,6 +37,7 @@ import {
   TrendingUp,
   Trophy,
   UserCheck,
+  UserCircle,
   Users
 } from "lucide-react";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
@@ -308,6 +310,7 @@ function CelebrationBadge({
 export default function Dashboard() {
   const [search, setSearch] = useState("");
   const prefersReducedMotion = useReducedMotion();
+  const { data: session } = useSession();
 
   // Onboarding tour for new users
   const tour = useTour({
@@ -327,6 +330,28 @@ export default function Dashboard() {
   // Track when client-side hydration is complete to avoid hydration mismatch
   const [hasMounted, setHasMounted] = useState(false);
   const [selectedId, setSelectedId] = useState<string>("");
+
+  const sessionUser = session?.user as {
+    name?: string | null;
+    email?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | undefined;
+  const displayName =
+    sessionUser?.name ||
+    [sessionUser?.firstName, sessionUser?.lastName].filter(Boolean).join(" ") ||
+    sessionUser?.email ||
+    "Signed in";
+  const displayEmail = sessionUser?.email || "";
+  const initialsSource = displayName === "Signed in" ? displayEmail : displayName;
+  const initials = initialsSource
+    ? initialsSource
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("")
+    : "?";
 
   // After mount, read from localStorage and set up selection
   useEffect(() => {
@@ -673,7 +698,32 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/dashboard/settings/users"
+                aria-label={`Signed in as ${displayName}`}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2 text-left",
+                  "hover:border-muted-foreground/30 hover:bg-muted/60 transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary focus-visible:ring-offset-2"
+                )}
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground text-xs font-semibold">
+                  {initials}
+                </div>
+                <div className="leading-tight">
+                  <div className="text-[11px] font-semibold text-muted-foreground">Signed in as</div>
+                  <div className="text-sm font-semibold text-foreground max-w-[160px] truncate">
+                    {displayName}
+                  </div>
+                  {displayEmail && (
+                    <div className="text-[11px] text-muted-foreground max-w-[160px] truncate">
+                      {displayEmail}
+                    </div>
+                  )}
+                </div>
+                <UserCircle className="h-4 w-4 text-muted-foreground" />
+              </Link>
               <motion.div {...hoverScale} whileTap={{ scale: 0.95 }}>
                 <Link
                   href="/booking"
