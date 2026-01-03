@@ -17,6 +17,7 @@ import {
   Hand,
   LogOut,
   MessageCircle,
+  Minus,
   Moon,
   PartyPopper,
   Plus,
@@ -30,6 +31,8 @@ import {
   Sunrise,
   Sunset,
   Tent,
+  ThumbsDown,
+  ThumbsUp,
   TrendingUp,
   Trophy,
   UserCheck,
@@ -54,8 +57,10 @@ import { cn } from "@/lib/utils";
 import { CharityImpactWidget } from "@/components/charity/CharityImpactWidget";
 import { SetupQueueWidget } from "@/components/onboarding/SetupQueueWidget";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { NpsGauge } from "@/components/analytics/NpsGauge";
+import type { NpsMetrics } from "@campreserv/shared";
 
 type Reservation = {
   id: string;
@@ -70,39 +75,6 @@ type Reservation = {
     primaryLastName?: string;
   };
 };
-
-// NPS score interpretation helper
-function getNpsInterpretation(score: number) {
-  if (score >= 70) {
-    return {
-      label: "Excellent",
-      variant: "success" as const,
-      color: "text-emerald-600",
-      description: "Your guests love you! This is world-class service."
-    };
-  } else if (score >= 50) {
-    return {
-      label: "Good",
-      variant: "warning" as const,
-      color: "text-yellow-600",
-      description: "Good performance, but there's room for improvement."
-    };
-  } else if (score >= 30) {
-    return {
-      label: "Needs Improvement",
-      variant: "warning" as const,
-      color: "text-orange-600",
-      description: "Guest satisfaction needs attention. Review feedback to identify issues."
-    };
-  } else {
-    return {
-      label: "Critical",
-      variant: "error" as const,
-      color: "text-red-600",
-      description: "Urgent action needed. Guest experience is suffering significantly."
-    };
-  }
-}
 
 // Time-of-day greeting helper
 function getTimeOfDayGreeting() {
@@ -643,57 +615,6 @@ export default function Dashboard() {
           </motion.div>
         ) : null}
 
-        {/* Impact highlights: NPS + Charity */}
-        <motion.div
-          className="grid gap-4 lg:grid-cols-2"
-          {...motionProps}
-          transition={{ ...SPRING_CONFIG, delay: 0.02 }}
-        >
-          <NpsSummaryCard npsData={npsQuery.data} />
-          <div className="h-full flex flex-col">
-            {hasMounted && selectedId ? (
-              <CharityImpactWidget campgroundId={selectedId} />
-            ) : (
-              <div className={cn(
-                "rounded-2xl p-6 animate-pulse",
-                "border border-border bg-card"
-              )}>
-                <div className="space-y-3">
-                  <div className="h-5 w-32 bg-muted rounded" />
-                  <div className="h-10 w-20 bg-muted rounded" />
-                  <div className="h-4 w-40 bg-muted rounded" />
-                </div>
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Onboarding Hint */}
-        <PageOnboardingHint
-          id="dashboard-overview"
-          title="Welcome to your Dashboard!"
-          content={
-            <div>
-              <p className="mb-2">
-                This is your command center for managing your campground. Here you'll find:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Today's arrivals and departures at a glance</li>
-                <li>Current occupancy rates and key metrics</li>
-                <li>Outstanding balances that need attention</li>
-                <li>Quick actions to create bookings and process orders</li>
-              </ul>
-            </div>
-          }
-          actions={[
-            {
-              label: "View Calendar",
-              onClick: () => (window.location.href = "/calendar"),
-              variant: "ghost"
-            }
-          ]}
-        />
-
         {/* Daily briefing */}
         <motion.div
           className={cn(
@@ -781,18 +702,73 @@ export default function Dashboard() {
               </motion.div>
             </div>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <CelebrationBadge
-              show={occupancyRate >= 90 && !isLoading}
-              message="Nearly Full! Great job!"
-            />
-            <CelebrationBadge
-              show={outstandingBalanceCents === 0 && (reservations?.length ?? 0) > 0 && !isLoading}
-              message="All payments collected!"
-            />
-          </div>
         </motion.div>
+
+
+        {/* Impact highlights: NPS + Charity */}
+        <motion.div
+          className="grid gap-4 lg:grid-cols-2"
+          {...motionProps}
+          transition={{ ...SPRING_CONFIG, delay: 0.02 }}
+        >
+          <NpsSummaryCard npsData={npsQuery.data} />
+          {hasMounted && selectedId ? (
+            <CharityImpactWidget campgroundId={selectedId} />
+          ) : (
+            <div className="grid gap-4">
+              <Card className="border-border">
+                <CardContent className="p-6">
+                  <div className="animate-pulse space-y-3">
+                    <div className="h-4 w-32 bg-muted rounded" />
+                    <div className="h-8 w-28 bg-muted rounded" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border">
+                <CardContent className="p-6">
+                  <div className="animate-pulse grid grid-cols-3 gap-4">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div key={`charity-placeholder-${index}`} className="space-y-2">
+                        <div className="h-6 w-12 bg-muted rounded mx-auto" />
+                        <div className="h-3 w-16 bg-muted rounded mx-auto" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <div className="h-3 w-full bg-muted rounded" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Onboarding Hint */}
+        <PageOnboardingHint
+          id="dashboard-overview"
+          title="Welcome to your Dashboard!"
+          content={
+            <div>
+              <p className="mb-2">
+                This is your command center for managing your campground. Here you'll find:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>Today's arrivals and departures at a glance</li>
+                <li>Current occupancy rates and key metrics</li>
+                <li>Outstanding balances that need attention</li>
+                <li>Quick actions to create bookings and process orders</li>
+              </ul>
+            </div>
+          }
+          actions={[
+            {
+              label: "View Calendar",
+              onClick: () => (window.location.href = "/calendar"),
+              variant: "ghost"
+            }
+          ]}
+        />
+
 
         {/* Error State */}
         {isError && (
@@ -1763,73 +1739,92 @@ function StatCard({
 function NpsSummaryCard({
   npsData
 }: {
-  npsData?: { nps?: number | null; totalResponses?: number | null; responseRate?: number | null };
+  npsData?: NpsMetrics;
 }) {
+  const totalResponses = npsData?.totalResponses ?? 0;
+  const promoters = npsData?.promoters ?? 0;
+  const passives = npsData?.passives ?? 0;
+  const detractors = npsData?.detractors ?? 0;
+  const responseRate = npsData?.responseRate;
   const npsScore = npsData?.nps;
-  const npsValue = typeof npsScore === "number" ? npsScore : null;
-  const npsInterpretation = npsValue !== null ? getNpsInterpretation(npsValue) : null;
+  const hasScore = typeof npsScore === "number";
+  const score = hasScore ? npsScore : 0;
+  const isLoading = !npsData;
+
+  const formatPercent = (value: number) => (
+    totalResponses > 0
+      ? `${Math.round((value / totalResponses) * 100)}%`
+      : "—"
+  );
 
   return (
-    <TooltipProvider>
-      <div className={cn(
-        "rounded-2xl p-6 shadow-sm transition-colors",
-        "border border-border bg-card"
-      )}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-sm font-semibold text-foreground">Guest sentiment</div>
-            <div className="text-xs text-muted-foreground">NPS and response rate</div>
-          </div>
-          <span className={cn(
-            "rounded-xl p-2",
-            "bg-muted text-muted-foreground"
-          )}>
-            <MessageCircle className="h-5 w-5" />
-          </span>
-        </div>
+    <div className="grid gap-4">
+      {hasScore || isLoading ? (
+        <NpsGauge
+          score={score}
+          loading={isLoading}
+          size="sm"
+          title="Guest NPS Score"
+        />
+      ) : (
+        <Card className="border-border bg-muted/30">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <span className="rounded-xl bg-muted p-2 text-muted-foreground">
+                <MessageCircle className="h-5 w-5" />
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-foreground">Guest NPS Score</div>
+                <div className="text-xs text-muted-foreground">No survey responses yet.</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
-          <div className="text-4xl font-semibold text-foreground">{npsValue ?? "—"}</div>
-          <div className="space-y-2">
-            {npsInterpretation ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div>
-                    <Badge variant={npsInterpretation.variant} className="cursor-help">
-                      {npsInterpretation.label}
-                    </Badge>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-xs">
-                  <div className="space-y-2">
-                    <p className="font-semibold">What is NPS?</p>
-                    <p className="text-xs">
-                      Net Promoter Score measures guest loyalty on a scale from -100 to 100.
-                    </p>
-                    <div className="text-xs space-y-1 border-t border-border pt-2">
-                      <p><strong>70+:</strong> Excellent - World-class</p>
-                      <p><strong>50-69:</strong> Good - Room to improve</p>
-                      <p><strong>30-49:</strong> Needs attention</p>
-                      <p><strong>&lt;30:</strong> Critical - Urgent action</p>
-                    </div>
-                    <div className="text-xs border-t border-border pt-2">
-                      <p className={npsInterpretation.color}>
-                        {npsInterpretation.description}
-                      </p>
-                    </div>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <Badge variant="secondary">No data yet</Badge>
-            )}
-            <div className="text-xs text-muted-foreground">
-              {npsData?.totalResponses ?? 0} responses · {npsData?.responseRate ?? "—"}% response rate
+      <Card className="border-border">
+        <CardContent className="p-6">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <ThumbsUp className="h-5 w-5 text-green-500" />
+              </div>
+              <p className="text-2xl font-bold text-green-600">{promoters}</p>
+              <p className="text-xs text-muted-foreground">Promoters</p>
+              <p className="text-sm text-green-600">{formatPercent(promoters)}</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Minus className="h-5 w-5 text-amber-500" />
+              </div>
+              <p className="text-2xl font-bold text-amber-600">{passives}</p>
+              <p className="text-xs text-muted-foreground">Passives</p>
+              <p className="text-sm text-amber-600">{formatPercent(passives)}</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <ThumbsDown className="h-5 w-5 text-red-500" />
+              </div>
+              <p className="text-2xl font-bold text-red-600">{detractors}</p>
+              <p className="text-xs text-muted-foreground">Detractors</p>
+              <p className="text-sm text-red-600">{formatPercent(detractors)}</p>
             </div>
           </div>
-        </div>
-      </div>
-    </TooltipProvider>
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Total Responses</span>
+              <span className="text-foreground font-medium">{totalResponses.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-sm mt-2">
+              <span className="text-muted-foreground">Response Rate</span>
+              <span className="text-foreground font-medium">
+                {responseRate == null ? "—" : `${responseRate.toFixed(1)}%`}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

@@ -12,6 +12,7 @@ interface NpsGaugeProps {
   yoyChange?: number | null;
   loading?: boolean;
   size?: "sm" | "md" | "lg";
+  title?: string;
 }
 
 function getNpsColor(score: number): string {
@@ -48,6 +49,7 @@ export function NpsGauge({
   yoyChange,
   loading = false,
   size = "lg",
+  title = "Platform NPS Score",
 }: NpsGaugeProps) {
   const sizeConfig = {
     sm: { width: 160, height: 100, strokeWidth: 12, fontSize: "text-3xl", labelSize: "text-sm" },
@@ -102,7 +104,7 @@ export function NpsGauge({
     <Card className={cn("border-border", getNpsBackground(score))}>
       <CardHeader className="pb-0">
         <CardTitle className="text-center text-sm font-medium text-muted-foreground">
-          Platform NPS Score
+          {title}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-2">
