@@ -1821,7 +1821,7 @@ function StatCard({
 function NpsSummaryCard({
   npsData
 }: {
-  npsData?: { nps?: number; totalResponses?: number; responseRate?: number };
+  npsData?: { nps?: number | null; totalResponses?: number | null; responseRate?: number | null };
 }) {
   const npsScore = npsData?.nps;
   const npsValue = typeof npsScore === "number" ? npsScore : null;
