@@ -1,0 +1,111 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Prisma generated
+**/node_modules/.prisma/
+**/@prisma/client/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Environment files (may contain secrets)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Lock files (too large, not useful for AI)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Generated documentation (too large)
+**/node_modules/
+**/.git/
+
+# Documentation directories (loaded on-demand only)
+docs/
+content/
+platform/docs/
+platform/apps/web/docs/
+platform/apps/web/components/help/
+platform/apps/web/public/security-templates/
+
+# Audit and planning docs (loaded on-demand only)
+AUDIT*.md
+AUTONOMOUS_TASKS*.md
+*-SUMMARY.md
+*-IMPLEMENTATION.md
+*-FINDINGS.md
+*-FIX*.md
+*-GUIDE.md
+*-README.md
+SECURITY-*.md
+ACCESSIBILITY_*.md
+HELP_*.md
+KEYBOARD_*.md
+
+# All markdown except core config
+*.md
+!CLAUDE.md
+!CLAUDE.local.md
+!README.md
+!.claude/**/*.md
+
+# Mobile builds
+*.xcworkspace/
+*.xcodeproj/xcuserdata/
+DerivedData/
+Pods/
+*.ipa
+*.app
+*.dSYM
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+ENV/
+
+# Rust
+target/
+Cargo.lock
+**/*.rlib
+**/*.so
+**/*.dylib
+**/*.dll
+**/*.exe

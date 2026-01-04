@@ -408,7 +408,7 @@ export default function ReservationsPage() {
   const toggleDetails = useCallback(
     async (res: any, forceOpen?: boolean) => {
       const nextOpen = forceOpen !== undefined ? forceOpen : !openDetails[res.id];
-      setOpenDetails((prev) => ({ ...prev, [res.id]: nextOpen }));
+      setOpenDetails(nextOpen ? { [res.id]: true } : {});
       setSelection({ openDetailsId: nextOpen ? res.id : null, highlightedId: nextOpen ? res.id : highlighted });
 
       if (nextOpen && !ledgerByRes[res.id]) {
@@ -691,7 +691,7 @@ export default function ReservationsPage() {
   useEffect(() => {
     const focus = searchParams.get("focus");
     if (focus) {
-      setOpenDetails((prev) => ({ ...prev, [focus]: true }));
+      setOpenDetails({ [focus]: true });
       setSelection({ openDetailsId: focus, highlightedId: focus });
       setTimeout(() => setSelection({ highlightedId: null }), 3000);
     }
@@ -1854,7 +1854,6 @@ export default function ReservationsPage() {
               const feesAmount = ((res as ReservationWithGuest).feesAmount ?? 0) / 100;
               const taxesAmount = ((res as ReservationWithGuest).taxesAmount ?? 0) / 100;
               const discountsAmount = ((res as ReservationWithGuest).discountsAmount ?? 0) / 100;
-              const shouldAutoOpen = focusId === res.id;
               const resOccupancy = (res.adults ?? 0) + (res.children ?? 0);
               const resMaxOccupancy = siteClass?.maxOccupancy ?? null;
               const resOccupancyOver = resMaxOccupancy ? resOccupancy > resMaxOccupancy : false;
@@ -1903,7 +1902,6 @@ export default function ReservationsPage() {
                 (!(editing[res.id]?.overrideReason || "").trim() ||
                   !(editing[res.id]?.overrideApprovedBy || "").trim());
               const guestName = `${(res as ReservationWithGuest).guest?.primaryFirstName || ""} ${(res as ReservationWithGuest).guest?.primaryLastName || ""}`.trim();
-              const isOpen = !!openDetails[res.id];
               const wasSkipped =
                 !!bulkFeedback &&
                 bulkFeedback.skippedIds.includes(res.id);
@@ -1911,1037 +1909,1191 @@ export default function ReservationsPage() {
               return (
                 <div
                   key={res.id}
-                  className={`card p-3 space-y-2 ${highlighted === res.id ? "ring-2 ring-status-success/40" : ""} ${wasSkipped ? "border-status-warning/30" : ""}`}
-                  ref={
-                    shouldAutoOpen
-                      ? (el) => {
-                        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }
-                      : undefined
-                  }
+                  className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto"
+                  onClick={() => toggleDetails(res, false)}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-foreground">
-                      <span className={`rounded-full border px-3 py-1 text-xs ${statusColor}`}>{res.status.replace("_", " ")}</span>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">
-                        {arrival.toLocaleDateString()} → {departure.toLocaleDateString()} • {nights} night(s)
-                      </span>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">
-                        Paid ${paid.toFixed(2)} • Bal ${balance.toFixed(2)}
-                      </span>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">
-                        ADR ${nights > 0 ? (total / nights).toFixed(2) : total.toFixed(2)}
-                      </span>
-                      {balance > 0 && (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-status-warning/30 bg-status-warning/15 px-3 py-1 text-xs text-status-warning">
-                          Balance due {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(balance)}
-                        </span>
-                      )}
-                      <span className="text-foreground">
-                        Site {res.site?.name || res.site?.siteNumber} {siteClassName ? `• ${siteClassName}` : ""}
-                      </span>
-                      <span className="text-foreground">Guest {guestName || "Unassigned"}</span>
-                      {suggestedDeposit > 0 && (
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                            paid >= suggestedDeposit
-                              ? "border-status-success/30 bg-status-success/15 text-status-success"
-                              : "border-status-warning/30 bg-status-warning/15 text-status-warning"
-                          }`}
-                        >
-                          {paid >= suggestedDeposit ? "Deposit covered" : `Deposit due $${Math.max(0, suggestedDeposit - paid).toFixed(2)}`}
-                      </span>
-                      )}
-                      {wasSkipped && (
-                        <span className="rounded-full border border-status-warning/30 bg-status-warning/15 px-2 py-0.5 text-[11px] text-status-warning">
-                          Skipped in bulk (status)
-                        </span>
-                      )}
-                      {siteClass?.glCode && (
-                        <span className="rounded-full border border-border bg-muted px-2 py-1 text-xs text-foreground">
-                          GL {siteClass.glCode}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {res.status === "confirmed" && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => updateReservation.mutate({ id: res.id, data: { status: "checked_in" } })}
-                          disabled={updateReservation.isPending}
-                        >
-                          Check in
-                        </Button>
-                      )}
-                      {res.status === "checked_in" && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => updateReservation.mutate({ id: res.id, data: { status: "checked_out" } })}
-                          disabled={updateReservation.isPending}
-                        >
-                          Check out
-                        </Button>
-                      )}
-                      {suggestedDeposit > 0 && paid < suggestedDeposit && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => router.push(`/campgrounds/${campgroundId}/reservations/${res.id}`)}
-                        >
-                          Collect deposit
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setSelection({ highlightedId: res.id, openDetailsId: res.id });
-                          toggleDetails(res, true);
-                        }}
-                      >
-                        Message guest
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => router.push(`/campgrounds/${campgroundId}/reservations/${res.id}`)}
-                      >
-                        View details
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => toggleDetails(res)}
-                      >
-                        {isOpen ? "Hide" : "View"}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => deleteReservation.mutate(res.id)} disabled={deleteReservation.isPending}>
-                        Delete
-                      </Button>
-                      <Button size="sm" variant="ghost" asChild>
-                        <a href="/ledger" target="_blank" rel="noreferrer">
-                          Ledger
-                        </a>
+                  <div
+                    className="w-full max-w-6xl rounded-2xl border border-border bg-card shadow-2xl"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                      <div className="text-sm font-semibold text-foreground">Reservation details</div>
+                      <Button size="sm" variant="ghost" onClick={() => toggleDetails(res, false)}>
+                        Close
                       </Button>
                     </div>
-                  </div>
-
-                  {isOpen && (
-                    <div className="space-y-3 border-t border-border pt-3">
-                      {conflict?.conflict && (
-                        <div className="rounded-md border border-status-error/30 bg-status-error/10 px-3 py-2 text-xs text-status-error">
-                          <div className="text-sm font-semibold text-status-error">Conflict detected</div>
-                          <div className="flex flex-wrap gap-2">
-                            {(conflict.reasons || []).map((r) => (
-                              <span key={r} className="rounded-full border border-status-error/30 bg-card px-2 py-0.5">
-                                {r}
-                              </span>
-                            ))}
+                    <div className={`p-4 space-y-4 ${highlighted === res.id ? "ring-2 ring-status-success/40" : ""} ${wasSkipped ? "border-status-warning/30" : ""}`}>
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className={`rounded-full border px-3 py-1 text-xs ${statusColor}`}>{res.status.replace("_", " ")}</span>
+                          <div className="flex flex-col">
+                            <div className="text-base font-semibold text-foreground">{guestName || "Unassigned guest"}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {arrival.toLocaleDateString()} → {departure.toLocaleDateString()} • {nights} night(s)
+                            </div>
                           </div>
-                          <div className="text-[11px] text-status-error">Resolve conflicts before saving changes.</div>
                         </div>
-                      )}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-1">
-                        <div className="text-sm font-semibold text-foreground">At a glance</div>
-                        <div>
-                          {arrival.toLocaleDateString()} → {departure.toLocaleDateString()} • {nights} night(s) • Site{" "}
-                          {res.site?.name || res.site?.siteNumber}
+                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">
+                            Site {res.site?.name || res.site?.siteNumber} {siteClassName ? `• ${siteClassName}` : ""}
+                          </span>
+                          <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">
+                            Payment {res.paymentStatus || "unpaid"}
+                          </span>
+                          {siteClass?.glCode && (
+                            <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">
+                              GL {siteClass.glCode}
+                            </span>
+                          )}
+                          {resMaxOccupancy && (
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs ${
+                                resOccupancyOver
+                                  ? "border-status-warning/40 bg-status-warning/10 text-status-warning"
+                                  : "border-border bg-muted text-foreground"
+                              }`}
+                            >
+                              Occupancy {resOccupancy} / {resMaxOccupancy}
+                            </span>
+                          )}
+                          {wasSkipped && (
+                            <span className="rounded-full border border-status-warning/30 bg-status-warning/15 px-3 py-1 text-xs text-status-warning">
+                              Skipped in bulk (status)
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          Deposit rule: {campgroundQuery.data?.depositRule || "none"} • Required ${suggestedDeposit.toFixed(2)} • Paid $
-                          {paid.toFixed(2)} • Balance ${balance.toFixed(2)}
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-xl border border-border bg-muted px-3 py-2">
+                            <div className="text-[11px] text-muted-foreground">Total</div>
+                            <div className="text-sm font-semibold text-foreground">${total.toFixed(2)}</div>
+                          </div>
+                          <div className="rounded-xl border border-border bg-muted px-3 py-2">
+                            <div className="text-[11px] text-muted-foreground">Paid</div>
+                            <div className="text-sm font-semibold text-foreground">${paid.toFixed(2)}</div>
+                          </div>
+                          <div
+                            className={`rounded-xl border px-3 py-2 ${
+                              balance > 0 ? "border-status-warning/40 bg-status-warning/10" : "border-border bg-muted"
+                            }`}
+                          >
+                            <div className={`text-[11px] ${balance > 0 ? "text-status-warning" : "text-muted-foreground"}`}>Balance</div>
+                            <div className={`text-sm font-semibold ${balance > 0 ? "text-status-warning" : "text-foreground"}`}>
+                              ${balance.toFixed(2)}
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-border bg-muted px-3 py-2">
+                            <div className="text-[11px] text-muted-foreground">ADR</div>
+                            <div className="text-sm font-semibold text-foreground">
+                              ${nights > 0 ? (total / nights).toFixed(2) : total.toFixed(2)}
+                            </div>
+                          </div>
                         </div>
-                        {resMaxOccupancy && (
-                          <div className="text-muted-foreground">
-                            Occupancy {resOccupancy} of {resMaxOccupancy} max {resOccupancyOver ? "• over capacity" : ""}
+                        {suggestedDeposit > 0 && (
+                          <div
+                            className={`rounded-xl border px-3 py-2 text-xs ${
+                              paid >= suggestedDeposit
+                                ? "border-status-success/30 bg-status-success/10 text-status-success"
+                                : "border-status-warning/40 bg-status-warning/10 text-status-warning"
+                            }`}
+                          >
+                            {paid >= suggestedDeposit
+                              ? `Deposit covered (${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(suggestedDeposit)})`
+                              : `Deposit due ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
+                                Math.max(0, suggestedDeposit - paid)
+                              )} of ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(suggestedDeposit)}`}
                           </div>
                         )}
-                        <div className="text-muted-foreground">
-                          Status {res.status.replace("_", " ")} • Payment {res.paymentStatus || "unpaid"} • GL {siteClass?.glCode || "n/a"}
-                          </div>
-                        </div>
-                        <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-2">
-                          <div className="text-sm font-semibold text-foreground">Recent activity</div>
-                          {(() => {
-                            const activity: { id: string; label: string; at: string }[] = [];
-                            (ledgerByRes[res.id] || []).slice(0, 5).forEach((row: any, idx: number) => {
-                              if (row.createdAt) {
-                                activity.push({
-                                  id: `ledger-${res.id}-${idx}`,
-                                  label: `${row.type || "Ledger"} ${row.amount ? `$${(row.amount / 100).toFixed(2)}` : ""}`.trim(),
-                                  at: row.createdAt
-                                });
-                              }
-                            });
-                            (commsByRes[res.id] || []).slice(0, 5).forEach((c: any, idx: number) => {
-                              if (c.createdAt) {
-                                activity.push({
-                                  id: `comm-${res.id}-${idx}`,
-                                  label: c.subject || c.type || "Message",
-                                  at: c.createdAt
-                                });
-                              }
-                            });
-                            if (activity.length === 0) {
-                              activity.push({
-                                id: `fallback-${res.id}`,
-                                label: "No recent activity",
-                                at: res.updatedAt || res.createdAt || ""
-                              });
-                            }
-                            const sorted = activity.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 6);
-                            return (
-                              <div className="space-y-1">
-                                {sorted.map((a) => (
-                                  <div key={a.id} className="flex items-center justify-between gap-2">
-                                    <span className="truncate">{a.label}</span>
-                                    <span className="text-[10px] text-muted-foreground">{a.at ? new Date(a.at).toLocaleString() : ""}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-foreground">
-                        <label className="flex items-center gap-2">
-                          Site
-                          <select
-                            className="rounded-md border border-border px-2 py-1 text-xs"
-                            value={editing[res.id]?.siteId || res.siteId}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: { ...(prev[res.id] || {}), siteId: e.target.value }
-                              }))
-                            }
-                          >
-                            {sitesQuery.data?.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name} ({s.siteType})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          Guest
-                          <select
-                            className="rounded-md border border-border px-2 py-1 text-xs"
-                            value={editing[res.id]?.guestId || res.guestId}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: { ...(prev[res.id] || {}), guestId: e.target.value }
-                              }))
-                            }
-                          >
-                            {guestsQuery.data?.map((g) => (
-                              <option key={g.id} value={g.id}>
-                                {g.primaryLastName}, {g.primaryFirstName} ({g.phone})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
                       </div>
 
-                      {matchTargetReservation?.id === res.id && (
-                        <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-foreground">Recommended sites</div>
-                            {matchScoresQuery.isLoading && <span className="text-[11px] text-muted-foreground">Checking matches…</span>}
-                            {matchScoresQuery.isError && <span className="text-[11px] text-status-error">Match scoring failed</span>}
-                          </div>
-                          {topMatches.length === 0 && !matchScoresQuery.isLoading && (
-                            <div className="text-muted-foreground">No ranked matches available for this guest.</div>
-                          )}
-                          {topMatches.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {topMatches.slice(0, 3).map((m) => (
-                                <button
-                                  key={m.site.id}
-                                  className="rounded-md border border-status-success/30 bg-status-success/15 px-2 py-1 text-[11px] text-status-success hover:border-status-success/50"
-                                  onClick={() =>
-                                    setEditing((prev) => ({
-                                      ...prev,
-                                      [res.id]: { ...(prev[res.id] || {}), siteId: m.site.id }
-                                    }))
-                                  }
-                                >
-                                  {m.site.name || m.site.siteNumber} • {m.score}/100
-                                  {m.reasons?.[0] ? ` (${m.reasons[0]})` : ""}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {res.guest && (
-                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                          <div className="font-semibold">
-                            {res.guest.primaryFirstName} {res.guest.primaryLastName}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            Guest profile ID: {res.guest.id} {res.guest.email ? `• ${res.guest.email}` : ""}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <input
-                              className="rounded-md border border-border px-2 py-1"
-                              placeholder="Email"
-                              value={guestEdits[res.guest.id]?.email ?? res.guest.email ?? ""}
-                              onChange={(e) =>
-                                setGuestEdits((prev) => ({
-                                  ...prev,
-                                  [res.guest!.id]: { email: e.target.value, phone: prev[res.guest!.id]?.phone ?? res.guest!.phone ?? "" }
-                                }))
-                              }
-                            />
-                            <input
-                              className="rounded-md border border-border px-2 py-1"
-                              placeholder="Phone"
-                              value={guestEdits[res.guest.id]?.phone ?? res.guest.phone ?? ""}
-                              onChange={(e) =>
-                                setGuestEdits((prev) => ({
-                                  ...prev,
-                                  [res.guest!.id]: { phone: e.target.value, email: prev[res.guest!.id]?.email ?? res.guest!.email ?? "" }
-                                }))
-                              }
-                            />
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 px-3 py-3">
+                        <div className="text-xs font-semibold text-muted-foreground">Quick actions</div>
+                        <div className="flex flex-wrap gap-2">
+                          {res.status === "confirmed" && (
                             <Button
                               size="sm"
                               variant="secondary"
-                              onClick={() =>
-                                updateGuestContact.mutate({
-                                  guestId: res.guest!.id,
-                                  email: guestEdits[res.guest!.id]?.email ?? res.guest!.email,
-                                  phone: guestEdits[res.guest!.id]?.phone ?? res.guest!.phone
-                                })
-                              }
-                              disabled={updateGuestContact.isPending}
-                            >
-                              Save guest
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-foreground">
-                        <div className="rounded-md border border-border bg-muted px-3 py-2">
-                          <div className="text-muted-foreground text-xs">Payment</div>
-                          <div className="font-semibold">${total.toFixed(2)}</div>
-                          <div className="text-xs text-muted-foreground">Paid ${paid.toFixed(2)} • Balance ${balance.toFixed(2)}</div>
-                          {suggestedDeposit > 0 && (
-                            <div className="text-xs text-status-warning mt-1">
-                              Deposit: ${suggestedDeposit.toFixed(2)} {paid >= suggestedDeposit ? "✔" : "← due"}
-                            </div>
-                          )}
-                        </div>
-                        <div className="rounded-md border border-border bg-muted px-3 py-2 flex flex-col gap-1">
-                          <div className="text-muted-foreground text-xs">Guests</div>
-                          <div className="text-sm">Adults {res.adults} • Children {res.children}</div>
-                          <div className="flex gap-2 text-xs">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [res.id]: { ...(prev[res.id] || {}), status: "confirmed" }
-                                }))
-                              }
-                            >
-                              Confirm
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onMouseDown={() => beginDrag(res)}
-                              onClick={() =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [res.id]: { ...(prev[res.id] || {}), status: "checked_in" }
-                                }))
-                              }
+                              onClick={() => updateReservation.mutate({ id: res.id, data: { status: "checked_in" } })}
+                              disabled={updateReservation.isPending}
                             >
                               Check in
                             </Button>
+                          )}
+                          {res.status === "checked_in" && (
                             <Button
                               size="sm"
-                              variant="ghost"
-                              onClick={() =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [res.id]: { ...(prev[res.id] || {}), status: "checked_out" }
-                                }))
-                              }
+                              variant="secondary"
+                              onClick={() => updateReservation.mutate({ id: res.id, data: { status: "checked_out" } })}
+                              disabled={updateReservation.isPending}
                             >
                               Check out
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [res.id]: { ...(prev[res.id] || {}), status: "cancelled" }
-                                }))
-                              }
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="rounded-md border border-border bg-muted px-3 py-2 flex flex-col gap-1 text-xs">
-                          <div className="text-muted-foreground text-xs">Quick payments</div>
-                          <div className="flex flex-wrap gap-2">
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              className="rounded-md border border-border px-2 py-1 w-24"
-                              placeholder="Add payment"
-                              value={
-                                paymentInputs[res.id] !== undefined
-                                  ? paymentInputs[res.id]
-                                  : Math.max(0, balance).toFixed(2)
-                              }
-                              onChange={(e) =>
-                                setPaymentInputs((prev) => ({ ...prev, [res.id]: Number(e.target.value || 0) }))
-                              }
-                            />
-                            <select
-                              className="rounded-md border border-border px-2 py-1 text-xs"
-                              value={paymentTenders[res.id] ?? "card"}
-                              onChange={(e) =>
-                                setPaymentTenders((prev) => ({
-                                  ...prev,
-                                  [res.id]: (e.target.value as "card" | "cash" | "check" | "folio") || "card"
-                                }))
-                              }
-                            >
-                              <option value="card">Card</option>
-                              <option value="cash">Cash</option>
-                              <option value="check">Check</option>
-                              <option value="folio">Folio</option>
-                            </select>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() =>
-                                recordPayment.mutate({
-                                  id: res.id,
-                                  amount: paymentAmount,
-                                  method: paymentTenders[res.id] ?? "card"
-                                })
-                              }
-                              disabled={recordPayment.isPending || depositPaymentTooLow}
-                            >
-                              {recordPayment.isPending ? "Saving…" : "Record"}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                setPaymentInputs((prev) => ({
-                                  ...prev,
-                                  [res.id]: Math.max(0, balance)
-                                }))
-                              }
-                            >
-                              Fill balance
-                            </Button>
-                          </div>
-                          {depositPaymentTooLow && (
-                            <div className="text-[11px] text-status-warning">
-                              Deposit shortfall ${depositShortfall.toFixed(2)} — collect at least this amount.
-                            </div>
                           )}
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              className="rounded-md border border-status-error/30 px-2 py-1 w-24"
-                              placeholder="Refund"
-                              value={refundInputs[res.id] ?? ""}
-                              onChange={(e) =>
-                                setRefundInputs((prev) => ({ ...prev, [res.id]: Number(e.target.value || 0) }))
-                              }
-                            />
+                          {suggestedDeposit > 0 && paid < suggestedDeposit && (
                             <Button
-                              variant="secondary"
                               size="sm"
-                              onClick={() =>
-                                refundPayment.mutate({
-                                  id: res.id,
-                                  amount: Number(refundInputs[res.id] ?? 0)
-                                })
-                              }
-                              disabled={refundPayment.isPending}
+                              variant="outline"
+                              onClick={() => router.push(`/campgrounds/${campgroundId}/reservations/${res.id}`)}
                             >
-                              {refundPayment.isPending ? "Saving…" : "Refund"}
+                              Collect deposit
                             </Button>
-                          </div>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelection({ highlightedId: res.id, openDetailsId: res.id });
+                              toggleDetails(res, true);
+                            }}
+                          >
+                            Message guest
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/campgrounds/${campgroundId}/reservations/${res.id}`)}
+                          >
+                            View details
+                          </Button>
+                          <Button size="sm" variant="ghost" asChild>
+                            <a href="/ledger" target="_blank" rel="noreferrer">
+                              Ledger
+                            </a>
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => deleteReservation.mutate(res.id)} disabled={deleteReservation.isPending}>
+                            Delete
+                          </Button>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-foreground">
-                        <label className="flex items-center gap-2">
-                          Adults
-                          <input
-                            type="number"
-                            className="rounded-md border border-border px-2 py-1 w-20"
-                            value={editing[res.id]?.adults ?? res.adults}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: {
-                                  ...prev[res.id],
-                                  adults: Number(e.target.value)
-                                }
-                              }))
-                            }
-                          />
-                        </label>
-                        <label className="flex items-center gap-2">
-                          Children
-                          <input
-                            type="number"
-                            className="rounded-md border border-border px-2 py-1 w-20"
-                            value={editing[res.id]?.children ?? res.children}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: {
-                                  ...prev[res.id],
-                                  children: Number(e.target.value)
-                                }
-                              }))
-                            }
-                          />
-                        </label>
-                        <label className="flex items-center gap-2">
-                          Total $
-                          <input
-                            type="number"
-                            className="rounded-md border border-border px-2 py-1 w-28"
-                            value={((editing[res.id]?.totalAmount ?? res.totalAmount) / 100).toFixed(2)}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: {
-                                  ...prev[res.id],
-                                  totalAmount: Math.round(Number(e.target.value) * 100)
-                                }
-                              }))
-                            }
-                          />
-                        </label>
-                        <label className="flex items-center gap-2">
-                          Paid $
-                          <input
-                            type="number"
-                            className="rounded-md border border-border px-2 py-1 w-28"
-                            value={((editing[res.id]?.paidAmount ?? res.paidAmount ?? 0) / 100).toFixed(2)}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: {
-                                  ...prev[res.id],
-                                  paidAmount: Math.round(Number(e.target.value) * 100)
-                                }
-                              }))
-                            }
-                          />
-                        </label>
-                        <label className="flex items-center gap-2">
-                          Payment
-                          <select
-                            className="rounded-md border border-border px-2 py-1 text-xs"
-                            value={editing[res.id]?.paymentStatus || res.paymentStatus || "unpaid"}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: {
-                                  ...prev[res.id],
-                                  paymentStatus: e.target.value
-                                }
-                              }))
-                            }
-                          >
-                            <option value="unpaid">unpaid</option>
-                            <option value="partial">partial</option>
-                            <option value="paid">paid</option>
-                          </select>
-                        </label>
-                      </div>
-                      {/* Related reservations */}
-                      <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-2">
-                        <div className="text-sm font-semibold text-foreground">Related reservations</div>
-                        {(() => {
-                          const related = (reservationsQuery.data || [])
-                            .filter((r) => r.id !== res.id && r.guestId === res.guestId)
-                            .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime())
-                            .slice(0, 3);
-                          if (related.length === 0) {
-                            return <div className="text-muted-foreground">No other stays for this guest.</div>;
-                          }
-                          return (
-                            <div className="space-y-1">
-                              {related.map((r) => (
-                                <div key={r.id} className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full border border-border bg-card px-2 py-0.5">
-                                    {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()}
-                                  </span>
-                                  <span className="text-foreground">{r.site?.name || r.site?.siteNumber || r.siteId}</span>
-                                  <span className={`rounded-full border px-2 py-0.5 text-[11px] capitalize ${statusBadge(r.status as ReservationStatus)}`}>
-                                    {r.status.replace("_", " ")}
-                                  </span>
+                      <div className="space-y-3">
+                        {conflict?.conflict && (
+                          <div className="rounded-md border border-status-error/30 bg-status-error/10 px-3 py-2 text-xs text-status-error">
+                            <div className="text-sm font-semibold text-status-error">Conflict detected</div>
+                            <div className="flex flex-wrap gap-2">
+                              {(conflict.reasons || []).map((r) => (
+                                <span key={r} className="rounded-full border border-status-error/30 bg-card px-2 py-0.5">
+                                  {r}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="text-[11px] text-status-error">Resolve conflicts before saving changes.</div>
+                          </div>
+                        )}
+
+                        <details open className="rounded-xl border border-border bg-card">
+                          <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground">
+                            <span>Overview & activity</span>
+                            <span className="text-xs font-normal text-muted-foreground">Stay + recent updates</span>
+                          </summary>
+                          <div className="px-4 pb-4">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-1">
+                                <div className="text-sm font-semibold text-foreground">At a glance</div>
+                                {(() => {
+                                  const formatCurrency = (value: number) =>
+                                    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+                                  const depositRuleLabel = campgroundQuery.data?.depositRule
+                                    ? campgroundQuery.data.depositRule.replace(/_/g, " ")
+                                    : "none";
+                                  const depositStatus =
+                                    !suggestedDeposit || depositRuleLabel === "none"
+                                      ? "No deposit"
+                                      : paid >= suggestedDeposit
+                                        ? `Covered (${formatCurrency(suggestedDeposit)})`
+                                        : `Due ${formatCurrency(Math.max(0, suggestedDeposit - paid))}`;
+                                  const alerts: string[] = [];
+                                  if (conflict?.conflict) alerts.push("Conflict");
+                                  if (resOccupancyOver) alerts.push("Over capacity");
+                                  if (balance > 0) alerts.push(`Balance due ${formatCurrency(balance)}`);
+                                  if (suggestedDeposit > 0 && paid < suggestedDeposit) {
+                                    alerts.push(`Deposit due ${formatCurrency(Math.max(0, suggestedDeposit - paid))}`);
+                                  }
+
+                                  return (
+                                    <div className="grid gap-1">
+                                      {alerts.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 pb-1">
+                                          {alerts.map((alert) => (
+                                            <span
+                                              key={alert}
+                                              className="rounded-full border border-status-warning/30 bg-status-warning/15 px-2 py-0.5 text-[11px] text-status-warning"
+                                            >
+                                              {alert}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">Stay</span>
+                                        <span>
+                                          {arrival.toLocaleDateString()} → {departure.toLocaleDateString()} ({nights} night{nights === 1 ? "" : "s"})
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">Site</span>
+                                        <span>
+                                          {res.site?.name || res.site?.siteNumber || "Unassigned"}
+                                          {res.site?.siteType ? ` • ${res.site.siteType}` : ""}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">Guest</span>
+                                        <span>
+                                          {guestName || "Unassigned"} • {res.adults} adult{res.adults === 1 ? "" : "s"}
+                                          {res.children ? `, ${res.children} child${res.children === 1 ? "" : "ren"}` : ""}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">Status</span>
+                                        <span>{res.status.replace("_", " ")}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">Payment</span>
+                                        <span>
+                                          {res.paymentStatus || "unpaid"} • Balance {formatCurrency(balance)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">Deposit</span>
+                                        <span>
+                                          {depositRuleLabel === "none" ? "None" : depositRuleLabel} • {depositStatus}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                              <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-2">
+                                <div className="text-sm font-semibold text-foreground">Recent activity</div>
+                                {(() => {
+                                  const activity: { id: string; label: string; at: string }[] = [];
+                                  (ledgerByRes[res.id] || []).slice(0, 5).forEach((row: any, idx: number) => {
+                                    if (row.createdAt) {
+                                      activity.push({
+                                        id: `ledger-${res.id}-${idx}`,
+                                        label: `${row.type || "Ledger"} ${row.amount ? `$${(row.amount / 100).toFixed(2)}` : ""}`.trim(),
+                                        at: row.createdAt
+                                      });
+                                    }
+                                  });
+                                  (commsByRes[res.id] || []).slice(0, 5).forEach((c: any, idx: number) => {
+                                    if (c.createdAt) {
+                                      activity.push({
+                                        id: `comm-${res.id}-${idx}`,
+                                        label: c.subject || c.type || "Message",
+                                        at: c.createdAt
+                                      });
+                                    }
+                                  });
+                                  if (activity.length === 0) {
+                                    activity.push({
+                                      id: `fallback-${res.id}`,
+                                      label: "No recent activity",
+                                      at: res.updatedAt || res.createdAt || ""
+                                    });
+                                  }
+                                  const sorted = activity.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 6);
+                                  return (
+                                    <div className="space-y-1">
+                                      {sorted.map((a) => (
+                                        <div key={a.id} className="flex items-center justify-between gap-2">
+                                          <span className="truncate">{a.label}</span>
+                                          <span className="text-[10px] text-muted-foreground">{a.at ? new Date(a.at).toLocaleString() : ""}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </details>
+
+                        <details open className="rounded-xl border border-border bg-card">
+                          <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground">
+                            <span>Payments & totals</span>
+                            <span className="text-xs font-normal text-muted-foreground">Money, balances, and edits</span>
+                          </summary>
+                          <div className="px-4 pb-4 space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-foreground">
+                              <div className="rounded-lg border border-border bg-muted px-3 py-2">
+                                <div className="text-muted-foreground text-xs">Payment</div>
+                                <div className="font-semibold">${total.toFixed(2)}</div>
+                                <div className="text-xs text-muted-foreground">Paid ${paid.toFixed(2)} • Balance ${balance.toFixed(2)}</div>
+                                {suggestedDeposit > 0 && (
+                                  <div className="text-xs text-status-warning mt-1">
+                                    Deposit: ${suggestedDeposit.toFixed(2)} {paid >= suggestedDeposit ? "✔" : "← due"}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="rounded-lg border border-border bg-muted px-3 py-2 flex flex-col gap-1">
+                                <div className="text-muted-foreground text-xs">Guests</div>
+                                <div className="text-sm">Adults {res.adults} • Children {res.children}</div>
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() =>
+                                      setEditing((prev) => ({
+                                        ...prev,
+                                        [res.id]: { ...(prev[res.id] || {}), status: "confirmed" }
+                                      }))
+                                    }
+                                  >
+                                    Confirm
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onMouseDown={() => beginDrag(res)}
+                                    onClick={() =>
+                                      setEditing((prev) => ({
+                                        ...prev,
+                                        [res.id]: { ...(prev[res.id] || {}), status: "checked_in" }
+                                      }))
+                                    }
+                                  >
+                                    Check in
+                                  </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => router.push(`/campgrounds/${campgroundId}/reservations/${r.id}`)}
+                                    onClick={() =>
+                                      setEditing((prev) => ({
+                                        ...prev,
+                                        [res.id]: { ...(prev[res.id] || {}), status: "checked_out" }
+                                      }))
+                                    }
                                   >
-                                    Open
+                                    Check out
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() =>
+                                      setEditing((prev) => ({
+                                        ...prev,
+                                        [res.id]: { ...(prev[res.id] || {}), status: "cancelled" }
+                                      }))
+                                    }
+                                  >
+                                    Cancel
                                   </Button>
                                 </div>
-                              ))}
+                              </div>
+                              <div className="rounded-lg border border-border bg-muted px-3 py-2 flex flex-col gap-1 text-xs">
+                                <div className="text-muted-foreground text-xs">Quick payments</div>
+                                <div className="flex flex-wrap gap-2">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className="rounded-md border border-border px-2 py-1 w-24"
+                                    placeholder="Add payment"
+                                    value={
+                                      paymentInputs[res.id] !== undefined
+                                        ? paymentInputs[res.id]
+                                        : Math.max(0, balance).toFixed(2)
+                                    }
+                                    onChange={(e) =>
+                                      setPaymentInputs((prev) => ({ ...prev, [res.id]: Number(e.target.value || 0) }))
+                                    }
+                                  />
+                                  <select
+                                    className="rounded-md border border-border px-2 py-1 text-xs"
+                                    value={paymentTenders[res.id] ?? "card"}
+                                    onChange={(e) =>
+                                      setPaymentTenders((prev) => ({
+                                        ...prev,
+                                        [res.id]: (e.target.value as "card" | "cash" | "check" | "folio") || "card"
+                                      }))
+                                    }
+                                  >
+                                    <option value="card">Card</option>
+                                    <option value="cash">Cash</option>
+                                    <option value="check">Check</option>
+                                    <option value="folio">Folio</option>
+                                  </select>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() =>
+                                      recordPayment.mutate({
+                                        id: res.id,
+                                        amount: paymentAmount,
+                                        method: paymentTenders[res.id] ?? "card"
+                                      })
+                                    }
+                                    disabled={recordPayment.isPending || depositPaymentTooLow}
+                                  >
+                                    {recordPayment.isPending ? "Saving…" : "Record"}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      setPaymentInputs((prev) => ({
+                                        ...prev,
+                                        [res.id]: Math.max(0, balance)
+                                      }))
+                                    }
+                                  >
+                                    Fill balance
+                                  </Button>
+                                </div>
+                                {depositPaymentTooLow && (
+                                  <div className="text-[11px] text-status-warning">
+                                    Deposit shortfall ${depositShortfall.toFixed(2)} — collect at least this amount.
+                                  </div>
+                                )}
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className="rounded-md border border-status-error/30 px-2 py-1 w-24"
+                                    placeholder="Refund"
+                                    value={refundInputs[res.id] ?? ""}
+                                    onChange={(e) =>
+                                      setRefundInputs((prev) => ({ ...prev, [res.id]: Number(e.target.value || 0) }))
+                                    }
+                                  />
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() =>
+                                      refundPayment.mutate({
+                                        id: res.id,
+                                        amount: Number(refundInputs[res.id] ?? 0)
+                                      })
+                                    }
+                                    disabled={refundPayment.isPending}
+                                  >
+                                    {refundPayment.isPending ? "Saving…" : "Refund"}
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
-                          );
-                        })()}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-foreground">
-                        <label className="flex items-center gap-2">
-                          Check-in
-                          <input
-                            type="datetime-local"
-                            className="rounded-md border border-border px-2 py-1"
-                            value={(editing[res.id]?.checkInAt || res.checkInAt || "").toString().slice(0, 16)}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: {
-                                  ...prev[res.id],
-                                  checkInAt: e.target.value
-                                }
-                              }))
-                            }
-                          />
-                        </label>
-                        <label className="flex items-center gap-2">
-                          Check-out
-                          <input
-                            type="datetime-local"
-                            className="rounded-md border border-border px-2 py-1"
-                            value={(editing[res.id]?.checkOutAt || res.checkOutAt || "").toString().slice(0, 16)}
-                            onChange={(e) =>
-                              setEditing((prev) => ({
-                                ...prev,
-                                [res.id]: {
-                                  ...prev[res.id],
-                                  checkOutAt: e.target.value
-                                }
-                              }))
-                            }
-                          />
-                        </label>
-                      </div>
-                      <div>
-                        <textarea
-                          className="rounded-md border border-border px-2 py-1 w-full text-sm"
-                          placeholder="Notes"
-                          value={editing[res.id]?.notes ?? res.notes ?? ""}
-                          onChange={(e) =>
-                            setEditing((prev) => ({
-                              ...prev,
-                              [res.id]: {
-                                ...prev[res.id],
-                                notes: e.target.value
-                              }
-                            }))
-                          }
-                        />
-                      </div>
-                      {manualOverride && (
-                        <div className="rounded-md border border-status-warning/30 bg-status-warning/15 px-3 py-2 text-xs text-status-warning space-y-2">
-                          <div className="text-sm font-semibold">Manual pricing override</div>
-                          <div className="text-[11px]">Provide reason and approval to save discount/total changes.</div>
-                          <div className="grid md:grid-cols-2 gap-2">
-                            <input
-                              className="rounded-md border border-status-warning/30 px-2 py-1 text-xs"
-                              placeholder="Override reason"
-                              value={editing[res.id]?.overrideReason ?? ""}
-                              onChange={(e) =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [res.id]: { ...(prev[res.id] || {}), overrideReason: e.target.value }
-                                }))
-                              }
-                            />
-                            <input
-                              className="rounded-md border border-status-warning/30 px-2 py-1 text-xs"
-                              placeholder="Approved by"
-                              value={editing[res.id]?.overrideApprovedBy ?? ""}
-                              onChange={(e) =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [res.id]: { ...(prev[res.id] || {}), overrideApprovedBy: e.target.value }
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex gap-2">
-                        <Button
-                          variant="secondary"
-                          onClick={() =>
-                            updateReservation.mutate({
-                              id: res.id,
-                              data: {
-                                adults: editing[res.id]?.adults ?? res.adults,
-                                children: editing[res.id]?.children ?? res.children,
-                                totalAmount: editing[res.id]?.totalAmount ?? res.totalAmount,
-                                paidAmount: editing[res.id]?.paidAmount ?? res.paidAmount ?? 0,
-                                balanceAmount: Math.max(
-                                  0,
-                                  (editing[res.id]?.totalAmount ?? res.totalAmount) -
-                                  (editing[res.id]?.paidAmount ?? res.paidAmount ?? 0)
-                                ),
-                                paymentStatus:
-                                  (editing[res.id]?.paidAmount ?? res.paidAmount ?? 0) >=
-                                    (editing[res.id]?.totalAmount ?? res.totalAmount)
-                                    ? "paid"
-                                    : (editing[res.id]?.paidAmount ?? res.paidAmount ?? 0) > 0
-                                      ? "partial"
-                                      : "unpaid",
-                                checkInAt: editing[res.id]?.checkInAt ?? res.checkInAt ?? undefined,
-                                checkOutAt: editing[res.id]?.checkOutAt ?? res.checkOutAt ?? undefined,
-                                notes: editing[res.id]?.notes ?? res.notes ?? undefined,
-                                status: editing[res.id]?.status ?? res.status,
-                                siteId: editing[res.id]?.siteId ?? res.siteId,
-                                guestId: editing[res.id]?.guestId ?? res.guestId,
-                                promoCode: editing[res.id]?.promoCode ?? (res as ReservationWithGuest).promoCode ?? undefined,
-                                source: editing[res.id]?.source ?? (res as ReservationWithGuest).source ?? undefined,
-                                checkInWindowStart:
-                                  editing[res.id]?.checkInWindowStart ?? (res as ReservationWithGuest).checkInWindowStart ?? undefined,
-                                checkInWindowEnd: editing[res.id]?.checkInWindowEnd ?? (res as ReservationWithGuest).checkInWindowEnd ?? undefined,
-                                vehiclePlate: editing[res.id]?.vehiclePlate ?? (res as ReservationWithGuest).vehiclePlate ?? undefined,
-                                vehicleState: editing[res.id]?.vehicleState ?? (res as ReservationWithGuest).vehicleState ?? undefined,
-                                rigType: editing[res.id]?.rigType ?? (res as ReservationWithGuest).rigType ?? undefined,
-                                rigLength: editing[res.id]?.rigLength ?? (res as ReservationWithGuest).rigLength ?? undefined,
-                                baseSubtotal: editing[res.id]?.totalAmount ?? res.totalAmount,
-                                feesAmount: (res as ReservationWithGuest).feesAmount ?? 0,
-                                taxesAmount: (res as ReservationWithGuest).taxesAmount ?? 0,
-                                discountsAmount: (res as ReservationWithGuest).discountsAmount ?? 0,
-                                overrideReason: editing[res.id]?.overrideReason ?? undefined,
-                                overrideApprovedBy: editing[res.id]?.overrideApprovedBy ?? undefined
-                              }
-                            })
-                          }
-                          disabled={updateReservation.isPending || conflict?.conflict || overrideMissing || depositShortfall > 0}
-                        >
-                          {updateReservation.isPending ? "Saving…" : "Save"}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={() =>
-                            setEditing((prev) => {
-                              const next = { ...prev };
-                              delete next[res.id];
-                              return next;
-                            })
-                          }
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                      {(depositShortfall > 0 || overrideMissing || conflict?.conflict) && (
-                        <div className="text-[11px] text-status-warning">
-                          {depositShortfall > 0 && `Deposit shortfall $${depositShortfall.toFixed(2)} — collect before saving. `}
-                          {overrideMissing && "Override reason + approver are required when editing totals. "}
-                          {conflict?.conflict && "Resolve site conflicts before saving."}
-                        </div>
-                      )}
 
-                      <div className="mt-2 rounded-lg border border-border bg-card p-3 space-y-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs font-semibold text-foreground">Communications</div>
-                          <div className="flex gap-2 items-center flex-wrap">
-                            <div className="flex gap-1">
-                              {(["all", "messages", "notes", "failed"] as const).map((f) => (
-                                <button
-                                  key={f}
-                                  className={`rounded-full border px-2 py-1 text-[11px] ${commsFilter === f ? "border-status-success/30 bg-status-success/15 text-status-success" : "border-border text-muted-foreground"}`}
-                                  onClick={() => setCommsFilter(f)}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-foreground">
+                              <label className="flex items-center gap-2">
+                                Adults
+                                <input
+                                  type="number"
+                                  className="rounded-md border border-border px-2 py-1 w-20"
+                                  value={editing[res.id]?.adults ?? res.adults}
+                                  onChange={(e) =>
+                                    setEditing((prev) => ({
+                                      ...prev,
+                                      [res.id]: {
+                                        ...prev[res.id],
+                                        adults: Number(e.target.value)
+                                      }
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center gap-2">
+                                Children
+                                <input
+                                  type="number"
+                                  className="rounded-md border border-border px-2 py-1 w-20"
+                                  value={editing[res.id]?.children ?? res.children}
+                                  onChange={(e) =>
+                                    setEditing((prev) => ({
+                                      ...prev,
+                                      [res.id]: {
+                                        ...prev[res.id],
+                                        children: Number(e.target.value)
+                                      }
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center gap-2">
+                                Total $
+                                <input
+                                  type="number"
+                                  className="rounded-md border border-border px-2 py-1 w-28"
+                                  value={((editing[res.id]?.totalAmount ?? res.totalAmount) / 100).toFixed(2)}
+                                  onChange={(e) =>
+                                    setEditing((prev) => ({
+                                      ...prev,
+                                      [res.id]: {
+                                        ...prev[res.id],
+                                        totalAmount: Math.round(Number(e.target.value) * 100)
+                                      }
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center gap-2">
+                                Paid $
+                                <input
+                                  type="number"
+                                  className="rounded-md border border-border px-2 py-1 w-28"
+                                  value={((editing[res.id]?.paidAmount ?? res.paidAmount ?? 0) / 100).toFixed(2)}
+                                  onChange={(e) =>
+                                    setEditing((prev) => ({
+                                      ...prev,
+                                      [res.id]: {
+                                        ...prev[res.id],
+                                        paidAmount: Math.round(Number(e.target.value) * 100)
+                                      }
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center gap-2">
+                                Payment
+                                <select
+                                  className="rounded-md border border-border px-2 py-1 text-xs"
+                                  value={editing[res.id]?.paymentStatus || res.paymentStatus || "unpaid"}
+                                  onChange={(e) =>
+                                    setEditing((prev) => ({
+                                      ...prev,
+                                      [res.id]: {
+                                        ...prev[res.id],
+                                        paymentStatus: e.target.value
+                                      }
+                                    }))
+                                  }
                                 >
-                                  {f === "failed" ? "Failed" : f === "messages" ? "Messages" : f[0].toUpperCase() + f.slice(1)}
-                                </button>
-                              ))}
+                                  <option value="unpaid">unpaid</option>
+                                  <option value="partial">partial</option>
+                                  <option value="paid">paid</option>
+                                </select>
+                              </label>
                             </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs"
-                              onClick={() => setCommsFilter("failed")}
-                            >
-                              Failed only
-                            </Button>
-                          {commsLoading[res.id] && <div className="text-xs text-muted-foreground">Loading…</div>}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs"
-                              onClick={() => {
-                                localStorage.setItem("campreserv:openReservationId", res.id);
-                                router.push("/messages");
-                              }}
-                            >
-                              View all
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="text-xs"
-                              onClick={() => {
-                                localStorage.setItem("campreserv:openReservationId", res.id);
-                                router.push("/messages");
-                              }}
-                            >
-                              Message guest
-                            </Button>
                           </div>
-                        </div>
-                        {commsErrors[res.id] && <div className="text-xs text-status-warning">{commsErrors[res.id]}</div>}
-                        {!commsLoading[res.id] && (commsByRes[res.id] || []).length === 0 && (
-                          <div className="overflow-hidden rounded border border-border bg-card">
-                            <table className="w-full text-sm">
-                              <tbody>
-                                <TableEmpty>No notes or messages yet.</TableEmpty>
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                        {(commsByRes[res.id] || [])
-                          .filter((c: any) => {
-                            if (commsFilter === "notes") return (c.type || "").toLowerCase() === "note";
-                            if (commsFilter === "messages") return (c.type || "").toLowerCase() !== "note";
-                            if (commsFilter === "failed") {
-                              const s = (c.status || "").toLowerCase();
-                              return s.includes("fail") || s.includes("bounce") || s.includes("error");
-                            }
-                            return true;
-                          })
-                          .slice(0, 5)
-                          .map((c: any) => {
-                          const status = c.status || "sent";
-                          const statusClass =
-                            status.startsWith("delivered") || status === "received"
-                              ? "bg-status-success/15 text-status-success border border-status-success/30"
-                              : status.includes("fail") || status.includes("bounce")
-                                ? "bg-status-error/15 text-status-error border border-status-error/30"
-                                : "bg-muted text-foreground border border-border";
-                          return (
-                            <div key={c.id} className="rounded border border-border bg-muted px-2 py-1 text-xs text-foreground">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-semibold uppercase">{c.type}</span>
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                    c.direction === "outbound"
-                                      ? "bg-status-info/15 text-status-info border border-status-info/30"
-                                      : "bg-status-success/15 text-status-success border border-status-success/30"
-                                  }`}
-                                >
-                                  {c.direction}
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ${statusClass}`}>
-                                  {status}
-                                </span>
-                                <span className="text-muted-foreground">{c.createdAt ? new Date(c.createdAt).toLocaleString() : ""}</span>
+                        </details>
+
+                        <details className="rounded-xl border border-border bg-card">
+                          <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground">
+                            <span>Guest & site</span>
+                            <span className="text-xs font-normal text-muted-foreground">Assignment and contact</span>
+                          </summary>
+                          <div className="px-4 pb-4 space-y-3">
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-2">
+                                <div className="text-sm font-semibold text-foreground">Assignment</div>
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-foreground">
+                                  <label className="flex items-center gap-2">
+                                    Site
+                                    <select
+                                      className="rounded-md border border-border px-2 py-1 text-xs"
+                                      value={editing[res.id]?.siteId || res.siteId}
+                                      onChange={(e) =>
+                                        setEditing((prev) => ({
+                                          ...prev,
+                                          [res.id]: { ...(prev[res.id] || {}), siteId: e.target.value }
+                                        }))
+                                      }
+                                    >
+                                      {sitesQuery.data?.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                          {s.name} ({s.siteType})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <label className="flex items-center gap-2">
+                                    Guest
+                                    <select
+                                      className="rounded-md border border-border px-2 py-1 text-xs"
+                                      value={editing[res.id]?.guestId || res.guestId}
+                                      onChange={(e) =>
+                                        setEditing((prev) => ({
+                                          ...prev,
+                                          [res.id]: { ...(prev[res.id] || {}), guestId: e.target.value }
+                                        }))
+                                      }
+                                    >
+                                      {guestsQuery.data?.map((g) => (
+                                        <option key={g.id} value={g.id}>
+                                          {g.primaryLastName}, {g.primaryFirstName} ({g.phone})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                </div>
                               </div>
-                              {c.subject && <div className="text-foreground">{c.subject}</div>}
-                              {c.body && <div className="text-foreground whitespace-pre-wrap">{c.body}</div>}
-                              <div className="text-[11px] text-muted-foreground mt-1">
-                                {c.provider ? `Provider: ${c.provider}` : ""}
-                                {c.toAddress ? ` • To: ${c.toAddress}` : ""}
-                                {c.fromAddress ? ` • From: ${c.fromAddress}` : ""}
-                              </div>
+                              {res.guest && (
+                                <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-2">
+                                  <div className="text-sm font-semibold text-foreground">Guest contact</div>
+                                  <div className="font-semibold">
+                                    {res.guest.primaryFirstName} {res.guest.primaryLastName}
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground">
+                                    Guest profile ID: {res.guest.id} {res.guest.email ? `• ${res.guest.email}` : ""}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <input
+                                      className="rounded-md border border-border px-2 py-1"
+                                      placeholder="Email"
+                                      value={guestEdits[res.guest.id]?.email ?? res.guest.email ?? ""}
+                                      onChange={(e) =>
+                                        setGuestEdits((prev) => ({
+                                          ...prev,
+                                          [res.guest!.id]: { email: e.target.value, phone: prev[res.guest!.id]?.phone ?? res.guest!.phone ?? "" }
+                                        }))
+                                      }
+                                    />
+                                    <input
+                                      className="rounded-md border border-border px-2 py-1"
+                                      placeholder="Phone"
+                                      value={guestEdits[res.guest.id]?.phone ?? res.guest.phone ?? ""}
+                                      onChange={(e) =>
+                                        setGuestEdits((prev) => ({
+                                          ...prev,
+                                          [res.guest!.id]: { phone: e.target.value, email: prev[res.guest!.id]?.email ?? res.guest!.email ?? "" }
+                                        }))
+                                      }
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() =>
+                                        updateGuestContact.mutate({
+                                          guestId: res.guest!.id,
+                                          email: guestEdits[res.guest!.id]?.email ?? res.guest!.email,
+                                          phone: guestEdits[res.guest!.id]?.phone ?? res.guest!.phone
+                                        })
+                                      }
+                                      disabled={updateGuestContact.isPending}
+                                    >
+                                      Save guest
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          );
-                        })}
-                        {(() => {
-                          const commDraft: {
-                            type?: "note" | "email";
-                            subject?: string;
-                            body?: string;
-                            toAddress?: string;
-                            fromAddress?: string;
-                          } = newComm[res.id] || {};
-                          return (
-                        <div className="rounded border border-border bg-muted px-2 py-2 space-y-2">
-                          <div className="flex gap-2 items-center">
-                            <label className="text-xs text-muted-foreground">Type</label>
-                            <select
-                              className="rounded-md border border-border px-2 py-1 text-xs"
-                              value={commDraft.type || "note"}
-                              onChange={(e) =>
-                                setNewComm((prev) => ({
-                                  ...prev,
-                                  [res.id]: { ...(prev[res.id] || { body: "" }), type: e.target.value as "note" | "email" }
-                                }))
-                              }
-                            >
-                              <option value="note">Note</option>
-                              <option value="email">Email</option>
-                            </select>
-                            {commDraft.type === "email" && (
-                              <input
-                                className="flex-1 rounded-md border border-border px-2 py-1 text-xs"
-                                placeholder="To email"
-                                value={commDraft.toAddress ?? (res as ReservationWithGuest)?.guest?.email ?? ""}
+
+                            {matchTargetReservation?.id === res.id && (
+                              <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-sm font-semibold text-foreground">Recommended sites</div>
+                                  {matchScoresQuery.isLoading && <span className="text-[11px] text-muted-foreground">Checking matches…</span>}
+                                  {matchScoresQuery.isError && <span className="text-[11px] text-status-error">Match scoring failed</span>}
+                                </div>
+                                {topMatches.length === 0 && !matchScoresQuery.isLoading && (
+                                  <div className="text-muted-foreground">No ranked matches available for this guest.</div>
+                                )}
+                                {topMatches.length > 0 && (
+                                  <div className="flex flex-wrap gap-2">
+                                    {topMatches.slice(0, 3).map((m) => (
+                                      <button
+                                        key={m.site.id}
+                                        className="rounded-md border border-status-success/30 bg-status-success/15 px-2 py-1 text-[11px] text-status-success hover:border-status-success/50"
+                                        onClick={() =>
+                                          setEditing((prev) => ({
+                                            ...prev,
+                                            [res.id]: { ...(prev[res.id] || {}), siteId: m.site.id }
+                                          }))
+                                        }
+                                      >
+                                        {m.site.name || m.site.siteNumber} • {m.score}/100
+                                        {m.reasons?.[0] ? ` (${m.reasons[0]})` : ""}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-xl border border-border bg-card">
+                          <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground">
+                            <span>Stay details</span>
+                            <span className="text-xs font-normal text-muted-foreground">Dates, notes, and related stays</span>
+                          </summary>
+                          <div className="px-4 pb-4 space-y-3">
+                            <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground space-y-2">
+                              <div className="text-sm font-semibold text-foreground">Related reservations</div>
+                              {(() => {
+                                const related = (reservationsQuery.data || [])
+                                  .filter((r) => r.id !== res.id && r.guestId === res.guestId)
+                                  .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime())
+                                  .slice(0, 3);
+                                if (related.length === 0) {
+                                  return <div className="text-muted-foreground">No other stays for this guest.</div>;
+                                }
+                                return (
+                                  <div className="space-y-1">
+                                    {related.map((r) => (
+                                      <div key={r.id} className="flex flex-wrap items-center gap-2">
+                                        <span className="rounded-full border border-border bg-card px-2 py-0.5">
+                                          {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()}
+                                        </span>
+                                        <span className="text-foreground">{r.site?.name || r.site?.siteNumber || r.siteId}</span>
+                                        <span className={`rounded-full border px-2 py-0.5 text-[11px] capitalize ${statusBadge(r.status as ReservationStatus)}`}>
+                                          {r.status.replace("_", " ")}
+                                        </span>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => router.push(`/campgrounds/${campgroundId}/reservations/${r.id}`)}
+                                        >
+                                          Open
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-foreground">
+                              <label className="flex items-center gap-2">
+                                Check-in
+                                <input
+                                  type="datetime-local"
+                                  className="rounded-md border border-border px-2 py-1"
+                                  value={(editing[res.id]?.checkInAt || res.checkInAt || "").toString().slice(0, 16)}
+                                  onChange={(e) =>
+                                    setEditing((prev) => ({
+                                      ...prev,
+                                      [res.id]: {
+                                        ...prev[res.id],
+                                        checkInAt: e.target.value
+                                      }
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center gap-2">
+                                Check-out
+                                <input
+                                  type="datetime-local"
+                                  className="rounded-md border border-border px-2 py-1"
+                                  value={(editing[res.id]?.checkOutAt || res.checkOutAt || "").toString().slice(0, 16)}
+                                  onChange={(e) =>
+                                    setEditing((prev) => ({
+                                      ...prev,
+                                      [res.id]: {
+                                        ...prev[res.id],
+                                        checkOutAt: e.target.value
+                                      }
+                                    }))
+                                  }
+                                />
+                              </label>
+                            </div>
+                            <div>
+                              <textarea
+                                className="rounded-md border border-border px-2 py-1 w-full text-sm"
+                                placeholder="Notes"
+                                value={editing[res.id]?.notes ?? res.notes ?? ""}
                                 onChange={(e) =>
-                                  setNewComm((prev) => ({
+                                  setEditing((prev) => ({
                                     ...prev,
-                                    [res.id]: { ...(prev[res.id] || { body: "", type: "email" }), toAddress: e.target.value }
+                                    [res.id]: {
+                                      ...prev[res.id],
+                                      notes: e.target.value
+                                    }
                                   }))
                                 }
                               />
-                            )}
+                            </div>
                           </div>
-                          <input
-                            className="w-full rounded-md border border-border px-2 py-1 text-xs"
-                            placeholder="Subject (optional)"
-                            value={commDraft.subject ?? ""}
-                            onChange={(e) => setNewComm((prev) => ({ ...prev, [res.id]: { ...(prev[res.id] || { body: "" }), subject: e.target.value } }))}
-                          />
-                          <textarea
-                            className="w-full rounded-md border border-border px-2 py-1 text-xs"
-                            placeholder="Add a note or email body"
-                            value={commDraft.body ?? ""}
-                            onChange={(e) => setNewComm((prev) => ({ ...prev, [res.id]: { ...(prev[res.id] || { subject: "" }), body: e.target.value } }))}
-                          />
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              onClick={async () => {
-                                const payloadType = commDraft.type || "note";
-                                if (payloadType === "email") {
-                                  if (!commDraft.toAddress) {
-                                    setFlash({ type: "error", message: "Recipient email is required." });
-                                    return;
-                                  }
-                                  try {
-                                    const sent = await apiClient.sendCommunication({
-                                      campgroundId,
-                                      reservationId: res.id,
-                                      guestId: res.guestId,
-                                      type: "email",
-                                      direction: "outbound",
-                                      subject: commDraft.subject || undefined,
-                                      body: commDraft.body || "",
-                                      toAddress: commDraft.toAddress
-                                    });
-                                    setCommsByRes((prev) => ({
-                                      ...prev,
-                                      [res.id]: [sent, ...(prev[res.id] || [])]
-                                    }));
-                                    setNewComm((prev) => ({ ...prev, [res.id]: { type: "note", subject: "", body: "", toAddress: "" } }));
-                                    setFlash({ type: "success", message: "Email sent." });
-                                  } catch (err) {
-                                    setFlash({ type: "error", message: err instanceof Error ? err.message : "Failed to send email." });
-                                  }
-                                  return;
-                                }
+                        </details>
 
-                                if (!commDraft.body) {
-                                  setFlash({ type: "error", message: "Note body is required." });
-                                  return;
-                                }
-                                try {
-                                  const created = await createCommunication.mutateAsync({
-                                    campgroundId,
-                                    reservationId: res.id,
-                                    guestId: res.guestId,
-                                    type: "note",
-                                    direction: "outbound",
-                                    subject: commDraft.subject || undefined,
-                                    body: commDraft.body || ""
-                                  });
-                                  setCommsByRes((prev) => ({
-                                    ...prev,
-                                    [res.id]: [created, ...(prev[res.id] || [])]
-                                  }));
-                                  setNewComm((prev) => ({ ...prev, [res.id]: { type: "note", subject: "", body: "", toAddress: "" } }));
-                                  setFlash({ type: "success", message: "Note saved." });
-                                } catch {
-                                  // handled by mutation onError
-                                }
-                              }}
-                              disabled={createCommunication.isPending}
-                            >
-                              {createCommunication.isPending ? "Saving…" : commDraft.type === "email" ? "Send email" : "Add note"}
-                            </Button>
+                        <details className="rounded-xl border border-border bg-card">
+                          <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground">
+                            <span>Communications</span>
+                            <span className="text-xs font-normal text-muted-foreground">Messages and notes</span>
+                          </summary>
+                          <div className="px-4 pb-4">
+                            <div className="rounded-lg border border-border bg-card p-3 space-y-2 text-sm">
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs font-semibold text-foreground">Communications</div>
+                                <div className="flex gap-2 items-center flex-wrap">
+                                  <div className="flex gap-1">
+                                    {(["all", "messages", "notes", "failed"] as const).map((f) => (
+                                      <button
+                                        key={f}
+                                        className={`rounded-full border px-2 py-1 text-[11px] ${commsFilter === f ? "border-status-success/30 bg-status-success/15 text-status-success" : "border-border text-muted-foreground"}`}
+                                        onClick={() => setCommsFilter(f)}
+                                      >
+                                        {f === "failed" ? "Failed" : f === "messages" ? "Messages" : f[0].toUpperCase() + f.slice(1)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs"
+                                    onClick={() => setCommsFilter("failed")}
+                                  >
+                                    Failed only
+                                  </Button>
+                                  {commsLoading[res.id] && <div className="text-xs text-muted-foreground">Loading…</div>}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs"
+                                    onClick={() => {
+                                      localStorage.setItem("campreserv:openReservationId", res.id);
+                                      router.push("/messages");
+                                    }}
+                                  >
+                                    View all
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="text-xs"
+                                    onClick={() => {
+                                      localStorage.setItem("campreserv:openReservationId", res.id);
+                                      router.push("/messages");
+                                    }}
+                                  >
+                                    Message guest
+                                  </Button>
+                                </div>
+                              </div>
+                              {commsErrors[res.id] && <div className="text-xs text-status-warning">{commsErrors[res.id]}</div>}
+                              {!commsLoading[res.id] && (commsByRes[res.id] || []).length === 0 && (
+                                <div className="overflow-hidden rounded border border-border bg-card">
+                                  <table className="w-full text-sm">
+                                    <tbody>
+                                      <TableEmpty>No notes or messages yet.</TableEmpty>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                              {(commsByRes[res.id] || [])
+                                .filter((c: any) => {
+                                  if (commsFilter === "notes") return (c.type || "").toLowerCase() === "note";
+                                  if (commsFilter === "messages") return (c.type || "").toLowerCase() !== "note";
+                                  if (commsFilter === "failed") {
+                                    const s = (c.status || "").toLowerCase();
+                                    return s.includes("fail") || s.includes("bounce") || s.includes("error");
+                                  }
+                                  return true;
+                                })
+                                .slice(0, 5)
+                                .map((c: any) => {
+                                  const status = c.status || "sent";
+                                  const statusClass =
+                                    status.startsWith("delivered") || status === "received"
+                                      ? "bg-status-success/15 text-status-success border border-status-success/30"
+                                      : status.includes("fail") || status.includes("bounce")
+                                        ? "bg-status-error/15 text-status-error border border-status-error/30"
+                                        : "bg-muted text-foreground border border-border";
+                                  return (
+                                    <div key={c.id} className="rounded border border-border bg-muted px-2 py-1 text-xs text-foreground">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-semibold uppercase">{c.type}</span>
+                                        <span
+                                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                            c.direction === "outbound"
+                                              ? "bg-status-info/15 text-status-info border border-status-info/30"
+                                              : "bg-status-success/15 text-status-success border border-status-success/30"
+                                          }`}
+                                        >
+                                          {c.direction}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ${statusClass}`}>
+                                          {status}
+                                        </span>
+                                        <span className="text-muted-foreground">{c.createdAt ? new Date(c.createdAt).toLocaleString() : ""}</span>
+                                      </div>
+                                      {c.subject && <div className="text-foreground">{c.subject}</div>}
+                                      {c.body && <div className="text-foreground whitespace-pre-wrap">{c.body}</div>}
+                                      <div className="text-[11px] text-muted-foreground mt-1">
+                                        {c.provider ? `Provider: ${c.provider}` : ""}
+                                        {c.toAddress ? ` • To: ${c.toAddress}` : ""}
+                                        {c.fromAddress ? ` • From: ${c.fromAddress}` : ""}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              {(() => {
+                                const commDraft: {
+                                  type?: "note" | "email";
+                                  subject?: string;
+                                  body?: string;
+                                  toAddress?: string;
+                                  fromAddress?: string;
+                                } = newComm[res.id] || {};
+                                return (
+                                  <div className="rounded border border-border bg-muted px-2 py-2 space-y-2">
+                                    <div className="flex gap-2 items-center">
+                                      <label className="text-xs text-muted-foreground">Type</label>
+                                      <select
+                                        className="rounded-md border border-border px-2 py-1 text-xs"
+                                        value={commDraft.type || "note"}
+                                        onChange={(e) =>
+                                          setNewComm((prev) => ({
+                                            ...prev,
+                                            [res.id]: { ...(prev[res.id] || { body: "" }), type: e.target.value as "note" | "email" }
+                                          }))
+                                        }
+                                      >
+                                        <option value="note">Note</option>
+                                        <option value="email">Email</option>
+                                      </select>
+                                      {commDraft.type === "email" && (
+                                        <input
+                                          className="flex-1 rounded-md border border-border px-2 py-1 text-xs"
+                                          placeholder="To email"
+                                          value={commDraft.toAddress ?? (res as ReservationWithGuest)?.guest?.email ?? ""}
+                                          onChange={(e) =>
+                                            setNewComm((prev) => ({
+                                              ...prev,
+                                              [res.id]: { ...(prev[res.id] || { body: "", type: "email" }), toAddress: e.target.value }
+                                            }))
+                                          }
+                                        />
+                                      )}
+                                    </div>
+                                    <input
+                                      className="w-full rounded-md border border-border px-2 py-1 text-xs"
+                                      placeholder="Subject (optional)"
+                                      value={commDraft.subject ?? ""}
+                                      onChange={(e) => setNewComm((prev) => ({ ...prev, [res.id]: { ...(prev[res.id] || { body: "" }), subject: e.target.value } }))}
+                                    />
+                                    <textarea
+                                      className="w-full rounded-md border border-border px-2 py-1 text-xs"
+                                      placeholder="Add a note or email body"
+                                      value={commDraft.body ?? ""}
+                                      onChange={(e) => setNewComm((prev) => ({ ...prev, [res.id]: { ...(prev[res.id] || { subject: "" }), body: e.target.value } }))}
+                                    />
+                                    <div className="flex justify-end">
+                                      <Button
+                                        size="sm"
+                                        onClick={async () => {
+                                          const payloadType = commDraft.type || "note";
+                                          if (payloadType === "email") {
+                                            if (!commDraft.toAddress) {
+                                              setFlash({ type: "error", message: "Recipient email is required." });
+                                              return;
+                                            }
+                                            try {
+                                              const sent = await apiClient.sendCommunication({
+                                                campgroundId,
+                                                reservationId: res.id,
+                                                guestId: res.guestId,
+                                                type: "email",
+                                                direction: "outbound",
+                                                subject: commDraft.subject || undefined,
+                                                body: commDraft.body || "",
+                                                toAddress: commDraft.toAddress
+                                              });
+                                              setCommsByRes((prev) => ({
+                                                ...prev,
+                                                [res.id]: [sent, ...(prev[res.id] || [])]
+                                              }));
+                                              setNewComm((prev) => ({ ...prev, [res.id]: { type: "note", subject: "", body: "", toAddress: "" } }));
+                                              setFlash({ type: "success", message: "Email sent." });
+                                            } catch (err) {
+                                              setFlash({ type: "error", message: err instanceof Error ? err.message : "Failed to send email." });
+                                            }
+                                            return;
+                                          }
+
+                                          if (!commDraft.body) {
+                                            setFlash({ type: "error", message: "Note body is required." });
+                                            return;
+                                          }
+                                          try {
+                                            const created = await createCommunication.mutateAsync({
+                                              campgroundId,
+                                              reservationId: res.id,
+                                              guestId: res.guestId,
+                                              type: "note",
+                                              direction: "outbound",
+                                              subject: commDraft.subject || undefined,
+                                              body: commDraft.body || ""
+                                            });
+                                            setCommsByRes((prev) => ({
+                                              ...prev,
+                                              [res.id]: [created, ...(prev[res.id] || [])]
+                                            }));
+                                            setNewComm((prev) => ({ ...prev, [res.id]: { type: "note", subject: "", body: "", toAddress: "" } }));
+                                            setFlash({ type: "success", message: "Note saved." });
+                                          } catch {
+                                            // handled by mutation onError
+                                          }
+                                        }}
+                                        disabled={createCommunication.isPending}
+                                      >
+                                        {createCommunication.isPending ? "Saving…" : commDraft.type === "email" ? "Send email" : "Add note"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           </div>
-                        </div>
-                          );
-                        })()}
+                        </details>
+
+                        <details className="rounded-xl border border-border bg-card">
+                          <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground">
+                            <span>Ledger & pricing</span>
+                            <span className="text-xs font-normal text-muted-foreground">Fees, rules, and line items</span>
+                          </summary>
+                          <div className="px-4 pb-4">
+                            <div className="rounded-lg border border-border bg-muted p-3 space-y-1 text-sm">
+                              <div className="text-xs font-semibold text-foreground">Payments / Ledger</div>
+                              <div className="text-xs text-muted-foreground">
+                                Promo {res.promoCode || "n/a"} • Source {res.source || "n/a"}
+                                {res.checkInWindowStart || res.checkInWindowEnd
+                                  ? ` • Check-in window ${res.checkInWindowStart || "n/a"} - ${res.checkInWindowEnd || "n/a"}`
+                                  : ""}
+                              </div>
+                              {(res.vehiclePlate || res.vehicleState || res.rigType || res.rigLength) && (
+                                <div className="text-xs text-muted-foreground">
+                                  Vehicle {res.vehiclePlate || "n/a"} {res.vehicleState ? `(${res.vehicleState})` : ""} • Rig{" "}
+                                  {res.rigType || "n/a"} {res.rigLength ? `• ${res.rigLength}ft` : ""}
+                                </div>
+                              )}
+                              {resQuoteLoading[res.id] && <div className="text-xs text-muted-foreground">Loading pricing breakdown…</div>}
+                              {resQuoteErrors[res.id] && <div className="text-xs text-status-warning">{resQuoteErrors[res.id]}</div>}
+                              {resQuotes[res.id] && (
+                                <div className="text-xs text-muted-foreground">
+                                  Base ${(resQuotes[res.id].baseSubtotalCents / 100).toFixed(2)} • Rules{" "}
+                                  {resQuotes[res.id].rulesDeltaCents >= 0 ? "+" : "-"}$
+                                  {Math.abs(resQuotes[res.id].rulesDeltaCents / 100).toFixed(2)} • Total $
+                                  {(resQuotes[res.id].totalCents / 100).toFixed(2)} ({resQuotes[res.id].nights} nights)
+                                </div>
+                              )}
+                              {(feesAmount || taxesAmount || discountsAmount) > 0 && (
+                                <div className="text-xs text-muted-foreground">
+                                  Fees ${feesAmount.toFixed(2)} • Taxes ${taxesAmount.toFixed(2)} • Discounts ${discountsAmount.toFixed(2)}
+                                </div>
+                              )}
+                              {ledgerLoading[res.id] && <div className="text-xs text-muted-foreground">Loading ledger…</div>}
+                              {ledgerErrors[res.id] && <div className="text-xs text-status-warning">{ledgerErrors[res.id]}</div>}
+                              {!ledgerLoading[res.id] && ledgerByRes[res.id] && ledgerByRes[res.id].length === 0 && (
+                                <div className="overflow-hidden rounded border border-border bg-card">
+                                  <table className="w-full text-sm">
+                                    <tbody>
+                                      <TableEmpty>No ledger entries yet.</TableEmpty>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                              {!ledgerLoading[res.id] &&
+                                (ledgerByRes[res.id] || []).map((row) => (
+                                  <div key={row.id} className="flex flex-wrap items-center gap-2 text-xs text-foreground">
+                                    <span className="text-muted-foreground">{new Date(row.occurredAt).toLocaleDateString()}</span>
+                                    <span>{row.direction === "credit" ? "+" : "-"}${(row.amountCents / 100).toFixed(2)}</span>
+                                    <span className="text-muted-foreground">{row.glCode || "GL n/a"}</span>
+                                    <span className="text-muted-foreground">{row.description || "Ledger entry"}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        </details>
                       </div>
 
-                      <div className="mt-2 rounded-lg border border-border bg-muted p-3 space-y-1 text-sm">
-                        <div className="text-xs font-semibold text-foreground">Payments / Ledger</div>
-                        <div className="text-xs text-muted-foreground">
-                          Promo {res.promoCode || "n/a"} • Source {res.source || "n/a"}
-                          {res.checkInWindowStart || res.checkInWindowEnd
-                            ? ` • Check-in window ${res.checkInWindowStart || "n/a"} - ${res.checkInWindowEnd || "n/a"}`
-                            : ""}
-                        </div>
-                        {(res.vehiclePlate || res.vehicleState || res.rigType || res.rigLength) && (
-                          <div className="text-xs text-muted-foreground">
-                            Vehicle {res.vehiclePlate || "n/a"} {res.vehicleState ? `(${res.vehicleState})` : ""} • Rig{" "}
-                            {res.rigType || "n/a"} {res.rigLength ? `• ${res.rigLength}ft` : ""}
-                          </div>
-                        )}
-                        {resQuoteLoading[res.id] && <div className="text-xs text-muted-foreground">Loading pricing breakdown…</div>}
-                        {resQuoteErrors[res.id] && <div className="text-xs text-status-warning">{resQuoteErrors[res.id]}</div>}
-                        {resQuotes[res.id] && (
-                          <div className="text-xs text-muted-foreground">
-                            Base ${(resQuotes[res.id].baseSubtotalCents / 100).toFixed(2)} • Rules{" "}
-                            {resQuotes[res.id].rulesDeltaCents >= 0 ? "+" : "-"}$
-                            {Math.abs(resQuotes[res.id].rulesDeltaCents / 100).toFixed(2)} • Total $
-                            {(resQuotes[res.id].totalCents / 100).toFixed(2)} ({resQuotes[res.id].nights} nights)
-                          </div>
-                        )}
-                        {(feesAmount || taxesAmount || discountsAmount) > 0 && (
-                          <div className="text-xs text-muted-foreground">
-                            Fees ${feesAmount.toFixed(2)} • Taxes ${taxesAmount.toFixed(2)} • Discounts ${discountsAmount.toFixed(2)}
-                          </div>
-                        )}
-                        {ledgerLoading[res.id] && <div className="text-xs text-muted-foreground">Loading ledger…</div>}
-                        {ledgerErrors[res.id] && <div className="text-xs text-status-warning">{ledgerErrors[res.id]}</div>}
-                        {!ledgerLoading[res.id] && ledgerByRes[res.id] && ledgerByRes[res.id].length === 0 && (
-                          <div className="overflow-hidden rounded border border-border bg-card">
-                            <table className="w-full text-sm">
-                              <tbody>
-                                <TableEmpty>No ledger entries yet.</TableEmpty>
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                        {!ledgerLoading[res.id] &&
-                          (ledgerByRes[res.id] || []).map((row) => (
-                            <div key={row.id} className="flex flex-wrap items-center gap-2 text-xs text-foreground">
-                              <span className="text-muted-foreground">{new Date(row.occurredAt).toLocaleDateString()}</span>
-                              <span>{row.direction === "credit" ? "+" : "-"}${(row.amountCents / 100).toFixed(2)}</span>
-                              <span className="text-muted-foreground">{row.glCode || "GL n/a"}</span>
-                              <span className="text-muted-foreground">{row.description || "Ledger entry"}</span>
+                      <div className="rounded-xl border border-border bg-card px-4 py-3 space-y-2">
+                        {manualOverride && (
+                          <div className="rounded-md border border-status-warning/30 bg-status-warning/15 px-3 py-2 text-xs text-status-warning space-y-2">
+                            <div className="text-sm font-semibold">Manual pricing override</div>
+                            <div className="text-[11px]">Provide reason and approval to save discount/total changes.</div>
+                            <div className="grid md:grid-cols-2 gap-2">
+                              <input
+                                className="rounded-md border border-status-warning/30 px-2 py-1 text-xs"
+                                placeholder="Override reason"
+                                value={editing[res.id]?.overrideReason ?? ""}
+                                onChange={(e) =>
+                                  setEditing((prev) => ({
+                                    ...prev,
+                                    [res.id]: { ...(prev[res.id] || {}), overrideReason: e.target.value }
+                                  }))
+                                }
+                              />
+                              <input
+                                className="rounded-md border border-status-warning/30 px-2 py-1 text-xs"
+                                placeholder="Approved by"
+                                value={editing[res.id]?.overrideApprovedBy ?? ""}
+                                onChange={(e) =>
+                                  setEditing((prev) => ({
+                                    ...prev,
+                                    [res.id]: { ...(prev[res.id] || {}), overrideApprovedBy: e.target.value }
+                                  }))
+                                }
+                              />
                             </div>
-                          ))}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="secondary"
+                            onClick={() =>
+                              updateReservation.mutate({
+                                id: res.id,
+                                data: {
+                                  adults: editing[res.id]?.adults ?? res.adults,
+                                  children: editing[res.id]?.children ?? res.children,
+                                  totalAmount: editing[res.id]?.totalAmount ?? res.totalAmount,
+                                  paidAmount: editing[res.id]?.paidAmount ?? res.paidAmount ?? 0,
+                                  balanceAmount: Math.max(
+                                    0,
+                                    (editing[res.id]?.totalAmount ?? res.totalAmount) -
+                                    (editing[res.id]?.paidAmount ?? res.paidAmount ?? 0)
+                                  ),
+                                  paymentStatus:
+                                    (editing[res.id]?.paidAmount ?? res.paidAmount ?? 0) >=
+                                      (editing[res.id]?.totalAmount ?? res.totalAmount)
+                                      ? "paid"
+                                      : (editing[res.id]?.paidAmount ?? res.paidAmount ?? 0) > 0
+                                        ? "partial"
+                                        : "unpaid",
+                                  checkInAt: editing[res.id]?.checkInAt ?? res.checkInAt ?? undefined,
+                                  checkOutAt: editing[res.id]?.checkOutAt ?? res.checkOutAt ?? undefined,
+                                  notes: editing[res.id]?.notes ?? res.notes ?? undefined,
+                                  status: editing[res.id]?.status ?? res.status,
+                                  siteId: editing[res.id]?.siteId ?? res.siteId,
+                                  guestId: editing[res.id]?.guestId ?? res.guestId,
+                                  promoCode: editing[res.id]?.promoCode ?? (res as ReservationWithGuest).promoCode ?? undefined,
+                                  source: editing[res.id]?.source ?? (res as ReservationWithGuest).source ?? undefined,
+                                  checkInWindowStart:
+                                    editing[res.id]?.checkInWindowStart ?? (res as ReservationWithGuest).checkInWindowStart ?? undefined,
+                                  checkInWindowEnd: editing[res.id]?.checkInWindowEnd ?? (res as ReservationWithGuest).checkInWindowEnd ?? undefined,
+                                  vehiclePlate: editing[res.id]?.vehiclePlate ?? (res as ReservationWithGuest).vehiclePlate ?? undefined,
+                                  vehicleState: editing[res.id]?.vehicleState ?? (res as ReservationWithGuest).vehicleState ?? undefined,
+                                  rigType: editing[res.id]?.rigType ?? (res as ReservationWithGuest).rigType ?? undefined,
+                                  rigLength: editing[res.id]?.rigLength ?? (res as ReservationWithGuest).rigLength ?? undefined,
+                                  baseSubtotal: editing[res.id]?.totalAmount ?? res.totalAmount,
+                                  feesAmount: (res as ReservationWithGuest).feesAmount ?? 0,
+                                  taxesAmount: (res as ReservationWithGuest).taxesAmount ?? 0,
+                                  discountsAmount: (res as ReservationWithGuest).discountsAmount ?? 0,
+                                  overrideReason: editing[res.id]?.overrideReason ?? undefined,
+                                  overrideApprovedBy: editing[res.id]?.overrideApprovedBy ?? undefined
+                                }
+                              })
+                            }
+                            disabled={updateReservation.isPending || conflict?.conflict || overrideMissing || depositShortfall > 0}
+                          >
+                            {updateReservation.isPending ? "Saving…" : "Save"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() =>
+                              setEditing((prev) => {
+                                const next = { ...prev };
+                                delete next[res.id];
+                                return next;
+                              })
+                            }
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        {(depositShortfall > 0 || overrideMissing || conflict?.conflict) && (
+                          <div className="text-[11px] text-status-warning">
+                            {depositShortfall > 0 && `Deposit shortfall $${depositShortfall.toFixed(2)} — collect before saving. `}
+                            {overrideMissing && "Override reason + approver are required when editing totals. "}
+                            {conflict?.conflict && "Resolve site conflicts before saving."}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}

@@ -49,6 +49,7 @@ import { FormsModule } from './forms/forms.module';
 import { SocialPlannerModule } from './social-planner/social-planner.module';
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { AiModule } from "./ai/ai.module";
+import { SemanticSearchModule } from "./semantic-search/semantic-search.module";
 import { GamificationModule } from "./gamification/gamification.module";
 import { PushSubscriptionsModule } from "./push-subscriptions/push-subscriptions.module";
 import { PerfModule } from "./perf/perf.module";
@@ -132,6 +133,7 @@ import { PublicLocationsModule } from "./public-locations/public-locations.modul
 import { SoftwarePagesModule } from "./software-pages/software-pages.module";
 import { SeoModule } from "./seo/seo.module";
 import { PlatformStatsModule } from "./platform-stats/platform-stats.module";
+import { RustServicesModule } from "./rust-services/rust-services.module";
 
 @Module({
   imports: [
@@ -194,6 +196,7 @@ import { PlatformStatsModule } from "./platform-stats/platform-stats.module";
     GamificationModule,
     AnalyticsModule,
     AiModule,
+    SemanticSearchModule,
     PushSubscriptionsModule,
     PerfModule,
     IntegrationsModule,
@@ -284,6 +287,8 @@ import { PlatformStatsModule } from "./platform-stats/platform-stats.module";
     SeoModule,
     // Public Platform Stats - Homepage activity feed
     PlatformStatsModule,
+    // Rust Microservices - Security-critical operations
+    RustServicesModule,
   ],
   providers: []
 })

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, RawBodyRequest, Req, BadRequestException, UseGuards, NotFoundException, Query, Res, Logger, ForbiddenException, ConflictException, ServiceUnavailableException } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Post, RawBodyRequest, Req, BadRequestException, UseGuards, NotFoundException, Query, Res, Logger, ForbiddenException, ConflictException, ServiceUnavailableException, UsePipes } from "@nestjs/common";
 import Stripe from "stripe";
 import { Response } from "express";
 import { ReservationsService } from "../reservations/reservations.service";
@@ -20,6 +20,17 @@ import { IsInt, IsOptional, Min } from "class-validator";
 import { Type } from "class-transformer";
 import { IdempotencyService } from "./idempotency.service";
 import { GatewayConfigService } from "./gateway-config.service";
+import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
+import {
+  CreatePaymentIntentSchema,
+  CreatePublicPaymentIntentSchema,
+  CapturePaymentIntentSchema,
+  RefundPaymentIntentSchema,
+  UpdatePaymentSettingsSchema,
+  CreateSetupIntentSchema,
+  CreatePublicSetupIntentSchema,
+  ConfirmPublicPaymentIntentSchema,
+} from "./schemas/payment-validation.schema";
 
 import { IsNotEmpty, IsString } from "class-validator";
 
@@ -304,6 +315,7 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @RequireScope({ resource: "payments", action: "write" })
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @UsePipes(new ZodValidationPipe(CreatePaymentIntentSchema))
   @Post("payments/intents")
   async createIntent(
     @Body() body: CreatePaymentIntentDto,
@@ -454,7 +466,9 @@ export class PaymentsController {
 
   /**
    * Create a payment intent for public/guest checkout (no authentication required)
+   * CRITICAL: Zod validation protects against amount tampering and invalid data
    */
+  @UsePipes(new ZodValidationPipe(CreatePublicPaymentIntentSchema))
   @Post("public/payments/intents")
   async createPublicIntent(
     @Body() body: CreatePublicPaymentIntentDto,
@@ -581,6 +595,7 @@ export class PaymentsController {
    * Confirm a public payment intent and update reservation status.
    * Called by frontend after Stripe.confirmPayment() completes successfully.
    */
+  @UsePipes(new ZodValidationPipe(ConfirmPublicPaymentIntentSchema))
   @Post("public/payments/intents/:id/confirm")
   async confirmPublicPaymentIntent(
     @Param("id") paymentIntentId: string,
@@ -834,6 +849,7 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @RequireScope({ resource: "payments", action: "write" })
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @UsePipes(new ZodValidationPipe(UpdatePaymentSettingsSchema))
   @Post("campgrounds/:campgroundId/payments/settings")
   async updatePaymentSettings(
     @Param("campgroundId") campgroundId: string,
@@ -952,6 +968,7 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @RequireScope({ resource: "payments", action: "write" })
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @UsePipes(new ZodValidationPipe(CapturePaymentIntentSchema))
   @Post("payments/intents/:id/capture")
   async capturePaymentIntent(
     @Param("id") id: string,
@@ -1034,6 +1051,7 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @RequireScope({ resource: "payments", action: "write" })
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
+  @UsePipes(new ZodValidationPipe(RefundPaymentIntentSchema))
   @Post("payments/intents/:id/refund")
   async refundPaymentIntent(
     @Param("id") id: string,

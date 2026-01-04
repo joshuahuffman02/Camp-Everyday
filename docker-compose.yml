@@ -1,0 +1,124 @@
+# Docker Compose for local development
+# Includes all Rust services and supporting infrastructure
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Rust Microservices
+  # ============================================================================
+
+  payment-processor:
+    build:
+      context: ./platform/services/payment-processor-rs
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - DATABASE_URL=${DATABASE_URL}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - PLATFORM_FEE_PERCENT=${PLATFORM_FEE_PERCENT:-2.5}
+      - RUST_LOG=info,payment_processor=debug
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - campreserv
+
+  availability:
+    build:
+      context: ./platform/services/availability-rs
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8081
+      - DATABASE_URL=${DATABASE_URL}
+      - RUST_LOG=info,availability_calculator=debug
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - campreserv
+
+  auth:
+    build:
+      context: ./platform/services/auth-service-rs
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8082
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - PII_ENCRYPTION_KEY=${PII_ENCRYPTION_KEY:-${JWT_SECRET}}
+      - PII_ENCRYPTION_KEY_VERSION=${PII_ENCRYPTION_KEY_VERSION:-v1}
+      - LOCKOUT_MAX_ATTEMPTS=${LOCKOUT_MAX_ATTEMPTS:-5}
+      - LOCKOUT_DURATION_MS=${LOCKOUT_DURATION_MS:-900000}
+      - RUST_LOG=info,auth_service=debug
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - campreserv
+
+  # ============================================================================
+  # Optional: PostgreSQL for local development
+  # ============================================================================
+  # Uncomment if you want to run PostgreSQL locally instead of using Railway
+
+  # postgres:
+  #   image: postgres:16-alpine
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=campreserv
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - campreserv
+
+  # ============================================================================
+  # Optional: Redis for distributed state
+  # ============================================================================
+  # Uncomment if you need Redis for lockout tracking or caching
+
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - campreserv
+
+networks:
+  campreserv:
+    driver: bridge
+
+# volumes:
+#   postgres_data:

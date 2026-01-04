@@ -2,6 +2,39 @@
 
 Campground reservation management platform. Multi-tenant SaaS for campgrounds, RV parks, and lodging.
 
+## Quick Start (Read This First!)
+
+**Working on specific areas? Load the right skill:**
+- API/Backend (Node) → Use `nestjs-api` skill
+- API/Backend (Rust) → Reference `.claude/rules/rust.md`
+- Frontend/UI → Use `ui-development` skill
+- Database → Use `prisma-database` skill
+- Payments → Reference `.claude/rules/payments.md`
+
+**Critical rules (never violate these):**
+1. ✅ Always verify your work: Run `pnpm build` + tests after changes
+2. ✅ Use Plan mode (shift+tab 2x) for multi-file changes
+3. ✅ Multi-tenant: Include `campgroundId` in ALL queries
+4. ✅ Money: Use integers for cents (`9999` = $99.99), validate with Zod
+5. ✅ Icons: Use Lucide SVG, never emojis
+6. ✅ Validate all external data with Zod (user input, APIs, webhooks)
+
+**Development commands:**
+```bash
+pnpm dev                    # Run both API + Web
+pnpm build                  # Build and verify everything works
+pnpm test                   # Run all tests
+pnpm --dir platform/apps/api prisma:generate  # After schema changes
+```
+
+**AI-First Safety Net:**
+- 🛡️ **Zod** - Runtime validation (catches bad data)
+- 🔍 **Sentry** - Error tracking (know when things break)
+- ✅ **Vitest** - Automated testing (catch bugs before deploy)
+- 🎭 **Playwright** - E2E testing (test like a user)
+
+See `docs/AI_FIRST_DEVELOPMENT.md` for complete guide.
+
 ## Project Structure
 
 ```
@@ -19,13 +52,19 @@ platform/
 
 | Layer | Technology |
 |-------|------------|
-| Backend | NestJS 10, Prisma 7, PostgreSQL |
+| Backend | NestJS 10, Rust (critical services), Prisma 7, PostgreSQL |
 | Frontend | Next.js 14 (App Router), React 18, TailwindCSS |
 | Auth | NextAuth 5 (beta), JWT (7-day expiry) |
 | Payments | Stripe (connected accounts per campground) |
 | State | TanStack Query (primary), SWR |
 | UI | Radix UI, shadcn/ui components |
 | Monorepo | pnpm workspaces |
+
+**Rust services (planned):**
+- Payment processing (security-critical)
+- Availability calculator (complex logic)
+- Authentication (critical)
+- Math-heavy features (pricing, calculations)
 
 ## Quick Commands
 
@@ -56,89 +95,6 @@ pnpm lint:web               # Lint web app
 
 ---
 
-## SchemaForge Setup
-
-SchemaForge is located at `/Users/josh/Documents/GitHub/Programming Lanuauge` (note: folder has typo).
-
-**Important:** The npm-published `schemaforge` package only has basic commands. The full feature set (import, context, verify, multi-stack) is in the local dev version.
-
-### Step 1: Use Local Dev Version
-
-```bash
-cd "/Users/josh/Documents/GitHub/Programming Lanuauge"
-pnpm install
-pnpm build
-
-# Add this alias to save typing
-alias sf='npx tsx src/cli/index.ts'
-```
-
-### Step 2: Import Existing Prisma Schema
-
-```bash
-sf import --from prisma -i "/Users/josh/Documents/GitHub/Campreserv (broken) copy/platform/apps/api/prisma/schema.prisma" -o ./campreserv.forge
-```
-
-### Step 3: Generate AI Context (Most Useful)
-
-```bash
-sf context --schema ./campreserv.forge --output ./campreserv-context.md
-```
-
-This generates 11,000+ lines of AI-readable documentation covering all 335 models, relationships, and 1,675 API endpoints.
-
-### Step 4: Configure for Code Generation (Optional)
-
-Edit `campreserv.forge` config block (note: uses `:` not `=`):
-
-```
-config {
-  database: "postgresql"
-  output: "./generated"
-  apiStyle: "hono"
-}
-```
-
-**Note:** The importer automatically renames reserved keywords:
-- `action` -> `actionType`
-- `model` -> `modelRef`
-
-### Step 5: Add @ai Annotations (Optional)
-
-```
-model Reservation @softDelete {
-  @ai.description("A booking for a campsite over a date range")
-  @ai.rules(["Status only moves forward", "checked_in requires payment"])
-  @ai.transitions({ pending: ["confirmed", "cancelled"], confirmed: ["checked_in", "cancelled"] })
-  status String @default("pending")
-
-  @ai.computed("Derived from nights * nightly rate")
-  totalCents Int
-}
-```
-
-### Step 6: Generate Code
-
-```bash
-sf generate --schema ./campreserv.forge   # Generates validators, types, API, forms, tables
-sf verify --schema ./campreserv.forge     # Check schema/code consistency
-```
-
-### Key Commands
-
-| Command                 | Purpose                            |
-|-------------------------|------------------------------------|
-| `sf import --from prisma` | Import existing Prisma schema      |
-| `sf generate`             | Generate code for configured stack |
-| `sf context`              | Generate AI-readable documentation |
-| `sf verify`               | Check schema/code consistency      |
-| `sf migrate create`       | Create database migration          |
-| `sf migrate run`          | Apply pending migrations           |
-
-**DO NOT manually edit files in `./generated/` - they will be overwritten.**
-
----
-
 ## CRITICAL GUARDRAILS
 
 **DO NOT modify these without explicit approval:**
@@ -147,213 +103,24 @@ sf verify --schema ./campreserv.forge     # Check schema/code consistency
 2. **Build Tool** - API uses `tsup` (not `tsc`) - see `tsup.config.ts`
 3. **Multi-tenant isolation** - Always scope queries by `campgroundId`
 4. **Money in cents** - All amounts are integers (e.g., `9999` = $99.99)
-5. **NO EMOJIS EVER** - Never use emojis anywhere in this project:
-   - No emojis in code (comments, strings, variables)
-   - No emojis in markdown files
-   - No emojis in frontend UI text
-   - Use SVG icons instead for visual elements (Lucide icons are preferred)
-   - SVGs are professional and scalable; emojis are not
+5. **No emojis** - Use Lucide SVG icons instead (professional and scalable)
 
 ---
 
-## API Patterns (NestJS)
+## Code Patterns
 
-### Transaction Pattern
-```typescript
-// CORRECT - async callback with tx parameter
-await this.prisma.$transaction(async (tx) => {
-  const reservation = await tx.reservation.create({ ... });
-  await tx.payment.create({ data: { reservationId: reservation.id, ... } });
-});
+Detailed coding patterns are in `.claude/rules/`:
+- **API (NestJS)**: `.claude/rules/api.md` - Services, controllers, DTOs, auth guards
+- **API (Rust)**: `.claude/rules/rust.md` - Safety-critical code, error handling, async
+- **Frontend (Next.js)**: `.claude/rules/web.md` - Components, queries, forms, accessibility
+- **Prisma**: `.claude/rules/prisma.md` - Schema changes, migrations, query patterns
+- **Payments**: `.claude/rules/payments.md` - Money handling, Stripe, ledger entries
 
-// CORRECT - array pattern for simple independent operations
-await this.prisma.$transaction([
-  this.prisma.guest.update({ ... }),
-  this.prisma.payment.create({ ... })
-]);
+These rules are automatically loaded when working in the relevant directories.
 
-// WRONG - never nest transactions or call $transaction on tx
-```
-
-### Exception Hierarchy
-```typescript
-// Use these NestJS exceptions (most common first):
-throw new BadRequestException("Invalid input");      // 400 - validation failures
-throw new NotFoundException("Resource not found");   // 404 - missing records
-throw new ConflictException("Already exists");       // 409 - duplicates
-throw new ForbiddenException("Access denied");       // 403 - permission denied
-throw new UnauthorizedException("Not authenticated"); // 401 - auth failures
-```
-
-### Service Pattern
-```typescript
-@Injectable()
-export class FeatureService {
-  private readonly logger = new Logger(FeatureService.name);
-
-  constructor(private readonly prisma: PrismaService) {}
-
-  async create(dto: CreateDto) {
-    // 1. Validate existence
-    const existing = await this.prisma.model.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("Not found");
-
-    // 2. Check business rules
-    if (!existing.isActive) throw new BadRequestException("Inactive");
-
-    // 3. Normalize inputs
-    const normalizedEmail = dto.email.trim().toLowerCase();
-
-    // 4. Execute with defaults
-    return this.prisma.model.create({
-      data: { ...dto, status: "active", createdAt: new Date() }
-    });
-  }
-}
-```
-
-### Controller Pattern
-```typescript
-@Controller('campgrounds/:campgroundId/resources')
-@UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
-export class ResourceController {
-  constructor(private readonly service: ResourceService) {}
-
-  @Get()
-  @Roles(UserRole.manager, UserRole.owner)
-  async list(@Param('campgroundId') campgroundId: string) {
-    return this.service.findAll(campgroundId);
-  }
-
-  @Post()
-  async create(@Body() dto: CreateDto, @CurrentUser() user: UserPayload) {
-    return this.service.create(dto, user.id);
-  }
-}
-```
-
-### Auth Decorators
-```typescript
-@UseGuards(JwtAuthGuard)           // Require authentication
-@UseGuards(JwtAuthGuard, RolesGuard) // + role check
-@Roles(UserRole.owner, UserRole.manager) // Required roles
-@CurrentUser()                      // Get user from request
-@SkipScopeValidation()             // Skip tenant isolation (admin only)
-```
-
-### DTO Validation
-```typescript
-export class CreateDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  name: string;
-
-  @IsEmail()
-  email: string;
-
-  @IsInt()
-  @Min(0)
-  priceCents: number;
-
-  @IsOptional()
-  @IsString()
-  description?: string;
-}
-```
-
----
-
-## Frontend Patterns (Next.js)
-
-### Component Structure
-```typescript
-"use client";
-
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
-
-interface Props {
-  campground: Campground;
-}
-
-export function FeatureForm({ campground }: Props) {
-  const [form, setForm] = useState({
-    name: campground.name || "",
-    // Initialize all fields from props
-  });
-  const qc = useQueryClient();
-
-  const mutation = useMutation({
-    mutationFn: () => apiClient.updateFeature(campground.id, form),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["features", campground.id] });
-      toast({ title: "Saved", variant: "success" });
-    }
-  });
-
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
-      <FormField
-        label="Name"
-        value={form.name}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
-      />
-      <Button disabled={mutation.isPending}>Save</Button>
-    </form>
-  );
-}
-```
-
-### Query Pattern
-```typescript
-const { data, isLoading } = useQuery({
-  queryKey: ["resources", campgroundId],
-  queryFn: () => apiClient.getResources(campgroundId),
-  enabled: typeof window !== "undefined" && !!authToken,
-  staleTime: 5 * 60 * 1000, // 5 minutes
-  retry: 1
-});
-```
-
-### API Client Usage
-```typescript
-// All calls use scopedHeaders() which auto-injects:
-// - Authorization Bearer token
-// - x-campground-id, x-organization-id
-// - x-locale, x-currency
-
-const data = await apiClient.getReservations(campgroundId);
-const result = await apiClient.createPayment(campgroundId, payload);
-```
-
-### Hydration Safety
-```typescript
-// Always check for browser before localStorage
-const isBrowser = typeof window !== "undefined";
-const token = isBrowser ? localStorage.getItem("campreserv:authToken") : null;
-
-// Use enabled flag to prevent SSR requests
-useQuery({
-  queryKey: ["data"],
-  queryFn: fetchData,
-  enabled: isBrowser && !!token
-});
-```
-
-### Form Accessibility
-```typescript
-const fieldId = React.useId();
-
-<label htmlFor={fieldId}>Name</label>
-<input
-  id={fieldId}
-  aria-invalid={hasError ? "true" : "false"}
-  aria-describedby={hasError ? `${fieldId}-error` : undefined}
-/>
-{hasError && <p id={`${fieldId}-error`} role="alert">{error}</p>}
-```
+**When to use Rust vs TypeScript:**
+- 🦀 **Rust** → Payment processing, auth, availability calculator, anything with money/security
+- 📘 **TypeScript** → CRUD operations, admin dashboards, business logic, integrations
 
 ---
 
@@ -405,6 +172,20 @@ cancelled
 
 ---
 
+## Important Documentation
+
+**AI-First Development:**
+- `docs/AI_FIRST_DEVELOPMENT.md` - Complete guide to Zod, Sentry, Testing
+- `docs/RUST_MIGRATION_PLAN.md` - Plan for migrating to Rust
+- `docs/RAILWAY_BACKUP_SETUP.md` - Database backup setup ($5/month)
+- `docs/OPENAI_INTEGRATION.md` - OpenAI + pgvector semantic search
+
+**Read these when:**
+- Building new features → AI_FIRST_DEVELOPMENT.md
+- After first customers → RUST_MIGRATION_PLAN.md
+- Before deploying → RAILWAY_BACKUP_SETUP.md
+- Adding AI features → OPENAI_INTEGRATION.md
+
 ## Known Issues & Technical Debt
 
 ### Pending External Integrations
@@ -449,50 +230,120 @@ DATABASE_URL="..." npx prisma migrate resolve --applied "migration_name"
 
 ---
 
-## Agent Instructions
+## Workflow & Verification (CRITICAL)
 
-### Proactive Skill/Agent Usage
+### Step-by-Step Process for ALL Tasks
 
-**Automatically use these when appropriate:**
+1. **Understand First**
+   - Read relevant files completely before making changes
+   - Check Prisma schema for data model context
+   - Look at similar features to understand patterns
+   - Ask clarifying questions if requirements are unclear
 
-| Trigger | Action |
-|---------|--------|
-| After writing significant code | Run `code-reviewer` agent |
-| Working on API endpoints | Load `nestjs-api` skill |
-| Working on frontend components | Load `ui-development` skill |
-| Modifying Prisma schema | Load `prisma-database` skill |
-| Security-related changes | Run `security-reviewer` agent |
-| Before suggesting deploy | Run `/deploy` command checks |
-| Database changes needed | Suggest `/db` command |
+2. **Plan the Work**
+   - For multi-step tasks, create a todo list with TodoWrite
+   - Mark tasks as in_progress BEFORE starting work
+   - Only ONE task should be in_progress at a time
 
-**Domain skills to load based on context:**
-- Reservation/booking work → `campground-domain` skill
-- UI/UX decisions → `ux-design` skill
-- Accessibility concerns → `accessibility` skill
-- Payment/billing code → Reference `payments.md` rules
+3. **Make Changes**
+   - Follow existing code patterns
+   - Apply rules from .claude/rules/ directory
+   - Keep changes minimal and focused
 
-### Before Making Changes
-1. Read relevant files first - understand existing patterns
-2. Check Prisma schema for data model context
-3. Look at similar features for patterns to follow
-4. Run `pnpm build` to verify changes compile
+4. **VERIFY YOUR WORK** (This is the most important step!)
+   - Run `pnpm build` to check for compile errors
+   - For API changes: manually test the endpoint works
+   - For DB changes: run `pnpm --dir platform/apps/api prisma:generate`
+   - For frontend: check that the UI renders without errors
+   - Check that you completed ALL parts of the task
 
-### Code Generation Rules
+5. **Mark Complete**
+   - Only mark todo items as completed when FULLY done
+   - If you encounter errors or blockers, keep it in_progress
+   - Report any issues you couldn't resolve
+
+### Verification Commands by Feature Area
+
+| Change Type | Verification Command |
+|-------------|---------------------|
+| API changes | `pnpm build:api` |
+| Frontend changes | `pnpm build:web` |
+| Schema changes | `pnpm --dir platform/apps/api prisma:generate` |
+| Shared types | `pnpm build:shared` |
+| Everything | `pnpm build` |
+
+### Never Skip These Steps
+
+- Don't skip verification - always check your work compiles
+- Don't skip reading files before editing them
+- Don't skip marking todos as complete when done
+- Don't skip asking questions when unclear
+- Don't assume code works without verifying
+
+### When to Use Plan Mode
+
+**Use Plan mode (shift+tab twice in Claude Code) for:**
+- Multi-file changes (3+ files)
+- New feature implementation
+- Architectural changes
+- Database schema modifications
+- Anything you're uncertain about
+
+**Plan mode workflow:**
+1. Enter Plan mode at the start
+2. Explore the codebase and design an approach
+3. Iterate on the plan with the user until it's solid
+4. Exit Plan mode and implement (can use auto-accept edits)
+5. Verify the implementation works
+
+**A good plan is critical** - investing time upfront prevents wasted work.
+
+### Advanced Workflows
+
+**Parallel Execution:**
+- Run multiple Claude sessions in parallel for faster iteration
+- Use numbered terminal tabs (1-5) to track sessions
+- Hand off between local CLI and claude.ai/code using `&` or `--teleport`
+- Start sessions from mobile and check in later
+
+**Hooks for Auto-Verification:**
+Configure `.claude/hooks.json` to automatically verify work:
+```json
+{
+  "postToolUse": {
+    "Edit": "pnpm build",
+    "Write": "pnpm build"
+  }
+}
+```
+
+**Verification Subagent:**
+For long-running tasks, use a background agent to verify:
+- Create `.claude/agents/verify-app.md` with testing steps
+- Invoke with: `Task(subagent_type="verify-app")`
+- Or use a Stop hook to run verification automatically
+
+## Code Generation Rules
+
 1. **Always null-check** after `findUnique` / `findFirst`
 2. **Normalize strings** with `.trim().toLowerCase()` for emails
 3. **Use specific exceptions** (BadRequest, NotFound, etc.)
 4. **Include campgroundId** in all tenant-scoped queries
 5. **Invalidate queries** on mutation success
-6. **Check `typeof window`** before localStorage access
+6. **Check `typeof window`` before localStorage access
 
-### What NOT to Do
-- Don't modify Prisma generator settings
-- Don't use `console.log` in services (use Logger)
-- Don't create new dependencies without approval
-- Don't nest transactions
-- Don't use floating-point for money
-- Don't skip auth guards on new endpoints
-- **Don't use emojis** - Use Lucide SVG icons for visual elements instead
+## Preferred Patterns (Do These)
+
+- **Validation**: Always use Zod for money, user input, and external data
+- **Logging**: Use NestJS Logger (`this.logger.log()`) instead of console.log
+- **Money**: Use integers for cents (`9999` = $99.99) + Zod validation
+- **Auth**: Add guards to all endpoints (`@UseGuards(JwtAuthGuard, RolesGuard)`)
+- **Testing**: Write tests for critical features (payments, auth, reservations)
+- **Transactions**: Use single transaction with callback pattern, not nested
+- **Dependencies**: Ask before adding new packages
+- **Icons**: Use Lucide SVG icons, never emojis
+- **Verification**: Always run build + tests after changes
+- **Error Tracking**: Wrap risky operations in try/catch + Sentry.captureException()
 
 ---
 

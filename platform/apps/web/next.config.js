@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const path = require("path");
+const { withSentryConfig } = require("@sentry/nextjs");
 
 const nextConfig = {
   // Image optimization configuration
@@ -61,7 +62,7 @@ const nextConfig = {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https: http:",
-      "connect-src 'self' https://api.stripe.com wss://*.stripe.com https://maps.googleapis.com https://*.railway.app http://localhost:* ws://localhost:*",
+      "connect-src 'self' https://api.stripe.com wss://*.stripe.com https://maps.googleapis.com https://*.railway.app https://*.ingest.us.sentry.io https://*.sentry.io http://localhost:* ws://localhost:*",
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://www.google.com",
       "object-src 'none'",
       "base-uri 'self'",
@@ -190,6 +191,8 @@ const nextConfig = {
   // Experimental features for performance
   experimental: {
     outputFileTracingRoot: path.join(__dirname, "../../"),
+    // Enable instrumentation for Sentry
+    instrumentationHook: true,
     // Optimize package imports
     optimizePackageImports: [
       "lucide-react",
@@ -202,4 +205,27 @@ const nextConfig = {
 
 };
 
-module.exports = nextConfig;
+// Wrap with Sentry config to enable error tracking
+module.exports = withSentryConfig(nextConfig, {
+  // Sentry webpack plugin options
+  silent: true, // Suppresses all logs
+  org: "campreserv",
+  project: "nextjs",
+
+  // Upload source maps for error tracking
+  widenClientFileUpload: true,
+
+  // Automatically annotate React components for better error messages
+  reactComponentAnnotation: {
+    enabled: true,
+  },
+
+  // Don't auto-instrument (we do it manually via instrumentation.ts)
+  autoInstrumentServerFunctions: false,
+
+  // Hide Sentry from bundle analyzer
+  hideSourceMaps: true,
+
+  // Disable telemetry
+  disableLogger: true,
+});

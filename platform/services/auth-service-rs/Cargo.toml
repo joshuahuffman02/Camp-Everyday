@@ -1,0 +1,47 @@
+[package]
+name = "auth_service"
+version = "0.1.0"
+edition = "2021"
+description = "Authentication service for Campreserv - password hashing, JWT, TOTP, encryption"
+
+[dependencies]
+# HTTP framework
+actix-web = "4"
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Password hashing
+bcrypt = "0.15"
+# JWT tokens
+jsonwebtoken = "9"
+# TOTP/2FA
+totp-lite = "2"
+# AES-256-GCM encryption
+aes-gcm = "0.10"
+# SHA-1 for TOTP (RFC 6238)
+sha1 = "0.10"
+# SHA-256 hashing
+sha2 = "0.10"
+# HMAC for webhook signatures
+hmac = "0.12"
+# Random generation
+rand = "0.8"
+# Base64 encoding
+base64 = "0.22"
+# Database (runtime queries)
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio", "chrono"] }
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+# Error handling
+anyhow = "1"
+thiserror = "1"
+# Environment variables
+dotenvy = "0.15"
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tokio-test = "0.4"

@@ -11863,6 +11863,31 @@ export const apiClient = {
   },
 
   // -------------------------------------------------------------------------
+  // Semantic Search (Public)
+  // -------------------------------------------------------------------------
+  async searchCampgroundsSemantic(query: string, limit: number = 10) {
+    const res = await fetch(`${API_BASE}/semantic-search/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, limit }),
+    });
+    const data = await parseResponse<{
+      query: string;
+      results: Array<{
+        id: string;
+        name: string;
+        slug: string;
+        description: string | null;
+        city: string | null;
+        state: string | null;
+        similarity: number;
+      }>;
+      count: number;
+    }>(res);
+    return data;
+  },
+
+  // -------------------------------------------------------------------------
   // Generic HTTP Methods (for dynamic endpoints)
   // -------------------------------------------------------------------------
   async get<T = unknown>(url: string, options?: { params?: Record<string, string | number | boolean | undefined | null> }): Promise<{ data: T }> {

@@ -271,7 +271,7 @@ export function CharityImpactSection({ variant = "full", showCTA = true }: Chari
 
             <div className="col-span-2 md:col-span-1 p-6 rounded-2xl bg-card/80 backdrop-blur">
               <div className="flex items-center justify-center mb-2">
-                <Image src="/images/icons/charity-hands.png" alt="Charities" width={32} height={32} className="object-contain" />
+                <Image src="/images/icons/giving-heart.png" alt="Charities" width={32} height={32} className="object-contain" />
               </div>
               <div className="text-3xl font-bold text-foreground">
                 {isLoading ? "..." : topCharities.length}

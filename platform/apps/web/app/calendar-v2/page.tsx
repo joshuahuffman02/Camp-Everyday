@@ -676,31 +676,19 @@ export default function CalendarPage() {
               <StatCard label="Housekeeping" value={`${housekeepingCount}`} sub="Active tasks" icon={<Sparkles className="h-4 w-4" />} />
             </div>
 
-            {/* Status Legend */}
-            <StatusLegend />
-
-            {/* Status Filter Chips */}
-            <Card className="p-4 border-border shadow-sm">
-              <StatusFilterChips
-                activeFilter={state.statusFilter}
-                onFilterChange={actions.setStatusFilter}
-                reservationCounts={reservationCountsByStatus}
-              />
-            </Card>
-
-            {visibleSiteTypes.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
-                <span className="text-xs font-medium text-muted-foreground">Site types</span>
-                {visibleSiteTypes.map((type) => {
-                  const meta = SITE_TYPE_STYLES[type] || SITE_TYPE_STYLES.default;
-                  return (
-                    <span key={type} className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold", meta.badge)}>
-                      {meta.label}
-                    </span>
-                  );
-                })}
+            <Card className="border-border shadow-sm">
+              <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-4 py-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Status
+                </span>
+                <StatusFilterChips
+                  activeFilter={state.statusFilter}
+                  onFilterChange={actions.setStatusFilter}
+                  reservationCounts={reservationCountsByStatus}
+                  className="flex-1"
+                />
               </div>
-            )}
+            </Card>
 
             {state.guestSearch && visibleSites.length === 0 ? (
               <Card className="p-6 border-dashed border-border text-center text-muted-foreground">
@@ -950,44 +938,6 @@ function StatCard({ label, value, sub, icon }: { label: string; value: string; s
   );
 }
 
-interface StatusLegendProps {
-  className?: string;
-}
-
-function StatusLegend({ className }: StatusLegendProps) {
-  return (
-    <Card className={cn("border-border shadow-sm", className)}>
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-4 rounded-md bg-muted flex items-center justify-center">
-            <CalendarDays className="h-2.5 w-2.5 text-muted-foreground" />
-          </div>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Status legend
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {Object.entries(STATUS_CONFIG).map(([key, config]) => {
-            const Icon = config.icon;
-            return (
-              <div
-                key={key}
-                className="flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-2 py-1 text-[11px] font-semibold text-muted-foreground"
-                title={config.description}
-              >
-                <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded-full text-white", config.bgColor)}>
-                  <Icon className="h-2.5 w-2.5" />
-                </span>
-                <span className="text-foreground">{config.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 interface StatusFilterChipsProps {
   activeFilter: string;
   onFilterChange: (status: string) => void;
@@ -1000,9 +950,6 @@ function StatusFilterChips({ activeFilter, onFilterChange, reservationCounts = {
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <span className="text-xs font-medium text-muted-foreground mr-1">
-        Filter by status
-      </span>
       {statuses.map((status) => {
         const isActive = activeFilter === status;
         const config = status === "all" ? null : STATUS_CONFIG[status];
@@ -1205,7 +1152,7 @@ function CalendarGrid({
   const gridTemplate = `${SITE_COL_WIDTH}px repeat(${dayCount}, minmax(${DAY_MIN_WIDTH}px, 1fr))`;
 
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden min-w-0 w-full">
       <div className="overflow-x-auto">
         <div
           className="grid text-xs font-medium text-muted-foreground border-b border-border bg-muted/50"

@@ -1189,6 +1189,9 @@ model Campground {
   aiMonthlyBudgetCents   Int? // Optional spending cap
   aiTotalTokensUsed      Int       @default(0) // Running total for billing
 
+  // Semantic Search (pgvector)
+  embedding              Unsupported("vector(1536)")? // OpenAI text-embedding-3-small embeddings for semantic search
+
   // NPS/Reviews
   npsAutoSendEnabled Boolean @default(false)
   npsSendHour        Int?    @default(7)

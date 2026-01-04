@@ -14,12 +14,33 @@
       "Bash(tail:*)",
       "Bash(wc:*)",
       "Bash(railway:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo run:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo init:*)",
+      "Bash(cargo new:*)",
+      "Bash(rustc:*)",
+      "Bash(rustup:*)"
     ]
   },
   "hooks": {
     "PreToolUse": [],
-    "PostToolUse": []
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "I just edited a file. Remind me to run 'pnpm build' to verify it compiles correctly.",
+            "statusMessage": "Checking if verification needed..."
+          }
+        ]
+      }
+    ]
   },
   "model": "opus"
 }

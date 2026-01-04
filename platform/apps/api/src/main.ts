@@ -1,8 +1,12 @@
 import "reflect-metadata";
 import { Logger } from "@nestjs/common";
 import { createApp, initializePrismaShutdownHooks } from "./app.bootstrap";
+import { initializeSentry } from "./sentry";
 
 const logger = new Logger('Bootstrap');
+
+// Initialize Sentry FIRST to catch all errors (even during bootstrap)
+initializeSentry();
 
 async function bootstrap() {
   const app = await createApp();

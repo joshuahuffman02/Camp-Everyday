@@ -1,9 +1,14 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import dynamic from "next/dynamic";
 import { SessionProvider } from "next-auth/react";
 import { PropsWithChildren, useState } from "react";
+
+const ReactQueryDevtools = dynamic(
+  () => import("@tanstack/react-query-devtools").then((mod) => mod.ReactQueryDevtools),
+  { ssr: false }
+);
 import { KeyboardShortcutsProvider } from "@/contexts/KeyboardShortcutsContext";
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 import { KeyboardSequenceIndicator } from "@/components/ui/keyboard-sequence-indicator";
@@ -26,7 +31,9 @@ export function Providers({ children }: PropsWithChildren) {
                 <GlobalCommandPalette />
                 <KeyboardShortcutsDialog />
                 <KeyboardSequenceIndicator />
-                <ReactQueryDevtools initialIsOpen={false} />
+                {process.env.NODE_ENV === "development" ? (
+                  <ReactQueryDevtools initialIsOpen={false} />
+                ) : null}
               </KeyboardShortcutsProvider>
             </AccessibilityProvider>
           </CampgroundProvider>
@@ -35,4 +42,3 @@ export function Providers({ children }: PropsWithChildren) {
     </ThemeProvider>
   );
 }
-
