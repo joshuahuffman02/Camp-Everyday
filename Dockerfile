@@ -1,6 +1,8 @@
 FROM node:22-alpine AS base
+ARG CACHE_BUST=v1
 RUN corepack enable && corepack prepare pnpm@7.33.6 --activate
 WORKDIR /app
+RUN echo "Build cache bust: ${CACHE_BUST}"
 
 # Install dependencies
 FROM base AS deps
