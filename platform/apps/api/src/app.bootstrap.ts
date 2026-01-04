@@ -39,7 +39,10 @@ export async function createApp(): Promise<INestApplication> {
 
     // CORS configuration - environment-aware
     const allowedOrigins = [
-        // Production frontend
+        // Production frontend (custom domain)
+        "https://keeprstay.com",
+        "https://www.keeprstay.com",
+        // Production frontend (Railway)
         "https://campreservweb-production.up.railway.app",
         // Development
         "http://localhost:3000",
