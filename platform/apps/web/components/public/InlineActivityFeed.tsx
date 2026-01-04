@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
+import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 
 interface ActivityMessage {
   highlight: string;
@@ -18,14 +19,7 @@ interface InlineActivityFeedProps {
 export function InlineActivityFeed({ className }: InlineActivityFeedProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const [hasMounted, setHasMounted] = useState(false);
-  const prefersReducedMotionValue = useReducedMotion();
-  // Use consistent value before mount to prevent hydration mismatch
-  const prefersReducedMotion = hasMounted ? prefersReducedMotionValue : true;
-
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
+  const prefersReducedMotion = useReducedMotionSafe();
 
   // Fetch real platform stats
   const { data: stats } = useQuery({
@@ -167,7 +161,7 @@ export function InlineActivityFeed({ className }: InlineActivityFeedProps) {
 
   return (
     <motion.div
-      className={`w-full py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50 ${className}`}
+      className={`w-full py-4 bg-gradient-to-r from-keepr-off-white via-white to-keepr-off-white ${className}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
@@ -176,7 +170,7 @@ export function InlineActivityFeed({ className }: InlineActivityFeedProps) {
         <div className="flex items-center justify-center gap-3">
           {/* Pulsing dot */}
           <motion.div
-            className="w-2 h-2 rounded-full bg-emerald-500"
+            className="w-2 h-2 rounded-full bg-keepr-evergreen"
             animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           />

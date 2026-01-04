@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { HelpTooltip } from "../ui/help-tooltip";
-import { Product, ProductCategory } from "@campreserv/shared";
+import { Product, ProductCategory } from "@keepr/shared";
 
 interface ProductModalProps {
     open: boolean;

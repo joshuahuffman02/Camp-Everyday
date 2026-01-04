@@ -3,7 +3,8 @@
 import { useRef, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
+import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 import { ChevronRight } from "lucide-react";
 import { CampgroundCard } from "./CampgroundCard";
 import { useGeolocation, getStateName } from "../../hooks/use-geolocation";
@@ -150,7 +151,7 @@ function HorizontalScrollSection({
               <Image src={iconImage} alt="" fill className="object-contain" sizes="48px" />
             </div>
           ) : (
-            <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600">
+            <div className="p-2 bg-keepr-evergreen/10 rounded-lg text-keepr-evergreen">
               {icon}
             </div>
           )}
@@ -162,7 +163,7 @@ function HorizontalScrollSection({
         {viewAllHref && (
           <Link
             href={viewAllHref}
-            className="flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+            className="flex items-center gap-1 text-sm font-medium text-keepr-evergreen hover:text-keepr-evergreen-light transition-colors"
           >
             {viewAllLabel}
             <ChevronRight className="w-4 h-4" />
@@ -208,8 +209,8 @@ function HorizontalScrollSection({
         </div>
 
         {/* Gradient fade edges */}
-        <div className="pointer-events-none absolute left-0 top-0 bottom-4 w-6 bg-gradient-to-r from-white to-transparent" />
-        <div className="pointer-events-none absolute right-0 top-0 bottom-4 w-6 bg-gradient-to-l from-white to-transparent" />
+        <div className="pointer-events-none absolute left-0 top-0 bottom-4 w-6 bg-gradient-to-r from-keepr-off-white to-transparent" />
+        <div className="pointer-events-none absolute right-0 top-0 bottom-4 w-6 bg-gradient-to-l from-keepr-off-white to-transparent" />
       </motion.div>
     </section>
   );
@@ -217,7 +218,7 @@ function HorizontalScrollSection({
 
 export function LocationSections({ campgrounds, className = "" }: LocationSectionsProps) {
   const { state: userState, stateName, isLoading: geoLoading } = useGeolocation({ autoDetect: true });
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotionSafe();
 
   // Filter campgrounds by user's state
   const nearbySection = useMemo(() => {

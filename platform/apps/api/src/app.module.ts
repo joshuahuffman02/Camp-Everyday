@@ -1,8 +1,17 @@
-import { Module } from "@nestjs/common";
+import { Module, Logger } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { CommonModule } from "./common/common.module";
+
+// CRITICAL: Cron jobs exhaust Railway's ~20-25 DB connection limit
+// Set ENABLE_CRON=true in production only
+const CRON_ENABLED = process.env.ENABLE_CRON === "true";
+if (!CRON_ENABLED) {
+  new Logger("AppModule").warn(
+    "⚠️  Cron jobs DISABLED (set ENABLE_CRON=true to enable)"
+  );
+}
 import { AuthModule } from "./auth/auth.module";
 import { OrganizationsModule } from "./organizations/organizations.module";
 import { CampgroundsModule } from "./campgrounds/campgrounds.module";
@@ -138,7 +147,9 @@ import { RustServicesModule } from "./rust-services/rust-services.module";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ScheduleModule.forRoot(),
+    // Only load ScheduleModule when ENABLE_CRON=true (production)
+    // This prevents 60+ cron jobs from exhausting DB connections in dev
+    ...(CRON_ENABLED ? [ScheduleModule.forRoot()] : []),
     CommonModule, // API versioning and rate limiting
     SecurityModule, // Must be before AuthModule
     PrismaModule,

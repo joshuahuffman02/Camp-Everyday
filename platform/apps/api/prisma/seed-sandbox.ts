@@ -50,13 +50,13 @@ async function main() {
   });
 
   const guest = await prisma.guest.upsert({
-    where: { email: "sandbox-guest@campreserv.demo" },
+    where: { email: "sandbox-guest@keepr.demo" },
     update: {},
     create: {
       id: "sandbox-guest",
       primaryFirstName: "Demo",
       primaryLastName: "Guest",
-      email: "sandbox-guest@campreserv.demo",
+      email: "sandbox-guest@keepr.demo",
       phone: "+15555550123"
     }
   });

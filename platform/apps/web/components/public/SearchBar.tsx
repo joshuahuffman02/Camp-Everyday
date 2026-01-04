@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Compass } from "lucide-react";
+import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 
 interface SearchBarProps {
     onSearch: (query: string, filters: SearchFilters) => void;
@@ -22,7 +23,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
     const [guests, setGuests] = useState(2);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
-    const prefersReducedMotion = useReducedMotion();
+    const prefersReducedMotion = useReducedMotionSafe();
 
     const handleSearch = useCallback(() => {
         // Trigger compass spin animation
@@ -75,7 +76,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
                     {/* Search button with compass spin */}
                     <button
                         onClick={handleSearch}
-                        className="w-full sm:w-auto m-0 sm:m-2 px-5 sm:px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-500 hover:to-teal-500 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 flex items-center justify-center gap-2 group"
+                        className="w-full sm:w-auto m-0 sm:m-2 px-5 sm:px-6 py-3 bg-gradient-to-r from-keepr-evergreen to-keepr-evergreen-light text-white font-semibold rounded-xl hover:from-keepr-evergreen-light hover:to-keepr-evergreen transition-all shadow-lg shadow-keepr-evergreen/30 flex items-center justify-center gap-2 group"
                     >
                         <span>Find Your Spot</span>
                         <motion.div
@@ -97,7 +98,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
                                 <input
                                     type="text"
                                     placeholder="City, state, or region"
-                                    className="w-full px-4 py-3 rounded-xl border border-border focus:border-status-success focus:ring-2 focus:ring-status-success/20 outline-none transition-all"
+                                    className="w-full px-4 py-3 rounded-xl border border-border focus:border-keepr-evergreen focus:ring-2 focus:ring-keepr-evergreen/20 outline-none transition-all"
                                     value={location}
                                     onChange={(e) => setLocation(e.target.value)}
                                 />
@@ -108,7 +109,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
                                 <label className="block text-sm font-medium text-foreground">Check-in</label>
                                 <input
                                     type="date"
-                                    className="w-full px-4 py-3 rounded-xl border border-border focus:border-status-success focus:ring-2 focus:ring-status-success/20 outline-none transition-all"
+                                    className="w-full px-4 py-3 rounded-xl border border-border focus:border-keepr-evergreen focus:ring-2 focus:ring-keepr-evergreen/20 outline-none transition-all"
                                     value={checkIn}
                                     onChange={(e) => setCheckIn(e.target.value)}
                                 />
@@ -119,7 +120,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
                                 <label className="block text-sm font-medium text-foreground">Check-out</label>
                                 <input
                                     type="date"
-                                    className="w-full px-4 py-3 rounded-xl border border-border focus:border-status-success focus:ring-2 focus:ring-status-success/20 outline-none transition-all"
+                                    className="w-full px-4 py-3 rounded-xl border border-border focus:border-keepr-evergreen focus:ring-2 focus:ring-keepr-evergreen/20 outline-none transition-all"
                                     value={checkOut}
                                     onChange={(e) => setCheckOut(e.target.value)}
                                 />
@@ -129,7 +130,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">Guests</label>
                                 <select
-                                    className="w-full px-4 py-3 rounded-xl border border-border focus:border-status-success focus:ring-2 focus:ring-status-success/20 outline-none transition-all"
+                                    className="w-full px-4 py-3 rounded-xl border border-border focus:border-keepr-evergreen focus:ring-2 focus:ring-keepr-evergreen/20 outline-none transition-all"
                                     value={guests}
                                     onChange={(e) => setGuests(Number(e.target.value))}
                                 >
@@ -148,7 +149,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
                                 {["RV Sites", "Tent Camping", "Cabins", "Waterfront", "Pet Friendly", "Full Hookups"].map((tag) => (
                                     <button
                                         key={tag}
-                                        className="px-4 py-2 text-sm font-medium text-muted-foreground bg-muted rounded-full hover:bg-status-success/15 hover:text-status-success transition-colors"
+                                        className="px-4 py-2 text-sm font-medium text-muted-foreground bg-muted rounded-full hover:bg-keepr-clay/15 hover:text-keepr-clay transition-colors"
                                     >
                                         {tag}
                                     </button>

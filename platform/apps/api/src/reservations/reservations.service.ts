@@ -1364,7 +1364,7 @@ export class ReservationsService {
           data: {
             ...reservationData,
             seasonalRateId: data.seasonalRateId ?? null,
-            pricingType: data.pricingType ?? "transient",
+            // pricingType removed - field does not exist on Reservation model
             rigType: data.rigType || rvType,
             siteId: siteId, // Use the determined siteId (either from data or found from siteClassId)
             children: data.children ?? 0,

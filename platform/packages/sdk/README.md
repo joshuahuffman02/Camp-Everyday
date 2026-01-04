@@ -1,22 +1,22 @@
-# Campreserv SDK (Developer API)
+# Keepr SDK (Developer API)
 
-TypeScript client for the public Campreserv API with OAuth2 client-credentials auth.
+TypeScript client for the public Keepr API with OAuth2 client-credentials auth.
 
 ## Install
 
 ```bash
-pnpm add @campreserv/sdk
+pnpm add @keepr/sdk
 ```
 
 ## Configure
 
 ```ts
-import { DeveloperApiClient } from "@campreserv/sdk";
+import { DeveloperApiClient } from "@keepr/sdk";
 
 const client = new DeveloperApiClient({
   baseUrl: "http://localhost:4000/api", // or your deployed API base
-  clientId: process.env.CAMPRESERV_CLIENT_ID!,
-  clientSecret: process.env.CAMPRESERV_CLIENT_SECRET!,
+  clientId: process.env.KEEPR_CLIENT_ID!,
+  clientSecret: process.env.KEEPR_CLIENT_SECRET!,
   campgroundId: "your-camp-id",
   scopes: ["reservations:read", "reservations:write"]
 });
@@ -57,7 +57,7 @@ const all = await mock.listReservations();
 ### Mocked OAuth token flow (tests)
 
 ```ts
-import { DeveloperApiClient } from "@campreserv/sdk";
+import { DeveloperApiClient } from "@keepr/sdk";
 
 // Stub fetch to return a token, then CRUD responses.
 global.fetch = vi.fn()

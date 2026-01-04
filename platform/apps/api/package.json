@@ -1,5 +1,5 @@
 {
-  "name": "@campreserv/api",
+  "name": "@keepr/api",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -25,7 +25,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.948.0",
     "@aws-sdk/s3-request-presigner": "^3.948.0",
-    "@campreserv/shared": "workspace:*",
+    "@keepr/shared": "workspace:*",
+    "@campreserv/shared": "workspace:@keepr/shared@*",
     "@codegenie/serverless-express": "^4.17.1",
     "@google/adk": "^0.2.1",
     "@nestjs/common": "^10.4.7",

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableEmpty } from "@/components/ui/table";
 import { apiClient } from "@/lib/api-client";
-import { Product, ProductCategory } from "@campreserv/shared";
+import { Product, ProductCategory } from "@keepr/shared";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertTriangle, Package, Settings } from "lucide-react";
 import { TableSkeleton } from "@/components/ui/skeletons";

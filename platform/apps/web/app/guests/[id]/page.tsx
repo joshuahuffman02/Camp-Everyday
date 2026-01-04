@@ -34,7 +34,7 @@ import { useToast } from "../../../components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useCampground } from "../../../contexts/CampgroundContext";
-import { Guest } from "@campreserv/shared";
+import { Guest } from "@keepr/shared";
 
 const TIER_COLORS: Record<string, string> = {
     Bronze: "bg-status-warning/80",

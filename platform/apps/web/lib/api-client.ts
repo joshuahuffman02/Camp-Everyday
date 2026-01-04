@@ -47,7 +47,7 @@ import {
   ReviewReplySchema,
   FormTemplateSchema,
   FormSubmissionSchema
-} from "@campreserv/shared";
+} from "@keepr/shared";
 import { z } from "zod";
 
 const numberish = <T extends z.ZodTypeAny>(schema: T) =>
@@ -359,7 +359,7 @@ const OnboardingInviteResponseSchema = z.object({
   expiresAt: z.string()
 });
 
-// Product schemas are imported from @campreserv/shared
+// Product schemas are imported from @keepr/shared
 
 const FulfillmentStatusSchema = z.enum(["unassigned", "assigned", "preparing", "ready", "completed"]);
 

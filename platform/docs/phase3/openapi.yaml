@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Campreserv Phase3
+  title: Keepr Phase3
   version: 0.1.0
 servers:
   - url: https://api.example.com

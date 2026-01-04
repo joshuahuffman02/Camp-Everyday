@@ -62,7 +62,7 @@ export function RelatedCampgrounds({
               </div>
             )}
             <div className="p-4">
-              <h3 className="font-semibold text-foreground group-hover:text-emerald-600 transition-colors line-clamp-1">
+              <h3 className="font-semibold text-foreground group-hover:text-keepr-evergreen transition-colors line-clamp-1">
                 {campground.name}
               </h3>
               {(campground.city || campground.state) && (
@@ -72,7 +72,7 @@ export function RelatedCampgrounds({
                 </p>
               )}
               {campground.reviewScore && (
-                <p className="text-sm text-amber-600 flex items-center gap-1 mt-1">
+                <p className="text-sm text-keepr-clay flex items-center gap-1 mt-1">
                   <Star className="h-3.5 w-3.5 fill-current" />
                   {campground.reviewScore.toFixed(1)}
                 </p>
@@ -119,7 +119,7 @@ export function LocationLinks({
           <Link
             key={location.slug}
             href={`/browse/${location.slug}`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-muted hover:bg-emerald-50 border border-border hover:border-emerald-200 rounded-full text-sm text-foreground hover:text-emerald-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-muted hover:bg-keepr-evergreen/10 border border-border hover:border-keepr-evergreen/20 rounded-full text-sm text-foreground hover:text-keepr-evergreen transition-colors"
           >
             <MapPin className="h-4 w-4" />
             {location.name}
@@ -163,7 +163,7 @@ export function SiteTypeLinks({
           <Link
             key={siteType.type}
             href={`/browse?type=${siteType.type}`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border hover:border-emerald-300 rounded-lg text-sm text-foreground hover:text-emerald-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border hover:border-keepr-evergreen/30 rounded-lg text-sm text-foreground hover:text-keepr-evergreen transition-colors"
           >
             {siteType.label}
             <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
@@ -190,7 +190,7 @@ export function QuickLink({ href, children, className }: QuickLinkProps) {
     <Link
       href={href}
       className={cn(
-        "inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 font-medium group",
+        "inline-flex items-center gap-1 text-keepr-evergreen hover:text-keepr-evergreen-light font-medium group",
         className
       )}
     >
@@ -224,7 +224,7 @@ export function SEOFooterLinks({ sections, className }: SEOFooterLinksProps) {
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="text-sm text-muted-foreground hover:text-emerald-600 transition-colors"
+                  className="text-sm text-muted-foreground hover:text-keepr-evergreen transition-colors"
                 >
                   {link.name}
                 </Link>
@@ -294,10 +294,10 @@ export function AvailabilityCta({
   className,
 }: AvailabilityCtaProps) {
   return (
-    <div className={cn("bg-emerald-50 border border-emerald-100 rounded-xl p-6", className)}>
+    <div className={cn("bg-keepr-evergreen/10 border border-keepr-evergreen/20 rounded-xl p-6", className)}>
       <div className="flex items-start gap-4">
-        <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-          <Calendar className="h-6 w-6 text-emerald-600" />
+        <div className="h-12 w-12 rounded-full bg-keepr-evergreen/15 flex items-center justify-center flex-shrink-0">
+          <Calendar className="h-6 w-6 text-keepr-evergreen" />
         </div>
         <div className="flex-1">
           <h3 className="font-semibold text-foreground">Check Availability</h3>
@@ -306,7 +306,7 @@ export function AvailabilityCta({
           </p>
           <Link
             href={`/park/${campgroundSlug}/book`}
-            className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-keepr-evergreen hover:bg-keepr-evergreen-light text-white text-sm font-semibold rounded-lg transition-colors"
           >
             View Availability
             <ArrowRight className="h-4 w-4" />

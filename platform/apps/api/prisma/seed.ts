@@ -58,7 +58,7 @@ const GL_CODES = {
 const seededCampgrounds = [
   {
     name: "Keepr – Riverbend",
-    slug: "camp-everyday-riverbend",
+    slug: "keepr-riverbend",
     city: "Winona",
     state: "MN",
     timezone: "America/Chicago",
@@ -68,7 +68,7 @@ const seededCampgrounds = [
   },
   {
     name: "Keepr – Mountain Base",
-    slug: "camp-everyday-mtn-base",
+    slug: "keepr-mtn-base",
     city: "Salida",
     state: "CO",
     timezone: "America/Denver",

@@ -51,7 +51,7 @@ async function main() {
 
   // Find the campground
   const campground = await prisma.campground.findFirst({
-    where: { slug: "camp-everyday-riverbend" }
+    where: { slug: "keepr-riverbend" }
   });
 
   if (!campground) {

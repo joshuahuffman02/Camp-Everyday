@@ -47,4 +47,4 @@ export {
   // Types
   type DateInput,
   type DateFormatOptions,
-} from '@campreserv/shared';
+} from '@keepr/shared';

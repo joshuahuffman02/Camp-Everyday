@@ -38,7 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { loadQueue as loadQueueGeneric, saveQueue as saveQueueGeneric, registerBackgroundSync } from "@/lib/offline-queue";
 import { randomId } from "@/lib/random-id";
 import { Label } from "@/components/ui/label";
-import type { AddOn } from "@campreserv/shared";
+import type { AddOn } from "@keepr/shared";
 import { GUEST_TOKEN_KEY, SPRING_CONFIG, STATUS_VARIANTS } from "@/lib/portal-constants";
 import { PortalLoadingState, EmptyState } from "@/components/portal/PortalLoadingState";
 import { StatusBadge, getOrderStatusVariant, getStatusLabel } from "@/components/portal/StatusBadge";

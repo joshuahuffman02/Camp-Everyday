@@ -22,12 +22,12 @@ const eventTypeStyles: Record<
   string,
   { bg: string; text: string; icon: typeof Activity }
 > = {
-  activity: { bg: "bg-blue-100", text: "text-blue-700", icon: Activity },
-  workshop: { bg: "bg-purple-100", text: "text-purple-700", icon: Paintbrush },
-  entertainment: { bg: "bg-pink-100", text: "text-pink-700", icon: Music },
-  holiday: { bg: "bg-red-100", text: "text-red-700", icon: Gift },
-  recurring: { bg: "bg-green-100", text: "text-green-700", icon: Repeat },
-  ongoing: { bg: "bg-amber-100", text: "text-amber-700", icon: Clock }
+  activity: { bg: "bg-keepr-evergreen/10", text: "text-keepr-evergreen", icon: Activity },
+  workshop: { bg: "bg-keepr-clay/10", text: "text-keepr-clay", icon: Paintbrush },
+  entertainment: { bg: "bg-keepr-charcoal/10", text: "text-keepr-charcoal", icon: Music },
+  holiday: { bg: "bg-keepr-clay/15", text: "text-keepr-clay", icon: Gift },
+  recurring: { bg: "bg-keepr-evergreen/15", text: "text-keepr-evergreen", icon: Repeat },
+  ongoing: { bg: "bg-keepr-charcoal/10", text: "text-keepr-charcoal", icon: Clock }
 };
 
 interface EventCardProps {
@@ -131,8 +131,8 @@ export function EventCard({
             onError={() => setImageError(true)}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center">
-            <Icon className="w-16 h-16 text-orange-300" />
+          <div className="absolute inset-0 bg-gradient-to-br from-keepr-clay/10 to-keepr-clay/25 flex items-center justify-center">
+            <Icon className="w-16 h-16 text-keepr-clay/60" />
           </div>
         )}
 
@@ -151,7 +151,7 @@ export function EventCard({
           <span
             className={`px-2.5 py-1 rounded-full text-xs font-bold ${
               priceCents === 0
-                ? "bg-green-500 text-white"
+                ? "bg-keepr-evergreen text-white"
                 : "bg-card/90 text-foreground"
             }`}
           >
@@ -194,8 +194,8 @@ export function EventCard({
             <span
               className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                 isSoldOut
-                  ? "bg-red-500 text-white"
-                  : "bg-amber-500 text-white"
+                  ? "bg-status-error text-white"
+                  : "bg-keepr-clay text-white"
               }`}
             >
               {isSoldOut ? "Sold Out" : `Only ${spotsLeft} spots left`}
@@ -208,7 +208,7 @@ export function EventCard({
       <div className="p-4 space-y-3">
         {/* Date & Time */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="w-4 h-4 text-orange-500" />
+          <Calendar className="w-4 h-4 text-keepr-clay" />
           <span className="font-medium">{formatDate(startDate)}</span>
           {endDate && startDate !== endDate && (
             <>
@@ -226,7 +226,7 @@ export function EventCard({
         </div>
 
         {/* Title */}
-        <h3 className="font-bold text-lg text-foreground line-clamp-2 group-hover:text-orange-600 transition-colors">
+        <h3 className="font-bold text-lg text-foreground line-clamp-2 group-hover:text-keepr-evergreen transition-colors">
           {title}
         </h3>
 
@@ -238,7 +238,7 @@ export function EventCard({
         {/* Campground Info */}
         <Link
           href={campgroundLink}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-orange-600 transition-colors"
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-keepr-evergreen transition-colors"
         >
           <MapPin className="w-4 h-4" />
           <span className="truncate">
@@ -263,7 +263,7 @@ export function EventCard({
             <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
-                  isAlmostFull ? "bg-amber-500" : "bg-orange-500"
+                  isAlmostFull ? "bg-keepr-clay" : "bg-keepr-evergreen"
                 }`}
                 style={{
                   width: `${Math.min((currentSignups / capacity) * 100, 100)}%`

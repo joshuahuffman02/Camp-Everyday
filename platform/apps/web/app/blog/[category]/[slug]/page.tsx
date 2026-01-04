@@ -164,7 +164,7 @@ export default function BlogPostPage({ params }: Props) {
                             </h3>
                             <div className="flex gap-2">
                                 <button className="flex-1 py-2 px-4 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors text-slate-700">
-                                    Twitter
+                                    X
                                 </button>
                                 <button className="flex-1 py-2 px-4 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors text-slate-700">
                                     Facebook

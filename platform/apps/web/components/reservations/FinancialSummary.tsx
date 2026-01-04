@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Reservation, Quote } from "@campreserv/shared";
+import { Reservation, Quote } from "@keepr/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DollarSign, CreditCard, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Tag, Clock, Percent, Info, Building2 } from "lucide-react";

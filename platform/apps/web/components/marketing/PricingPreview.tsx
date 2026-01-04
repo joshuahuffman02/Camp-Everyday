@@ -200,12 +200,12 @@ export function PricingPreview() {
   const [showComparison, setShowComparison] = useState(false);
 
   return (
-    <section id="pricing" className="py-24 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <section id="pricing" className="py-24 bg-gradient-to-br from-keepr-charcoal via-slate-900 to-keepr-charcoal">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
         {/* Early Access Hero */}
         <div className="text-center max-w-4xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 border border-amber-500/30 rounded-full text-amber-400 text-sm font-semibold mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-keepr-clay/15 border border-keepr-clay/30 rounded-full text-keepr-clay text-sm font-semibold mb-6">
             <Clock className="h-4 w-4" />
             Only 45 Founding Spots Available
           </div>
@@ -221,15 +221,15 @@ export function PricingPreview() {
 
           <div className="flex flex-wrap items-center justify-center gap-6 text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-emerald-400" />
+              <Shield className="h-5 w-5 text-keepr-clay" />
               <span>Per-booking fee locked forever</span>
             </div>
             <div className="flex items-center gap-2">
-              <Gift className="h-5 w-5 text-emerald-400" />
+              <Gift className="h-5 w-5 text-keepr-clay" />
               <span>Free migration for early access</span>
             </div>
             <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-emerald-400" />
+              <Zap className="h-5 w-5 text-keepr-clay" />
               <span>Go live in 48 hours</span>
             </div>
           </div>
@@ -240,28 +240,28 @@ export function PricingPreview() {
           {earlyAccessTiers.map((tier) => {
             const colorStylesMap = {
               amber: {
-                border: "border-amber-500",
-                bg: "bg-amber-500/10",
-                badge: "bg-amber-500 text-foreground",
-                icon: "text-amber-400",
-                button: "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400",
-                urgency: "text-amber-400",
+                border: "border-keepr-clay/60",
+                bg: "bg-keepr-clay/10",
+                badge: "bg-keepr-clay text-white",
+                icon: "text-keepr-clay",
+                button: "bg-keepr-clay hover:bg-keepr-clay-light",
+                urgency: "text-keepr-clay",
               },
               emerald: {
-                border: "border-emerald-500",
-                bg: "bg-emerald-500/10",
-                badge: "bg-emerald-500 text-white",
-                icon: "text-emerald-400",
-                button: "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400",
-                urgency: "text-emerald-400",
+                border: "border-keepr-evergreen/60",
+                bg: "bg-keepr-evergreen/10",
+                badge: "bg-keepr-evergreen text-white",
+                icon: "text-keepr-evergreen",
+                button: "bg-keepr-evergreen hover:bg-keepr-evergreen-light",
+                urgency: "text-keepr-evergreen",
               },
               violet: {
-                border: "border-violet-500",
-                bg: "bg-violet-500/10",
-                badge: "bg-violet-500 text-white",
-                icon: "text-violet-400",
-                button: "bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-400 hover:to-purple-400",
-                urgency: "text-violet-400",
+                border: "border-white/20",
+                bg: "bg-white/5",
+                badge: "bg-white/10 text-white",
+                icon: "text-white/80",
+                button: "bg-white/10 hover:bg-white/20",
+                urgency: "text-white/70",
               },
             };
             const colorStyles = colorStylesMap[tier.color as keyof typeof colorStylesMap];
@@ -302,7 +302,7 @@ export function PricingPreview() {
                     </div>
                     <p className="text-muted-foreground">{tier.monthlyDuration}</p>
                     <div className="pt-2 border-t border-border/50">
-                      <span className="text-emerald-400 font-semibold">
+                      <span className="text-keepr-clay font-semibold">
                         ${tier.bookingFee.toFixed(2)} per booking
                       </span>
                       <span className="text-muted-foreground text-sm block">
@@ -316,7 +316,7 @@ export function PricingPreview() {
                 <ul className="space-y-3 mb-8">
                   {tier.benefits.map((benefit) => (
                     <li key={benefit} className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <Check className="h-5 w-5 text-keepr-clay flex-shrink-0 mt-0.5" />
                       <span className="text-muted-foreground">{benefit}</span>
                     </li>
                   ))}
@@ -350,7 +350,7 @@ export function PricingPreview() {
         {/* Setup Assistance Add-Ons */}
         <div id="add-ons" className="max-w-5xl mx-auto mb-20 scroll-mt-24">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-400 text-sm font-semibold mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-keepr-evergreen/15 border border-keepr-evergreen/30 rounded-full text-keepr-evergreen text-sm font-semibold mb-6">
               <Wrench className="h-4 w-4" />
               Optional Add-Ons
             </div>
@@ -366,9 +366,9 @@ export function PricingPreview() {
           <div className="grid md:grid-cols-2 gap-8">
             {/* Quick Start */}
             <div className="rounded-2xl border border-border bg-muted/50 p-8">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 rounded-xl bg-blue-500/20">
-                  <Headphones className="h-6 w-6 text-blue-400" />
+                <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 rounded-xl bg-keepr-evergreen/15">
+                  <Headphones className="h-6 w-6 text-keepr-evergreen" />
                 </div>
                 <div>
                   <h4 className="text-xl font-bold text-white">Quick Start</h4>
@@ -384,19 +384,19 @@ export function PricingPreview() {
 
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <Check className="h-5 w-5 text-keepr-evergreen flex-shrink-0 mt-0.5" />
                   <span className="text-muted-foreground">Site & rate configuration</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <Check className="h-5 w-5 text-keepr-evergreen flex-shrink-0 mt-0.5" />
                   <span className="text-muted-foreground">Payment gateway setup</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <Check className="h-5 w-5 text-keepr-evergreen flex-shrink-0 mt-0.5" />
                   <span className="text-muted-foreground">30-minute training call</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <Check className="h-5 w-5 text-keepr-evergreen flex-shrink-0 mt-0.5" />
                   <span className="text-muted-foreground">Policy & email template setup</span>
                 </li>
               </ul>
@@ -407,7 +407,7 @@ export function PricingPreview() {
 
               <div className="mt-6 pt-6 border-t border-border/50">
                 <p className="text-sm text-muted-foreground">
-                  <span className="text-blue-400 font-medium">Prefer to pay over time?</span>{" "}
+                  <span className="text-keepr-evergreen font-medium">Prefer to pay over time?</span>{" "}
                   Add $1/booking until paid off.
                 </p>
               </div>
@@ -415,9 +415,9 @@ export function PricingPreview() {
 
             {/* Data Import Service */}
             <div className="rounded-2xl border border-border bg-muted/50 p-8">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 rounded-xl bg-emerald-500/20">
-                  <Database className="h-6 w-6 text-emerald-400" />
+                <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 rounded-xl bg-keepr-clay/15">
+                  <Database className="h-6 w-6 text-keepr-clay" />
                 </div>
                 <div>
                   <h4 className="text-xl font-bold text-white">Data Import Service</h4>
@@ -444,7 +444,7 @@ export function PricingPreview() {
                 </div>
                 <div className="flex justify-between items-center py-2">
                   <span className="text-muted-foreground">5,000+ reservations</span>
-                  <span className="text-emerald-400 font-semibold">Custom quote</span>
+                  <span className="text-keepr-clay font-semibold">Custom quote</span>
                 </div>
               </div>
 
@@ -454,7 +454,7 @@ export function PricingPreview() {
 
               <div className="mt-6 pt-6 border-t border-border/50">
                 <p className="text-sm text-muted-foreground">
-                  <span className="text-emerald-400 font-medium">Prefer to pay over time?</span>{" "}
+                  <span className="text-keepr-clay font-medium">Prefer to pay over time?</span>{" "}
                   Add $1/booking until paid off.
                 </p>
               </div>
@@ -487,13 +487,13 @@ export function PricingPreview() {
                   {competitors.map((c) => (
                     <th
                       key={c.name}
-                      className={`p-4 text-center ${c.isUs ? "bg-emerald-500/20" : ""}`}
+                      className={`p-4 text-center ${c.isUs ? "bg-keepr-evergreen/20" : ""}`}
                     >
-                      <span className={c.isUs ? "text-emerald-400 font-bold" : "text-white"}>
+                      <span className={c.isUs ? "text-keepr-evergreen font-bold" : "text-white"}>
                         {c.name}
                       </span>
                       {c.isUs && (
-                        <span className="block text-xs text-emerald-400/70 mt-1">That's us!</span>
+                        <span className="block text-xs text-keepr-evergreen/70 mt-1">That's us!</span>
                       )}
                     </th>
                   ))}
@@ -504,7 +504,7 @@ export function PricingPreview() {
                 <tr className="border-b border-border/50">
                   <td className="p-4 text-muted-foreground">Monthly Base</td>
                   {competitors.map((c) => (
-                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-emerald-500/10 text-emerald-400 font-semibold" : "text-white"}`}>
+                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-keepr-evergreen/10 text-keepr-evergreen font-semibold" : "text-white"}`}>
                       {c.monthlyBase}
                     </td>
                   ))}
@@ -512,7 +512,7 @@ export function PricingPreview() {
                 <tr className="border-b border-border/50">
                   <td className="p-4 text-muted-foreground">Per Booking Fee</td>
                   {competitors.map((c) => (
-                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-emerald-500/10 text-emerald-400 font-semibold" : "text-white"}`}>
+                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-keepr-evergreen/10 text-keepr-evergreen font-semibold" : "text-white"}`}>
                       {c.perBooking}
                     </td>
                   ))}
@@ -520,7 +520,7 @@ export function PricingPreview() {
                 <tr className="border-b border-border/50">
                   <td className="p-4 text-muted-foreground">Marketplace Commission</td>
                   {competitors.map((c) => (
-                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-emerald-500/10 text-emerald-400 font-semibold" : c.marketplaceCommission === "10%" ? "text-red-400" : "text-white"}`}>
+                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-keepr-evergreen/10 text-keepr-evergreen font-semibold" : c.marketplaceCommission === "10%" ? "text-red-400" : "text-white"}`}>
                       {c.marketplaceCommission}
                     </td>
                   ))}
@@ -528,7 +528,7 @@ export function PricingPreview() {
                 <tr className="border-b border-border/50">
                   <td className="p-4 text-muted-foreground">Setup Fee</td>
                   {competitors.map((c) => (
-                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-emerald-500/10 text-emerald-400 font-semibold" : "text-white"}`}>
+                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-keepr-evergreen/10 text-keepr-evergreen font-semibold" : "text-white"}`}>
                       {c.setupFee}
                     </td>
                   ))}
@@ -536,7 +536,7 @@ export function PricingPreview() {
                 <tr className="border-b border-border/50">
                   <td className="p-4 text-muted-foreground">Free Trial</td>
                   {competitors.map((c) => (
-                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-emerald-500/10 text-emerald-400 font-semibold" : "text-white"}`}>
+                    <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-keepr-evergreen/10 text-keepr-evergreen font-semibold" : "text-white"}`}>
                       {c.freeTrialDays === "No" ? <X className="h-5 w-5 mx-auto text-red-400" /> : c.freeTrialDays + " days"}
                     </td>
                   ))}
@@ -547,9 +547,9 @@ export function PricingPreview() {
                   <tr key={key} className="border-b border-border/50">
                     <td className="p-4 text-muted-foreground">{label}</td>
                     {competitors.map((c) => (
-                      <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-emerald-500/10" : ""}`}>
+                      <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-keepr-evergreen/10" : ""}`}>
                         {c.features[key as keyof typeof c.features] ? (
-                          <Check className={`h-5 w-5 mx-auto ${c.isUs ? "text-emerald-400" : "text-emerald-500"}`} />
+                          <Check className={`h-5 w-5 mx-auto ${c.isUs ? "text-keepr-clay" : "text-keepr-evergreen/70"}`} />
                         ) : (
                           <X className="h-5 w-5 mx-auto text-muted-foreground" />
                         )}
@@ -583,7 +583,7 @@ export function PricingPreview() {
         <div className="mt-16 pt-16 border-t border-border">
           <div className="grid md:grid-cols-4 gap-8 text-center">
             <div>
-              <div className="text-4xl font-bold text-amber-400 mb-2">45</div>
+              <div className="text-4xl font-bold text-keepr-clay mb-2">45</div>
               <p className="text-muted-foreground">Founding spots available</p>
             </div>
             <div>

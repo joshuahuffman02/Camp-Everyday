@@ -57,13 +57,13 @@ export function UrgencySection({
   if (sortedCampgrounds.length === 0) return null;
 
   return (
-    <section className={cn("py-16 md:py-20 bg-gradient-to-b from-white to-slate-50", className)}>
+    <section className={cn("py-16 md:py-20 bg-gradient-to-b from-keepr-off-white to-white", className)}>
       <div className="max-w-7xl mx-auto px-6">
         {/* Section header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 md:mb-12">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Flame className="h-6 w-6 text-orange-500" />
+              <Flame className="h-6 w-6 text-keepr-clay" />
               <h2 className="text-2xl md:text-3xl font-bold text-foreground">{title}</h2>
             </div>
             <p className="text-muted-foreground">{subtitle}</p>
@@ -75,9 +75,9 @@ export function UrgencySection({
         </div>
 
         {/* Urgency banner */}
-        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100 rounded-xl p-4 mb-8 flex items-center gap-3">
-          <Calendar className="h-5 w-5 text-orange-600 flex-shrink-0" />
-          <p className="text-sm text-orange-800">
+        <div className="bg-gradient-to-r from-keepr-clay-subtle to-white border border-keepr-clay/20 rounded-xl p-4 mb-8 flex items-center gap-3">
+          <Calendar className="h-5 w-5 text-keepr-clay flex-shrink-0" />
+          <p className="text-sm text-keepr-charcoal">
             <strong>Weekend bookings fill up fast!</strong> Book now to secure your spot.
           </p>
         </div>
@@ -123,7 +123,7 @@ export function UrgencySection({
         <div className="mt-10 text-center">
           <a
             href="#featured"
-            className="text-emerald-600 hover:text-emerald-700 font-semibold inline-flex items-center gap-1"
+            className="text-keepr-evergreen hover:text-keepr-evergreen-light font-semibold inline-flex items-center gap-1"
           >
             View all campgrounds
             <span aria-hidden="true">→</span>

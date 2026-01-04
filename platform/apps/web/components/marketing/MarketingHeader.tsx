@@ -53,7 +53,7 @@ export function MarketingHeader() {
               <Link
                 key={item.name}
                 href={item.href}
-                className="text-foreground hover:text-emerald-600 transition-colors font-medium"
+                className="text-foreground hover:text-keepr-evergreen transition-colors font-medium"
               >
                 {item.name}
               </Link>
@@ -63,7 +63,7 @@ export function MarketingHeader() {
               <button
                 onClick={() => setCompareOpen(!compareOpen)}
                 onBlur={() => setTimeout(() => setCompareOpen(false), 150)}
-                className="flex items-center gap-1 text-foreground hover:text-emerald-600 transition-colors font-medium"
+                className="flex items-center gap-1 text-foreground hover:text-keepr-evergreen transition-colors font-medium"
               >
                 Compare
                 <ChevronDown className={`h-4 w-4 transition-transform ${compareOpen ? 'rotate-180' : ''}`} />
@@ -74,7 +74,7 @@ export function MarketingHeader() {
                     <Link
                       key={link.href}
                       href={link.href}
-                      className="block px-4 py-2 text-sm text-foreground hover:bg-emerald-50 hover:text-emerald-600"
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-keepr-evergreen/10 hover:text-keepr-evergreen"
                     >
                       {link.name}
                     </Link>
@@ -97,7 +97,7 @@ export function MarketingHeader() {
               </Button>
             </Link>
             <Link href="/signup">
-              <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
+              <Button className="bg-keepr-evergreen hover:bg-keepr-evergreen-light text-white">
                 Get Started Free
               </Button>
             </Link>
@@ -118,7 +118,7 @@ export function MarketingHeader() {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden py-4 space-y-2 max-h-[70vh] overflow-y-auto">
-            <Link href="/" className="block px-3 py-2 rounded-md text-base font-medium text-emerald-700 bg-emerald-50">
+            <Link href="/" className="block px-3 py-2 rounded-md text-base font-medium text-keepr-evergreen bg-keepr-evergreen/10">
               Book a Campsite
             </Link>
             {navigation.map((item) => (
@@ -152,7 +152,7 @@ export function MarketingHeader() {
                 </Button>
               </Link>
               <Link href="/signup" className="block">
-                <Button className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
+                <Button className="w-full bg-keepr-evergreen hover:bg-keepr-evergreen-light text-white">
                   Get Started Free
                 </Button>
               </Link>

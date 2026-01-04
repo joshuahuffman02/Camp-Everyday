@@ -1,4 +1,4 @@
-import { Reservation } from "@campreserv/shared";
+import { Reservation } from "@keepr/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, CheckCircle2, XCircle, CreditCard, DoorOpen } from "lucide-react";
 import { format } from "date-fns";

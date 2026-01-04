@@ -67,7 +67,7 @@ export function DemoCTA() {
   };
 
   return (
-    <section className="py-24 bg-gradient-to-br from-emerald-600 to-teal-700 relative overflow-hidden">
+    <section className="py-24 bg-gradient-to-br from-keepr-evergreen to-keepr-evergreen-dark relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute top-0 left-0 w-full h-full">
@@ -89,7 +89,7 @@ export function DemoCTA() {
             <h2 className="text-4xl sm:text-5xl font-bold mb-6">
               Ready to modernize your campground?
             </h2>
-            <p className="text-xl text-emerald-50 mb-8">
+            <p className="text-xl text-white/80 mb-8">
               See how Keepr can streamline your operations with AI-powered tools,
               guest loyalty programs, and integrated staff scheduling.
             </p>
@@ -104,15 +104,15 @@ export function DemoCTA() {
                 'Data import services available',
               ].map((benefit) => (
                 <div key={benefit} className="flex items-start gap-3">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-300 flex-shrink-0 mt-0.5" />
-                  <span className="text-lg text-emerald-50">{benefit}</span>
+                  <CheckCircle2 className="h-6 w-6 text-keepr-clay flex-shrink-0 mt-0.5" />
+                  <span className="text-lg text-white/80">{benefit}</span>
                 </div>
               ))}
             </div>
 
             {/* Trust Badge */}
-            <div className="mt-8 pt-8 border-t border-emerald-400/30">
-              <p className="text-emerald-100 text-sm mb-2">Built by campground enthusiasts</p>
+            <div className="mt-8 pt-8 border-t border-keepr-clay/30">
+              <p className="text-white/70 text-sm mb-2">Built by campground enthusiasts</p>
               <div className="flex items-center gap-2">
                 <span className="text-white font-semibold">Limited early access spots available</span>
               </div>
@@ -123,14 +123,14 @@ export function DemoCTA() {
           <div className="bg-card rounded-2xl shadow-2xl p-8 lg:p-10">
             {submitted ? (
               <div className="text-center py-12">
-                <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+                <div className="h-16 w-16 rounded-full bg-keepr-evergreen/10 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-keepr-evergreen" />
                 </div>
                 <h3 className="text-2xl font-bold text-foreground mb-2">Request Received!</h3>
                 <p className="text-muted-foreground mb-4">
                   We'll be in touch within 24 hours to schedule your personalized demo.
                 </p>
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-800">
+                <div className="bg-keepr-evergreen/10 border border-keepr-evergreen/20 rounded-lg p-3 text-sm text-keepr-charcoal">
                   <strong>What happens next:</strong><br />
                   Your request has been sent to our sales team at <strong>sales@keeprstay.com</strong>.
                   You'll receive a confirmation email shortly, followed by a call from our onboarding specialist.
@@ -156,7 +156,7 @@ export function DemoCTA() {
                         required
                         value={formData.name}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-keepr-clay focus:border-keepr-clay outline-none transition"
                         placeholder="John Smith"
                       />
                     </div>
@@ -172,7 +172,7 @@ export function DemoCTA() {
                         required
                         value={formData.email}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-keepr-clay focus:border-keepr-clay outline-none transition"
                         placeholder="john@example.com"
                       />
                     </div>
@@ -188,7 +188,7 @@ export function DemoCTA() {
                       name="phone"
                       value={formData.phone}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-keepr-clay focus:border-keepr-clay outline-none transition"
                       placeholder="(555) 123-4567"
                     />
                   </div>
@@ -204,7 +204,7 @@ export function DemoCTA() {
                       required
                       value={formData.campgroundName}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-keepr-clay focus:border-keepr-clay outline-none transition"
                       placeholder="Pine Valley Campground"
                     />
                   </div>
@@ -219,7 +219,7 @@ export function DemoCTA() {
                       required
                       value={formData.sites}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-keepr-clay focus:border-keepr-clay outline-none transition"
                     >
                       <option value="">Select range</option>
                       <option value="1-25">1-25 sites</option>
@@ -240,7 +240,7 @@ export function DemoCTA() {
                       rows={3}
                       value={formData.message}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition resize-none"
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-keepr-clay focus:border-keepr-clay outline-none transition resize-none"
                       placeholder="Tell us about your needs..."
                     />
                   </div>
@@ -254,7 +254,7 @@ export function DemoCTA() {
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-6 text-lg group disabled:opacity-70"
+                    className="w-full bg-keepr-evergreen hover:bg-keepr-evergreen-light text-white py-6 text-lg group disabled:opacity-70"
                   >
                     {loading ? (
                       <>

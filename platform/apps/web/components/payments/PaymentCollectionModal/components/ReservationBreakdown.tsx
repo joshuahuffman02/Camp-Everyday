@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../ui
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../../ui/tooltip";
 import { usePaymentContext } from "../context/PaymentContext";
 import { apiClient } from "../../../../lib/api-client";
-import { Quote, Reservation } from "@campreserv/shared";
+import { Quote, Reservation } from "@keepr/shared";
 
 interface ReservationBreakdownProps {
   compact?: boolean;

@@ -17,7 +17,7 @@ RUN pnpm install --frozen-lockfile
 # Build shared package
 FROM deps AS shared
 COPY platform/packages/shared ./platform/packages/shared
-RUN pnpm --filter @campreserv/shared build
+RUN pnpm --filter @keepr/shared build
 
 # Build API
 FROM shared AS api-builder
@@ -28,8 +28,8 @@ COPY platform/apps/api ./platform/apps/api
 # Force prisma regeneration - CACHE_BUST=${CACHE_BUST}
 RUN echo "Regenerating Prisma client - ${CACHE_BUST}" && \
     rm -rf node_modules/.prisma node_modules/@prisma/client platform/apps/api/node_modules/.prisma && \
-    pnpm --filter @campreserv/api prisma:generate
-RUN echo "Building API with forwardRef fix..." && pnpm --filter @campreserv/api build
+    pnpm --filter @keepr/api prisma:generate
+RUN echo "Building API..." && pnpm --filter @keepr/api build
 
 # Production image for API
 FROM base AS api

@@ -45,28 +45,28 @@ export function ScarcityIndicator({
 
   const urgencyStyles = {
     critical: {
-      bg: "bg-red-50 border-red-200",
-      text: "text-red-700",
-      icon: "text-red-500",
-      dot: "bg-red-500",
+      bg: "bg-status-error-bg border-status-error-border",
+      text: "text-status-error-text",
+      icon: "text-status-error",
+      dot: "bg-status-error",
     },
     high: {
-      bg: "bg-orange-50 border-orange-200",
-      text: "text-orange-700",
-      icon: "text-orange-500",
-      dot: "bg-orange-500",
+      bg: "bg-keepr-clay/10 border-keepr-clay/30",
+      text: "text-keepr-clay",
+      icon: "text-keepr-clay",
+      dot: "bg-keepr-clay",
     },
     medium: {
-      bg: "bg-amber-50 border-amber-200",
-      text: "text-amber-700",
-      icon: "text-amber-500",
-      dot: "bg-amber-500",
+      bg: "bg-keepr-charcoal/5 border-keepr-charcoal/15",
+      text: "text-keepr-charcoal",
+      icon: "text-keepr-charcoal",
+      dot: "bg-keepr-charcoal",
     },
     low: {
-      bg: "bg-emerald-50 border-emerald-200",
-      text: "text-emerald-700",
-      icon: "text-emerald-500",
-      dot: "bg-emerald-500",
+      bg: "bg-keepr-evergreen/10 border-keepr-evergreen/20",
+      text: "text-keepr-evergreen",
+      icon: "text-keepr-evergreen",
+      dot: "bg-keepr-evergreen",
     },
   };
 
@@ -135,8 +135,8 @@ export function ScarcityBadge({ sitesLeft, className }: { sitesLeft: number; cla
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
         isCritical
-          ? "bg-red-500 text-white"
-          : "bg-orange-500 text-white",
+          ? "bg-status-error text-white"
+          : "bg-keepr-clay text-white",
         className
       )}
     >

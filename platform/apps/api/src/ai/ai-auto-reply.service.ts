@@ -336,7 +336,7 @@ ${communication.guest ? `Guest name: ${communication.guest.primaryFirstName || "
         preview: replyContent.substring(0, 280),
         status: "sent",
         toAddress,
-        fromAddress: communication.campground?.email || "noreply@campreserv.com",
+        fromAddress: communication.campground?.email || "noreply@keeprstay.com",
         sentAt: new Date(),
         metadata: { aiGenerated: true, draftId: draft.id },
       },

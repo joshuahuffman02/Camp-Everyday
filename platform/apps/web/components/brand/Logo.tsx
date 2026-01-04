@@ -47,11 +47,11 @@ export function Logo({ size = "md", variant = "evergreen", className }: LogoProp
       <text
         x="0"
         y="38"
-        fontFamily="DM Sans, system-ui, sans-serif"
+        fontFamily="Sora, system-ui, sans-serif"
         fontSize="42"
-        fontWeight="500"
+        fontWeight="600"
         fill="currentColor"
-        letterSpacing="-0.02em"
+        letterSpacing="-0.015em"
       >
         keepr
       </text>

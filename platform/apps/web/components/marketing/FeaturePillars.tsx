@@ -90,34 +90,34 @@ const features = [
 
 const colorClasses = {
   emerald: {
-    bg: 'bg-emerald-100',
-    icon: 'text-emerald-600',
-    hover: 'hover:border-emerald-300',
+    bg: 'bg-keepr-evergreen/10',
+    icon: 'text-keepr-evergreen',
+    hover: 'hover:border-keepr-evergreen/30',
   },
   blue: {
-    bg: 'bg-blue-100',
-    icon: 'text-blue-600',
-    hover: 'hover:border-blue-300',
+    bg: 'bg-keepr-evergreen/10',
+    icon: 'text-keepr-evergreen',
+    hover: 'hover:border-keepr-evergreen/30',
   },
   purple: {
-    bg: 'bg-purple-100',
-    icon: 'text-purple-600',
-    hover: 'hover:border-purple-300',
+    bg: 'bg-keepr-evergreen/10',
+    icon: 'text-keepr-evergreen',
+    hover: 'hover:border-keepr-evergreen/30',
   },
   pink: {
-    bg: 'bg-pink-100',
-    icon: 'text-pink-600',
-    hover: 'hover:border-pink-300',
+    bg: 'bg-keepr-evergreen/10',
+    icon: 'text-keepr-evergreen',
+    hover: 'hover:border-keepr-evergreen/30',
   },
   amber: {
-    bg: 'bg-amber-100',
-    icon: 'text-amber-600',
-    hover: 'hover:border-amber-300',
+    bg: 'bg-keepr-clay/10',
+    icon: 'text-keepr-clay',
+    hover: 'hover:border-keepr-clay/30',
   },
   teal: {
-    bg: 'bg-teal-100',
-    icon: 'text-teal-600',
-    hover: 'hover:border-teal-300',
+    bg: 'bg-keepr-evergreen/10',
+    icon: 'text-keepr-evergreen',
+    hover: 'hover:border-keepr-evergreen/30',
   },
 };
 
@@ -127,7 +127,7 @@ export function FeaturePillars() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-base font-semibold text-emerald-600 tracking-wide uppercase mb-3">
+          <h2 className="text-base font-semibold text-keepr-evergreen tracking-wide uppercase mb-3">
             Complete Platform
           </h2>
           <p className="text-4xl font-bold text-foreground mb-4">
@@ -168,7 +168,7 @@ export function FeaturePillars() {
                   {feature.features.map((item) => (
                     <li key={item} className="flex items-center text-sm text-muted-foreground">
                       <svg
-                        className="h-5 w-5 text-emerald-500 mr-2 flex-shrink-0"
+                        className="h-5 w-5 text-keepr-clay mr-2 flex-shrink-0"
                         fill="currentColor"
                         viewBox="0 0 20 20"
                       >
@@ -184,7 +184,7 @@ export function FeaturePillars() {
                 </ul>
 
                 {/* Hover Effect */}
-                <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-br from-keepr-evergreen/10 to-keepr-clay/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
             );
           })}

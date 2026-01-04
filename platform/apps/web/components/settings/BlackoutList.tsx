@@ -14,7 +14,7 @@ import {
 } from "../ui/alert-dialog";
 import { BlackoutModal } from "./BlackoutModal";
 import { format } from "date-fns";
-import { Site } from "@campreserv/shared";
+import { Site } from "@keepr/shared";
 
 interface BlackoutListProps {
     campgroundId: string;

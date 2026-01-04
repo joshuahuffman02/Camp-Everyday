@@ -43,10 +43,10 @@ const benefits = [
 ];
 
 const colorClasses = {
-  purple: { bg: "bg-purple-100", icon: "text-purple-600", border: "border-purple-200" },
-  blue: { bg: "bg-blue-100", icon: "text-blue-600", border: "border-blue-200" },
-  amber: { bg: "bg-amber-100", icon: "text-amber-600", border: "border-amber-200" },
-  emerald: { bg: "bg-emerald-100", icon: "text-emerald-600", border: "border-emerald-200" },
+  purple: { bg: "bg-keepr-evergreen/10", icon: "text-keepr-evergreen", border: "border-keepr-evergreen/20" },
+  blue: { bg: "bg-keepr-evergreen/10", icon: "text-keepr-evergreen", border: "border-keepr-evergreen/20" },
+  amber: { bg: "bg-keepr-clay/10", icon: "text-keepr-clay", border: "border-keepr-clay/20" },
+  emerald: { bg: "bg-keepr-evergreen/10", icon: "text-keepr-evergreen", border: "border-keepr-evergreen/20" },
 };
 
 export function WhySwitch() {
@@ -86,20 +86,20 @@ export function WhySwitch() {
 
         {/* Benefits List */}
         <div className="max-w-3xl mx-auto mb-12">
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-8 border border-emerald-200">
+          <div className="bg-gradient-to-br from-keepr-evergreen/10 to-keepr-clay/10 rounded-2xl p-8 border border-keepr-evergreen/20">
             <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-emerald-600" />
+              <div className="h-10 w-10 rounded-full bg-keepr-evergreen/10 flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-keepr-evergreen" />
               </div>
               <div>
                 <h3 className="font-bold text-foreground">What You Get</h3>
-                <p className="text-sm text-emerald-600">Everything you need to run your park</p>
+                <p className="text-sm text-keepr-evergreen/80">Everything you need to run your park</p>
               </div>
             </div>
             <ul className="grid md:grid-cols-2 gap-4">
               {benefits.map((benefit, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-emerald-500 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="h-5 w-5 text-keepr-clay mt-0.5 flex-shrink-0" />
                   <span className="text-foreground">{benefit}</span>
                 </li>
               ))}
@@ -117,7 +117,7 @@ export function WhySwitch() {
             <div className="flex gap-3">
               <Button
                 size="lg"
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white whitespace-nowrap"
+                className="bg-keepr-evergreen hover:bg-keepr-evergreen-light text-white whitespace-nowrap"
                 asChild
               >
                 <Link href="/demo">

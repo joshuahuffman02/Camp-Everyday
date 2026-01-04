@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotionSafe } from "./use-reduced-motion-safe";
 
 export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
 export type Season = "spring" | "summer" | "fall" | "winter";
@@ -27,14 +27,12 @@ const SSR_DEFAULTS = {
  * Real values are set after mount.
  */
 export function useTemporalContext(): TemporalContext {
-  // Track if component has mounted to prevent hydration mismatch
   const [hasMounted, setHasMounted] = useState(false);
   const [hour, setHour] = useState<number>(SSR_DEFAULTS.hour);
   const [month, setMonth] = useState<number>(SSR_DEFAULTS.month);
 
-  const prefersReducedMotionValue = useReducedMotion();
-  // Use consistent value before mount to prevent hydration mismatch
-  const prefersReducedMotion = hasMounted ? prefersReducedMotionValue : false;
+  // Use the hydration-safe hook
+  const prefersReducedMotion = useReducedMotionSafe();
 
   useEffect(() => {
     // Set real values only after mount
@@ -72,6 +70,6 @@ export function useTemporalContext(): TemporalContext {
     timeOfDay,
     season,
     hour,
-    isReducedMotion: prefersReducedMotion ?? false,
+    isReducedMotion: prefersReducedMotion,
   };
 }

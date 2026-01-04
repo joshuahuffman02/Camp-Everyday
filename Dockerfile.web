@@ -16,7 +16,7 @@ RUN pnpm install --frozen-lockfile
 # Build shared package
 FROM deps AS shared
 COPY platform/packages/shared ./platform/packages/shared
-RUN pnpm --filter @campreserv/shared build
+RUN pnpm --filter @keepr/shared build
 
 # Build web app
 FROM shared AS web-builder
@@ -33,7 +33,7 @@ ENV AUTH_TRUST_HOST=$AUTH_TRUST_HOST
 COPY platform/apps/web ./platform/apps/web
 COPY content ./content
 RUN echo "Building with NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE" && \
-    pnpm --filter @campreserv/web build
+    pnpm --filter @keepr/web build
 
 # Production image for web
 FROM base AS web

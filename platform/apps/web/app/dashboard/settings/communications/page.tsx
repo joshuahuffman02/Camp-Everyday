@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { apiClient } from "@/lib/api-client";
 import { randomId } from "@/lib/random-id";
-import type { NpsScheduleEntry } from "@campreserv/shared";
+import type { NpsScheduleEntry } from "@keepr/shared";
 import { TableEmpty } from "@/components/ui/table";
 
 type ScheduleEntry = NpsScheduleEntry;

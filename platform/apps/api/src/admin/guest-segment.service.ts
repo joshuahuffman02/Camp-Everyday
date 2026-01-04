@@ -392,7 +392,7 @@ export class GuestSegmentService {
                         isTemplate: true,
                         criteria: template.criteria as any,
                         createdById: "system",
-                        createdByEmail: "system@campreserv.com",
+                        createdByEmail: "system@keeprstay.com",
                     },
                 });
             }

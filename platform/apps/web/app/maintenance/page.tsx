@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Plus, ClipboardList, MessageSquare, HeartPulse, ClipboardCheck, Play, CheckCircle, RotateCcw, StickyNote, Pencil, ArrowRight } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { Maintenance } from "@campreserv/shared";
+import { Maintenance } from "@keepr/shared";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

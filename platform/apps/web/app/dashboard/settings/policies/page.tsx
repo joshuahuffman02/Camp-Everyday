@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DepositSettingsForm } from "../../../../components/settings/DepositSettingsForm";
 import { SettingsPageLayout } from "../../../../components/settings/SettingsPageLayout";
 import { apiClient } from "../../../../lib/api-client";
-import type { DepositConfig } from "@campreserv/shared";
+import type { DepositConfig } from "@keepr/shared";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";

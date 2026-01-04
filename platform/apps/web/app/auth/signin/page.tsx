@@ -65,7 +65,7 @@ export default function SignInPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+        <form onSubmit={handleSubmit} method="POST" action="" className="mt-8 space-y-6">
           {error && (
             <div className="rounded-md bg-destructive/10 p-4">
               <p className="text-sm text-destructive">{error}</p>

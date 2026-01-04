@@ -22,6 +22,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@campreserv/shared": [
+        "../../packages/shared/dist"
+      ],
+      "@campreserv/shared/*": [
+        "../../packages/shared/dist/*"
       ]
     },
     "types": [

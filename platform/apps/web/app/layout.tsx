@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     siteName: SEO_CONFIG.siteName,
     images: [
       {
-        url: "/og-image.jpg",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: SEO_CONFIG.siteName,
@@ -53,6 +53,14 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: SEO_CONFIG.twitterHandle,
     creator: SEO_CONFIG.twitterHandle,
+    images: [
+      {
+        url: "/twitter-image.png",
+        width: 1200,
+        height: 600,
+        alt: SEO_CONFIG.siteName,
+      },
+    ],
   },
   robots: {
     index: true,

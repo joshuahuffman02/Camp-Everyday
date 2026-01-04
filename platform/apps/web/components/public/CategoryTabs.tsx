@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 import {
   ChevronLeft,
   ChevronRight,
@@ -36,63 +37,63 @@ const categoryThemes: Record<CategoryType, CategoryTheme> = {
     accent: "text-muted-foreground",
     activeBg: "bg-muted",
     activeText: "text-white",
-    ring: "ring-slate-300"
+    ring: "ring-keepr-charcoal/20"
   },
   rv: {
-    bg: "bg-blue-50",
-    hoverBg: "hover:bg-blue-100",
-    accent: "text-blue-600",
-    activeBg: "bg-blue-600",
+    bg: "bg-keepr-evergreen/10",
+    hoverBg: "hover:bg-keepr-evergreen/15",
+    accent: "text-keepr-evergreen",
+    activeBg: "bg-keepr-evergreen",
     activeText: "text-white",
-    ring: "ring-blue-300"
+    ring: "ring-keepr-evergreen/30"
   },
   cabins: {
-    bg: "bg-amber-50",
-    hoverBg: "hover:bg-amber-100",
-    accent: "text-amber-600",
-    activeBg: "bg-amber-600",
+    bg: "bg-keepr-clay/10",
+    hoverBg: "hover:bg-keepr-clay/15",
+    accent: "text-keepr-clay",
+    activeBg: "bg-keepr-clay",
     activeText: "text-white",
-    ring: "ring-amber-300"
+    ring: "ring-keepr-clay/30"
   },
   tents: {
-    bg: "bg-emerald-50",
-    hoverBg: "hover:bg-emerald-100",
-    accent: "text-emerald-600",
-    activeBg: "bg-emerald-600",
+    bg: "bg-keepr-evergreen/10",
+    hoverBg: "hover:bg-keepr-evergreen/15",
+    accent: "text-keepr-evergreen",
+    activeBg: "bg-keepr-evergreen",
     activeText: "text-white",
-    ring: "ring-emerald-300"
+    ring: "ring-keepr-evergreen/30"
   },
   glamping: {
-    bg: "bg-violet-50",
-    hoverBg: "hover:bg-violet-100",
-    accent: "text-violet-600",
-    activeBg: "bg-violet-600",
+    bg: "bg-keepr-clay/10",
+    hoverBg: "hover:bg-keepr-clay/15",
+    accent: "text-keepr-clay",
+    activeBg: "bg-keepr-clay",
     activeText: "text-white",
-    ring: "ring-violet-300"
+    ring: "ring-keepr-clay/30"
   },
   lodges: {
-    bg: "bg-rose-50",
-    hoverBg: "hover:bg-rose-100",
-    accent: "text-rose-600",
-    activeBg: "bg-rose-600",
+    bg: "bg-keepr-charcoal/5",
+    hoverBg: "hover:bg-keepr-charcoal/10",
+    accent: "text-keepr-charcoal",
+    activeBg: "bg-keepr-charcoal",
     activeText: "text-white",
-    ring: "ring-rose-300"
+    ring: "ring-keepr-charcoal/30"
   },
   unique: {
-    bg: "bg-teal-50",
-    hoverBg: "hover:bg-teal-100",
-    accent: "text-teal-600",
-    activeBg: "bg-teal-600",
+    bg: "bg-keepr-evergreen/10",
+    hoverBg: "hover:bg-keepr-evergreen/15",
+    accent: "text-keepr-evergreen",
+    activeBg: "bg-keepr-evergreen",
     activeText: "text-white",
-    ring: "ring-teal-300"
+    ring: "ring-keepr-evergreen/30"
   },
   events: {
-    bg: "bg-orange-50",
-    hoverBg: "hover:bg-orange-100",
-    accent: "text-orange-600",
-    activeBg: "bg-orange-500",
+    bg: "bg-keepr-clay/10",
+    hoverBg: "hover:bg-keepr-clay/15",
+    accent: "text-keepr-clay",
+    activeBg: "bg-keepr-clay",
     activeText: "text-white",
-    ring: "ring-orange-300"
+    ring: "ring-keepr-clay/30"
   }
 };
 
@@ -172,7 +173,7 @@ export function CategoryTabs({
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<CategoryType | null>(null);
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotionSafe();
 
   // Check if scroll arrows should be visible
   const updateArrows = () => {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
-import { Reservation } from "@campreserv/shared";
+import { Reservation } from "@keepr/shared";
 import { cn } from "@/lib/utils";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { ReservationHeader } from "@/components/reservations/ReservationHeader";

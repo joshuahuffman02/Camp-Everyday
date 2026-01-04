@@ -24,9 +24,9 @@ export interface SwaggerOptions {
 }
 
 const DEFAULT_DESCRIPTION = `
-# Campreserv Developer API
+# Keepr Developer API
 
-Welcome to the Campreserv API documentation. This API enables external integrations
+Welcome to the Keepr API documentation. This API enables external integrations
 for campground and RV park management.
 
 ## Authentication
@@ -37,7 +37,7 @@ The API supports two authentication methods:
 Use OAuth2 client credentials to obtain an access token:
 
 \`\`\`bash
-curl -X POST https://api.campreserv.com/api/oauth/token \\
+curl -X POST https://api.keeprstay.com/api/oauth/token \\
   -H "Content-Type: application/json" \\
   -d '{
     "grant_type": "client_credentials",
@@ -114,7 +114,7 @@ All errors follow a consistent format:
 
 ## Support
 
-For API support, contact: api-support@campreserv.com
+For API support, contact: support@keeprstay.com
 `;
 
 /**
@@ -125,7 +125,7 @@ export function configureSwagger(
   options: SwaggerOptions = {}
 ): OpenAPIObject {
   const {
-    title = "Campreserv API",
+    title = "Keepr API",
     description = DEFAULT_DESCRIPTION,
     version = API_VERSIONS[CURRENT_VERSION].version,
     path = "api/docs",
@@ -137,13 +137,13 @@ export function configureSwagger(
     .setDescription(description)
     .setVersion(version)
     .setContact(
-      "Campreserv API Support",
-      "https://campreserv.com/developers",
-      "api-support@campreserv.com"
+      "Keepr API Support",
+      "https://keeprstay.com/developers",
+      "support@keeprstay.com"
     )
-    .setLicense("Proprietary", "https://campreserv.com/terms")
-    .setTermsOfService("https://campreserv.com/terms")
-    .addServer("https://api.campreserv.com", "Production")
+    .setLicense("Proprietary", "https://keeprstay.com/terms")
+    .setTermsOfService("https://keeprstay.com/terms")
+    .addServer("https://api.keeprstay.com", "Production")
     .addServer("http://localhost:4000", "Development")
     // Bearer token auth
     .addBearerAuth(
@@ -263,7 +263,7 @@ export function configureSwagger(
         theme: "monokai",
       },
     },
-    customSiteTitle: "Campreserv API Docs",
+    customSiteTitle: "Keepr API Docs",
     customCss: `
       .swagger-ui .topbar { display: none; }
       .swagger-ui .info { margin-bottom: 20px; }

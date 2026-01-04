@@ -29,7 +29,7 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - campreserv
+      - keepr
 
   availability:
     build:
@@ -49,7 +49,7 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - campreserv
+      - keepr
 
   auth:
     build:
@@ -74,7 +74,7 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - campreserv
+      - keepr
 
   # ============================================================================
   # Optional: PostgreSQL for local development
@@ -88,7 +88,7 @@ services:
   #   environment:
   #     - POSTGRES_USER=postgres
   #     - POSTGRES_PASSWORD=postgres
-  #     - POSTGRES_DB=campreserv
+  #     - POSTGRES_DB=keepr
   #   volumes:
   #     - postgres_data:/var/lib/postgresql/data
   #   healthcheck:
@@ -97,7 +97,7 @@ services:
   #     timeout: 5s
   #     retries: 5
   #   networks:
-  #     - campreserv
+  #     - keepr
 
   # ============================================================================
   # Optional: Redis for distributed state
@@ -114,10 +114,10 @@ services:
   #     timeout: 5s
   #     retries: 5
   #   networks:
-  #     - campreserv
+  #     - keepr
 
 networks:
-  campreserv:
+  keepr:
     driver: bridge
 
 # volumes:

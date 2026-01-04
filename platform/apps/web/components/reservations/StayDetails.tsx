@@ -1,4 +1,4 @@
-import { Reservation, Site } from "@campreserv/shared";
+import { Reservation, Site } from "@keepr/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Caravan, Tent, Users } from "lucide-react";
 import { format, differenceInDays } from "date-fns";

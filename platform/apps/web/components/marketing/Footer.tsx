@@ -2,8 +2,9 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone, Heart } from 'lucide-react';
+import { Facebook, Instagram, Linkedin, Mail, Phone, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { XLogo } from '@/components/icons/XLogo';
 
 const navigation = {
   product: [
@@ -38,9 +39,9 @@ const social = [
     icon: Facebook,
   },
   {
-    name: 'Twitter',
-    href: 'https://twitter.com/keeprstay',
-    icon: Twitter,
+    name: 'X',
+    href: 'https://x.com/keeprstay',
+    icon: XLogo,
   },
   {
     name: 'Instagram',
@@ -86,7 +87,7 @@ export function Footer() {
             {/* Brand Column */}
             <div className="col-span-2">
               <Link href="/owners" className="flex items-center space-x-2 mb-4">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-keepr-evergreen to-keepr-clay flex items-center justify-center">
                   <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l7 7-7 7M12 3l7 7-7 7" />
                   </svg>
@@ -102,11 +103,11 @@ export function Footer() {
 
               {/* Contact Info */}
               <div className="space-y-2">
-                <a href="tel:+1234567890" className="flex items-center gap-2 text-muted-foreground hover:text-emerald-400 transition-colors">
+                <a href="tel:+1234567890" className="flex items-center gap-2 text-muted-foreground hover:text-keepr-clay transition-colors">
                   <Phone className="h-4 w-4" />
                   <span className="text-sm">(800) 555-CAMP</span>
                 </a>
-                <a href="mailto:hello@keeprstay.com" className="flex items-center gap-2 text-muted-foreground hover:text-emerald-400 transition-colors">
+                <a href="mailto:hello@keeprstay.com" className="flex items-center gap-2 text-muted-foreground hover:text-keepr-clay transition-colors">
                   <Mail className="h-4 w-4" />
                   <span className="text-sm">hello@keeprstay.com</span>
                 </a>
@@ -121,7 +122,7 @@ export function Footer() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className="text-muted-foreground hover:text-emerald-400 transition-colors text-sm"
+                      className="text-muted-foreground hover:text-keepr-clay transition-colors text-sm"
                     >
                       {item.name}
                     </Link>
@@ -138,7 +139,7 @@ export function Footer() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className="text-muted-foreground hover:text-emerald-400 transition-colors text-sm"
+                      className="text-muted-foreground hover:text-keepr-clay transition-colors text-sm"
                     >
                       {item.name}
                     </Link>
@@ -155,7 +156,7 @@ export function Footer() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className="text-muted-foreground hover:text-emerald-400 transition-colors text-sm"
+                      className="text-muted-foreground hover:text-keepr-clay transition-colors text-sm"
                     >
                       {item.name}
                     </Link>
@@ -172,7 +173,7 @@ export function Footer() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className="text-muted-foreground hover:text-emerald-400 transition-colors text-sm"
+                      className="text-muted-foreground hover:text-keepr-clay transition-colors text-sm"
                     >
                       {item.name}
                     </Link>
@@ -209,7 +210,7 @@ export function Footer() {
                   <a
                     key={item.name}
                     href={item.href}
-                    className="text-muted-foreground hover:text-emerald-400 transition-colors"
+                    className="text-muted-foreground hover:text-keepr-clay transition-colors"
                     aria-label={item.name}
                   >
                     <Icon className="h-5 w-5" />
@@ -228,7 +229,7 @@ export function Footer() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <p className="text-sm text-emerald-400">
+                <p className="text-sm text-keepr-clay">
                   You found a secret! Thanks for exploring every corner of our site.
                 </p>
               </motion.div>

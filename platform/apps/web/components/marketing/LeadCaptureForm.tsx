@@ -69,9 +69,9 @@ export function LeadCaptureForm({
   };
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm shadow-emerald-500/5">
+    <div className="bg-card rounded-2xl border border-border shadow-sm shadow-keepr-evergreen/10">
       <div className="border-b border-border p-6">
-        <div className="text-sm font-semibold text-emerald-700">Lead capture (internal only)</div>
+        <div className="text-sm font-semibold text-keepr-evergreen">Lead capture (internal only)</div>
         <h3 className="text-xl font-bold text-foreground mt-1">{title}</h3>
         <p className="text-sm text-muted-foreground mt-1">
           We keep this in-app — no CRM calls are made. Leads are scoped per campground for easy routing with statuses
@@ -133,4 +133,3 @@ export function LeadCaptureForm({
     </div>
   );
 }
-

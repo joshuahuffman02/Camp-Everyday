@@ -13,7 +13,7 @@ import {
     AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { CategoryModal } from "./CategoryModal";
-import { ProductCategory } from "@campreserv/shared";
+import { ProductCategory } from "@keepr/shared";
 import { EmptyState } from "../ui/empty-state";
 import { FolderOpen, Plus } from "lucide-react";
 

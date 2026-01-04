@@ -10,7 +10,7 @@ export const SEO_CONFIG = {
   defaultDescription: "Modern campground and RV park management software. Streamline reservations, payments, and guest experiences with Keepr.",
   twitterHandle: "@keepr",
   locale: "en_US",
-  themeColor: "#1F3D34", // Keepr Evergreen
+  themeColor: "#0E4A52", // Keepr Evergreen
   keywords: [
     "campground booking",
     "RV park reservations",

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ||
   (process.env.NODE_ENV === "production"
-    ? "https://camp-everydayapi-production.up.railway.app/api"
+    ? "https://api.keeprstay.com/api"
     : "http://localhost:4000/api");
 
 /**

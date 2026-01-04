@@ -1,6 +1,6 @@
 "use client";
 
-import { Campground, DepositConfig } from "@campreserv/shared";
+import { Campground, DepositConfig } from "@keepr/shared";
 import { DepositSettingsForm } from "../settings/DepositSettingsForm";
 
 interface DepositSettingsProps {

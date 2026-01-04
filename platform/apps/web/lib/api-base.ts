@@ -22,9 +22,9 @@ export function getServerApiBase(): string {
     return "http://localhost:4000";
   }
 
-  // Default to production Railway API URL for all other cases
+  // Default to production API URL for all other cases
   // This handles Railway, Vercel, and any other cloud deployment
-  return "https://camp-everydayapi-production.up.railway.app";
+  return "https://api.keeprstay.com";
 }
 
 /**

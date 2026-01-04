@@ -59,7 +59,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NpsGauge } from "@/components/analytics/NpsGauge";
-import type { NpsMetrics } from "@campreserv/shared";
+import type { NpsMetrics } from "@keepr/shared";
 
 type Reservation = {
   id: string;

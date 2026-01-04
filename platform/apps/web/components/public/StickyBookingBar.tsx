@@ -60,7 +60,7 @@ export function StickyBookingBar({
         {/* Book button */}
         <button
           onClick={onBookClick}
-          className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold rounded-xl hover:from-emerald-400 hover:to-teal-400 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+          className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-keepr-evergreen to-keepr-evergreen-light text-white font-semibold rounded-xl hover:from-keepr-evergreen-light hover:to-keepr-evergreen transition-all shadow-lg shadow-keepr-evergreen/30 active:scale-95"
         >
           <Calendar className="h-4 w-4" />
           Check Availability

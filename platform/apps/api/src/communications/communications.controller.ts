@@ -348,7 +348,7 @@ export class CommunicationsController {
       if (this.isQuietHours(campground, new Date()) && !body.quietHoursOverride) {
         throw new BadRequestException("Quiet hours in effect; try again later or override");
       }
-      const senderAddress = body.fromAddress || process.env.SMTP_FROM || "no-reply@campreserv.com";
+      const senderAddress = body.fromAddress || process.env.SMTP_FROM || "no-reply@keeprstay.com";
       const senderDomain = this.ensureVerifiedSenderDomain(senderAddress);
       const html = template?.bodyHtml ?? body.body ?? "";
       const subject = template?.subject ?? body.subject ?? "Message from campground";
@@ -525,7 +525,7 @@ export class CommunicationsController {
       .split(",")
       .map((d) => d.trim().toLowerCase())
       .filter(Boolean);
-    const defaultFrom = process.env.SMTP_FROM || "no-reply@campreserv.com";
+    const defaultFrom = process.env.SMTP_FROM || "no-reply@keeprstay.com";
     const domains = allowedList.map((d) => ({
       domain: d,
       allowed: true,

@@ -15,7 +15,7 @@ import { Input } from "../../../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { TableEmpty } from "../../../../components/ui/table";
-import { ReservationSchema, computeDepositDue, CreateCommunicationSchema, DepositConfig } from "@campreserv/shared";
+import { ReservationSchema, computeDepositDue, CreateCommunicationSchema, DepositConfig } from "@keepr/shared";
 import type { z } from "zod";
 import { useGanttStore } from "../../../../lib/gantt-store";
 import { BulkMessageModal } from "../../../../components/reservations/BulkMessageModal";

@@ -38,7 +38,7 @@ export function TrustBadges({ variant = "inline", className, showIcons = true }:
       <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 text-sm", className)}>
         {badges.map((badge, i) => (
           <div key={i} className="flex items-center gap-1.5 text-white/90">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-keepr-clay-light" />
             <span>{badge.shortText}</span>
           </div>
         ))}
@@ -51,8 +51,8 @@ export function TrustBadges({ variant = "inline", className, showIcons = true }:
       <div className={cn("grid grid-cols-2 md:grid-cols-4 gap-4", className)}>
         {badges.map((badge, i) => (
           <div key={i} className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 flex-shrink-0">
-              <badge.icon className="h-4 w-4 text-emerald-600" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-keepr-evergreen/10 flex-shrink-0">
+              <badge.icon className="h-4 w-4 text-keepr-evergreen" />
             </div>
             <p className="text-sm font-medium text-foreground">{badge.shortText}</p>
           </div>
@@ -70,7 +70,7 @@ export function TrustBadges({ variant = "inline", className, showIcons = true }:
           className="flex items-center gap-2 rounded-full bg-card/10 backdrop-blur-sm px-3 py-1.5 text-sm text-foreground/90"
         >
           {showIcons && (
-            <badge.icon className="h-4 w-4" />
+            <badge.icon className="h-4 w-4 text-keepr-clay" />
           )}
           <span>{badge.shortText}</span>
         </div>
@@ -84,19 +84,19 @@ export function TrustBadgesDark({ className }: { className?: string }) {
   return (
     <div className={cn("flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-white/80", className)}>
       <span className="flex items-center gap-1.5">
-        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        <CheckCircle2 className="h-4 w-4 text-keepr-clay-light" />
         Verified photos
       </span>
       <span className="flex items-center gap-1.5">
-        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        <CheckCircle2 className="h-4 w-4 text-keepr-clay-light" />
         Clear pricing
       </span>
       <span className="flex items-center gap-1.5">
-        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        <CheckCircle2 className="h-4 w-4 text-keepr-clay-light" />
         Instant confirmation
       </span>
       <span className="flex items-center gap-1.5">
-        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        <CheckCircle2 className="h-4 w-4 text-keepr-clay-light" />
         Book direct
       </span>
     </div>

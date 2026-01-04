@@ -16,7 +16,6 @@ import {
   Check,
   Share2,
   Mail,
-  Twitter,
   Facebook,
   ArrowRight,
   Sparkles,
@@ -24,6 +23,7 @@ import {
   Clock,
   ExternalLink
 } from "lucide-react";
+import { XLogo } from "@/components/icons/XLogo";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.keeprstay.com";
@@ -125,7 +125,7 @@ export default function ReferralsPage() {
     }
   };
 
-  const handleShare = (platform: "email" | "twitter" | "facebook") => {
+  const handleShare = (platform: "email" | "x" | "facebook") => {
     const message = encodeURIComponent(
       "I've been using Keepr to manage my campground and it's been great! Sign up with my referral link and we both get a $50 credit:"
     );
@@ -133,7 +133,7 @@ export default function ReferralsPage() {
 
     const urls: Record<string, string> = {
       email: `mailto:?subject=${encodeURIComponent("Try Keepr - Campground Management Software")}&body=${message}%0A%0A${link}`,
-      twitter: `https://twitter.com/intent/tweet?text=${message}&url=${link}`,
+      x: `https://x.com/intent/tweet?text=${message}&url=${link}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${link}&quote=${message}`
     };
 
@@ -260,9 +260,9 @@ export default function ReferralsPage() {
                 <Mail className="h-4 w-4 mr-2" />
                 Email
               </Button>
-              <Button variant="outline" onClick={() => handleShare("twitter")} className="flex-1 md:flex-none">
-                <Twitter className="h-4 w-4 mr-2" />
-                Twitter
+              <Button variant="outline" onClick={() => handleShare("x")} className="flex-1 md:flex-none">
+                <XLogo className="h-4 w-4 mr-2" />
+                X
               </Button>
               <Button variant="outline" onClick={() => handleShare("facebook")} className="flex-1 md:flex-none">
                 <Facebook className="h-4 w-4 mr-2" />

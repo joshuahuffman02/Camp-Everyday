@@ -37,7 +37,7 @@ const nextConfig = {
   },
 
   // Ensure external workspace packages are bundled correctly
-  transpilePackages: ["@campreserv/shared"],
+  transpilePackages: ["@keepr/shared"],
 
   // Enable strict mode for better debugging
   reactStrictMode: true,
@@ -170,7 +170,7 @@ const nextConfig = {
     // In development, use localhost
     const isProduction = process.env.NODE_ENV === "production";
     const backendUrl = isProduction
-      ? "https://camp-everydayapi-production.up.railway.app"
+      ? "https://api.keeprstay.com"
       : "http://localhost:4000";
 
     // Use afterFiles so that Next.js API routes (like /api/auth/*) are matched first

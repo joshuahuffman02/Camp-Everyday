@@ -233,10 +233,10 @@ function PriceEstimate({
 
     if (isLoadingSites && !selectedSite) {
         return (
-            <div className="bg-status-success/15 border border-status-success/30 rounded-lg p-3 mb-6">
+            <div className="bg-keepr-evergreen/10 border border-keepr-evergreen/30 rounded-lg p-3 mb-6">
                 <div className="flex items-center justify-between">
-                    <div className="text-sm text-slate-600">Calculating estimate...</div>
-                    <div className="animate-pulse h-6 w-20 bg-status-success/30 rounded"></div>
+                    <div className="text-sm text-muted-foreground">Calculating estimate...</div>
+                    <div className="animate-pulse h-6 w-20 bg-keepr-evergreen/20 rounded"></div>
                 </div>
             </div>
         );
@@ -247,32 +247,32 @@ function PriceEstimate({
     }
 
     return (
-        <div className="bg-status-success/15 border border-status-success/30 rounded-lg p-4 mb-6">
+        <div className="bg-keepr-evergreen/10 border border-keepr-evergreen/30 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <div className="text-sm text-slate-600 mb-1">
+                    <div className="text-sm text-muted-foreground mb-1">
                         {step === 1 ? "Estimated price" : step === 2 && !selectedSite ? "Price range" : "Your price"}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-muted-foreground">
                         {nights} {nights === 1 ? "night" : "nights"}
                     </div>
                 </div>
                 <div className="text-right">
                     {priceEstimate.isRange ? (
                         <>
-                            <div className="text-2xl font-bold text-status-success">
+                            <div className="text-2xl font-bold text-keepr-evergreen">
                                 ${priceEstimate.minTotal?.toFixed(0)} - ${priceEstimate.maxTotal?.toFixed(0)}
                             </div>
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-muted-foreground">
                                 ${priceEstimate.minPerNight?.toFixed(0)} - ${priceEstimate.maxPerNight?.toFixed(0)}/night
                             </div>
                         </>
                     ) : (
                         <>
-                            <div className="text-2xl font-bold text-status-success">
+                            <div className="text-2xl font-bold text-keepr-evergreen">
                                 {priceEstimate.isExact ? "" : "From "}${priceEstimate.total?.toFixed(0)}
                             </div>
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-muted-foreground">
                                 ${priceEstimate.perNight?.toFixed(0)}/night
                             </div>
                         </>
@@ -280,7 +280,7 @@ function PriceEstimate({
                 </div>
             </div>
             {(step === 1 || (step === 2 && !selectedSite)) && (
-                <div className="text-xs text-slate-500 mt-2">
+                <div className="text-xs text-muted-foreground mt-2">
                     Final price shown at checkout (excludes fees and taxes)
                 </div>
             )}
@@ -303,20 +303,20 @@ function BookingProgress({ currentStep }: { currentStep: BookingStep }) {
                 <div key={step.num} className="flex items-center">
                     <div
                         className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-sm font-semibold transition-all ${step.num < currentStep
-                            ? "bg-status-success text-white"
+                            ? "bg-keepr-evergreen text-white"
                             : step.num === currentStep
-                                ? "bg-status-success text-white ring-4 ring-status-success/30"
-                                : "bg-slate-200 text-slate-500"
+                                ? "bg-keepr-evergreen text-white ring-4 ring-keepr-evergreen/30"
+                                : "bg-muted text-muted-foreground"
                             }`}
                     >
                         {step.num < currentStep ? <Check className="h-4 w-4" /> : step.num}
                     </div>
-                    <span className={`ml-2 text-xs sm:text-sm font-medium hidden sm:inline ${step.num <= currentStep ? "text-status-success" : "text-slate-400"
+                    <span className={`ml-2 text-xs sm:text-sm font-medium hidden sm:inline ${step.num <= currentStep ? "text-keepr-evergreen" : "text-muted-foreground"
                         }`}>
                         {step.label}
                     </span>
                     {idx < steps.length - 1 && (
-                        <div className={`w-6 sm:w-12 h-1 mx-2 rounded ${step.num < currentStep ? "bg-status-success" : "bg-slate-200"
+                        <div className={`w-6 sm:w-12 h-1 mx-2 rounded ${step.num < currentStep ? "bg-keepr-evergreen" : "bg-muted"
                             }`} />
                     )}
                 </div>
@@ -424,7 +424,7 @@ function DateStep({
 
     return (
         <div className="max-w-md mx-auto">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">Select Your Dates</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-6 text-center">Select Your Dates</h2>
 
             {/* Natural Language Search */}
             {onApplyNLSearch && (
@@ -444,49 +444,49 @@ function DateStep({
                     />
 
                     <div className="flex items-center gap-3 my-6">
-                        <div className="flex-1 h-px bg-slate-200" />
-                        <span className="text-sm text-slate-500">or select manually</span>
-                        <div className="flex-1 h-px bg-slate-200" />
+                        <div className="flex-1 h-px bg-muted" />
+                        <span className="text-sm text-muted-foreground">or select manually</span>
+                        <div className="flex-1 h-px bg-muted" />
                     </div>
                 </div>
             )}
 
             {/* Quick Booking Buttons */}
             <div className="mb-6">
-                <p className="text-sm font-medium text-slate-600 mb-3 text-center">Quick Select</p>
+                <p className="text-sm font-medium text-muted-foreground mb-3 text-center">Quick Select</p>
                 <div className="flex flex-wrap gap-2 justify-center">
                     <button
                         type="button"
                         onClick={handleTonight}
-                        className="px-4 py-2 bg-slate-100 hover:bg-status-success/20 text-slate-700 hover:text-status-success rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-status-success/50 inline-flex items-center gap-1"
+                        className="px-4 py-2 bg-muted hover:bg-keepr-evergreen/20 text-foreground hover:text-keepr-evergreen rounded-lg text-sm font-medium transition-colors border border-border hover:border-keepr-evergreen/40 inline-flex items-center gap-1"
                     >
                         <Moon className="h-4 w-4" /> Tonight
                     </button>
                     <button
                         type="button"
                         onClick={handleWeekend}
-                        className="px-4 py-2 bg-slate-100 hover:bg-status-success/20 text-slate-700 hover:text-status-success rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-status-success/50 inline-flex items-center gap-1"
+                        className="px-4 py-2 bg-muted hover:bg-keepr-evergreen/20 text-foreground hover:text-keepr-evergreen rounded-lg text-sm font-medium transition-colors border border-border hover:border-keepr-evergreen/40 inline-flex items-center gap-1"
                     >
                         <CalendarDays className="h-4 w-4" /> Weekend
                     </button>
                     <button
                         type="button"
                         onClick={handleThreeNights}
-                        className="px-4 py-2 bg-slate-100 hover:bg-status-success/20 text-slate-700 hover:text-status-success rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-status-success/50"
+                        className="px-4 py-2 bg-muted hover:bg-keepr-evergreen/20 text-foreground hover:text-keepr-evergreen rounded-lg text-sm font-medium transition-colors border border-border hover:border-keepr-evergreen/40"
                     >
                         3 Nights
                     </button>
                     <button
                         type="button"
                         onClick={handleOneWeek}
-                        className="px-4 py-2 bg-slate-100 hover:bg-status-success/20 text-slate-700 hover:text-status-success rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-status-success/50"
+                        className="px-4 py-2 bg-muted hover:bg-keepr-evergreen/20 text-foreground hover:text-keepr-evergreen rounded-lg text-sm font-medium transition-colors border border-border hover:border-keepr-evergreen/40"
                     >
                         1 Week
                     </button>
                     <button
                         type="button"
                         onClick={handleOneMonth}
-                        className="px-4 py-2 bg-slate-100 hover:bg-status-success/20 text-slate-700 hover:text-status-success rounded-lg text-sm font-medium transition-colors border border-slate-200 hover:border-status-success/50"
+                        className="px-4 py-2 bg-muted hover:bg-keepr-evergreen/20 text-foreground hover:text-keepr-evergreen rounded-lg text-sm font-medium transition-colors border border-border hover:border-keepr-evergreen/40"
                     >
                         1 Month
                     </button>
@@ -495,11 +495,11 @@ function DateStep({
 
             <div className="space-y-4">
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Site type</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Site type</label>
                     <select
                         value={selectedSiteType}
                         onChange={(e) => onSiteTypeChange(e.target.value)}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-lg"
+                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen text-lg"
                     >
                         {siteTypeOptions.map((opt) => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -507,23 +507,23 @@ function DateStep({
                     </select>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Check-in Date</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Check-in Date</label>
                     <input
                         type="date"
                         value={arrivalDate}
                         onChange={(e) => handleArrivalChange(e.target.value)}
                         min={today}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-lg"
+                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen text-lg"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Check-out Date</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Check-out Date</label>
                     <input
                         type="date"
                         value={departureDate}
                         onChange={(e) => onDepartureChange(e.target.value)}
                         min={arrivalDate || today}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-lg"
+                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen text-lg"
                     />
                 </div>
                 {arrivalDate && departureDate && arrivalDate >= departureDate && (
@@ -533,7 +533,7 @@ function DateStep({
             <button
                 onClick={onNext}
                 disabled={!isValid}
-                className="w-full mt-6 py-4 bg-status-success text-white font-semibold rounded-xl hover:bg-status-success/90 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                className="w-full mt-6 py-4 bg-keepr-evergreen text-white font-semibold rounded-xl hover:bg-keepr-evergreen-dark disabled:bg-muted disabled:cursor-not-allowed transition-colors"
             >
                 Check Availability
             </button>
@@ -599,14 +599,14 @@ function SiteStep({
     const StatusBadge = ({ status }: { status: string }) => {
         switch (status) {
             case 'available':
-                return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-success/15 text-status-success">Available</span>;
+                return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-keepr-evergreen/10 text-keepr-evergreen">Available</span>;
             case 'booked':
                 return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-error/15 text-status-error">Booked</span>;
             case 'maintenance':
-                return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-warning/15 text-status-warning">Maintenance</span>;
+                return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-keepr-clay/10 text-keepr-clay">Maintenance</span>;
             case 'locked':
             default:
-                return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Unavailable</span>;
+                return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">Unavailable</span>;
         }
     };
 
@@ -660,19 +660,19 @@ function SiteStep({
             <div className="flex flex-col items-center justify-center py-12 gap-4">
                 {/* Animated tent icon */}
                 <div className="relative">
-                    <Tent className="h-12 w-12 text-emerald-500 animate-pulse" />
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-200/50 rounded-full blur-sm" />
+                    <Tent className="h-12 w-12 text-keepr-evergreen animate-pulse" />
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-border/50 rounded-full blur-sm" />
                 </div>
                 <div className="text-center space-y-1">
-                    <p className="text-slate-700 font-medium">Finding available sites...</p>
-                    <p className="text-sm text-slate-500">We're checking what's open for your dates</p>
+                    <p className="text-foreground font-medium">Finding available sites...</p>
+                    <p className="text-sm text-muted-foreground">We're checking what's open for your dates</p>
                 </div>
                 {/* Animated progress dots */}
                 <div className="flex gap-1.5">
                     {[0, 1, 2].map((i) => (
                         <div
                             key={i}
-                            className="w-2 h-2 rounded-full bg-emerald-400"
+                            className="w-2 h-2 rounded-full bg-keepr-evergreen-light"
                             style={{ animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite` }}
                         />
                     ))}
@@ -700,25 +700,25 @@ function SiteStep({
         return (
             <div className="text-center py-12 space-y-5">
                 <div>
-                    <Frown className="h-16 w-16 text-slate-400 mx-auto" />
-                    <h3 className="text-xl font-bold text-slate-900 mt-4">No Sites Available</h3>
-                    <p className="text-slate-600 mt-2">Sorry, there are no sites available for your selected dates.</p>
+                    <Frown className="h-16 w-16 text-muted-foreground mx-auto" />
+                    <h3 className="text-xl font-bold text-foreground mt-4">No Sites Available</h3>
+                    <p className="text-muted-foreground mt-2">Sorry, there are no sites available for your selected dates.</p>
                 </div>
 
                 {nextAvailability && onApplySuggestedDates && (
-                    <div className="border border-status-success/30 bg-status-success/15 rounded-xl p-4 text-left max-w-lg mx-auto">
-                        <div className="text-sm font-semibold text-status-success flex items-center gap-2">
+                    <div className="border border-keepr-evergreen/30 bg-keepr-evergreen/10 rounded-xl p-4 text-left max-w-lg mx-auto">
+                        <div className="text-sm font-semibold text-keepr-evergreen flex items-center gap-2">
                             <span>Next opening we found</span>
                         </div>
-                        <p className="text-slate-700 mt-1">
+                        <p className="text-foreground mt-1">
                             {new Date(nextAvailability.arrivalDate).toLocaleDateString()} → {new Date(nextAvailability.departureDate).toLocaleDateString()}
                         </p>
-                        <p className="text-sm text-slate-600">
-                            Example site: <span className="font-medium text-slate-800">{nextAvailability.site.name}</span> ({nextAvailability.site.siteClass?.name || "Any type"})
+                        <p className="text-sm text-muted-foreground">
+                            Example site: <span className="font-medium text-foreground">{nextAvailability.site.name}</span> ({nextAvailability.site.siteClass?.name || "Any type"})
                         </p>
                         <button
                             onClick={() => onApplySuggestedDates(nextAvailability.arrivalDate, nextAvailability.departureDate)}
-                            className="mt-3 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-status-success text-white text-sm font-medium hover:bg-status-success/90 transition-colors"
+                            className="mt-3 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-keepr-evergreen text-white text-sm font-medium hover:bg-keepr-evergreen-dark transition-colors"
                         >
                             Use these dates
                         </button>
@@ -727,26 +727,26 @@ function SiteStep({
 
                 {Object.keys(alternativeTypeSuggestions).length > 0 && onChangeSiteType && (
                     <div className="space-y-3 max-w-2xl mx-auto">
-                        <p className="text-sm text-slate-700 font-medium">We found availability in other site types:</p>
+                        <p className="text-sm text-foreground font-medium">We found availability in other site types:</p>
                         <div className="flex flex-wrap gap-3 justify-center">
                             {Object.entries(alternativeTypeSuggestions).map(([type, typeSites]) => (
                                 <button
                                     key={type}
                                     onClick={() => onChangeSiteType(type)}
-                                    className="px-4 py-2 rounded-lg border border-status-success/30 bg-white shadow-sm hover:border-emerald-400 transition-colors text-sm font-semibold text-status-success"
+                                    className="px-4 py-2 rounded-lg border border-keepr-evergreen/30 bg-card shadow-sm hover:border-keepr-evergreen/50 transition-colors text-sm font-semibold text-keepr-evergreen"
                                 >
                                     {siteTypeIcons[type] || <Tent className="h-5 w-5" />} {siteTypeLabel(type)} ({typeSites.length} open)
                                 </button>
                             ))}
                         </div>
-                        <p className="text-xs text-slate-500">Selecting switches to that site type so you can book it.</p>
+                        <p className="text-xs text-muted-foreground">Selecting switches to that site type so you can book it.</p>
                     </div>
                 )}
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
                     <button
                         onClick={onBack}
-                        className="px-6 py-3 bg-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-300 transition-colors"
+                        className="px-6 py-3 bg-muted text-foreground font-medium rounded-xl hover:bg-muted transition-colors"
                     >
                         ← Choose Different Dates
                     </button>
@@ -756,7 +756,7 @@ function SiteStep({
                         departureDate={departureDate}
                         siteTypeId={waitlistSiteClassId}
                         trigger={
-                            <button className="px-6 py-3 bg-status-success text-white font-medium rounded-xl hover:bg-status-success/90 transition-colors">
+                            <button className="px-6 py-3 bg-keepr-evergreen text-white font-medium rounded-xl hover:bg-keepr-evergreen-dark transition-colors">
                                 {waitlistLabel}
                             </button>
                         }
@@ -781,8 +781,8 @@ function SiteStep({
             onClick={onClick}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                 active
-                    ? "bg-status-success/15 text-status-success border border-status-success/30"
-                    : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
+                    ? "bg-keepr-evergreen/10 text-keepr-evergreen border border-keepr-evergreen/30"
+                    : "bg-muted text-muted-foreground border border-border hover:bg-muted"
             }`}
         >
             {icon}
@@ -792,17 +792,17 @@ function SiteStep({
 
     return (
         <div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">Choose Your Site</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-6 text-center">Choose Your Site</h2>
 
             {/* Filter Panel */}
-            <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="mb-6 p-4 bg-muted rounded-xl border border-border">
                 <div className="flex items-center gap-2 mb-3">
-                    <span className="text-sm font-medium text-slate-700">Filter by:</span>
+                    <span className="text-sm font-medium text-foreground">Filter by:</span>
                     {hasActiveFilters && (
                         <button
                             type="button"
                             onClick={() => setFilters({ fullHookups: false, petFriendly: false, accessible: false, pullThrough: false })}
-                            className="text-xs text-status-success hover:text-status-success/90 font-medium"
+                            className="text-xs text-keepr-evergreen hover:text-keepr-evergreen font-medium"
                         >
                             Clear all
                         </button>
@@ -836,14 +836,14 @@ function SiteStep({
                 </div>
             </div>
 
-            <p className="text-center text-slate-600 mb-2">
+            <p className="text-center text-muted-foreground mb-2">
                 {filteredSites.length} sites found
                 {hasActiveFilters && filteredSites.length !== sites.length && (
-                    <span className="text-slate-400"> (of {sites.length} total)</span>
+                    <span className="text-muted-foreground"> (of {sites.length} total)</span>
                 )}
             </p>
             {sites.length > 0 && sites.length <= 3 && (
-                <p className="text-center text-status-warning text-sm font-semibold mb-4">
+                <p className="text-center text-keepr-clay text-sm font-semibold mb-4">
                     Only {sites.length} left for these dates. Sites are held for a short time during checkout.
                 </p>
             )}
@@ -851,10 +851,10 @@ function SiteStep({
             {Object.entries(sitesByClass).map(([className, classSites]) => (
                 <div key={className} className="mb-10">
                     <div className="flex items-center gap-2 mb-3">
-                        <span className="text-slate-600">{siteTypeIcons[classSites[0]?.siteClass?.siteType || "tent"] || <Tent className="h-5 w-5" />}</span>
-                        <h3 className="text-lg font-semibold text-slate-900">{className}</h3>
+                        <span className="text-muted-foreground">{siteTypeIcons[classSites[0]?.siteClass?.siteType || "tent"] || <Tent className="h-5 w-5" />}</span>
+                        <h3 className="text-lg font-semibold text-foreground">{className}</h3>
                         {classSites[0]?.siteClass?.defaultRate && (
-                            <span className="text-status-success font-semibold ml-auto">
+                            <span className="text-keepr-evergreen font-semibold ml-auto">
                                 ${(classSites[0].siteClass.defaultRate / 100).toFixed(0)}/night
                             </span>
                         )}
@@ -878,8 +878,8 @@ function SiteStep({
                                     onClick={() => isAvailable && onSelect(site.id)}
                                     disabled={!isAvailable}
                                     className={`group overflow-hidden rounded-2xl border transition-all text-left ${selected
-                                        ? "border-emerald-500 ring-2 ring-emerald-200"
-                                        : "border-slate-200 hover:border-status-success/50 hover:shadow-md"
+                                        ? "border-keepr-evergreen ring-2 ring-keepr-evergreen/20"
+                                        : "border-border hover:border-keepr-evergreen/40 hover:shadow-md"
                                         } ${!isAvailable ? "opacity-60 cursor-not-allowed" : ""}`}
                                 >
                                     <div className="relative h-48 w-full overflow-hidden">
@@ -897,27 +897,27 @@ function SiteStep({
                                             <StatusBadge status={site.status || 'available'} />
                                         </div>
                                         {selected && (
-                                            <div className="absolute bottom-3 right-3 rounded-full bg-status-success text-white text-xs px-3 py-1 shadow-lg">
+                                            <div className="absolute bottom-3 right-3 rounded-full bg-keepr-evergreen text-white text-xs px-3 py-1 shadow-lg">
                                                 Selected
                                             </div>
                                         )}
                                     </div>
-                                    <div className="p-4 space-y-2 bg-white">
+                                    <div className="p-4 space-y-2 bg-card">
                                         <div className="flex items-start justify-between gap-2">
                                             <div>
-                                                <div className="font-semibold text-slate-900">{site.name}</div>
-                                                <div className="text-xs text-slate-500">#{site.siteNumber}</div>
+                                                <div className="font-semibold text-foreground">{site.name}</div>
+                                                <div className="text-xs text-muted-foreground">#{site.siteNumber}</div>
                                             </div>
                                             {site.siteClass?.defaultRate && (
                                                 <div className="text-right">
-                                                    <div className="text-lg font-bold text-status-success">
+                                                    <div className="text-lg font-bold text-keepr-evergreen">
                                                         ${(site.siteClass.defaultRate / 100).toFixed(0)}
                                                     </div>
-                                                    <div className="text-xs text-slate-500">per night</div>
+                                                    <div className="text-xs text-muted-foreground">per night</div>
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                                             {site.siteClass?.maxOccupancy && <Badge variant="outline">Up to {site.siteClass.maxOccupancy} guests</Badge>}
                                             {site.siteClass?.hookupsPower && <Badge variant="outline">Power</Badge>}
                                             {site.siteClass?.hookupsWater && <Badge variant="outline">Water</Badge>}
@@ -927,7 +927,7 @@ function SiteStep({
                                                 <Badge variant="outline">Max {site.rigMaxLength}ft rig</Badge>
                                             )}
                                             {(site.accessible || site.siteClass?.accessible) && (
-                                                <Badge variant="outline" className="border-status-success/30 text-status-success">
+                                                <Badge variant="outline" className="border-keepr-evergreen/30 text-keepr-evergreen">
                                                     ADA Accessible
                                                 </Badge>
                                             )}
@@ -935,14 +935,14 @@ function SiteStep({
                                         {selected && (
                                             <div className="mt-3 flex flex-col gap-2">
                                                 {selectionFeeDisplay ? (
-                                                    <div className="text-sm text-status-success bg-status-success/15 border border-status-success/30 rounded-lg px-3 py-2 flex items-center gap-2">
+                                                    <div className="text-sm text-keepr-evergreen bg-keepr-evergreen/10 border border-keepr-evergreen/30 rounded-lg px-3 py-2 flex items-center gap-2">
                                                         <Lock className="h-4 w-4" />
                                                         <span>
                                                             Selecting this site adds {selectionFeeDisplay} (set by the campground). Fees apply only when you lock a specific site.
                                                         </span>
                                                     </div>
                                                 ) : (
-                                                    <div className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                                                    <div className="text-sm text-muted-foreground bg-muted border border-border rounded-lg px-3 py-2">
                                                         Lock in this exact site. Fees, if any, are shown at checkout when the campground charges for site selection.
                                                     </div>
                                                 )}
@@ -950,7 +950,7 @@ function SiteStep({
                                                     <button
                                                         type="button"
                                                         onClick={(e) => { e.stopPropagation(); onBookSelected?.(); }}
-                                                        className="px-4 py-2 rounded-lg bg-status-success text-white text-sm font-semibold hover:bg-status-success/90 transition-colors"
+                                                        className="px-4 py-2 rounded-lg bg-keepr-evergreen text-white text-sm font-semibold hover:bg-keepr-evergreen-dark transition-colors"
                                                     >
                                                         Book now
                                                     </button>
@@ -968,14 +968,14 @@ function SiteStep({
             <div className="flex gap-3 mt-8">
                 <button
                     onClick={onBack}
-                    className="flex-1 py-4 bg-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-300 transition-colors"
+                    className="flex-1 py-4 bg-muted text-foreground font-semibold rounded-xl hover:bg-muted transition-colors"
                 >
                     ← Back
                 </button>
                 <button
                     onClick={onNext}
                     disabled={!selectedSiteId}
-                    className="flex-1 py-4 bg-status-success text-white font-semibold rounded-xl hover:bg-status-success/90 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                    className="flex-1 py-4 bg-keepr-evergreen text-white font-semibold rounded-xl hover:bg-keepr-evergreen-dark disabled:bg-muted disabled:cursor-not-allowed transition-colors"
                 >
                     Continue →
                 </button>
@@ -984,7 +984,7 @@ function SiteStep({
                 <button
                     type="button"
                     onClick={onProceedWithoutLock}
-                    className="w-full text-sm text-status-success font-semibold underline hover:text-status-success"
+                    className="w-full text-sm text-keepr-evergreen font-semibold underline hover:text-keepr-evergreen"
                 >
                     Prefer not to lock a specific site? Continue with this site type and we’ll assign the best available.
                 </button>
@@ -1031,36 +1031,36 @@ function GuestStep({
 
     return (
         <div className="max-w-md mx-auto">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">Your Information</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-6 text-center">Your Information</h2>
 
             {/* Essential Fields Only */}
             <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
+                        <label className="block text-sm font-medium text-foreground mb-1">First Name</label>
                         <input
                             type="text"
                             value={guestInfo.firstName}
                             onChange={(e) => onChange({ ...guestInfo, firstName: e.target.value })}
-                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                             placeholder="John"
                             required
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
+                        <label className="block text-sm font-medium text-foreground mb-1">Last Name</label>
                         <input
                             type="text"
                             value={guestInfo.lastName}
                             onChange={(e) => onChange({ ...guestInfo, lastName: e.target.value })}
-                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                             placeholder="Doe"
                             required
                         />
                     </div>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">Email</label>
                     <input
                         type="email"
                         value={guestInfo.email}
@@ -1072,35 +1072,35 @@ function GuestStep({
                                 trackEvent("email_signup", { campgroundId, page: `/park/${slug}/book` });
                             }
                         }}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                         placeholder="john@example.com"
                         required
                     />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                        <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
                         <input
                             type="tel"
                             value={guestInfo.phone}
                             onChange={(e) => onChange({ ...guestInfo, phone: e.target.value })}
-                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                             placeholder="(555) 123-4567"
                             required
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label className="block text-sm font-medium text-foreground mb-1">
                             Zip Code <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
                             value={guestInfo.zipCode}
                             onChange={(e) => onChange({ ...guestInfo, zipCode: e.target.value })}
-                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen ${
                                 guestInfo.zipCode.length > 0 && guestInfo.zipCode.length < 5
                                     ? 'border-red-300 bg-red-50'
-                                    : 'border-slate-300'
+                                    : 'border-border'
                             }`}
                             placeholder="12345"
                             maxLength={10}
@@ -1114,22 +1114,22 @@ function GuestStep({
                 </div>
 
                 {/* Note about optional details */}
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                    <p className="text-sm text-status-info">
+                <div className="bg-keepr-charcoal/5 border border-keepr-charcoal/10 rounded-xl p-4 text-center">
+                    <p className="text-sm text-keepr-charcoal">
                         That's all we need! You can add more details after booking if needed.
                     </p>
                 </div>
 
                 {/* Collapsible: Party Details */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="border border-border rounded-xl overflow-hidden">
                     <button
                         type="button"
                         onClick={() => setShowPartyDetails(!showPartyDetails)}
-                        className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between text-left"
+                        className="w-full px-4 py-3 bg-muted hover:bg-muted transition-colors flex items-center justify-between text-left"
                     >
-                        <span className="text-sm font-medium text-slate-700">Party details (optional)</span>
+                        <span className="text-sm font-medium text-foreground">Party details (optional)</span>
                         <svg
-                            className={`w-5 h-5 text-slate-500 transition-transform ${showPartyDetails ? 'rotate-180' : ''}`}
+                            className={`w-5 h-5 text-muted-foreground transition-transform ${showPartyDetails ? 'rotate-180' : ''}`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -1141,11 +1141,11 @@ function GuestStep({
                         <div className="p-4 space-y-4">
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Adults</label>
+                                    <label className="block text-sm font-medium text-foreground mb-1">Adults</label>
                                     <select
                                         value={guestInfo.adults}
                                         onChange={(e) => onChange({ ...guestInfo, adults: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                     >
                                         {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                                             <option key={n} value={n}>{n}</option>
@@ -1153,11 +1153,11 @@ function GuestStep({
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Children</label>
+                                    <label className="block text-sm font-medium text-foreground mb-1">Children</label>
                                     <select
                                         value={guestInfo.children}
                                         onChange={(e) => onChange({ ...guestInfo, children: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                     >
                                         {[0, 1, 2, 3, 4, 5, 6].map((n) => (
                                             <option key={n} value={n}>{n}</option>
@@ -1168,9 +1168,9 @@ function GuestStep({
 
                             {/* Additional Guests Section */}
                             {guestInfo.adults > 1 && (
-                                <div className="mt-4 p-4 bg-slate-50 rounded-xl">
+                                <div className="mt-4 p-4 bg-muted rounded-xl">
                                     <div className="flex justify-between items-center mb-3">
-                                        <h4 className="text-sm font-semibold text-slate-700">Additional Adult Details</h4>
+                                        <h4 className="text-sm font-semibold text-foreground">Additional Adult Details</h4>
                                         {guestInfo.additionalGuests.length < guestInfo.adults - 1 && (
                                             <button
                                                 type="button"
@@ -1178,16 +1178,16 @@ function GuestStep({
                                                     ...guestInfo,
                                                     additionalGuests: [...guestInfo.additionalGuests, { firstName: '', lastName: '', email: '', phone: '' }]
                                                 })}
-                                                className="text-sm text-status-success hover:text-status-success/90 font-medium"
+                                                className="text-sm text-keepr-evergreen hover:text-keepr-evergreen font-medium"
                                             >
                                                 + Add Guest
                                             </button>
                                         )}
                                     </div>
                                     {guestInfo.additionalGuests.map((guest, idx) => (
-                                        <div key={idx} className="mb-3 p-3 bg-white rounded-lg border border-slate-200">
+                                        <div key={idx} className="mb-3 p-3 bg-card rounded-lg border border-border">
                                             <div className="flex justify-between items-start mb-2">
-                                                <span className="text-xs font-medium text-slate-500">Guest {idx + 2}</span>
+                                                <span className="text-xs font-medium text-muted-foreground">Guest {idx + 2}</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => onChange({
@@ -1209,7 +1209,7 @@ function GuestStep({
                                                         updated[idx] = { ...guest, firstName: e.target.value };
                                                         onChange({ ...guestInfo, additionalGuests: updated });
                                                     }}
-                                                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                                    className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-keepr-evergreen"
                                                 />
                                                 <input
                                                     type="text"
@@ -1220,7 +1220,7 @@ function GuestStep({
                                                         updated[idx] = { ...guest, lastName: e.target.value };
                                                         onChange({ ...guestInfo, additionalGuests: updated });
                                                     }}
-                                                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                                    className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-keepr-evergreen"
                                                 />
                                                 <input
                                                     type="email"
@@ -1231,7 +1231,7 @@ function GuestStep({
                                                         updated[idx] = { ...guest, email: e.target.value };
                                                         onChange({ ...guestInfo, additionalGuests: updated });
                                                     }}
-                                                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                                    className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-keepr-evergreen"
                                                 />
                                                 <input
                                                     type="tel"
@@ -1242,22 +1242,22 @@ function GuestStep({
                                                         updated[idx] = { ...guest, phone: e.target.value };
                                                         onChange({ ...guestInfo, additionalGuests: updated });
                                                     }}
-                                                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                                    className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-keepr-evergreen"
                                                 />
                                             </div>
                                         </div>
                                     ))}
                                     {guestInfo.additionalGuests.length === 0 && (
-                                        <p className="text-xs text-slate-500">Click "+ Add Guest" to add details for additional adults</p>
+                                        <p className="text-xs text-muted-foreground">Click "+ Add Guest" to add details for additional adults</p>
                                     )}
                                 </div>
                             )}
 
                             {/* Children Details Section */}
                             {guestInfo.children > 0 && (
-                                <div className="mt-4 p-4 bg-amber-50 rounded-xl">
+                                <div className="mt-4 p-4 bg-keepr-clay/10 rounded-xl">
                                     <div className="flex justify-between items-center mb-3">
-                                        <h4 className="text-sm font-semibold text-slate-700">Children Details</h4>
+                                        <h4 className="text-sm font-semibold text-foreground">Children Details</h4>
                                         {guestInfo.childrenDetails.length < guestInfo.children && (
                                             <button
                                                 type="button"
@@ -1265,16 +1265,16 @@ function GuestStep({
                                                     ...guestInfo,
                                                     childrenDetails: [...guestInfo.childrenDetails, { name: '', gender: '', age: '' }]
                                                 })}
-                                                className="text-sm text-status-warning hover:text-status-warning/90 font-medium"
+                                                className="text-sm text-keepr-clay hover:text-keepr-clay font-medium"
                                             >
                                                 + Add Child
                                             </button>
                                         )}
                                     </div>
                                     {guestInfo.childrenDetails.map((child, idx) => (
-                                        <div key={idx} className="mb-3 p-3 bg-white rounded-lg border border-amber-200">
+                                        <div key={idx} className="mb-3 p-3 bg-card rounded-lg border border-keepr-clay/20">
                                             <div className="flex justify-between items-start mb-2">
-                                                <span className="text-xs font-medium text-slate-500">Child {idx + 1}</span>
+                                                <span className="text-xs font-medium text-muted-foreground">Child {idx + 1}</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => onChange({
@@ -1296,7 +1296,7 @@ function GuestStep({
                                                         updated[idx] = { ...child, name: e.target.value };
                                                         onChange({ ...guestInfo, childrenDetails: updated });
                                                     }}
-                                                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                                    className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-keepr-evergreen"
                                                 />
                                                 <select
                                                     value={child.gender}
@@ -1305,7 +1305,7 @@ function GuestStep({
                                                         updated[idx] = { ...child, gender: e.target.value };
                                                         onChange({ ...guestInfo, childrenDetails: updated });
                                                     }}
-                                                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                                    className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-keepr-evergreen"
                                                 >
                                                     <option value="">Gender</option>
                                                     <option value="male">Male</option>
@@ -1319,7 +1319,7 @@ function GuestStep({
                                                         updated[idx] = { ...child, age: e.target.value };
                                                         onChange({ ...guestInfo, childrenDetails: updated });
                                                     }}
-                                                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                                    className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-keepr-evergreen"
                                                 >
                                                     <option value="">Age</option>
                                                     {[...Array(18)].map((_, i) => (
@@ -1330,7 +1330,7 @@ function GuestStep({
                                         </div>
                                     ))}
                                     {guestInfo.childrenDetails.length === 0 && (
-                                        <p className="text-xs text-slate-500">Click "+ Add Child" to add details for children</p>
+                                        <p className="text-xs text-muted-foreground">Click "+ Add Child" to add details for children</p>
                                     )}
                                 </div>
                             )}
@@ -1339,15 +1339,15 @@ function GuestStep({
                 </div>
 
                 {/* Collapsible: Stay Reason */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="border border-border rounded-xl overflow-hidden">
                     <button
                         type="button"
                         onClick={() => setShowStayReason(!showStayReason)}
-                        className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between text-left"
+                        className="w-full px-4 py-3 bg-muted hover:bg-muted transition-colors flex items-center justify-between text-left"
                     >
-                        <span className="text-sm font-medium text-slate-700">Reason for stay (optional)</span>
+                        <span className="text-sm font-medium text-foreground">Reason for stay (optional)</span>
                         <svg
-                            className={`w-5 h-5 text-slate-500 transition-transform ${showStayReason ? 'rotate-180' : ''}`}
+                            className={`w-5 h-5 text-muted-foreground transition-transform ${showStayReason ? 'rotate-180' : ''}`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -1358,11 +1358,11 @@ function GuestStep({
                     {showStayReason && (
                         <div className="p-4 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Reason for stay</label>
+                                <label className="block text-sm font-medium text-foreground mb-1">Reason for stay</label>
                                 <select
                                     value={guestInfo.stayReasonPreset}
                                     onChange={(e) => onChange({ ...guestInfo, stayReasonPreset: e.target.value, stayReasonOther: e.target.value === "other" ? guestInfo.stayReasonOther : "" })}
-                                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                 >
                                     <option value="vacation">Vacation / getaway</option>
                                     <option value="family_visit">Visiting family or friends</option>
@@ -1377,18 +1377,18 @@ function GuestStep({
                                         type="text"
                                         value={guestInfo.stayReasonOther}
                                         onChange={(e) => onChange({ ...guestInfo, stayReasonOther: e.target.value })}
-                                        className="mt-2 w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        className="mt-2 w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                         placeholder="Tell us more"
                                     />
                                 )}
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Referral code</label>
+                                <label className="block text-sm font-medium text-foreground mb-1">Referral code</label>
                                 <input
                                     type="text"
                                     value={guestInfo.referralCode}
                                     onChange={(e) => onChange({ ...guestInfo, referralCode: e.target.value.trim() })}
-                                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                     placeholder="Enter a friend's code or link code"
                                 />
                             </div>
@@ -1397,15 +1397,15 @@ function GuestStep({
                 </div>
 
                 {/* Collapsible: Pets */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="border border-border rounded-xl overflow-hidden">
                     <button
                         type="button"
                         onClick={() => setShowPets(!showPets)}
-                        className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between text-left"
+                        className="w-full px-4 py-3 bg-muted hover:bg-muted transition-colors flex items-center justify-between text-left"
                     >
-                        <span className="text-sm font-medium text-slate-700">Pets (optional)</span>
+                        <span className="text-sm font-medium text-foreground">Pets (optional)</span>
                         <svg
-                            className={`w-5 h-5 text-slate-500 transition-transform ${showPets ? 'rotate-180' : ''}`}
+                            className={`w-5 h-5 text-muted-foreground transition-transform ${showPets ? 'rotate-180' : ''}`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -1419,7 +1419,7 @@ function GuestStep({
                                 {["dog", "cat", "other"].map((petType) => {
                                     const checked = guestInfo.petTypes.includes(petType);
                                     return (
-                                        <label key={petType} className="flex items-center gap-2 text-sm text-slate-700">
+                                        <label key={petType} className="flex items-center gap-2 text-sm text-foreground">
                                             <input
                                                 type="checkbox"
                                                 checked={checked}
@@ -1433,7 +1433,7 @@ function GuestStep({
                                                         petCount: next.length === 0 ? 0 : Math.max(guestInfo.petCount || 0, 1)
                                                     });
                                                 }}
-                                                className="h-4 w-4 text-status-success border-slate-300 rounded focus:ring-emerald-500"
+                                                className="h-4 w-4 text-keepr-evergreen border-border rounded focus:ring-keepr-evergreen"
                                             />
                                             {petType.charAt(0).toUpperCase() + petType.slice(1)}
                                         </label>
@@ -1442,17 +1442,17 @@ function GuestStep({
                             </div>
                             {guestInfo.petTypes.length > 0 && (
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">How many pets?</label>
+                                    <label className="block text-sm font-medium text-foreground mb-1">How many pets?</label>
                                     <input
                                         type="number"
                                         min={1}
                                         value={guestInfo.petCount}
                                         onChange={(e) => onChange({ ...guestInfo, petCount: parseInt(e.target.value || "1") })}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                     />
                                 </div>
                             )}
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-muted-foreground">
                                 Used to match pet-related park policies and site eligibility.
                             </p>
                         </div>
@@ -1460,15 +1460,15 @@ function GuestStep({
                 </div>
 
                 {/* Collapsible: Equipment/Vehicle */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="border border-border rounded-xl overflow-hidden">
                     <button
                         type="button"
                         onClick={() => setShowEquipment(!showEquipment)}
-                        className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between text-left"
+                        className="w-full px-4 py-3 bg-muted hover:bg-muted transition-colors flex items-center justify-between text-left"
                     >
-                        <span className="text-sm font-medium text-slate-700">Equipment / Vehicle (optional)</span>
+                        <span className="text-sm font-medium text-foreground">Equipment / Vehicle (optional)</span>
                         <svg
-                            className={`w-5 h-5 text-slate-500 transition-transform ${showEquipment ? 'rotate-180' : ''}`}
+                            className={`w-5 h-5 text-muted-foreground transition-transform ${showEquipment ? 'rotate-180' : ''}`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -1480,14 +1480,14 @@ function GuestStep({
                         <div className="p-4 space-y-4">
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                                    <label className="block text-sm font-medium text-foreground mb-1">Type</label>
                                     <select
                                         value={guestInfo.equipment.type}
                                         onChange={(e) => onChange({
                                             ...guestInfo,
                                             equipment: { ...guestInfo.equipment, type: e.target.value }
                                         })}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                     >
                                         <option value="rv">RV / Motorhome</option>
                                         <option value="trailer">Travel Trailer</option>
@@ -1496,7 +1496,7 @@ function GuestStep({
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Length (ft)</label>
+                                    <label className="block text-sm font-medium text-foreground mb-1">Length (ft)</label>
                                     <input
                                         type="number"
                                         value={guestInfo.equipment.length}
@@ -1505,7 +1505,7 @@ function GuestStep({
                                             equipment: { ...guestInfo.equipment, length: e.target.value }
                                         })}
                                         disabled={guestInfo.equipment.type === "tent" || guestInfo.equipment.type === "car"}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-slate-100"
+                                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen disabled:bg-muted"
                                         placeholder={guestInfo.equipment.type === "tent" ? "N/A" : "e.g. 25"}
                                     />
                                 </div>
@@ -1513,21 +1513,21 @@ function GuestStep({
                             {lengthError && (
                                 <p className="text-status-error text-sm font-medium">{lengthError}</p>
                             )}
-                            <div className="flex items-start gap-3 p-3 bg-status-success/15 border border-status-success/30 rounded-xl">
+                            <div className="flex items-start gap-3 p-3 bg-keepr-evergreen/10 border border-keepr-evergreen/30 rounded-xl">
                                 <input
                                     id="needs-accessible"
                                     type="checkbox"
                                     checked={guestInfo.needsAccessible}
                                     onChange={(e) => onChange({ ...guestInfo, needsAccessible: e.target.checked })}
-                                    className="mt-1 h-4 w-4 text-status-success border-slate-300 rounded focus:ring-emerald-500"
+                                    className="mt-1 h-4 w-4 text-keepr-evergreen border-border rounded focus:ring-keepr-evergreen"
                                 />
-                                <label htmlFor="needs-accessible" className="text-sm text-slate-700 leading-5">
+                                <label htmlFor="needs-accessible" className="text-sm text-foreground leading-5">
                                     I need an ADA-accessible site (level pad, accessible route, proximity to facilities). We'll filter and flag sites that don't meet this.
                                 </label>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Plate Number</label>
+                                    <label className="block text-sm font-medium text-foreground mb-1">Plate Number</label>
                                     <input
                                         type="text"
                                         value={guestInfo.equipment.plateNumber}
@@ -1535,12 +1535,12 @@ function GuestStep({
                                             ...guestInfo,
                                             equipment: { ...guestInfo.equipment, plateNumber: e.target.value }
                                         })}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                         placeholder="ABC-123"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">State</label>
+                                    <label className="block text-sm font-medium text-foreground mb-1">State</label>
                                     <input
                                         type="text"
                                         value={guestInfo.equipment.plateState}
@@ -1548,7 +1548,7 @@ function GuestStep({
                                             ...guestInfo,
                                             equipment: { ...guestInfo.equipment, plateState: e.target.value }
                                         })}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        className="w-full px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                                         placeholder="CA"
                                     />
                                 </div>
@@ -1561,14 +1561,14 @@ function GuestStep({
             <div className="flex gap-3 mt-8">
                 <button
                     onClick={onBack}
-                    className="flex-1 py-4 bg-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-300 transition-colors"
+                    className="flex-1 py-4 bg-muted text-foreground font-semibold rounded-xl hover:bg-muted transition-colors"
                 >
                     ← Back
                 </button>
                 <button
                     onClick={onNext}
                     disabled={!isValid || !!lengthError}
-                    className="flex-1 py-4 bg-status-success text-white font-semibold rounded-xl hover:bg-status-success/90 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                    className="flex-1 py-4 bg-keepr-evergreen text-white font-semibold rounded-xl hover:bg-keepr-evergreen-dark disabled:bg-muted disabled:cursor-not-allowed transition-colors"
                 >
                     Review →
                 </button>
@@ -1649,13 +1649,13 @@ function PaymentForm({
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             {capabilitiesStale && (
-                <div className="rounded-md border border-status-warning/30 bg-status-warning/15 px-3 py-2 text-sm text-status-warning">
+                <div className="rounded-md border border-keepr-clay/30 bg-keepr-clay/10 px-3 py-2 text-sm text-keepr-clay">
                     Payment methods are refreshing with Stripe. Card checkout still works; ACH and wallets may appear once capabilities finish updating.
                 </div>
             )}
             <PaymentElement />
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700 space-y-1">
-                <div className="font-semibold text-slate-900">Payment method notes</div>
+            <div className="rounded-md border border-border bg-muted px-3 py-3 text-xs text-foreground space-y-1">
+                <div className="font-semibold text-foreground">Payment method notes</div>
                 <ul className="list-disc pl-4 space-y-1">
                     <li>Cards are processed securely. A temporary authorization may appear before capture.</li>
                     {showAch && (
@@ -1698,14 +1698,14 @@ function PaymentForm({
                     type="button"
                     onClick={onBack}
                     disabled={isProcessing}
-                    className="flex-1 py-4 bg-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-300 disabled:opacity-50 transition-colors"
+                    className="flex-1 py-4 bg-muted text-foreground font-semibold rounded-xl hover:bg-muted disabled:opacity-50 transition-colors"
                 >
                     ← Back
                 </button>
                 <button
                     type="submit"
                     disabled={!stripe || isProcessing}
-                    className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-teal-700 disabled:bg-slate-400 disabled:from-slate-400 disabled:to-slate-400 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-xl"
+                    className="flex-1 py-4 bg-gradient-to-r from-keepr-evergreen to-keepr-evergreen-light text-white font-semibold rounded-xl hover:from-keepr-evergreen-dark hover:to-keepr-evergreen disabled:bg-muted disabled:from-muted disabled:to-muted transition-all shadow-lg shadow-keepr-evergreen/30 hover:shadow-xl"
                 >
                     {isProcessing ? (
                         <span className="flex items-center justify-center gap-2">
@@ -2186,21 +2186,21 @@ function ReviewStep({
             <div className="flex flex-col items-center justify-center py-12 gap-4">
                 {/* Calculator animation */}
                 <div className="relative">
-                    <svg className="w-10 h-10 text-emerald-500 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-10 h-10 text-keepr-evergreen animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                     </svg>
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-slate-200/50 rounded-full blur-sm" />
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-border/50 rounded-full blur-sm" />
                 </div>
                 <div className="text-center space-y-1">
-                    <p className="text-slate-700 font-medium">Crunching the numbers...</p>
-                    <p className="text-sm text-slate-500">Getting your best price ready</p>
+                    <p className="text-foreground font-medium">Crunching the numbers...</p>
+                    <p className="text-sm text-muted-foreground">Getting your best price ready</p>
                 </div>
                 {/* Animated progress dots */}
                 <div className="flex gap-1.5">
                     {[0, 1, 2].map((i) => (
                         <div
                             key={i}
-                            className="w-2 h-2 rounded-full bg-emerald-400"
+                            className="w-2 h-2 rounded-full bg-keepr-evergreen-light"
                             style={{ animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite` }}
                         />
                     ))}
@@ -2213,12 +2213,12 @@ function ReviewStep({
         return (
             <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
                 <p className="text-status-error font-semibold">We couldn&apos;t calculate your total.</p>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-muted-foreground">
                     {quoteError instanceof Error ? quoteError.message : "Please try again or pick a different site."}
                 </p>
                 <button
                     onClick={onBack}
-                    className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:border-status-success/50 hover:text-status-success transition-colors"
+                    className="px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:border-keepr-evergreen/40 hover:text-keepr-evergreen transition-colors"
                 >
                     ← Back
                 </button>
@@ -2228,16 +2228,16 @@ function ReviewStep({
 
     return (
         <div className="max-w-lg mx-auto">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">Review Your Booking</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-6 text-center">Review Your Booking</h2>
 
             {/* Booking Summary */}
-            <div className="bg-slate-50 rounded-2xl p-6 mb-6">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+            <div className="bg-muted rounded-2xl p-6 mb-6">
+                <div className="flex items-center justify-between pb-4 border-b border-border">
                     <div>
-                        <div className="font-semibold text-slate-900">
+                        <div className="font-semibold text-foreground">
                             {assignOnArrival ? "Assigned on arrival" : selectedSite?.name || "Site selection"}
                         </div>
-                        <div className="text-sm text-slate-500">
+                        <div className="text-sm text-muted-foreground">
                             {assignOnArrival
                                 ? selectedSiteClassId
                                     ? "We’ll assign within your chosen site type"
@@ -2245,73 +2245,73 @@ function ReviewStep({
                                 : selectedSite?.siteClass?.name || "Site details"}
                         </div>
                     </div>
-                    <Tent className="h-8 w-8 text-status-success" />
+                    <Tent className="h-8 w-8 text-keepr-evergreen" />
                 </div>
 
-                <div className="py-4 border-b border-slate-200 space-y-2">
+                <div className="py-4 border-b border-border space-y-2">
                     <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Check-in</span>
-                        <span className="font-medium text-slate-900">{formatDate(arrivalDate)}</span>
+                        <span className="text-muted-foreground">Check-in</span>
+                        <span className="font-medium text-foreground">{formatDate(arrivalDate)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Check-out</span>
-                        <span className="font-medium text-slate-900">{formatDate(departureDate)}</span>
+                        <span className="text-muted-foreground">Check-out</span>
+                        <span className="font-medium text-foreground">{formatDate(departureDate)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Nights</span>
-                        <span className="font-medium text-slate-900">{quote?.nights || "--"}</span>
+                        <span className="text-muted-foreground">Nights</span>
+                        <span className="font-medium text-foreground">{quote?.nights || "--"}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Guests</span>
-                        <span className="font-medium text-slate-900">
+                        <span className="text-muted-foreground">Guests</span>
+                        <span className="font-medium text-foreground">
                             {guestInfo.adults} adults{guestInfo.children > 0 && `, ${guestInfo.children} children`}
                         </span>
                     </div>
                     {guestInfo.stayReasonPreset && (
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Reason</span>
-                            <span className="font-medium text-slate-900">{stayReasonLabel}</span>
+                            <span className="text-muted-foreground">Reason</span>
+                            <span className="font-medium text-foreground">{stayReasonLabel}</span>
                         </div>
                     )}
                     {guestInfo.referralCode && (
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Referral</span>
-                            <span className="font-medium text-slate-900">{guestInfo.referralCode}</span>
+                            <span className="text-muted-foreground">Referral</span>
+                            <span className="font-medium text-foreground">{guestInfo.referralCode}</span>
                         </div>
                     )}
                 </div>
 
-                <div className="py-4 border-b border-slate-200 space-y-2">
+                <div className="py-4 border-b border-border space-y-2">
                     <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Guest</span>
-                        <span className="font-medium text-slate-900">
+                        <span className="text-muted-foreground">Guest</span>
+                        <span className="font-medium text-foreground">
                             {guestInfo.firstName} {guestInfo.lastName}
                         </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Email</span>
-                        <span className="font-medium text-slate-900">{guestInfo.email}</span>
+                        <span className="text-muted-foreground">Email</span>
+                        <span className="font-medium text-foreground">{guestInfo.email}</span>
                     </div>
                 </div>
 
                 {quote && (
                     <div className="pt-4 space-y-2" aria-live="polite">
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">
+                            <span className="text-muted-foreground">
                                 ${(quote.perNightCents / 100).toFixed(2)} × {quote.nights} nights
                             </span>
-                            <span className="font-medium text-slate-900">${(quote.baseSubtotalCents / 100).toFixed(2)}</span>
+                            <span className="font-medium text-foreground">${(quote.baseSubtotalCents / 100).toFixed(2)}</span>
                         </div>
                         {quote.rulesDeltaCents !== 0 && (
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-600">Adjustments</span>
-                                <span className={`font-medium ${quote.rulesDeltaCents < 0 ? "text-status-success" : "text-slate-900"}`}>
+                                <span className="text-muted-foreground">Adjustments</span>
+                                <span className={`font-medium ${quote.rulesDeltaCents < 0 ? "text-keepr-evergreen" : "text-foreground"}`}>
                                     {quote.rulesDeltaCents < 0 ? "-" : "+"}${(Math.abs(quote.rulesDeltaCents) / 100).toFixed(2)}
                                 </span>
                             </div>
                         )}
                         {appliedDiscountCents > 0 && (
-                            <div className="flex justify-between text-sm text-status-success">
+                            <div className="flex justify-between text-sm text-keepr-evergreen">
                                 <span className="flex items-center gap-1">
                                     <svg className="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
                                     {promoApplied ? `Promo: ${promoCode}` : "Discounts"}
@@ -2320,20 +2320,20 @@ function ReviewStep({
                             </div>
                         )}
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Subtotal after discounts</span>
-                            <span className="font-medium text-slate-900">${(totalAfterDiscount / 100).toFixed(2)}</span>
+                            <span className="text-muted-foreground">Subtotal after discounts</span>
+                            <span className="font-medium text-foreground">${(totalAfterDiscount / 100).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Taxes</span>
-                            <span className="font-medium text-slate-900">${(taxesCents / 100).toFixed(2)}</span>
+                            <span className="text-muted-foreground">Taxes</span>
+                            <span className="font-medium text-foreground">${(taxesCents / 100).toFixed(2)}</span>
                         </div>
                         {passThroughFeeCents > 0 ? (
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-600">Service fee (guest pays)</span>
-                                <span className="font-medium text-slate-900">${(passThroughFeeCents / 100).toFixed(2)}</span>
+                                <span className="text-muted-foreground">Service fee (guest pays)</span>
+                                <span className="font-medium text-foreground">${(passThroughFeeCents / 100).toFixed(2)}</span>
                             </div>
                         ) : (
-                            <div className="flex justify-between text-xs text-slate-500">
+                            <div className="flex justify-between text-xs text-muted-foreground">
                                 <span>Service fee absorbed by campground</span>
                                 <span aria-hidden="true">—</span>
                             </div>
@@ -2347,13 +2347,13 @@ function ReviewStep({
                                 <span className="font-medium">+${(charityAmountCents / 100).toFixed(2)}</span>
                             </div>
                         )}
-                        <div className="flex justify-between text-lg font-bold pt-2 border-t border-slate-300">
-                            <span className="text-slate-900">Total due</span>
-                            <span className="text-status-success">${(finalTotalWithFees / 100).toFixed(2)}</span>
+                        <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
+                            <span className="text-foreground">Total due</span>
+                            <span className="text-keepr-evergreen">${(finalTotalWithFees / 100).toFixed(2)}</span>
                         </div>
-                        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
+                        <div className="rounded-md border border-border bg-muted p-3 text-xs text-foreground space-y-1">
                             <p>{paymentMethodsLabel}</p>
-                            <p className="text-slate-500">
+                            <p className="text-muted-foreground">
                                 Fees and taxes are itemized above. When fee pass-through is enabled, guests see the service fee as a separate line.
                             </p>
                         </div>
@@ -2362,18 +2362,18 @@ function ReviewStep({
             </div>
 
             {/* Promo Code Section */}
-            <div className="mb-6 p-4 bg-white border border-slate-200 rounded-xl">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Have a promo code?</label>
+            <div className="mb-6 p-4 bg-card border border-border rounded-xl">
+                <label className="block text-sm font-medium text-foreground mb-2">Have a promo code?</label>
                 {promoApplied ? (
-                    <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between p-3 bg-keepr-evergreen/10 border border-keepr-evergreen/20 rounded-lg">
                         <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4 text-status-success" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                            <span className="font-mono font-medium text-status-success">{promoCode}</span>
-                            <span className="text-sm text-status-success">applied!</span>
+                            <svg className="w-4 h-4 text-keepr-evergreen" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span className="font-mono font-medium text-keepr-evergreen">{promoCode}</span>
+                            <span className="text-sm text-keepr-evergreen">applied!</span>
                         </div>
                         <button
                             onClick={handleRemovePromo}
-                            className="text-sm text-slate-500 hover:text-slate-700"
+                            className="text-sm text-muted-foreground hover:text-foreground"
                         >
                             Remove
                         </button>
@@ -2385,13 +2385,13 @@ function ReviewStep({
                             value={promoInput}
                             onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
                             placeholder="Enter code"
-                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg font-mono uppercase focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            className="flex-1 px-3 py-2 border border-border rounded-lg font-mono uppercase focus:ring-2 focus:ring-keepr-evergreen focus:border-keepr-evergreen"
                             disabled={promoValidating}
                         />
                         <button
                             onClick={handleApplyPromo}
                             disabled={!promoInput.trim() || promoValidating || !quote}
-                            className="px-4 py-2 bg-slate-800 text-white font-medium rounded-lg hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                            className="px-4 py-2 bg-keepr-charcoal text-white font-medium rounded-lg hover:bg-keepr-charcoal/90 disabled:bg-muted disabled:cursor-not-allowed transition-colors"
                         >
                             {promoValidating ? "..." : "Apply"}
                         </button>
@@ -2403,10 +2403,10 @@ function ReviewStep({
             </div>
 
             {bookingPolicies.length > 0 && (
-                <div className="mb-6 p-4 bg-white border border-slate-200 rounded-xl">
+                <div className="mb-6 p-4 bg-card border border-border rounded-xl">
                     <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-slate-900">Park Policies & Agreements</h4>
-                        <span className="text-xs text-slate-500">
+                        <h4 className="font-semibold text-foreground">Park Policies & Agreements</h4>
+                        <span className="text-xs text-muted-foreground">
                             {bookingPolicies.length} {bookingPolicies.length === 1 ? "policy" : "policies"}
                         </span>
                     </div>
@@ -2421,10 +2421,10 @@ function ReviewStep({
                                 enforcement === "pre_booking"
                                     ? "bg-rose-100 text-rose-700 border-rose-200"
                                     : enforcement === "pre_checkin"
-                                        ? "bg-status-warning/15 text-status-warning border-status-warning/30"
+                                        ? "bg-keepr-clay/10 text-keepr-clay border-keepr-clay/30"
                                         : enforcement === "post_booking"
-                                            ? "bg-emerald-100 text-status-success border-status-success/30"
-                                            : "bg-slate-100 text-slate-700 border-slate-200";
+                                            ? "bg-keepr-evergreen/15 text-keepr-evergreen border-keepr-evergreen/30"
+                                            : "bg-muted text-foreground border-border";
                             const badgeLabel =
                                 enforcement === "pre_booking"
                                     ? "Required before booking"
@@ -2434,29 +2434,29 @@ function ReviewStep({
                                             ? "Sent after booking"
                                             : "Information only";
                             return (
-                                <div key={policy.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                                <div key={policy.id} className="rounded-lg border border-border bg-muted p-3 space-y-2">
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
-                                            <div className="font-medium text-slate-900">{policy.name}</div>
+                                            <div className="font-medium text-foreground">{policy.name}</div>
                                             {policy.description && (
-                                                <div className="text-xs text-slate-600">{policy.description}</div>
+                                                <div className="text-xs text-muted-foreground">{policy.description}</div>
                                             )}
                                         </div>
                                         <Badge variant="outline" className={badgeTone}>{badgeLabel}</Badge>
                                     </div>
                                     {policy.content && (
-                                        <details className="text-xs text-slate-600">
+                                        <details className="text-xs text-muted-foreground">
                                             <summary className="cursor-pointer select-none">View policy details</summary>
-                                            <div className="mt-2 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700 whitespace-pre-wrap max-h-48 overflow-auto">
+                                            <div className="mt-2 rounded-md border border-border bg-card p-3 text-xs text-foreground whitespace-pre-wrap max-h-48 overflow-auto">
                                                 {policy.content}
                                             </div>
                                         </details>
                                     )}
                                     {showAcceptance && (
-                                        <label className="flex items-start gap-2 text-sm text-slate-700">
+                                        <label className="flex items-start gap-2 text-sm text-foreground">
                                             <input
                                                 type="checkbox"
-                                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-status-success focus:ring-emerald-500"
+                                                className="mt-0.5 h-4 w-4 rounded border-border text-keepr-evergreen focus:ring-keepr-evergreen"
                                                 checked={policyAcceptances[policy.id] || false}
                                                 onChange={(e) =>
                                                     setPolicyAcceptances((prev) => ({ ...prev, [policy.id]: e.target.checked }))
@@ -2472,7 +2472,7 @@ function ReviewStep({
                         })}
                     </div>
                     {policiesBlocking && (
-                        <div className="mt-3 rounded-md border border-status-warning/30 bg-status-warning/15 p-3 text-xs text-status-warning">
+                        <div className="mt-3 rounded-md border border-keepr-clay/30 bg-keepr-clay/10 p-3 text-xs text-keepr-clay">
                             Please accept the required policies to continue.
                         </div>
                     )}
@@ -2497,12 +2497,12 @@ function ReviewStep({
 
             {/* Tax Exemption Waiver Section */}
             {waiverRequired && (
-                <div className="mb-6 p-4 bg-status-warning/15 border border-status-warning/30 rounded-xl">
+                <div className="mb-6 p-4 bg-keepr-clay/10 border border-keepr-clay/30 rounded-xl">
                     <div className="flex items-start gap-3">
-                        <svg className="w-6 h-6 text-status-warning" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                        <svg className="w-6 h-6 text-keepr-clay" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
                         <div className="flex-1">
-                            <h4 className="font-semibold text-status-warning mb-2">Tax Exemption Waiver</h4>
-                            <p className="text-sm text-status-warning mb-4 whitespace-pre-wrap">
+                            <h4 className="font-semibold text-keepr-clay mb-2">Tax Exemption Waiver</h4>
+                            <p className="text-sm text-keepr-clay mb-4 whitespace-pre-wrap">
                                 {quote?.taxWaiverText || "By checking this box, I certify that I qualify for the tax exemption as described and agree to provide any required documentation upon check-in."}
                             </p>
                             <label className="flex items-center gap-3 cursor-pointer">
@@ -2510,9 +2510,9 @@ function ReviewStep({
                                     type="checkbox"
                                     checked={taxWaiverSigned}
                                     onChange={(e) => setTaxWaiverSigned(e.target.checked)}
-                                    className="w-5 h-5 rounded border-status-warning/50 text-status-warning focus:ring-status-warning"
+                                    className="w-5 h-5 rounded border-keepr-clay/40 text-keepr-clay focus:ring-keepr-clay"
                                 />
-                                <span className="text-sm font-medium text-status-warning">
+                                <span className="text-sm font-medium text-keepr-clay">
                                     I agree to the tax exemption waiver terms
                                 </span>
                             </label>
@@ -2551,32 +2551,32 @@ function ReviewStep({
             )}
 
             {/* Trust Badges */}
-            <div className="mb-6 rounded-xl border border-status-success/30 bg-gradient-to-br from-emerald-50 to-cyan-50 p-5">
+            <div className="mb-6 rounded-xl border border-keepr-evergreen/30 bg-gradient-to-br from-keepr-off-white to-keepr-evergreen/10 p-5">
                 <div className="flex items-center gap-2 mb-4">
-                    <Lock className="h-5 w-5 text-status-success" />
-                    <h4 className="font-semibold text-slate-900">Your Payment is Secure</h4>
+                    <Lock className="h-5 w-5 text-keepr-evergreen" />
+                    <h4 className="font-semibold text-foreground">Your Payment is Secure</h4>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="flex flex-col items-center text-center p-3 bg-white rounded-lg border border-slate-100">
-                        <Shield className="h-6 w-6 text-status-info mb-2" />
-                        <span className="text-xs font-medium text-slate-700">256-bit SSL</span>
+                    <div className="flex flex-col items-center text-center p-3 bg-card rounded-lg border border-border">
+                        <Shield className="h-6 w-6 text-keepr-charcoal mb-2" />
+                        <span className="text-xs font-medium text-foreground">256-bit SSL</span>
                     </div>
-                    <div className="flex flex-col items-center text-center p-3 bg-white rounded-lg border border-slate-100">
-                        <CheckCircle className="h-6 w-6 text-status-success mb-2" />
-                        <span className="text-xs font-medium text-slate-700">PCI Compliant</span>
+                    <div className="flex flex-col items-center text-center p-3 bg-card rounded-lg border border-border">
+                        <CheckCircle className="h-6 w-6 text-keepr-evergreen mb-2" />
+                        <span className="text-xs font-medium text-foreground">PCI Compliant</span>
                     </div>
-                    <div className="flex flex-col items-center text-center p-3 bg-white rounded-lg border border-slate-100">
+                    <div className="flex flex-col items-center text-center p-3 bg-card rounded-lg border border-border">
                         <CreditCard className="h-6 w-6 text-purple-600 mb-2" />
-                        <span className="text-xs font-medium text-slate-700">Stripe Secure</span>
+                        <span className="text-xs font-medium text-foreground">Stripe Secure</span>
                     </div>
-                    <div className="flex flex-col items-center text-center p-3 bg-white rounded-lg border border-slate-100">
+                    <div className="flex flex-col items-center text-center p-3 bg-card rounded-lg border border-border">
                         <CheckCircle className="h-6 w-6 text-pink-600 mb-2" />
-                        <span className="text-xs font-medium text-slate-700">Instant Confirm</span>
+                        <span className="text-xs font-medium text-foreground">Instant Confirm</span>
                     </div>
                 </div>
 
-                <p className="text-xs text-slate-600 mt-4 text-center">
+                <p className="text-xs text-muted-foreground mt-4 text-center">
                     Your payment information is encrypted and never stored on our servers. Powered by Stripe, the same payment processor trusted by Amazon and Google.
                 </p>
             </div>
@@ -2591,7 +2591,7 @@ function ReviewStep({
             ) : clientSecret ? (
                 <Elements stripe={stripePromise} options={{ clientSecret }}>
                     {holdCountdown && (
-                        <div className="mb-3 flex items-center gap-2 rounded-lg border border-status-warning/30 bg-status-warning/15 px-3 py-2 text-sm text-status-warning">
+                        <div className="mb-3 flex items-center gap-2 rounded-lg border border-keepr-clay/30 bg-keepr-clay/10 px-3 py-2 text-sm text-keepr-clay">
                             <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>
                             <span>
                                 We’re holding this site for you {holdCountdown === "Expired" ? "(hold expired — try again)" : `for ${holdCountdown} more`} before it releases.
@@ -2616,14 +2616,14 @@ function ReviewStep({
                     <button
                         onClick={onBack}
                         disabled={createReservationMutation.isPending}
-                        className="flex-1 py-4 bg-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-300 disabled:opacity-50 transition-colors"
+                        className="flex-1 py-4 bg-muted text-foreground font-semibold rounded-xl hover:bg-muted disabled:opacity-50 transition-colors"
                     >
                         ← Back
                     </button>
                     <button
                         onClick={handleProceedToPayment}
                         disabled={createReservationMutation.isPending || !quote || waiverBlocking || policiesBlocking || formsBlocking}
-                        className="flex-1 py-4 bg-status-success text-white font-semibold rounded-xl hover:bg-status-success/90 disabled:bg-slate-400 transition-colors"
+                        className="flex-1 py-4 bg-keepr-evergreen text-white font-semibold rounded-xl hover:bg-keepr-evergreen-dark disabled:bg-muted transition-colors"
                         title={proceedDisabledReason}
                     >
                         {createReservationMutation.isPending ? "Creating..." : "Proceed to Payment"}
@@ -2660,15 +2660,15 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
                     animate={{ scale: 1, rotate: 0 }}
                     transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
                 >
-                    <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
-                        <CheckCircle className="w-12 h-12 text-status-success" />
+                    <div className="w-20 h-20 bg-keepr-evergreen/15 rounded-full flex items-center justify-center">
+                        <CheckCircle className="w-12 h-12 text-keepr-evergreen" />
                     </div>
                     {/* Decorative sparkles */}
-                    <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-amber-400" />
-                    <Sparkles className="absolute -bottom-1 -left-2 w-5 h-5 text-emerald-400" />
+                    <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-keepr-clay-light" />
+                    <Sparkles className="absolute -bottom-1 -left-2 w-5 h-5 text-keepr-evergreen-light" />
                 </motion.div>
                 <motion.h2
-                    className="text-4xl font-bold text-status-success mb-2"
+                    className="text-4xl font-bold text-keepr-evergreen mb-2"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
@@ -2676,7 +2676,7 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
                     You're All Set!
                 </motion.h2>
                 <motion.p
-                    className="text-lg text-slate-700 mb-4"
+                    className="text-lg text-foreground mb-4"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 }}
@@ -2684,7 +2684,7 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
                     Your adventure at {campgroundName} is confirmed
                 </motion.p>
                 <motion.div
-                    className="inline-flex items-center gap-2 bg-status-success/15 border border-status-success/30 rounded-full px-6 py-3 text-sm text-status-success"
+                    className="inline-flex items-center gap-2 bg-keepr-evergreen/10 border border-keepr-evergreen/30 rounded-full px-6 py-3 text-sm text-keepr-evergreen"
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.6 }}
@@ -2696,63 +2696,63 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
 
             {/* Confirmation Details Card */}
             <motion.div
-                className="bg-white border border-slate-200 rounded-2xl p-6 shadow-lg mb-8"
+                className="bg-card border border-border rounded-2xl p-6 shadow-lg mb-8"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
             >
-                <div className="flex flex-col md:flex-row justify-between gap-6 mb-6 pb-6 border-b border-slate-100">
+                <div className="flex flex-col md:flex-row justify-between gap-6 mb-6 pb-6 border-b border-border">
                     <div>
-                        <p className="text-sm text-slate-500 uppercase tracking-wide font-medium mb-1">Confirmation Code</p>
+                        <p className="text-sm text-muted-foreground uppercase tracking-wide font-medium mb-1">Confirmation Code</p>
                         <div className="flex items-center gap-2">
-                            <p className="text-3xl font-mono font-bold text-status-success">
+                            <p className="text-3xl font-mono font-bold text-keepr-evergreen">
                                 {reservation.id.slice(-8).toUpperCase()}
                             </p>
                             <button
                                 onClick={handleCopyCode}
-                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                className="p-2 hover:bg-muted rounded-lg transition-colors"
                                 title="Copy confirmation code"
                             >
                                 {copied ? (
-                                    <Check className="h-4 w-4 text-status-success" />
+                                    <Check className="h-4 w-4 text-keepr-evergreen" />
                                 ) : (
-                                    <Copy className="h-4 w-4 text-slate-500" />
+                                    <Copy className="h-4 w-4 text-muted-foreground" />
                                 )}
                             </button>
                         </div>
                     </div>
                     <div className="text-right">
-                        <p className="text-sm text-slate-500 uppercase tracking-wide font-medium mb-1">Total Paid</p>
-                        <p className="text-3xl font-bold text-slate-900">${(reservation.totalAmount / 100).toFixed(2)}</p>
+                        <p className="text-sm text-muted-foreground uppercase tracking-wide font-medium mb-1">Total Paid</p>
+                        <p className="text-3xl font-bold text-foreground">${(reservation.totalAmount / 100).toFixed(2)}</p>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <p className="text-sm text-slate-500 mb-1 flex items-center gap-2">
+                        <p className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
                             Dates
                         </p>
-                        <p className="font-medium text-slate-900">
+                        <p className="font-medium text-foreground">
                             {new Date(reservation.arrivalDate).toLocaleDateString()} - {new Date(reservation.departureDate).toLocaleDateString()}
                         </p>
                     </div>
                     <div>
-                        <p className="text-sm text-slate-500 mb-1 flex items-center gap-2">
+                        <p className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
                             <Users className="h-4 w-4" />
                             Guests
                         </p>
-                        <p className="font-medium text-slate-900">
+                        <p className="font-medium text-foreground">
                             {reservation.adults} Adults, {reservation.children} Children
                         </p>
                     </div>
                     {(reservation.siteId || reservation.siteClassId) && (
                         <div className="col-span-full">
-                            <p className="text-sm text-slate-500 mb-1 flex items-center gap-2">
+                            <p className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
                                 <MapPin className="h-4 w-4" />
                                 Site
                             </p>
-                            <p className="font-medium text-slate-900">
+                            <p className="font-medium text-foreground">
                                 {reservation.site?.name || "Assigned on Arrival"}
                             </p>
                         </div>
@@ -2762,45 +2762,45 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
 
             {/* What Happens Next */}
             <motion.div
-                className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 mb-8"
+                className="bg-gradient-to-br from-keepr-charcoal/5 to-keepr-charcoal/10 border border-keepr-charcoal/10 rounded-2xl p-6 mb-8"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
             >
-                <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2 text-lg">
+                <h3 className="font-bold text-keepr-charcoal mb-4 flex items-center gap-2 text-lg">
                     <Sparkles className="h-5 w-5" />
                     What happens next?
                 </h3>
                 <div className="space-y-4">
                     <div className="flex gap-4">
-                        <div className="flex-shrink-0 w-8 h-8 bg-status-info text-white rounded-full flex items-center justify-center font-bold text-sm">
+                        <div className="flex-shrink-0 w-8 h-8 bg-keepr-charcoal text-white rounded-full flex items-center justify-center font-bold text-sm">
                             1
                         </div>
                         <div>
-                            <p className="font-medium text-blue-900">Check your email</p>
-                            <p className="text-sm text-status-info">
+                            <p className="font-medium text-keepr-charcoal">Check your email</p>
+                            <p className="text-sm text-keepr-charcoal">
                                 We've sent your confirmation and receipt. Add it to your calendar!
                             </p>
                         </div>
                     </div>
                     <div className="flex gap-4">
-                        <div className="flex-shrink-0 w-8 h-8 bg-status-info text-white rounded-full flex items-center justify-center font-bold text-sm">
+                        <div className="flex-shrink-0 w-8 h-8 bg-keepr-charcoal text-white rounded-full flex items-center justify-center font-bold text-sm">
                             2
                         </div>
                         <div>
-                            <p className="font-medium text-blue-900">Get check-in details</p>
-                            <p className="text-sm text-status-info">
+                            <p className="font-medium text-keepr-charcoal">Get check-in details</p>
+                            <p className="text-sm text-keepr-charcoal">
                                 48 hours before arrival, we'll email you check-in instructions and directions
                             </p>
                         </div>
                     </div>
                     <div className="flex gap-4">
-                        <div className="flex-shrink-0 w-8 h-8 bg-status-info text-white rounded-full flex items-center justify-center font-bold text-sm">
+                        <div className="flex-shrink-0 w-8 h-8 bg-keepr-charcoal text-white rounded-full flex items-center justify-center font-bold text-sm">
                             3
                         </div>
                         <div>
-                            <p className="font-medium text-blue-900">Pack and enjoy!</p>
-                            <p className="text-sm text-status-info">
+                            <p className="font-medium text-keepr-charcoal">Pack and enjoy!</p>
+                            <p className="text-sm text-keepr-charcoal">
                                 Check the weather, pack your gear, and get ready for an unforgettable stay
                             </p>
                         </div>
@@ -2817,14 +2817,14 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
             >
                 <Link
                     href={`/park/${slug}`}
-                    className="flex-1 inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg shadow-emerald-200"
+                    className="flex-1 inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-keepr-evergreen to-keepr-evergreen-light text-white font-semibold rounded-xl hover:from-keepr-evergreen-dark hover:to-keepr-evergreen transition-all shadow-lg shadow-keepr-evergreen/25"
                 >
                     <ArrowLeft className="h-5 w-5 mr-2" />
                     Back to {campgroundName}
                 </Link>
                 <button
                     onClick={() => window.print()}
-                    className="flex-1 inline-flex items-center justify-center px-8 py-4 bg-white border-2 border-slate-300 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                    className="flex-1 inline-flex items-center justify-center px-8 py-4 bg-card border-2 border-border text-foreground font-semibold rounded-xl hover:bg-muted transition-colors"
                 >
                     <Printer className="h-5 w-5 mr-2" />
                     Print Confirmation
@@ -2833,12 +2833,12 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
 
             {/* Social Proof / Share */}
             <motion.div
-                className="mt-8 p-6 bg-slate-50 rounded-xl border border-slate-200"
+                className="mt-8 p-6 bg-muted rounded-xl border border-border"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.9 }}
             >
-                <p className="text-sm text-slate-600 mb-3 text-center font-medium">
+                <p className="text-sm text-muted-foreground mb-3 text-center font-medium">
                     Know someone who'd love {campgroundName}?
                 </p>
                 <div className="flex gap-3 justify-center">
@@ -2852,7 +2852,7 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
                                 navigator.clipboard.writeText(`${window.location.origin}/park/${slug}`);
                             });
                         }}
-                        className="px-6 py-2 bg-status-success text-white rounded-lg text-sm font-medium hover:bg-status-success/90 transition-colors flex items-center gap-2"
+                        className="px-6 py-2 bg-keepr-evergreen text-white rounded-lg text-sm font-medium hover:bg-keepr-evergreen-dark transition-colors flex items-center gap-2"
                     >
                         <Share2 className="h-4 w-4" />
                         Share with Friends
@@ -3196,22 +3196,22 @@ export default function BookingPage() {
 
     if (isLoadingCampground) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-slate-50 to-white">
+            <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-keepr-off-white to-white">
                 {/* Animated campground icon */}
                 <div className="relative">
-                    <Tent className="h-12 w-12 text-emerald-500 animate-bounce" />
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-16 h-2 bg-slate-200/50 rounded-full blur-sm" />
+                    <Tent className="h-12 w-12 text-keepr-evergreen animate-bounce" />
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-16 h-2 bg-border/50 rounded-full blur-sm" />
                 </div>
                 <div className="text-center space-y-2">
-                    <p className="text-slate-700 font-medium animate-pulse">Preparing your booking...</p>
-                    <p className="text-sm text-slate-500">Almost ready for your adventure</p>
+                    <p className="text-foreground font-medium animate-pulse">Preparing your booking...</p>
+                    <p className="text-sm text-muted-foreground">Almost ready for your adventure</p>
                 </div>
                 {/* Progress dots */}
                 <div className="flex gap-1.5">
                     {[0, 1, 2].map((i) => (
                         <div
                             key={i}
-                            className="w-2 h-2 rounded-full bg-status-success/150"
+                            className="w-2 h-2 rounded-full bg-keepr-evergreen/40"
                             style={{ animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite` }}
                         />
                     ))}
@@ -3223,11 +3223,11 @@ export default function BookingPage() {
     if (campgroundError || !campground) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-4">
-                <Tent className="h-16 w-16 text-emerald-500" />
-                <h1 className="text-2xl font-bold text-slate-800">Campground Not Found</h1>
+                <Tent className="h-16 w-16 text-keepr-evergreen" />
+                <h1 className="text-2xl font-bold text-foreground">Campground Not Found</h1>
                 <Link
                     href="/"
-                    className="px-6 py-3 bg-status-success text-white rounded-lg font-medium hover:bg-status-success/90"
+                    className="px-6 py-3 bg-keepr-evergreen text-white rounded-lg font-medium hover:bg-keepr-evergreen-dark"
                 >
                     Browse All Campgrounds
                 </Link>
@@ -3236,7 +3236,7 @@ export default function BookingPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
+        <div className="min-h-screen bg-gradient-to-b from-keepr-off-white to-white">
             {/* Third-party analytics (GA4 and Meta Pixel) */}
             <ThirdPartyAnalytics
                 gaMeasurementId={campground.gaMeasurementId}
@@ -3244,12 +3244,12 @@ export default function BookingPage() {
             />
 
             {/* Header */}
-            <header className="bg-white shadow-sm">
+            <header className="bg-card shadow-sm">
                 <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <Link href={`/park/${slug}`} className="text-status-success hover:text-status-success/90 font-medium text-sm">
+                    <Link href={`/park/${slug}`} className="text-keepr-evergreen hover:text-keepr-evergreen font-medium text-sm">
                         ← Back to {campground.name}
                     </Link>
-                    <h1 className="font-bold text-slate-900">Book Your Stay</h1>
+                    <h1 className="font-bold text-foreground">Book Your Stay</h1>
                 </div>
             </header>
 
@@ -3378,14 +3378,14 @@ export default function BookingPage() {
                 )}
 
                 {campground?.aiSuggestionsEnabled && (
-                    <div className="mt-8 border border-slate-200 rounded-lg bg-white shadow-sm p-4 space-y-3">
+                    <div className="mt-8 border border-border rounded-lg bg-card shadow-sm p-4 space-y-3">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-slate-900">Need help? Ask in natural language</h3>
+                            <h3 className="text-lg font-semibold text-foreground">Need help? Ask in natural language</h3>
                             {askUsage && askUsage.totalTokens !== null && (
-                                <span className="text-xs text-slate-500">Tokens: {askUsage.totalTokens ?? "n/a"}</span>
+                                <span className="text-xs text-muted-foreground">Tokens: {askUsage.totalTokens ?? "n/a"}</span>
                             )}
                         </div>
-                        <p className="text-sm text-slate-600">
+                        <p className="text-sm text-muted-foreground">
                             Ask how to book, change dates, apply promos, or get guidance. AI is campground-specific and never uses guest PII.
                         </p>
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -3393,19 +3393,19 @@ export default function BookingPage() {
                                 value={askQuestion}
                                 onChange={(e) => setAskQuestion(e.target.value)}
                                 placeholder="e.g., How do I switch to a pet-friendly site for the same dates?"
-                                className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-sm"
+                                className="flex-1 border border-border rounded-md px-3 py-2 text-sm"
                             />
                             <button
                                 onClick={handleAsk}
                                 disabled={askLoading || !askQuestion.trim()}
-                                className="px-4 py-2 bg-status-success text-white rounded-md text-sm font-medium hover:bg-status-success/90 disabled:opacity-50"
+                                className="px-4 py-2 bg-keepr-evergreen text-white rounded-md text-sm font-medium hover:bg-keepr-evergreen-dark disabled:opacity-50"
                             >
                                 {askLoading ? "Asking..." : "Ask"}
                             </button>
                         </div>
-                        {askError && <div className="text-sm text-status-warning bg-status-warning/15 border border-status-warning/30 rounded-md p-2">{askError}</div>}
+                        {askError && <div className="text-sm text-keepr-clay bg-keepr-clay/10 border border-keepr-clay/30 rounded-md p-2">{askError}</div>}
                         {askAnswer && (
-                            <div className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-md p-3 whitespace-pre-wrap">
+                            <div className="text-sm text-foreground bg-muted border border-border rounded-md p-3 whitespace-pre-wrap">
                                 {askAnswer}
                             </div>
                         )}

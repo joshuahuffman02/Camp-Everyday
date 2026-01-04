@@ -21,6 +21,12 @@
       ],
       "@/shared": [
         "../../../packages/shared/src"
+      ],
+      "@campreserv/shared": [
+        "../../packages/shared/dist"
+      ],
+      "@campreserv/shared/*": [
+        "../../packages/shared/dist/*"
       ]
     },
     "incremental": true,

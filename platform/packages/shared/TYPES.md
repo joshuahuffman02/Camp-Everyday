@@ -61,9 +61,9 @@ const price = 9999; // $99.99
 const price = 99.99; // Floating point issues!
 ```
 
-Use `@campreserv/shared` format utilities for display:
+Use `@keepr/shared` format utilities for display:
 ```typescript
-import { formatCents } from '@campreserv/shared';
+import { formatCents } from '@keepr/shared';
 formatCents(9999); // "$99.99"
 ```
 
@@ -98,7 +98,7 @@ interface DepositConfig {
 Use `Create*Schema` variants which omit auto-generated fields:
 
 ```typescript
-import { CreateReservationSchema, CreateGuestSchema } from '@campreserv/shared';
+import { CreateReservationSchema, CreateGuestSchema } from '@keepr/shared';
 
 // These omit: id, createdAt, updatedAt
 const validGuest = CreateGuestSchema.parse(input);
@@ -135,7 +135,7 @@ import {
   CreateReservationSchema,
   type Reservation,
   type CreateReservationDto
-} from '@campreserv/shared';
+} from '@keepr/shared';
 
 // Validate API response
 const reservation = ReservationSchema.parse(apiResponse);

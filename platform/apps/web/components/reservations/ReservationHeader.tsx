@@ -1,4 +1,4 @@
-import { Reservation } from "@campreserv/shared";
+import { Reservation } from "@keepr/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";

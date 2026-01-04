@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/components/ui/use-toast";
-import type { Site } from "@campreserv/shared";
+import type { Site } from "@keepr/shared";
 
 type MaintenancePriority = "low" | "medium" | "high" | "critical";
 type MaintenanceStatus = "open" | "in_progress" | "closed";

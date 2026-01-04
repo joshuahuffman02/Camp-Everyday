@@ -6,7 +6,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { DepositConfig, DepositRule, DepositTier, DepositSeason, computeDepositDue, parseDepositConfig } from "@campreserv/shared";
+import { DepositConfig, DepositRule, DepositTier, DepositSeason, computeDepositDue, parseDepositConfig } from "@keepr/shared";
 
 type PresetKey = "simple" | "standard" | "enterprise";
 

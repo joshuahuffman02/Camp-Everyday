@@ -74,7 +74,7 @@ export class EmailService {
         const configuredFrom = process.env.SMTP_FROM || "";
         const isValidEmail = configuredFrom.includes("@");
         const resendFrom = isValidEmail ? configuredFrom : "Keepr <onboarding@resend.dev>";
-        const fromEmail = isValidEmail ? configuredFrom : "no-reply@campreserv.com";
+        const fromEmail = isValidEmail ? configuredFrom : "no-reply@keeprstay.com";
 
         const tryResend = async () => {
             const res = await fetch("https://api.resend.com/emails", {

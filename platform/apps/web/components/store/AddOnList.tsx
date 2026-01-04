@@ -13,7 +13,7 @@ import {
     AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { AddOnModal } from "./AddOnModal";
-import { AddOn } from "@campreserv/shared";
+import { AddOn } from "@keepr/shared";
 import { CardEmpty } from "../ui/empty-state";
 import { Gift } from "lucide-react";
 

@@ -1,17 +1,17 @@
-# @campreserv/integrations-sdk
+# @keepr/integrations-sdk
 
-Lightweight TypeScript client for Campreserv integrations endpoints.
+Lightweight TypeScript client for Keepr integrations endpoints.
 
 ## Install
 
 ```bash
-pnpm add @campreserv/integrations-sdk
+pnpm add @keepr/integrations-sdk
 ```
 
 ## Usage
 
 ```ts
-import { IntegrationsClient } from "@campreserv/integrations-sdk";
+import { IntegrationsClient } from "@keepr/integrations-sdk";
 
 const client = new IntegrationsClient({
   baseUrl: "https://api.example.com/api",

@@ -1,15 +1,21 @@
 "use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { FloatingTicketWidget } from "@/components/support/FloatingTicketWidget";
 import { SkipToContent } from "@/components/ui/skip-to-content";
 import { SyncStatusProvider } from "@/contexts/SyncStatusContext";
 import { FeatureTourProvider } from "@/components/tours/FeatureTourProvider";
 import { WebVitals } from "@/components/analytics/WebVitals";
 import { EasterEggsProvider } from "@/contexts/EasterEggsContext";
+
+// Dynamically import FloatingTicketWidget to avoid hydration issues with useQuery
+const FloatingTicketWidget = dynamic(
+  () => import("@/components/support/FloatingTicketWidget").then((mod) => mod.FloatingTicketWidget),
+  { ssr: false }
+);
 
 interface WindowWithSW extends Window {
   __forceSWUpdate?: () => void;

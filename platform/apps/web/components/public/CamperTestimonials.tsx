@@ -74,7 +74,7 @@ function StarRating({ rating }: { rating: number }) {
           key={star}
           className={cn(
             "h-4 w-4",
-            star <= rating ? "fill-amber-400 text-amber-400" : "fill-slate-200 text-muted-foreground"
+            star <= rating ? "fill-keepr-clay text-keepr-clay" : "fill-keepr-charcoal/10 text-keepr-charcoal/30"
           )}
         />
       ))}
@@ -127,8 +127,8 @@ export function CamperTestimonials({
               {/* Author */}
               <div className="flex items-center gap-3">
                 {/* Avatar - initials fallback */}
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <span className="text-emerald-700 font-semibold text-sm">
+                <div className="w-10 h-10 rounded-full bg-keepr-evergreen/10 flex items-center justify-center">
+                  <span className="text-keepr-evergreen font-semibold text-sm">
                     {testimonial.name.split(" ").map((n) => n[0]).join("")}
                   </span>
                 </div>
@@ -136,7 +136,7 @@ export function CamperTestimonials({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-foreground truncate">{testimonial.name}</p>
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                    <span className="inline-flex items-center gap-1 text-xs text-keepr-evergreen">
                       <CheckCircle2 className="h-3 w-3" />
                       Verified
                     </span>
@@ -162,7 +162,7 @@ export function CamperTestimonials({
           <p className="text-muted-foreground mb-4">Join thousands of happy campers</p>
           <a
             href="#search"
-            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
+            className="inline-flex items-center gap-2 bg-keepr-evergreen hover:bg-keepr-evergreen-light text-white font-semibold px-6 py-3 rounded-xl transition-colors"
           >
             Find Your Next Adventure
           </a>

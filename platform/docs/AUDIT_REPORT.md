@@ -1,7 +1,7 @@
 # Comprehensive Campground Management Software Audit
 
 ## Overview
-This expanded report provides a granular deep-dive into the **Campreserv / Camp-Everyday** platform. The system has evolved into a highly sophisticated ERP for outdoor hospitality, featuring advanced statistical analysis, social media automation, and resilient financial systems.
+This expanded report provides a granular deep-dive into the **Keepr** platform. The system has evolved into a highly sophisticated ERP for outdoor hospitality, featuring advanced statistical analysis, social media automation, and resilient financial systems.
 
 ---
 

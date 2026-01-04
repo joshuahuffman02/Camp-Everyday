@@ -14,7 +14,7 @@ import {
 } from "../ui/alert-dialog";
 import { ProductModal } from "./ProductModal";
 import { ProductImportExport } from "./ProductImportExport";
-import { Product, ProductCategory } from "@campreserv/shared";
+import { Product, ProductCategory } from "@keepr/shared";
 import { EmptyState } from "../ui/empty-state";
 import { Package, Plus } from "lucide-react";
 

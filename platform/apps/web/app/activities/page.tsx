@@ -27,7 +27,7 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { CreateEventDialog } from "../../components/events/CreateEventDialog";
-import { Event } from "@campreserv/shared";
+import { Event } from "@keepr/shared";
 import { cn } from "../../lib/utils";
 import { Skeleton } from "../../components/ui/skeleton";
 import { SessionScheduleWizard } from "../../components/activities/SessionScheduleWizard";

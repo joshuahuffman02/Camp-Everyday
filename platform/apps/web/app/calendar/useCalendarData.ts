@@ -4,7 +4,7 @@ import { apiClient } from "../../lib/api-client";
 import { useGanttStore } from "../../lib/gantt-store";
 import { useWhoami } from "@/hooks/use-whoami";
 import { recordError, recordMetric, startTiming } from "../../lib/calendar-metrics";
-import { computeDepositDue } from "@campreserv/shared";
+import { computeDepositDue } from "@keepr/shared";
 import { format, parseISO } from "date-fns";
 import {
     diffInDays,

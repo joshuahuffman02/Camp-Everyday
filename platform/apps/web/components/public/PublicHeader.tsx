@@ -125,9 +125,9 @@ export function PublicHeader() {
                             <Link
                                 href="/camping"
                                 onClick={() => setExploreOpen(false)}
-                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 transition-colors"
+                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gradient-to-r from-keepr-evergreen/10 to-keepr-evergreen/20 hover:from-keepr-evergreen/20 hover:to-keepr-evergreen/30 transition-colors"
                             >
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-keepr-evergreen to-keepr-evergreen-light flex items-center justify-center">
                                     <MapPin className="w-5 h-5 text-white" />
                                 </div>
                                 <div>
@@ -187,7 +187,7 @@ export function PublicHeader() {
                 className="flex items-center gap-2 px-2 py-1.5 rounded-full border border-border hover:shadow-md transition-all bg-card"
             >
                 <Menu className="w-4 h-4 text-muted-foreground ml-1" />
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-sm font-semibold">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-keepr-evergreen to-keepr-evergreen-light flex items-center justify-center text-white text-sm font-semibold">
                     {getInitials(session?.user?.name)}
                 </div>
             </button>
@@ -245,7 +245,7 @@ export function PublicHeader() {
                                 <Link
                                     href="/dashboard"
                                     onClick={() => setProfileOpen(false)}
-                                    className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+                                    className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-keepr-evergreen hover:bg-keepr-evergreen/10 transition-colors"
                                 >
                                     <Building2 className="w-4 h-4" />
                                     Manage your campground
@@ -308,7 +308,7 @@ export function PublicHeader() {
                     </Link>
                     <Link
                         href="/signup"
-                        className="px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg hover:from-emerald-500 hover:to-teal-500 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30"
+                        className="px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-keepr-evergreen to-keepr-evergreen-light rounded-lg hover:from-keepr-evergreen-light hover:to-keepr-evergreen transition-all shadow-lg shadow-keepr-evergreen/30 hover:shadow-keepr-evergreen/40"
                     >
                         Start Free Trial
                     </Link>
@@ -357,10 +357,10 @@ export function PublicHeader() {
                             <div className="pb-3 border-b border-border">
                                 <Link
                                     href="/camping"
-                                    className="flex items-center gap-3 rounded-lg px-3 py-3 bg-gradient-to-r from-emerald-50 to-teal-50"
+                                    className="flex items-center gap-3 rounded-lg px-3 py-3 bg-gradient-to-r from-keepr-evergreen/10 to-keepr-evergreen/20"
                                     onClick={closeMobile}
                                 >
-                                    <Compass className="w-5 h-5 text-emerald-600" />
+                                    <Compass className="w-5 h-5 text-keepr-evergreen" />
                                     <div>
                                         <p className="text-base font-medium text-foreground">Explore Campgrounds</p>
                                         <p className="text-xs text-muted-foreground">Browse all states & destinations</p>
@@ -401,7 +401,7 @@ export function PublicHeader() {
                             {session && hasCampgroundAccess && (
                                 <Link
                                     href="/dashboard"
-                                    className="flex items-center gap-2 rounded-lg px-3 py-3 text-base font-medium text-emerald-700 bg-emerald-50"
+                                    className="flex items-center gap-2 rounded-lg px-3 py-3 text-base font-medium text-keepr-evergreen bg-keepr-evergreen/10"
                                     onClick={closeMobile}
                                 >
                                     <Building2 className="w-5 h-5" />
@@ -415,7 +415,7 @@ export function PublicHeader() {
                                 ) : session ? (
                                     <>
                                         <div className="flex items-center gap-3 px-3 py-2">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-sm font-semibold">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-keepr-evergreen to-keepr-evergreen-light flex items-center justify-center text-white text-sm font-semibold">
                                                 {getInitials(session?.user?.name)}
                                             </div>
                                             <div>
@@ -469,7 +469,7 @@ export function PublicHeader() {
                                         </Link>
                                         <Link
                                             href="/signup"
-                                            className="block text-center px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg"
+                                            className="block text-center px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-keepr-evergreen to-keepr-evergreen-light rounded-lg"
                                             onClick={closeMobile}
                                         >
                                             Start Free Trial

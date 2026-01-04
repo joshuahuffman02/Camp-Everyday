@@ -8,7 +8,7 @@ import { apiClient } from "../../lib/api-client";
 import { Button } from "../../components/ui/button";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
-import { CampgroundSchema } from "@campreserv/shared";
+import { CampgroundSchema } from "@keepr/shared";
 import type { z } from "zod";
 
 function CampgroundsPageContent() {

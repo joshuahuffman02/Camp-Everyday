@@ -60,7 +60,7 @@ async function main() {
   const campgrounds = await prisma.campground.findMany({
     where: {
       OR: [
-        { slug: { startsWith: "camp-everyday" } },
+        { slug: { startsWith: "keepr" } },
         { slug: "sunset-sands-resort" },
         { slug: "blueberry-hill-camp" },
         { slug: "redwood-ridge-hideout" }

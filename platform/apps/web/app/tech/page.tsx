@@ -44,7 +44,7 @@ type ObservabilitySnapshot = {
 const stack = [
   { area: "Frontend", items: ["Next.js 15 (App Router)", "TypeScript", "Tailwind CSS", "shadcn-style UI", "TanStack Query"] },
   { area: "Backend", items: ["NestJS", "TypeScript", "Prisma ORM", "PostgreSQL", "Redis (placeholder)"] },
-  { area: "Shared", items: ["pnpm workspaces", "Zod schemas/types in @campreserv/shared"] },
+  { area: "Shared", items: ["pnpm workspaces", "Zod schemas/types in @keepr/shared"] },
   { area: "Dev tooling", items: ["ts-node-dev", "ES2020 target"] }
 ];
 

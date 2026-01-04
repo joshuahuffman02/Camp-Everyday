@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
-import { PageHeader } from "@/components/ui/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TableEmpty } from "@/components/ui/table";
@@ -790,41 +789,36 @@ export default function MessagesPage() {
 
     return (
         <DashboardShell density="full">
-            <div className="space-y-4 pb-4" id="messages-shell">
-                <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={SPRING_CONFIG}
-                >
-                    <PageHeader
-                        eyebrow="Guest communications"
-                        title={(
-                            <span className="flex items-center gap-3">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
-                                    <MessageSquare className="h-5 w-5" />
-                                </span>
-                                <span>Messages</span>
-                            </span>
-                        )}
-                        subtitle="Stay ahead of guest requests and team updates."
-                        actions={(
-                            <>
-                                <div className="text-xs text-muted-foreground hidden md:block">
-                                    Shortcuts: <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">⌘K</kbd> search •{" "}
-                                    <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">GN</kbd> needs reply
-                                </div>
-                                <Button
-                                    onClick={() => setIsComposeOpen(true)}
-                                    className="flex items-center gap-2"
-                                >
-                                    <PenSquare className="h-4 w-4" />
-                                    <span className="hidden sm:inline">Compose</span>
-                                </Button>
-                            </>
-                        )}
-                    />
-                </motion.div>
+            <div className="space-y-2 pb-2" id="messages-shell">
+                {/* Compact header - single line */}
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                        <h1 className="text-lg font-semibold">Messages</h1>
+                        <span className="text-sm text-muted-foreground hidden sm:inline">
+                            {totalConversations} conversations{overdueCount > 0 && <span className="text-amber-600 ml-1">• {overdueCount} need reply</span>}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowStats(!showStats)}
+                            className="hidden lg:flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                        >
+                            {showStats ? "Hide stats" : "Stats"}
+                        </button>
+                        <Button
+                            onClick={() => setIsComposeOpen(true)}
+                            size="sm"
+                            className="flex items-center gap-2"
+                        >
+                            <PenSquare className="h-4 w-4" />
+                            <span className="hidden sm:inline">Compose</span>
+                        </Button>
+                    </div>
+                </div>
 
+                {showStats && (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -909,6 +903,7 @@ export default function MessagesPage() {
                         </CardContent>
                     </button>
                 </motion.div>
+                )}
 
                 {/* Mobile quick actions */}
                 <div className="md:hidden">
@@ -1057,7 +1052,7 @@ export default function MessagesPage() {
                     </motion.div>
                 )}
 
-                <div className="flex flex-col gap-4 lg:flex-row lg:h-[calc(100vh-18rem)] lg:min-h-[500px]">
+                <div className="flex flex-col gap-4 lg:flex-row lg:h-[calc(100vh-10rem)] lg:min-h-[500px]">
                 {/* Sidebar */}
                 <Card className="w-full lg:w-80 flex flex-col">
                     <CardHeader className="pb-3">

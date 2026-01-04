@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { ProductCategory } from "@campreserv/shared";
+import { ProductCategory } from "@keepr/shared";
 
 interface CategoryModalProps {
     open: boolean;

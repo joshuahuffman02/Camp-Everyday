@@ -39,8 +39,8 @@ export function SocialProof() {
             return (
               <div key={stat.label} className="text-center">
                 <div className="flex justify-center mb-3">
-                  <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <Icon className="h-6 w-6 text-emerald-600" />
+                  <div className="h-12 w-12 rounded-full bg-keepr-evergreen/10 flex items-center justify-center">
+                    <Icon className="h-6 w-6 text-keepr-evergreen" />
                   </div>
                 </div>
                 <div className="text-3xl font-bold text-foreground mb-1">{stat.value}</div>

@@ -31,7 +31,7 @@ interface ValueStackProps {
 
 export function ValueStack({ className }: ValueStackProps) {
   return (
-    <section className={cn("py-16 md:py-20 bg-muted", className)}>
+    <section className={cn("py-16 md:py-20 bg-keepr-off-white", className)}>
       <div className="max-w-7xl mx-auto px-6">
         {/* Section header */}
         <div className="text-center mb-12 md:mb-16">
@@ -67,7 +67,7 @@ export function ValueStack({ className }: ValueStackProps) {
               <p className="text-muted-foreground mb-4">{pillar.description}</p>
 
               {/* Guarantee badge */}
-              <div className="flex items-center gap-2 text-emerald-600">
+              <div className="flex items-center gap-2 text-keepr-evergreen">
                 <CheckCircle2 className="h-4 w-4" />
                 <span className="text-sm font-medium">{pillar.guarantee}</span>
               </div>
@@ -77,7 +77,7 @@ export function ValueStack({ className }: ValueStackProps) {
 
         {/* Additional trust statement */}
         <div className="mt-12 text-center">
-          <div className="inline-flex items-center gap-3 bg-emerald-50 text-emerald-700 rounded-full px-5 py-2.5 text-sm font-medium">
+          <div className="inline-flex items-center gap-3 bg-keepr-evergreen/10 text-keepr-evergreen rounded-full px-5 py-2.5 text-sm font-medium">
             <Image
               src="/images/icons/trust-security.png"
               alt="Security"

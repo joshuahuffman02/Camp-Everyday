@@ -61,7 +61,7 @@ const availability = await response.json();`,
   "signature": "sha256=abc123..."
 }`,
 
-  sdk: `import { CampreservClient } from '@campreserv/sdk';
+  sdk: `import { CampreservClient } from '@keepr/sdk';
 
 const client = new CampreservClient({
   clientId: process.env.CAMPRESERV_CLIENT_ID,
@@ -96,12 +96,12 @@ function CodeBlock({ code, language = "typescript" }: { code: string; language?:
 
   return (
     <div className="relative group">
-      <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-sm">
+      <pre className="bg-keepr-charcoal text-white/90 p-4 rounded-lg overflow-x-auto text-sm">
         <code>{code}</code>
       </pre>
       <button
         onClick={handleCopy}
-        className="absolute top-3 right-3 p-2 rounded-md bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-3 right-3 p-2 rounded-md bg-keepr-charcoal/80 text-white/60 hover:text-white hover:bg-keepr-charcoal opacity-0 group-hover:opacity-100 transition-opacity"
         aria-label="Copy code"
       >
         {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -118,34 +118,49 @@ const tabs = [
   { id: "sdks", label: "SDKs" },
 ];
 
+const featureStyles = {
+  evergreen: {
+    iconBg: "bg-keepr-evergreen/10",
+    iconText: "text-keepr-evergreen",
+  },
+  clay: {
+    iconBg: "bg-keepr-clay/10",
+    iconText: "text-keepr-clay",
+  },
+  charcoal: {
+    iconBg: "bg-keepr-charcoal/10",
+    iconText: "text-keepr-charcoal",
+  },
+};
+
 export default function DevelopersClient() {
   const [activeTab, setActiveTab] = useState("overview");
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-keepr-off-white to-white">
       {/* Hero */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 text-white">
+      <div className="bg-gradient-to-br from-keepr-charcoal via-keepr-charcoal to-keepr-evergreen-dark text-white">
         <div className="max-w-6xl mx-auto px-6 py-20">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-500/30 mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-keepr-clay/15 text-keepr-clay-light text-xs font-semibold border border-keepr-clay/30 mb-6">
             <Zap className="h-3 w-3" />
             Developer Preview
           </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
             Build with Keepr API
           </h1>
-          <p className="text-xl text-slate-300 max-w-2xl mb-8">
+          <p className="text-xl text-white/70 max-w-2xl mb-8">
             Integrate campground availability, reservations, and payments into your applications with our RESTful API.
           </p>
           <div className="flex flex-wrap gap-4">
             <Link
               href="/dashboard/settings/developers"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-keepr-evergreen hover:bg-keepr-evergreen-light text-white font-semibold rounded-lg transition-colors"
             >
               Get API Keys
               <ChevronRight className="h-4 w-4" />
             </Link>
             <a
-              href={`${process.env.NEXT_PUBLIC_API_BASE || "https://camp-everydayapi-production.up.railway.app"}/api-docs`}
+              href={`${process.env.NEXT_PUBLIC_API_BASE || "https://api.keeprstay.com"}/api-docs`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg border border-white/20 transition-colors"
@@ -165,32 +180,32 @@ export default function DevelopersClient() {
               icon: Code2,
               title: "REST API",
               desc: "Simple, predictable REST endpoints with JSON responses. Versioned and documented.",
-              color: "emerald",
+              tone: "evergreen",
             },
             {
               icon: ShieldCheck,
               title: "OAuth 2.0",
               desc: "Industry-standard OAuth 2.0 authentication with granular scopes and token refresh.",
-              color: "blue",
+              tone: "charcoal",
             },
             {
               icon: PlugZap,
               title: "Webhooks",
               desc: "Real-time event notifications for reservations, payments, and availability changes.",
-              color: "purple",
+              tone: "clay",
             },
           ].map((feature) => (
             <div
               key={feature.title}
-              className="bg-white rounded-xl border border-slate-200 p-6 shadow-lg shadow-slate-200/50"
+              className="bg-card rounded-xl border border-border p-6 shadow-lg shadow-keepr-charcoal/10"
             >
               <div
-                className={`h-12 w-12 rounded-lg bg-${feature.color}-50 text-${feature.color}-600 flex items-center justify-center mb-4`}
+                className={`h-12 w-12 rounded-lg ${featureStyles[feature.tone as keyof typeof featureStyles].iconBg} ${featureStyles[feature.tone as keyof typeof featureStyles].iconText} flex items-center justify-center mb-4`}
               >
                 <feature.icon className="h-6 w-6" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">{feature.title}</h3>
-              <p className="text-sm text-slate-600">{feature.desc}</p>
+              <h3 className="text-lg font-semibold text-foreground mb-2">{feature.title}</h3>
+              <p className="text-sm text-muted-foreground">{feature.desc}</p>
             </div>
           ))}
         </div>
@@ -198,7 +213,7 @@ export default function DevelopersClient() {
 
       {/* Tabs */}
       <div className="max-w-6xl mx-auto px-6 py-16">
-        <div className="border-b border-slate-200 mb-8">
+        <div className="border-b border-border mb-8">
           <nav className="flex gap-8 -mb-px" aria-label="Tabs">
             {tabs.map((tab) => (
               <button
@@ -206,8 +221,8 @@ export default function DevelopersClient() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`pb-4 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? "border-emerald-500 text-emerald-600"
-                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    ? "border-keepr-evergreen text-keepr-evergreen"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                 }`}
               >
                 {tab.label}
@@ -221,8 +236,8 @@ export default function DevelopersClient() {
           {activeTab === "overview" && (
             <div className="space-y-8">
               <div className="prose prose-slate max-w-none">
-                <h2 className="text-2xl font-bold text-slate-900">API Overview</h2>
-                <p className="text-slate-600">
+                <h2 className="text-2xl font-bold text-foreground">API Overview</h2>
+                <p className="text-muted-foreground">
                   The Keepr API provides programmatic access to campground management
                   functionality. Use it to build integrations, sync data with external systems,
                   or create custom booking experiences.
@@ -240,21 +255,21 @@ export default function DevelopersClient() {
                 ].map((endpoint) => (
                   <div
                     key={endpoint.title}
-                    className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg"
+                    className="flex items-start gap-4 p-4 bg-muted rounded-lg"
                   >
-                    <div className="h-8 w-8 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                    <div className="h-8 w-8 rounded bg-keepr-evergreen/10 text-keepr-evergreen flex items-center justify-center flex-shrink-0">
                       <Globe className="h-4 w-4" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-900">{endpoint.title}</h4>
-                      <p className="text-sm text-slate-600">{endpoint.desc}</p>
+                      <h4 className="font-semibold text-foreground">{endpoint.title}</h4>
+                      <p className="text-sm text-muted-foreground">{endpoint.desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <p className="text-sm text-amber-800">
+              <div className="bg-keepr-clay/10 border border-keepr-clay/20 rounded-lg p-4">
+                <p className="text-sm text-keepr-clay">
                   <strong>Preview Status:</strong> The API is in developer preview. Endpoints and
                   authentication scopes may change before general availability.
                 </p>
@@ -265,25 +280,25 @@ export default function DevelopersClient() {
           {activeTab === "quickstart" && (
             <div className="space-y-8">
               <div className="prose prose-slate max-w-none">
-                <h2 className="text-2xl font-bold text-slate-900">Quickstart</h2>
-                <p className="text-slate-600">
+                <h2 className="text-2xl font-bold text-foreground">Quickstart</h2>
+                <p className="text-muted-foreground">
                   Get up and running with the Keepr API in minutes.
                 </p>
               </div>
 
               <div className="space-y-6">
                 <div className="flex gap-4">
-                  <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-keepr-evergreen/10 text-keepr-evergreen flex items-center justify-center font-bold text-sm flex-shrink-0">
                     1
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900 mb-2">Get your API credentials</h3>
-                    <p className="text-sm text-slate-600 mb-4">
+                    <h3 className="font-semibold text-foreground mb-2">Get your API credentials</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
                       Generate a client ID and secret in your dashboard settings.
                     </p>
                     <Link
                       href="/dashboard/settings/developers"
-                      className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
+                      className="text-sm font-medium text-keepr-evergreen hover:text-keepr-evergreen-light"
                     >
                       Go to Developer Settings
                     </Link>
@@ -291,12 +306,12 @@ export default function DevelopersClient() {
                 </div>
 
                 <div className="flex gap-4">
-                  <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-keepr-evergreen/10 text-keepr-evergreen flex items-center justify-center font-bold text-sm flex-shrink-0">
                     2
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900 mb-2">Get an access token</h3>
-                    <p className="text-sm text-slate-600 mb-4">
+                    <h3 className="font-semibold text-foreground mb-2">Get an access token</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
                       Exchange your credentials for an access token.
                     </p>
                     <CodeBlock code={codeExamples.auth} />
@@ -304,12 +319,12 @@ export default function DevelopersClient() {
                 </div>
 
                 <div className="flex gap-4">
-                  <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-keepr-evergreen/10 text-keepr-evergreen flex items-center justify-center font-bold text-sm flex-shrink-0">
                     3
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900 mb-2">Make your first request</h3>
-                    <p className="text-sm text-slate-600 mb-4">
+                    <h3 className="font-semibold text-foreground mb-2">Make your first request</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
                       Use the access token to call API endpoints.
                     </p>
                     <CodeBlock code={codeExamples.availability} />
@@ -322,16 +337,16 @@ export default function DevelopersClient() {
           {activeTab === "auth" && (
             <div className="space-y-8">
               <div className="prose prose-slate max-w-none">
-                <h2 className="text-2xl font-bold text-slate-900">Authentication</h2>
-                <p className="text-slate-600">
+                <h2 className="text-2xl font-bold text-foreground">Authentication</h2>
+                <p className="text-muted-foreground">
                   The API uses OAuth 2.0 for authentication. We support the client credentials
                   flow for server-to-server integrations.
                 </p>
               </div>
 
               <div className="space-y-6">
-                <div className="bg-white border border-slate-200 rounded-lg p-6">
-                  <h3 className="font-semibold text-slate-900 mb-4">Available Scopes</h3>
+                <div className="bg-card border border-border rounded-lg p-6">
+                  <h3 className="font-semibold text-foreground mb-4">Available Scopes</h3>
                   <div className="space-y-3">
                     {[
                       { scope: "campgrounds:read", desc: "Read campground information" },
@@ -343,17 +358,17 @@ export default function DevelopersClient() {
                       { scope: "payments:write", desc: "Process payments" },
                     ].map((item) => (
                       <div key={item.scope} className="flex items-center gap-4">
-                        <code className="px-2 py-1 bg-slate-100 rounded text-xs font-mono">
+                        <code className="px-2 py-1 bg-muted rounded text-xs font-mono">
                           {item.scope}
                         </code>
-                        <span className="text-sm text-slate-600">{item.desc}</span>
+                        <span className="text-sm text-muted-foreground">{item.desc}</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-lg p-6">
-                  <h3 className="font-semibold text-slate-900 mb-4">Token Endpoint</h3>
+                <div className="bg-card border border-border rounded-lg p-6">
+                  <h3 className="font-semibold text-foreground mb-4">Token Endpoint</h3>
                   <CodeBlock code={codeExamples.auth} />
                 </div>
               </div>
@@ -363,14 +378,14 @@ export default function DevelopersClient() {
           {activeTab === "webhooks" && (
             <div className="space-y-8">
               <div className="prose prose-slate max-w-none">
-                <h2 className="text-2xl font-bold text-slate-900">Webhooks</h2>
-                <p className="text-slate-600">
+                <h2 className="text-2xl font-bold text-foreground">Webhooks</h2>
+                <p className="text-muted-foreground">
                   Receive real-time notifications when events occur in your campground.
                 </p>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-lg p-6">
-                <h3 className="font-semibold text-slate-900 mb-4">Available Events</h3>
+              <div className="bg-card border border-border rounded-lg p-6">
+                <h3 className="font-semibold text-foreground mb-4">Available Events</h3>
                 <div className="grid md:grid-cols-2 gap-4">
                   {[
                     "reservation.created",
@@ -385,20 +400,20 @@ export default function DevelopersClient() {
                     "guest.created",
                   ].map((event) => (
                     <div key={event} className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                      <code className="text-sm font-mono text-slate-700">{event}</code>
+                      <div className="h-2 w-2 rounded-full bg-keepr-evergreen" />
+                      <code className="text-sm font-mono text-foreground">{event}</code>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-lg p-6">
-                <h3 className="font-semibold text-slate-900 mb-4">Payload Example</h3>
+              <div className="bg-card border border-border rounded-lg p-6">
+                <h3 className="font-semibold text-foreground mb-4">Payload Example</h3>
                 <CodeBlock code={codeExamples.webhook} language="json" />
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800">
+              <div className="bg-keepr-charcoal/5 border border-keepr-charcoal/10 rounded-lg p-4">
+                <p className="text-sm text-keepr-charcoal">
                   <strong>Security:</strong> All webhook payloads include a signature header.
                   Verify the signature using your webhook secret to ensure authenticity.
                 </p>
@@ -409,52 +424,52 @@ export default function DevelopersClient() {
           {activeTab === "sdks" && (
             <div className="space-y-8">
               <div className="prose prose-slate max-w-none">
-                <h2 className="text-2xl font-bold text-slate-900">SDKs & Libraries</h2>
-                <p className="text-slate-600">
+                <h2 className="text-2xl font-bold text-foreground">SDKs & Libraries</h2>
+                <p className="text-muted-foreground">
                   Official client libraries to simplify API integration.
                 </p>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-white border border-slate-200 rounded-lg p-6">
+                <div className="bg-card border border-border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="h-10 w-10 rounded bg-blue-100 flex items-center justify-center">
-                      <span className="text-blue-600 font-bold text-sm">TS</span>
+                    <div className="h-10 w-10 rounded bg-keepr-charcoal/10 flex items-center justify-center">
+                      <span className="text-keepr-charcoal font-bold text-sm">TS</span>
                     </div>
                     <div>
-                      <h3 className="font-semibold text-slate-900">TypeScript SDK</h3>
-                      <p className="text-xs text-slate-500">@campreserv/sdk</p>
+                      <h3 className="font-semibold text-foreground">TypeScript SDK</h3>
+                      <p className="text-xs text-muted-foreground">@keepr/sdk</p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-600 mb-4">
+                  <p className="text-sm text-muted-foreground mb-4">
                     Full TypeScript support with type-safe requests and responses.
                   </p>
-                  <code className="block px-3 py-2 bg-slate-100 rounded text-sm font-mono">
-                    npm install @campreserv/sdk
+                  <code className="block px-3 py-2 bg-muted rounded text-sm font-mono">
+                    npm install @keepr/sdk
                   </code>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-lg p-6">
+                <div className="bg-card border border-border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="h-10 w-10 rounded bg-green-100 flex items-center justify-center">
-                      <span className="text-green-600 font-bold text-sm">Py</span>
+                    <div className="h-10 w-10 rounded bg-keepr-clay/15 flex items-center justify-center">
+                      <span className="text-keepr-clay font-bold text-sm">Py</span>
                     </div>
                     <div>
-                      <h3 className="font-semibold text-slate-900">Python SDK</h3>
-                      <p className="text-xs text-slate-500">campreserv</p>
+                      <h3 className="font-semibold text-foreground">Python SDK</h3>
+                      <p className="text-xs text-muted-foreground">campreserv</p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-600 mb-4">
+                  <p className="text-sm text-muted-foreground mb-4">
                     Async-ready Python client with full type hints.
                   </p>
-                  <code className="block px-3 py-2 bg-slate-100 rounded text-sm font-mono text-slate-500">
+                  <code className="block px-3 py-2 bg-muted rounded text-sm font-mono text-muted-foreground">
                     pip install campreserv (coming soon)
                   </code>
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-lg p-6">
-                <h3 className="font-semibold text-slate-900 mb-4">TypeScript Example</h3>
+              <div className="bg-card border border-border rounded-lg p-6">
+                <h3 className="font-semibold text-foreground mb-4">TypeScript Example</h3>
                 <CodeBlock code={codeExamples.sdk} />
               </div>
             </div>
@@ -463,16 +478,16 @@ export default function DevelopersClient() {
       </div>
 
       {/* CTA */}
-      <div className="bg-slate-900 text-white">
+      <div className="bg-keepr-charcoal text-white">
         <div className="max-w-6xl mx-auto px-6 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to build?</h2>
-          <p className="text-slate-400 mb-8 max-w-xl mx-auto">
+          <p className="text-white/70 mb-8 max-w-xl mx-auto">
             Get your API keys and start integrating with Keepr today.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
               href="/dashboard/settings/developers"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-keepr-evergreen hover:bg-keepr-evergreen-light text-white font-semibold rounded-lg transition-colors"
             >
               Get API Keys
               <ChevronRight className="h-4 w-4" />

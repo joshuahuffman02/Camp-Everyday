@@ -101,29 +101,33 @@ export class AccountingConfidenceService {
     const targetMonth = month ?? this.getCurrentMonth();
     const { start, end } = this.getMonthBounds(targetMonth);
 
-    // Get expected payouts from successful payments
-    const payments = await this.prisma.payment.aggregate({
-      where: {
-        reservation: { campgroundId },
-        createdAt: { gte: start, lte: end },
-        status: "succeeded",
-      },
-      _sum: { amountCents: true, feeAmountCents: true },
-    });
+    // Get expected payouts from successful payments using raw SQL
+    // This avoids Prisma 7 + PrismaPg adapter aggregate query issues
+    const paymentSums = await this.prisma.$queryRaw<[{ total_amount: bigint | null; total_fees: bigint | null }]>`
+      SELECT
+        COALESCE(SUM(p."amountCents"), 0) as total_amount,
+        COALESCE(SUM(COALESCE(p."stripeFeeCents", 0) + COALESCE(p."applicationFeeCents", 0)), 0) as total_fees
+      FROM "Payment" p
+      JOIN "Reservation" r ON p."reservationId" = r.id
+      WHERE r."campgroundId" = ${campgroundId}
+        AND p."createdAt" >= ${start}
+        AND p."createdAt" <= ${end}
+        AND p.direction = 'charge'
+    `;
 
-    const expectedCents = (payments._sum.amountCents ?? 0) - (payments._sum.feeAmountCents ?? 0);
+    const expectedCents = Number(paymentSums[0]?.total_amount ?? 0) - Number(paymentSums[0]?.total_fees ?? 0);
 
-    // Get actual payouts
-    const payouts = await this.prisma.payout.aggregate({
-      where: {
-        campgroundId,
-        paidAt: { gte: start, lte: end },
-        status: "paid",
-      },
-      _sum: { amountCents: true },
-    });
+    // Get actual payouts using raw SQL
+    const payoutSums = await this.prisma.$queryRaw<[{ total_amount: bigint | null }]>`
+      SELECT COALESCE(SUM("amountCents"), 0) as total_amount
+      FROM "Payout"
+      WHERE "campgroundId" = ${campgroundId}
+        AND "paidAt" >= ${start}
+        AND "paidAt" <= ${end}
+        AND status = 'paid'
+    `;
 
-    const actualCents = payouts._sum.amountCents ?? 0;
+    const actualCents = Number(payoutSums[0]?.total_amount ?? 0);
     const difference = actualCents - expectedCents;
 
     // Allow small discrepancy due to timing
@@ -154,38 +158,40 @@ export class AccountingConfidenceService {
       where: { campgroundId, month },
     });
 
-    // Calculate metrics
-    const [revenue, refunds, payouts, platformFees] = await Promise.all([
-      this.prisma.payment.aggregate({
-        where: {
-          reservation: { campgroundId },
-          createdAt: { gte: start, lte: end },
-          status: "succeeded",
-        },
-        _sum: { amountCents: true },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          reservation: { campgroundId },
-          createdAt: { gte: start, lte: end },
-          status: "refunded",
-        },
-        _sum: { amountCents: true },
-      }),
-      this.prisma.payout.aggregate({
-        where: {
-          campgroundId,
-          paidAt: { gte: start, lte: end },
-          status: "paid",
-        },
-        _sum: { amountCents: true },
-      }),
+    // Calculate metrics using raw SQL to avoid Prisma 7 + PrismaPg aggregate issues
+    const [revenueResult, refundsResult, payoutsResult, platformFees] = await Promise.all([
+      this.prisma.$queryRaw<[{ total: bigint | null }]>`
+        SELECT COALESCE(SUM(p."amountCents"), 0) as total
+        FROM "Payment" p
+        JOIN "Reservation" r ON p."reservationId" = r.id
+        WHERE r."campgroundId" = ${campgroundId}
+          AND p."createdAt" >= ${start}
+          AND p."createdAt" <= ${end}
+          AND p.direction = 'charge'
+      `,
+      this.prisma.$queryRaw<[{ total: bigint | null }]>`
+        SELECT COALESCE(SUM(p."amountCents"), 0) as total
+        FROM "Payment" p
+        JOIN "Reservation" r ON p."reservationId" = r.id
+        WHERE r."campgroundId" = ${campgroundId}
+          AND p."createdAt" >= ${start}
+          AND p."createdAt" <= ${end}
+          AND p.direction = 'refund'
+      `,
+      this.prisma.$queryRaw<[{ total: bigint | null }]>`
+        SELECT COALESCE(SUM("amountCents"), 0) as total
+        FROM "Payout"
+        WHERE "campgroundId" = ${campgroundId}
+          AND "paidAt" >= ${start}
+          AND "paidAt" <= ${end}
+          AND status = 'paid'
+      `,
       this.getPlatformFeesForPeriod(campgroundId, start, end),
     ]);
 
-    const totalRevenueCents = revenue._sum.amountCents ?? 0;
-    const totalRefundsCents = refunds._sum.amountCents ?? 0;
-    const totalPayoutsCents = payouts._sum.amountCents ?? 0;
+    const totalRevenueCents = Number(revenueResult[0]?.total ?? 0);
+    const totalRefundsCents = Number(refundsResult[0]?.total ?? 0);
+    const totalPayoutsCents = Number(payoutsResult[0]?.total ?? 0);
     const totalPlatformFeesCents = platformFees;
     const netRevenueCents = totalRevenueCents - totalRefundsCents - totalPlatformFeesCents;
 
@@ -313,21 +319,25 @@ export class AccountingConfidenceService {
   }
 
   private async checkPaymentReservationMatch(campgroundId: string, start: Date, end: Date): Promise<ConfidenceScore["factors"][0]> {
-    // Check if all payments have linked reservations
-    const orphanPayments = await this.prisma.payment.count({
-      where: {
-        reservation: { campgroundId },
-        createdAt: { gte: start, lte: end },
-        reservationId: null,
-      },
-    });
+    // Check if all payments have linked reservations using raw SQL
+    const orphanResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count
+      FROM "Payment" p
+      WHERE p."campgroundId" = ${campgroundId}
+        AND p."createdAt" >= ${start}
+        AND p."createdAt" <= ${end}
+        AND (p."reservationId" IS NULL OR p."reservationId" = '')
+    `;
+    const orphanPayments = Number(orphanResult[0]?.count ?? 0);
 
-    const totalPayments = await this.prisma.payment.count({
-      where: {
-        reservation: { campgroundId },
-        createdAt: { gte: start, lte: end },
-      },
-    });
+    const totalResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count
+      FROM "Payment" p
+      WHERE p."campgroundId" = ${campgroundId}
+        AND p."createdAt" >= ${start}
+        AND p."createdAt" <= ${end}
+    `;
+    const totalPayments = Number(totalResult[0]?.count ?? 0);
 
     if (orphanPayments === 0) {
       return {
@@ -361,23 +371,18 @@ export class AccountingConfidenceService {
   }
 
   private async checkPendingTransactions(campgroundId: string, start: Date, end: Date): Promise<ConfidenceScore["factors"][0]> {
-    const pendingPayments = await this.prisma.payment.count({
-      where: {
-        reservation: { campgroundId },
-        createdAt: { gte: start, lte: end },
-        status: { in: ["pending", "processing"] },
-      },
-    });
+    // Payment model doesn't have status - all payments in DB are captured
+    // Only check pending payouts using raw SQL
+    const pendingPayoutsResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count
+      FROM "Payout"
+      WHERE "campgroundId" = ${campgroundId}
+        AND "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+        AND status IN ('pending', 'in_transit')
+    `;
 
-    const pendingPayouts = await this.prisma.payout.count({
-      where: {
-        campgroundId,
-        createdAt: { gte: start, lte: end },
-        status: { in: ["pending", "in_transit"] },
-      },
-    });
-
-    const total = pendingPayments + pendingPayouts;
+    const total = Number(pendingPayoutsResult[0]?.count ?? 0);
 
     if (total === 0) {
       return {
@@ -409,13 +414,16 @@ export class AccountingConfidenceService {
   }
 
   private async checkDisputesAndRefunds(campgroundId: string, start: Date, end: Date): Promise<ConfidenceScore["factors"][0]> {
-    const openDisputes = await this.prisma.dispute.count({
-      where: {
-        campgroundId,
-        createdAt: { gte: start, lte: end },
-        status: { in: ["needs_response", "under_review"] },
-      },
-    });
+    // Use raw SQL for consistency with other methods
+    const openDisputesResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count
+      FROM "Dispute"
+      WHERE "campgroundId" = ${campgroundId}
+        AND "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+        AND status IN ('needs_response', 'under_review')
+    `;
+    const openDisputes = Number(openDisputesResult[0]?.count ?? 0);
 
     if (openDisputes === 0) {
       return {
@@ -495,42 +503,40 @@ export class AccountingConfidenceService {
   private async buildMonthEndChecklist(campgroundId: string, start: Date, end: Date): Promise<MonthEndCloseStatus["checklistItems"]> {
     const items: MonthEndCloseStatus["checklistItems"] = [];
 
-    // Check 1: All payments processed
-    const pendingPayments = await this.prisma.payment.count({
-      where: {
-        reservation: { campgroundId },
-        createdAt: { gte: start, lte: end },
-        status: { in: ["pending", "processing"] },
-      },
-    });
+    // Check 1: All payments processed (Payment model has no status - all recorded are captured)
+    // Always mark as completed since payments without status are assumed processed
     items.push({
       name: "All payments processed",
-      status: pendingPayments === 0 ? "completed" : "pending",
-      note: pendingPayments > 0 ? `${pendingPayments} pending` : undefined,
+      status: "completed",
+      note: undefined,
     });
 
-    // Check 2: All payouts reconciled
-    const unreconciled = await this.prisma.payout.count({
-      where: {
-        campgroundId,
-        createdAt: { gte: start, lte: end },
-        status: { not: "paid" },
-      },
-    });
+    // Check 2: All payouts reconciled using raw SQL
+    const unreconciledResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count
+      FROM "Payout"
+      WHERE "campgroundId" = ${campgroundId}
+        AND "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+        AND status != 'paid'
+    `;
+    const unreconciled = Number(unreconciledResult[0]?.count ?? 0);
     items.push({
       name: "All payouts reconciled",
       status: unreconciled === 0 ? "completed" : "pending",
       note: unreconciled > 0 ? `${unreconciled} pending` : undefined,
     });
 
-    // Check 3: No open disputes
-    const openDisputes = await this.prisma.dispute.count({
-      where: {
-        campgroundId,
-        createdAt: { gte: start, lte: end },
-        status: { in: ["needs_response", "under_review"] },
-      },
-    });
+    // Check 3: No open disputes using raw SQL
+    const openDisputesResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count
+      FROM "Dispute"
+      WHERE "campgroundId" = ${campgroundId}
+        AND "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+        AND status IN ('needs_response', 'under_review')
+    `;
+    const openDisputes = Number(openDisputesResult[0]?.count ?? 0);
     items.push({
       name: "No open disputes",
       status: openDisputes === 0 ? "completed" : "failed",
@@ -561,14 +567,15 @@ export class AccountingConfidenceService {
   }
 
   private async getPlatformFeesForPeriod(campgroundId: string, start: Date, end: Date): Promise<number> {
-    const fees = await this.prisma.usageEvent.aggregate({
-      where: {
-        campgroundId,
-        createdAt: { gte: start, lte: end },
-      },
-      _sum: { unitCents: true },
-    });
-    return fees._sum.unitCents ?? 0;
+    // Use raw SQL to avoid Prisma 7 + PrismaPg aggregate issues
+    const result = await this.prisma.$queryRaw<[{ total: bigint | null }]>`
+      SELECT COALESCE(SUM("unitCents"), 0) as total
+      FROM "UsageEvent"
+      WHERE "campgroundId" = ${campgroundId}
+        AND "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+    `;
+    return Number(result[0]?.total ?? 0);
   }
 
   private getCurrentMonth(): string {

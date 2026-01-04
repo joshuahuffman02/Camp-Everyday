@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, MapPin, Users, TrendingUp } from "lucide-react";
+import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 
 // Sample data for social proof notifications
 const FIRST_NAMES = [
@@ -99,7 +100,7 @@ export function ActivityFeed({
   const [currentActivity, setCurrentActivity] = useState<Activity | null>(null);
   const [isDismissedPermanently, setIsDismissedPermanently] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotionSafe();
 
   // Check localStorage for permanent dismissal
   useEffect(() => {
@@ -160,22 +161,22 @@ export function ActivityFeed({
   const getIcon = (type: ActivityType) => {
     switch (type) {
       case "booking":
-        return <MapPin className="w-4 h-4 text-emerald-600" />;
+        return <MapPin className="w-4 h-4 text-keepr-evergreen" />;
       case "viewing":
-        return <Users className="w-4 h-4 text-blue-600" />;
+        return <Users className="w-4 h-4 text-keepr-charcoal" />;
       case "trending":
-        return <TrendingUp className="w-4 h-4 text-amber-600" />;
+        return <TrendingUp className="w-4 h-4 text-keepr-clay" />;
     }
   };
 
   const getBgColor = (type: ActivityType) => {
     switch (type) {
       case "booking":
-        return "bg-emerald-50 border-emerald-100";
+        return "bg-keepr-evergreen/10 border-keepr-evergreen/20";
       case "viewing":
-        return "bg-blue-50 border-blue-100";
+        return "bg-keepr-charcoal/5 border-keepr-charcoal/10";
       case "trending":
-        return "bg-amber-50 border-amber-100";
+        return "bg-keepr-clay/10 border-keepr-clay/20";
     }
   };
 

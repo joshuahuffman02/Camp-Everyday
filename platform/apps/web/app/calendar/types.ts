@@ -1,9 +1,9 @@
 /**
  * Calendar-specific types
- * These complement the shared types from @campreserv/shared
+ * These complement the shared types from @keepr/shared
  */
 
-import type { Reservation, Site, Guest, Campground } from "@campreserv/shared";
+import type { Reservation, Site, Guest, Campground } from "@keepr/shared";
 
 // Day metadata for calendar grid
 export interface DayMeta {

@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 
 const STORAGE_KEY = "campreserv:welcomed";
 
 export function WelcomeOverlay() {
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotionSafe();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -59,7 +60,7 @@ export function WelcomeOverlay() {
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-sm cursor-pointer"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-b from-keepr-charcoal/95 via-slate-900/95 to-keepr-charcoal/95 backdrop-blur-sm cursor-pointer"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -89,7 +90,7 @@ export function WelcomeOverlay() {
               />
               {/* Glow effect */}
               <motion.div
-                className="absolute inset-0 bg-orange-500/30 rounded-full blur-2xl -z-10"
+                className="absolute inset-0 bg-keepr-clay/30 rounded-full blur-2xl -z-10"
                 animate={{
                   opacity: [0.3, 0.6, 0.3],
                   scale: [1, 1.2, 1]
@@ -106,7 +107,7 @@ export function WelcomeOverlay() {
               transition={{ delay: 0.4 }}
             >
               Welcome to{" "}
-              <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-keepr-clay-light to-keepr-evergreen-light bg-clip-text text-transparent">
                 Keepr
               </span>
             </motion.h1>
@@ -130,7 +131,7 @@ export function WelcomeOverlay() {
               {[...Array(5)].map((_, i) => (
                 <motion.span
                   key={i}
-                  className="text-amber-400 text-lg"
+                  className="text-keepr-clay-light text-lg"
                   animate={{
                     opacity: [0.5, 1, 0.5],
                     scale: [0.9, 1.1, 0.9],

@@ -106,11 +106,11 @@ export function PopularFeatures() {
   };
 
   return (
-    <section className="py-24 bg-gradient-to-br from-slate-50 to-white">
+    <section className="py-24 bg-gradient-to-br from-keepr-off-white to-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-base font-semibold text-emerald-600 tracking-wide uppercase mb-3">
+          <h2 className="text-base font-semibold text-keepr-evergreen tracking-wide uppercase mb-3">
             Popular Features
           </h2>
           <p className="text-4xl font-bold text-foreground mb-4">
@@ -134,25 +134,25 @@ export function PopularFeatures() {
                   key={feature.id}
                   onClick={() => handleSelect(feature)}
                   className={`w-full text-left p-6 rounded-xl border-2 transition-all duration-300 ${isActive
-                    ? 'border-emerald-500 bg-emerald-50 shadow-lg'
-                    : 'border-border bg-card hover:border-emerald-300 hover:shadow-md'
+                    ? 'border-keepr-evergreen/40 bg-keepr-evergreen/10 shadow-lg'
+                    : 'border-border bg-card hover:border-keepr-evergreen/30 hover:shadow-md'
                     }`}
                 >
                   <div className="flex items-start gap-4">
                     <div
-                      className={`flex-shrink-0 h-12 w-12 rounded-lg flex items-center justify-center ${isActive ? 'bg-emerald-600' : 'bg-muted'
+                      className={`flex-shrink-0 h-12 w-12 rounded-lg flex items-center justify-center ${isActive ? 'bg-keepr-evergreen' : 'bg-muted'
                         }`}
                     >
                       <Icon className={`h-6 w-6 ${isActive ? 'text-white' : 'text-muted-foreground'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3
-                        className={`text-lg font-semibold mb-1 ${isActive ? 'text-emerald-900' : 'text-foreground'
+                        className={`text-lg font-semibold mb-1 ${isActive ? 'text-keepr-evergreen' : 'text-foreground'
                           }`}
                       >
                         {feature.name}
                       </h3>
-                      <p className={`text-sm ${isActive ? 'text-emerald-700' : 'text-muted-foreground'}`}>
+                      <p className={`text-sm ${isActive ? 'text-keepr-evergreen/80' : 'text-muted-foreground'}`}>
                         {feature.description}
                       </p>
                     </div>
@@ -191,7 +191,7 @@ export function PopularFeatures() {
                     {activeFeature.benefits.map((benefit) => (
                       <li key={benefit} className="flex items-start gap-3">
                         <svg
-                          className="h-6 w-6 text-emerald-500 flex-shrink-0 mt-0.5"
+                          className="h-6 w-6 text-keepr-clay flex-shrink-0 mt-0.5"
                           fill="currentColor"
                           viewBox="0 0 20 20"
                         >

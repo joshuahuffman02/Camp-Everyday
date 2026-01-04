@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
+import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 import { Search, Calendar, Sparkles, MapPin, Mountain } from "lucide-react";
 import Link from "next/link";
 import { CampgroundCard } from "../../components/public/CampgroundCard";
@@ -347,9 +348,7 @@ export function HomeClient() {
     // Scroll animation refs
     const featuredRef = useRef(null);
     const featuredInView = useInView(featuredRef, { once: true, margin: "-100px" });
-    const prefersReducedMotionValue = useReducedMotion();
-    // Only use reduced motion after mount to prevent hydration mismatch
-    const prefersReducedMotion = hasMounted ? prefersReducedMotionValue : true;
+    const prefersReducedMotion = useReducedMotionSafe();
 
     return (
         <div className="min-h-screen">

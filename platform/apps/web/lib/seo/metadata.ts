@@ -46,7 +46,11 @@ export function generatePageMetadata(options: MetadataOptions = {}): Metadata {
     ? { url: image.startsWith("http") ? image : `${baseUrl}${image}`, width: 1200, height: 630, alt: fullTitle }
     : image
     ? { ...image, url: image.url.startsWith("http") ? image.url : `${baseUrl}${image.url}` }
-    : { url: `${baseUrl}/og-image.jpg`, width: 1200, height: 630, alt: SEO_CONFIG.siteName };
+    : { url: `${baseUrl}/og-image.png`, width: 1200, height: 630, alt: SEO_CONFIG.siteName };
+
+  const twitterImageConfig = image
+    ? { ...imageConfig, alt: imageConfig.alt || fullTitle }
+    : { url: `${baseUrl}/twitter-image.png`, width: 1200, height: 600, alt: SEO_CONFIG.siteName };
 
   const metadata: Metadata = {
     title: fullTitle,
@@ -73,7 +77,7 @@ export function generatePageMetadata(options: MetadataOptions = {}): Metadata {
       creator: SEO_CONFIG.twitterHandle,
       title: fullTitle,
       description,
-      images: [imageConfig.url],
+      images: [twitterImageConfig],
     },
     robots: noIndex
       ? { index: false, follow: false }
@@ -160,14 +164,14 @@ export function generateCampgroundMetadata(campground: {
       description: seoDescription,
       images: images.length
         ? images.slice(0, 4).map((url) => ({ url, width: 1200, height: 630, alt: campground.name }))
-        : [{ url: `${baseUrl}/og-image.jpg`, width: 1200, height: 630, alt: SEO_CONFIG.siteName }],
+        : [{ url: `${baseUrl}/og-image.png`, width: 1200, height: 630, alt: SEO_CONFIG.siteName }],
     },
     twitter: {
       card: "summary_large_image",
       site: SEO_CONFIG.twitterHandle,
       title: seoTitle,
       description: seoDescription,
-      images: images[0] || `${baseUrl}/og-image.jpg`,
+      images: images[0] || `${baseUrl}/twitter-image.png`,
     },
     robots: { index: true, follow: true, "max-image-preview": "large" },
   };

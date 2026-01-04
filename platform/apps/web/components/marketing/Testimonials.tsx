@@ -39,7 +39,7 @@ export function Testimonials() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-base font-semibold text-emerald-600 tracking-wide uppercase mb-3">
+          <h2 className="text-base font-semibold text-keepr-evergreen tracking-wide uppercase mb-3">
             Early Access
           </h2>
           <p className="text-4xl font-bold text-foreground mb-4">
@@ -58,11 +58,11 @@ export function Testimonials() {
             return (
               <div
                 key={benefit.id}
-                className="bg-card rounded-2xl border-2 border-border p-8 hover:border-emerald-300 hover:shadow-xl transition-all duration-300"
+                className="bg-card rounded-2xl border-2 border-border p-8 hover:border-keepr-evergreen/30 hover:shadow-xl transition-all duration-300"
               >
                 {/* Icon */}
-                <div className="h-12 w-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">
-                  <Icon className="h-6 w-6 text-emerald-600" />
+                <div className="h-12 w-12 rounded-xl bg-keepr-evergreen/10 flex items-center justify-center mb-4">
+                  <Icon className="h-6 w-6 text-keepr-evergreen" />
                 </div>
 
                 {/* Content */}
@@ -80,7 +80,7 @@ export function Testimonials() {
           </p>
           <a
             href="#pricing"
-            className="inline-flex items-center text-emerald-600 hover:text-emerald-700 font-semibold"
+            className="inline-flex items-center text-keepr-evergreen hover:text-keepr-evergreen-light font-semibold"
           >
             View early access pricing
             <svg className="ml-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

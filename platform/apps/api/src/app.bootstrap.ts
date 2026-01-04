@@ -24,7 +24,7 @@ export async function createApp(): Promise<INestApplication> {
     dotenv.config();
     const bodyLimit = process.env.API_BODY_LIMIT || "25mb";
     const isProduction = process.env.NODE_ENV === "production";
-    const frontendUrlRaw = process.env.FRONTEND_URL || "https://campreservweb-production.up.railway.app";
+    const frontendUrlRaw = process.env.FRONTEND_URL || "https://keeprstay.com";
     let frontendOrigin = frontendUrlRaw;
     try {
         frontendOrigin = new URL(frontendUrlRaw).origin;
@@ -42,8 +42,6 @@ export async function createApp(): Promise<INestApplication> {
         // Production frontend (custom domain)
         "https://keeprstay.com",
         "https://www.keeprstay.com",
-        // Production frontend (Railway)
-        "https://campreservweb-production.up.railway.app",
         // Development
         "http://localhost:3000",
         "http://localhost:3001",
@@ -81,10 +79,10 @@ export async function createApp(): Promise<INestApplication> {
 
             if (parsedOrigin) {
                 const hostname = parsedOrigin.hostname;
-                // Allow Campreserv/Keepr Railway hostnames (preview/prod).
+                // Allow Keepr Railway hostnames (preview/prod).
                 if (
                     hostname.endsWith(".up.railway.app") &&
-                    (hostname.includes("campreserv") || hostname.includes("camp-everyday"))
+                    hostname.includes("keepr")
                 ) {
                     return callback(null, true);
                 }

@@ -8,29 +8,29 @@ const benefits = [
     icon: MessageSquare,
     title: "Direct Communication",
     description: "Message the park directly with questions before you book. No middleman.",
-    iconColor: "text-emerald-500",
-    iconBg: "bg-emerald-50",
+    iconColor: "text-keepr-evergreen",
+    iconBg: "bg-keepr-evergreen/10",
   },
   {
     icon: DollarSign,
     title: "Transparent Pricing",
     description: "See the full price upfront. Know exactly what you're paying before you book.",
-    iconColor: "text-violet-500",
-    iconBg: "bg-violet-50",
+    iconColor: "text-keepr-clay",
+    iconBg: "bg-keepr-clay/10",
   },
   {
     icon: Zap,
     title: "Instant Confirmation",
     description: "Get immediate booking confirmation. No waiting, no uncertainty.",
-    iconColor: "text-amber-500",
-    iconBg: "bg-amber-50",
+    iconColor: "text-keepr-evergreen-light",
+    iconBg: "bg-keepr-evergreen/10",
   },
   {
     icon: Shield,
     title: "Secure Booking",
     description: "Your payment and personal info are protected with industry-standard security.",
-    iconColor: "text-rose-500",
-    iconBg: "bg-rose-50",
+    iconColor: "text-keepr-charcoal",
+    iconBg: "bg-keepr-charcoal/10",
   },
 ];
 
@@ -47,15 +47,15 @@ export function WhyBookDirect({
 }: WhyBookDirectProps) {
   if (variant === "compact") {
     return (
-      <div className={cn("bg-emerald-50 rounded-xl p-4", className)}>
+      <div className={cn("bg-keepr-evergreen/10 rounded-xl p-4", className)}>
         <div className="flex items-center gap-2 mb-3">
-          <Shield className="h-5 w-5 text-emerald-600" />
-          <h3 className="font-semibold text-emerald-900">Why Book Direct?</h3>
+          <Shield className="h-5 w-5 text-keepr-evergreen" />
+          <h3 className="font-semibold text-keepr-evergreen">Why Book Direct?</h3>
         </div>
         <ul className="space-y-2">
           {benefits.slice(0, 3).map((benefit, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-emerald-800">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+            <li key={i} className="flex items-start gap-2 text-sm text-keepr-charcoal">
+              <CheckCircle2 className="h-4 w-4 text-keepr-evergreen mt-0.5 flex-shrink-0" />
               <span>{benefit.title}</span>
             </li>
           ))}
@@ -65,7 +65,7 @@ export function WhyBookDirect({
   }
 
   return (
-    <section className={cn("py-12 md:py-16 bg-muted", className)}>
+    <section className={cn("py-12 md:py-16 bg-keepr-off-white", className)}>
       <div className="max-w-7xl mx-auto px-6">
         {/* Section header */}
         <div className="text-center mb-8 md:mb-12">
@@ -98,7 +98,7 @@ export function WhyBookDirect({
         {/* Trust statement */}
         <div className="mt-8 text-center">
           <p className="text-sm text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 inline mr-1 text-emerald-500" />
+            <CheckCircle2 className="h-4 w-4 inline mr-1 text-keepr-evergreen" />
             Trusted by thousands of campers nationwide
           </p>
         </div>

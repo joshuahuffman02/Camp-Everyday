@@ -17,7 +17,7 @@ export function generateOrganizationSchema() {
     url: baseUrl,
     logo: `${baseUrl}/logo.png`,
     sameAs: [
-      `https://twitter.com/${SEO_CONFIG.twitterHandle.replace("@", "")}`,
+      `https://x.com/${SEO_CONFIG.twitterHandle.replace("@", "")}`,
     ],
     contactPoint: {
       "@type": "ContactPoint",

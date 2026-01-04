@@ -25,7 +25,7 @@ function StarRating({ rating }: { rating: number }) {
           key={star}
           className={cn(
             "h-4 w-4",
-            star <= rating ? "fill-amber-400 text-amber-400" : "fill-slate-200 text-muted-foreground"
+            star <= rating ? "fill-keepr-clay text-keepr-clay" : "fill-keepr-charcoal/10 text-keepr-charcoal/30"
           )}
         />
       ))}
@@ -59,9 +59,9 @@ export function FeaturedReview({
           <span
             className={cn(
               "inline-flex items-center gap-1 text-xs font-medium",
-              variant === "light" && "text-status-success",
-              variant === "dark" && "text-status-success",
-              variant === "glass" && "text-status-success"
+              variant === "light" && "text-keepr-evergreen",
+              variant === "dark" && "text-keepr-evergreen",
+              variant === "glass" && "text-keepr-clay-light"
             )}
           >
             <CheckCircle2 className="h-3 w-3" />
@@ -88,9 +88,9 @@ export function FeaturedReview({
         <div
           className={cn(
             "w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold",
-            variant === "light" && "bg-status-success/15 text-status-success",
-            variant === "dark" && "bg-status-success/15 text-status-success",
-            variant === "glass" && "bg-card/20 text-foreground"
+            variant === "light" && "bg-keepr-evergreen/15 text-keepr-evergreen",
+            variant === "dark" && "bg-keepr-evergreen/15 text-keepr-evergreen",
+            variant === "glass" && "bg-card/20 text-keepr-clay-light"
           )}
         >
           {review.guestName

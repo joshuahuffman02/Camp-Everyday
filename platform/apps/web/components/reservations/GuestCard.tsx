@@ -1,4 +1,4 @@
-import { Guest } from "@campreserv/shared";
+import { Guest } from "@keepr/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, Phone, MapPin, User, ExternalLink } from "lucide-react";
 import Link from "next/link";

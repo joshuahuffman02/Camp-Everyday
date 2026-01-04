@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Users, Star, Receipt } from "lucide-react";
+import { MapPin, Users, Star } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 interface Stat {
@@ -29,19 +29,19 @@ export function SocialProofStrip({
 }: SocialProofStripProps) {
   const variantStyles = {
     light: "bg-card border-y border-border",
-    tint: "bg-emerald-50 border-y border-emerald-100",
+    tint: "bg-keepr-evergreen/10 border-y border-keepr-evergreen/20",
   };
 
   const textStyles = {
     light: {
       value: "text-foreground",
       label: "text-muted-foreground",
-      icon: "text-emerald-600",
+      icon: "text-keepr-evergreen",
     },
     tint: {
       value: "text-foreground",
       label: "text-muted-foreground",
-      icon: "text-emerald-600",
+      icon: "text-keepr-evergreen",
     },
   };
 
