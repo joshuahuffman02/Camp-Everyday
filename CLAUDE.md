@@ -106,6 +106,7 @@ pnpm lint:web               # Lint web app
 5. **No emojis** - Use Lucide SVG icons instead (professional and scalable)
 6. **Dockerfiles** - DO NOT modify or rename these files:
    - `Dockerfile` = API service (NestJS)
+   - `Dockerfile.api` = API service (copy of Dockerfile, for Railway)
    - `Dockerfile.web` = Web service (Next.js)
 7. **railway.toml** - DO NOT add `dockerfilePath` - each Railway service configures this in dashboard
 
