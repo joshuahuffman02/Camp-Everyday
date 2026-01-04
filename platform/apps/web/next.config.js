@@ -229,3 +229,4 @@ module.exports = withSentryConfig(nextConfig, {
   // Disable telemetry
   disableLogger: true,
 });
+
