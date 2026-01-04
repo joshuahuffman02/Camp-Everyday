@@ -157,10 +157,10 @@ export default function InventoryPage() {
                                                 <Input
                                                     type="number"
                                                     className="w-20 h-8"
-                                                    defaultValue={product.stockQty}
+                                                    defaultValue={product.stockQty ?? undefined}
                                                     onBlur={(e) => handleStockUpdate(product.id, parseInt(e.target.value))}
                                                 />
-                                                {product.stockQty !== undefined && product.lowStockAlert !== undefined && product.stockQty <= product.lowStockAlert && (
+                                                {product.stockQty != null && product.lowStockAlert != null && product.stockQty <= product.lowStockAlert && (
                                                     <Badge variant="destructive" className="h-5 text-[10px]">Low</Badge>
                                                 )}
                                             </div>

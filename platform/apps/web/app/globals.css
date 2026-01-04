@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap");
+/* Fonts loaded via next/font in lib/fonts.ts - DM Sans + Inter */
 @import url("https://unpkg.com/maplibre-gl@4.7.0/dist/maplibre-gl.css");
 
 @tailwind base;
@@ -7,94 +7,106 @@
 
 @layer base {
   :root {
-    /* Base UI tokens (original shadcn/ui tokens) */
-    --background: 210 40% 98%; /* slate-50 */
-    --foreground: 222 47% 11%; /* slate-900 */
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    /* ============================================
+       KEEPR BRAND PALETTE
+       ============================================
+       Primary Evergreen: #1F3D34 - Brand emphasis, primary actions
+       Warm Charcoal: #2F2F2C - Text and UI elements
+       Soft Clay: #C47A63 - Accent, focus rings (~5% of UI)
+       Off-White: #FAF7F2 - Background
+    ============================================ */
+
+    /* Keepr Brand Colors (HSL) */
+    --keepr-evergreen: 160 33% 18%;        /* #1F3D34 */
+    --keepr-evergreen-light: 160 33% 25%;  /* Lighter for hover */
+    --keepr-evergreen-dark: 160 33% 12%;   /* Darker for active */
+    --keepr-charcoal: 60 3% 18%;           /* #2F2F2C */
+    --keepr-charcoal-muted: 60 3% 45%;     /* Muted text */
+    --keepr-charcoal-light: 60 3% 65%;     /* Lighter for placeholders */
+    --keepr-clay: 14 46% 58%;              /* #C47A63 */
+    --keepr-clay-light: 14 46% 68%;        /* Lighter for hover */
+    --keepr-clay-subtle: 14 30% 92%;       /* Very subtle for backgrounds */
+    --keepr-off-white: 38 50% 96%;         /* #FAF7F2 */
+    --keepr-white: 0 0% 100%;              /* Pure white for cards */
+
+    /* Base UI tokens - mapped to Keepr palette */
+    --background: 38 50% 96%;              /* Off-White */
+    --foreground: 60 3% 18%;               /* Charcoal */
+    --card: 0 0% 100%;                     /* White */
+    --card-foreground: 60 3% 18%;          /* Charcoal */
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 217 91% 60%; /* blue-500 */
+    --popover-foreground: 60 3% 18%;
+    --primary: 160 33% 18%;                /* Evergreen */
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%; /* slate-100 */
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%; /* slate-600 */
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%; /* red-500 */
+    --secondary: 38 30% 92%;               /* Warm light gray */
+    --secondary-foreground: 160 33% 18%;   /* Evergreen */
+    --muted: 38 30% 92%;
+    --muted-foreground: 60 3% 45%;         /* Charcoal muted */
+    --accent: 14 46% 58%;                  /* Clay */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;              /* Red for errors */
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%; /* slate-200 */
-    --input: 214 32% 91%;
-    --ring: 217 91% 60%;
-    --radius: 0.5rem;
-    --font-body: "Source Sans 3", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --font-display: "Source Sans 3", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --border: 38 20% 88%;                  /* Warm gray border */
+    --input: 38 20% 88%;
+    --ring: 14 46% 58%;                    /* Clay for focus rings */
+    --radius: 0.5rem;                      /* 8px for controls */
+
+    /* Typography */
+    --font-body: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-display: "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
     /* ============================================
        SEMANTIC COLOR TOKENS
        ============================================
-       Use these tokens for consistent color usage across the app.
-
        ACTION TOKENS - For interactive elements (buttons, links)
-       - action-primary: Main CTA buttons, primary actions
-       - action-secondary: Secondary buttons, less prominent actions
-       - action-hover: Hover states for primary actions
-
        STATUS TOKENS - For status indicators and feedback
-       - status-success: Successful operations, confirmed states
-       - status-warning: Warnings, balance due, attention needed
-       - status-error: Errors, destructive actions, critical alerts
-       - status-info: Informational messages, neutral states
-
-       Each token has a corresponding foreground color for text.
     ============================================ */
 
-    /* Action tokens */
-    --action-primary: 158 64% 52%; /* emerald-600 */
+    /* Action tokens - using Evergreen for primary actions */
+    --action-primary: 160 33% 18%;         /* Evergreen */
     --action-primary-foreground: 0 0% 100%;
-    --action-primary-hover: 158 64% 42%; /* emerald-700 */
-    --action-secondary: 210 40% 96%; /* slate-100 */
-    --action-secondary-foreground: 222 47% 11%; /* slate-900 */
-    --action-secondary-hover: 214 32% 91%; /* slate-200 */
+    --action-primary-hover: 160 33% 25%;   /* Evergreen light */
+    --action-secondary: 38 30% 92%;        /* Warm light */
+    --action-secondary-foreground: 60 3% 18%; /* Charcoal */
+    --action-secondary-hover: 38 25% 88%;  /* Slightly darker */
 
-    /* Status tokens */
-    --status-success: 158 64% 52%; /* emerald-600 - green for success */
+    /* Status tokens - warm, muted tones for calm feedback */
+    --status-success: 152 56% 40%;         /* Warm green */
     --status-success-foreground: 0 0% 100%;
-    --status-success-bg: 152 57% 96%; /* emerald-50 */
-    --status-success-border: 149 61% 86%; /* emerald-200 */
-    --status-success-text: 160 84% 29%; /* emerald-700 - text on light bg */
+    --status-success-bg: 152 40% 95%;
+    --status-success-border: 152 40% 80%;
+    --status-success-text: 152 56% 30%;
 
-    --status-warning: 38 92% 50%; /* amber-500 - amber for warnings */
-    --status-warning-foreground: 21 55% 11%; /* amber-950 */
-    --status-warning-bg: 48 100% 96%; /* amber-50 */
-    --status-warning-border: 48 96% 76%; /* amber-200 */
-    --status-warning-text: 26 90% 37%; /* amber-700 - text on light bg */
+    --status-warning: 38 92% 50%;          /* Amber */
+    --status-warning-foreground: 21 55% 11%;
+    --status-warning-bg: 48 100% 96%;
+    --status-warning-border: 48 96% 76%;
+    --status-warning-text: 26 90% 37%;
 
-    --status-error: 0 84% 60%; /* red-500 - red for errors */
+    --status-error: 0 72% 51%;             /* Red */
     --status-error-foreground: 0 0% 100%;
-    --status-error-bg: 0 86% 97%; /* red-50 */
-    --status-error-border: 0 72% 91%; /* red-200 */
-    --status-error-text: 0 72% 43%; /* red-700 - text on light bg */
+    --status-error-bg: 0 86% 97%;
+    --status-error-border: 0 72% 91%;
+    --status-error-text: 0 72% 43%;
 
-    --status-info: 217 91% 60%; /* blue-500 - blue for informational */
+    --status-info: 160 33% 18%;            /* Evergreen for info */
     --status-info-foreground: 0 0% 100%;
-    --status-info-bg: 214 100% 97%; /* blue-50 */
-    --status-info-border: 213 97% 87%; /* blue-200 */
-    --status-info-text: 221 83% 45%; /* blue-700 - text on light bg */
+    --status-info-bg: 160 25% 95%;
+    --status-info-border: 160 25% 85%;
+    --status-info-text: 160 33% 18%;
 
-    /* Data visualization tokens */
-    --chart-1: 217 91% 60%; /* blue-500 */
-    --chart-2: 158 64% 52%; /* emerald-600 */
-    --chart-3: 38 92% 50%; /* amber-500 */
-    --chart-4: 0 84% 60%; /* red-500 */
-    --chart-5: 262 83% 58%; /* violet-500 */
-    --chart-6: 192 91% 36%; /* cyan-600 */
-    --chart-7: 24 94% 50%; /* orange-500 */
-    --chart-8: 340 82% 52%; /* rose-500 */
-    --heatmap-low: 210 40% 96%; /* slate-100 */
-    --heatmap-mid: 158 64% 90%; /* emerald-100 */
-    --heatmap-high: 158 64% 42%; /* emerald-700 */
+    /* Data visualization tokens - warm palette */
+    --chart-1: 160 33% 18%;                /* Evergreen */
+    --chart-2: 14 46% 58%;                 /* Clay */
+    --chart-3: 38 92% 50%;                 /* Amber */
+    --chart-4: 0 72% 51%;                  /* Red */
+    --chart-5: 262 83% 58%;                /* Violet */
+    --chart-6: 192 91% 36%;                /* Cyan */
+    --chart-7: 24 94% 50%;                 /* Orange */
+    --chart-8: 340 82% 52%;                /* Rose */
+    --heatmap-low: 38 30% 92%;             /* Warm light */
+    --heatmap-mid: 160 25% 85%;            /* Light evergreen */
+    --heatmap-high: 160 33% 18%;           /* Evergreen */
   }
 
   .dark {
@@ -220,47 +232,51 @@
     @apply glass glass-border rounded-xl shadow-lg;
   }
 
-  /* Emerald glow effect for focus/active states */
-  .glow-emerald {
-    box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.3);
+  /* Clay glow effect for focus/active states - Keepr brand accent */
+  .glow-clay {
+    box-shadow: 0 0 20px -5px rgba(196, 122, 99, 0.3);
   }
 
-  /* Stronger emerald glow for hover */
-  .glow-emerald-hover:hover {
-    box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.4);
+  /* Stronger clay glow for hover */
+  .glow-clay-hover:hover {
+    box-shadow: 0 0 25px -5px rgba(196, 122, 99, 0.4);
   }
 
-  /* Focus glow matching onboarding inputs */
+  /* Focus glow using Clay accent */
   .focus-glow:focus {
-    box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 0 20px -5px rgba(196, 122, 99, 0.3);
   }
 
-  /* Card hover glow effect */
+  /* Card hover glow effect - subtle warmth */
   .hover-glow {
     @apply transition-shadow duration-300;
   }
 
   .hover-glow:hover {
-    @apply shadow-lg shadow-emerald-500/10;
+    box-shadow: 0 10px 15px -3px rgba(196, 122, 99, 0.1),
+                0 4px 6px -4px rgba(196, 122, 99, 0.1);
   }
 
-  /* Gradient backgrounds */
-  .gradient-emerald {
-    @apply bg-gradient-to-r from-emerald-500 to-teal-500;
+  /* Gradient backgrounds - Keepr Evergreen */
+  .gradient-evergreen {
+    background: linear-gradient(to right, hsl(160, 33%, 18%), hsl(160, 33%, 25%));
   }
 
-  .gradient-emerald-hover:hover {
-    @apply from-emerald-400 to-teal-400;
+  .gradient-evergreen-hover:hover {
+    background: linear-gradient(to right, hsl(160, 33%, 25%), hsl(160, 33%, 30%));
   }
 
-  /* Subtle gradient overlay for cards */
+  /* Subtle gradient overlay for cards - Evergreen tint */
   .gradient-overlay::before {
     content: "";
-    @apply absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-teal-500/0 transition-all rounded-xl;
+    @apply absolute inset-0 transition-all rounded-xl;
+    background: linear-gradient(to bottom right, transparent, transparent);
   }
 
   .gradient-overlay:hover::before {
-    @apply from-emerald-500/5 to-teal-500/5;
+    background: linear-gradient(to bottom right,
+      hsla(160, 33%, 18%, 0.03),
+      hsla(14, 46%, 58%, 0.02));
   }
 
   /* Hide scrollbar while maintaining scroll functionality */

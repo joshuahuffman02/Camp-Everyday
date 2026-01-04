@@ -17,6 +17,25 @@ const config: Config = {
     },
     extend: {
       colors: {
+        /* Keepr brand colors - direct access */
+        keepr: {
+          evergreen: {
+            DEFAULT: "hsl(var(--keepr-evergreen))",
+            light: "hsl(var(--keepr-evergreen-light))",
+            dark: "hsl(var(--keepr-evergreen-dark))"
+          },
+          charcoal: {
+            DEFAULT: "hsl(var(--keepr-charcoal))",
+            muted: "hsl(var(--keepr-charcoal-muted))",
+            light: "hsl(var(--keepr-charcoal-light))"
+          },
+          clay: {
+            DEFAULT: "hsl(var(--keepr-clay))",
+            light: "hsl(var(--keepr-clay-light))",
+            subtle: "hsl(var(--keepr-clay-subtle))"
+          },
+          "off-white": "hsl(var(--keepr-off-white))"
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -109,6 +128,9 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-body)"],
         display: ["var(--font-display)"]
+      },
+      letterSpacing: {
+        tighter: "-0.025em"  /* For headlines per Keepr brand spec */
       },
       borderRadius: {
         lg: "var(--radius)",

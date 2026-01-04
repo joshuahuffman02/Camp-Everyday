@@ -1,15 +1,16 @@
 /**
  * SEO Constants and Configuration
+ * Keepr Brand - "Reservation software for places worth returning to"
  */
 
 export const SEO_CONFIG = {
-  siteName: "Camp Everyday",
-  siteUrl: process.env.NEXT_PUBLIC_APP_BASE || "https://campeveryday.com",
-  defaultTitle: "Camp Everyday - Find your perfect camping adventure",
-  defaultDescription: "Discover and book the best camping spots, RV parks, and glamping experiences. Modern campground management software for operators.",
-  twitterHandle: "@campeveryday",
+  siteName: "Keepr",
+  siteUrl: process.env.NEXT_PUBLIC_APP_BASE || "https://keeprstay.com",
+  defaultTitle: "Keepr - Reservation software for places worth returning to",
+  defaultDescription: "Modern campground and RV park management software. Streamline reservations, payments, and guest experiences with Keepr.",
+  twitterHandle: "@keepr",
   locale: "en_US",
-  themeColor: "#10b981", // emerald-500
+  themeColor: "#1F3D34", // Keepr Evergreen
   keywords: [
     "campground booking",
     "RV park reservations",
@@ -44,33 +45,33 @@ export const STATIC_PAGES = [
  */
 export const PAGE_SEO: Record<string, { title: string; description: string; keywords?: string[] }> = {
   "/": {
-    title: "Camp Everyday - Find your perfect camping adventure",
-    description: "Search and book campgrounds, RV parks, and cabins. Start your outdoor adventure today with Camp Everyday.",
+    title: "Keepr - Reservation software for places worth returning to",
+    description: "Modern campground and RV park management software. Streamline reservations, payments, and guest experiences with Keepr.",
     keywords: ["camping", "campground booking", "RV parks", "outdoor adventure"],
   },
   "/developers": {
-    title: "Developer API - Camp Everyday",
-    description: "Integrate with Camp Everyday's REST API. Search campgrounds, manage reservations, and sync availability programmatically.",
+    title: "Developer API - Keepr",
+    description: "Integrate with Keepr's REST API. Search campgrounds, manage reservations, and sync availability programmatically.",
     keywords: ["campground API", "reservation API", "developer integration", "REST API"],
   },
   "/careers": {
-    title: "Careers - Join Camp Everyday",
+    title: "Careers - Join Keepr",
     description: "Join our team building the operating system for outdoor hospitality. Remote-first roles in engineering, design, and customer success.",
     keywords: ["campground jobs", "remote jobs", "startup careers", "outdoor hospitality careers"],
   },
   "/case-studies": {
-    title: "Case Studies - Camp Everyday Success Stories",
-    description: "See how campgrounds use Camp Everyday to boost revenue, streamline operations, and delight guests with real results.",
+    title: "Case Studies - Keepr Success Stories",
+    description: "See how campgrounds use Keepr to boost revenue, streamline operations, and delight guests with real results.",
     keywords: ["campground success stories", "RV park case studies", "hospitality software results"],
   },
   "/public-roadmap": {
-    title: "Product Roadmap - Camp Everyday",
-    description: "See what we're building next. Transparent product roadmap for Camp Everyday campground management platform.",
+    title: "Product Roadmap - Keepr",
+    description: "See what we're building next. Transparent product roadmap for Keepr campground management platform.",
     keywords: ["product roadmap", "upcoming features", "campground software updates"],
   },
   "/signup": {
-    title: "Get Started - Camp Everyday",
-    description: "Start your free trial of Camp Everyday. Modern campground management software with reservations, POS, and guest portal.",
+    title: "Get Started - Keepr",
+    description: "Start your free trial of Keepr. Modern campground management software with reservations, POS, and guest portal.",
     keywords: ["campground software trial", "RV park management signup", "free campground software"],
   },
 };
