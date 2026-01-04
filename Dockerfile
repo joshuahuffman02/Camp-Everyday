@@ -1,5 +1,5 @@
 FROM node:22-alpine AS base
-ARG CACHE_BUST=v1
+ARG CACHE_BUST=v2
 RUN corepack enable && corepack prepare pnpm@7.33.6 --activate
 WORKDIR /app
 RUN echo "Build cache bust: ${CACHE_BUST}"
