@@ -49,4 +49,5 @@ COPY package.json pnpm-workspace.yaml ./
 WORKDIR /app/platform/apps/web
 EXPOSE 3000
 # Use node directly to run next start - avoids npx/pnpm path issues
-CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "3000"]
+# CRITICAL: Must bind to 0.0.0.0 for Railway to reach the container
+CMD ["node", "node_modules/next/dist/bin/next", "start", "-H", "0.0.0.0", "-p", "3000"]

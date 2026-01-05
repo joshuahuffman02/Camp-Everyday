@@ -1,8 +1,11 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.api"
-buildCacheMounts = ["/root/.local/share/pnpm/store"]
+# Removed buildCacheMounts - was causing stale cache issues
 
 [deploy]
+# Healthcheck prevents premature restarts
+healthcheckPath = "/health"
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 3
+restartPolicyMaxRetries = 5

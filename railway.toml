@@ -1,22 +1,21 @@
 [build]
 # Force Docker builds instead of Railpack to support pnpm workspaces
 builder = "DOCKERFILE"
-# NOTE: dockerfilePath is set per-service in Railway dashboard
-# - Web service: Dockerfile.web
-# - API service: Dockerfile.api
+# NOTE: dockerfilePath is set per-service via railway.api.toml and railway.web.toml
+# - Web service: Dockerfile.web (uses /railway.web.toml)
+# - API service: Dockerfile.api (uses /railway.api.toml)
 
-# Cache pnpm store between builds for faster installs
-buildCacheMounts = ["/root/.local/share/pnpm/store"]
+# REMOVED buildCacheMounts - was causing corrupted cache and build loops
+# pnpm will re-download packages fresh each build (slower but reliable)
 
 # Pass these environment variables as Docker build arguments
 buildArgs = [
   "NEXT_PUBLIC_API_BASE",
   "AUTH_URL",
   "AUTH_SECRET",
-  "AUTH_TRUST_HOST",
-  "CACHE_BUST"
+  "AUTH_TRUST_HOST"
 ]
 
 [deploy]
 restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 3
+restartPolicyMaxRetries = 5
