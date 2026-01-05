@@ -1,6 +1,8 @@
 [build]
 # Force Docker builds instead of Railpack to support pnpm workspaces
 builder = "DOCKERFILE"
+# Web service uses Dockerfile.web (API service overrides this in platform/apps/api/railway.toml)
+dockerfilePath = "Dockerfile.web"
 
 # Cache pnpm store between builds for faster installs
 buildCacheMounts = ["/root/.local/share/pnpm/store"]
