@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
 import { EventsService } from './events.service';
-import { CreateEventSchema, EventSchema } from '@campreserv/shared';
+import { CreateEventSchema, EventSchema } from '@keepr/shared';
 import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/guards';

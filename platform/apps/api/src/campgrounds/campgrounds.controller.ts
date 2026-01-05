@@ -10,7 +10,7 @@ import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { UserRole, PlatformRole } from "@prisma/client";
 import { ExternalCampgroundUpsertDto, OsmIngestRequestDto } from "./dto/external-campground.dto";
 import { UpdatePhotosDto } from "./dto/update-photos.dto";
-import { DepositConfigSchema, DepositRule } from "@campreserv/shared";
+import { DepositConfigSchema, DepositRule } from "@keepr/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Controller()

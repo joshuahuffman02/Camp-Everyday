@@ -47,6 +47,10 @@ COPY --from=web-builder /app/platform/apps/web/package.json ./platform/apps/web/
 COPY content ./content
 COPY package.json pnpm-workspace.yaml ./
 
+# Copy startup script
+COPY platform/apps/web/start.sh ./platform/apps/web/start.sh
+RUN chmod +x ./platform/apps/web/start.sh
+
 WORKDIR /app/platform/apps/web
 EXPOSE 3000
-CMD ["npx", "next", "start", "-p", "3000"]
+CMD ["./start.sh"]

@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Body, Param, Delete, Query, UseGuards, Req } from '@nestjs/common';
 import { WaitlistService } from './waitlist.service';
-import { CreateWaitlistEntryDto } from '@campreserv/shared';
+import { CreateWaitlistEntryDto } from '@keepr/shared';
 import { JwtAuthGuard } from '../auth/guards';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 

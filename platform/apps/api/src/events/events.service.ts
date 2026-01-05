@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateEventSchema } from '@campreserv/shared';
+import { CreateEventSchema } from '@keepr/shared';
 import { z } from 'zod';
 
 @Injectable()

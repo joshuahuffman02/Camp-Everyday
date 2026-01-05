@@ -22,10 +22,10 @@
       "@/shared": [
         "../../../packages/shared/src"
       ],
-      "@campreserv/shared": [
+      "@keepr/shared": [
         "../../packages/shared/dist"
       ],
-      "@campreserv/shared/*": [
+      "@keepr/shared/*": [
         "../../packages/shared/dist/*"
       ]
     },

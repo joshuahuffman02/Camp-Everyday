@@ -1,7 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { CreateWaitlistEntryDto } from '@campreserv/shared';
+import { CreateWaitlistEntryDto } from '@keepr/shared';
 import { IdempotencyStatus, WaitlistStatus, WaitlistType } from '@prisma/client';
 import { IdempotencyService } from '../payments/idempotency.service';
 import { ObservabilityService } from '../observability/observability.service';
