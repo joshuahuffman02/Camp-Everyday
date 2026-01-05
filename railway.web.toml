@@ -1,7 +1,7 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.web"
-# Removed buildCacheMounts - was causing stale cache issues
+rootDirectory = "."
 buildArgs = [
   "NEXT_PUBLIC_API_BASE",
   "AUTH_URL",
