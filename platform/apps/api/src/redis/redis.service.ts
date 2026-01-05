@@ -8,11 +8,12 @@ export class RedisService implements OnModuleDestroy {
   private connectionFailed = false;
 
   constructor() {
-    const url = process.env.PLATFORM_REDIS_URL;
+    const url = process.env.PLATFORM_REDIS_URL || process.env.REDIS_URL;
+    const urlSource = process.env.PLATFORM_REDIS_URL ? "PLATFORM_REDIS_URL" : process.env.REDIS_URL ? "REDIS_URL" : null;
 
     if (!url) {
       this.client = null;
-      this.logger.warn("Redis is not configured (PLATFORM_REDIS_URL not set)");
+      this.logger.warn("Redis is not configured (PLATFORM_REDIS_URL/REDIS_URL not set)");
       return;
     }
 
@@ -22,7 +23,9 @@ export class RedisService implements OnModuleDestroy {
       retryStrategy: (times) => {
         if (times > 3) {
           // Stop retrying after 3 attempts
-          this.logger.warn("Redis connection failed after 3 attempts, disabling Redis");
+          if (!this.connectionFailed) {
+            this.logger.warn("Redis connection failed after 3 attempts, disabling Redis");
+          }
           this.connectionFailed = true;
           return null; // Stop retrying
         }
@@ -31,7 +34,7 @@ export class RedisService implements OnModuleDestroy {
       enableOfflineQueue: false, // Don't queue commands when disconnected
     });
 
-    this.client.on("connect", () => this.logger.log("Redis connected"));
+    this.client.on("connect", () => this.logger.log(`Redis connected (${urlSource ?? "custom"})`));
     this.client.on("error", (err) => {
       // Only log error once to avoid spam
       if (!this.connectionFailed) {

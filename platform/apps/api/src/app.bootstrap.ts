@@ -21,7 +21,9 @@ const logger = new Logger('AppBootstrap');
 
 // Shared app configuration - used by both local dev and serverless
 export async function createApp(): Promise<INestApplication> {
-    dotenv.config();
+    if (process.env.NODE_ENV !== "production") {
+        dotenv.config();
+    }
     const bodyLimit = process.env.API_BODY_LIMIT || "25mb";
     const isProduction = process.env.NODE_ENV === "production";
     const frontendUrlRaw = process.env.FRONTEND_URL || "https://keeprstay.com";
