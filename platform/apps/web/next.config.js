@@ -190,9 +190,11 @@ const nextConfig = {
 
   // Experimental features for performance
   experimental: {
-    outputFileTracingRoot: path.join(__dirname, "../../"),
-    // Enable instrumentation for Sentry
-    instrumentationHook: true,
+    // Only set outputFileTracingRoot for non-Vercel builds (Railway, local)
+    // Vercel handles monorepo tracing differently
+    ...(process.env.VERCEL ? {} : { outputFileTracingRoot: path.join(__dirname, "../../") }),
+    // Enable instrumentation for Sentry (but not on Vercel due to compatibility issues)
+    instrumentationHook: !process.env.VERCEL,
     // Optimize package imports
     optimizePackageImports: [
       "lucide-react",
