@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Accessibility, ChevronLeft, ChevronRight, Heart } from "lucide-react";
 import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 import { getAdaBadgeInfo, type AdaCertificationLevel } from "@/lib/ada-accessibility";
+import { getAmenityIconPath } from "@/lib/amenity-icons";
 
 interface CampgroundCardProps {
     id: string;
@@ -366,17 +367,29 @@ export function CampgroundCard({
                 {/* Amenities - hide in compact mode */}
                 {amenities.length > 0 && !compact && (
                     <div className="flex flex-wrap gap-1.5 mb-3">
-                        {amenities.slice(0, 3).map((amenity) => (
-                            <span
-                                key={amenity}
-                                className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded-md"
-                            >
-                                {amenity}
-                            </span>
-                        ))}
-                        {amenities.length > 3 && (
+                        {amenities.slice(0, 4).map((amenity) => {
+                            const iconPath = getAmenityIconPath(amenity);
+                            return (
+                                <span
+                                    key={amenity}
+                                    className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded-md flex items-center gap-1.5"
+                                >
+                                    {iconPath && (
+                                        <Image
+                                            src={iconPath}
+                                            alt=""
+                                            width={16}
+                                            height={16}
+                                            className="object-contain"
+                                        />
+                                    )}
+                                    {amenity}
+                                </span>
+                            );
+                        })}
+                        {amenities.length > 4 && (
                             <span className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded-md">
-                                +{amenities.length - 3} more
+                                +{amenities.length - 4} more
                             </span>
                         )}
                     </div>

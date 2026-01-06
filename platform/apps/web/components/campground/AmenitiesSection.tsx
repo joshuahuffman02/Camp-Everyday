@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Plug,
@@ -33,6 +34,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getAmenityIconPath } from "@/lib/amenity-icons";
 
 interface AmenitiesSectionProps {
   amenities: string[];
@@ -317,15 +319,28 @@ export function AmenitiesSection({
               </h3>
             </div>
             <ul className="space-y-2">
-              {category.items.map((item, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-center gap-3 text-foreground"
-                >
-                  <span className="text-muted-foreground">{item.icon}</span>
-                  <span>{item.name}</span>
-                </li>
-              ))}
+              {category.items.map((item, idx) => {
+                const clayIconPath = getAmenityIconPath(item.name);
+                return (
+                  <li
+                    key={idx}
+                    className="flex items-center gap-3 text-foreground"
+                  >
+                    {clayIconPath ? (
+                      <Image
+                        src={clayIconPath}
+                        alt=""
+                        width={20}
+                        height={20}
+                        className="object-contain"
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">{item.icon}</span>
+                    )}
+                    <span>{item.name}</span>
+                  </li>
+                );
+              })}
             </ul>
           </motion.div>
         ))}
@@ -369,12 +384,23 @@ export function AmenitiesInline({
     <div className={cn("flex flex-wrap gap-2", className)}>
       {items.map((amenity, idx) => {
         const { icon } = categorizeAmenity(amenity);
+        const clayIconPath = getAmenityIconPath(amenity);
         return (
           <div
             key={idx}
             className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full"
           >
-            <span className="text-muted-foreground">{icon}</span>
+            {clayIconPath ? (
+              <Image
+                src={clayIconPath}
+                alt=""
+                width={14}
+                height={14}
+                className="object-contain"
+              />
+            ) : (
+              <span className="text-muted-foreground">{icon}</span>
+            )}
             <span>{amenity}</span>
           </div>
         );
