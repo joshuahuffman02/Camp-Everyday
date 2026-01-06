@@ -206,19 +206,24 @@ const nextConfig = {
 
 };
 
+// Detect if this is a production build (main branch on Vercel)
+const isProductionBuild = process.env.VERCEL_ENV === "production";
+
 // Wrap with Sentry config to enable error tracking
+// Disable heavy features for preview/staging builds to reduce memory usage
 module.exports = withSentryConfig(nextConfig, {
   // Sentry webpack plugin options
   silent: true, // Suppresses all logs
   org: "campreserv",
   project: "nextjs",
 
-  // Upload source maps for error tracking
-  widenClientFileUpload: true,
+  // Only upload source maps for production builds (saves ~2GB memory)
+  widenClientFileUpload: isProductionBuild,
 
   // Automatically annotate React components for better error messages
+  // Disable for preview builds to save memory
   reactComponentAnnotation: {
-    enabled: true,
+    enabled: isProductionBuild,
   },
 
   // Don't auto-instrument (we do it manually via instrumentation.ts)
@@ -229,6 +234,11 @@ module.exports = withSentryConfig(nextConfig, {
 
   // Disable telemetry
   disableLogger: true,
+
+  // Skip source map upload entirely for preview/staging builds
+  sourcemaps: {
+    disable: !isProductionBuild,
+  },
 });
 
 // cache bust
