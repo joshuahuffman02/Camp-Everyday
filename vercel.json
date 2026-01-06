@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm build:shared && next build",
+  "buildCommand": "pnpm --filter @keepr/shared build && next build",
   "installCommand": "pnpm install",
   "outputDirectory": ".next"
 }
