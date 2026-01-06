@@ -18,6 +18,8 @@ import { SupportChatWidget } from "../../support/SupportChatWidget";
 import { AdminAiAssistant } from "../../admin/AdminAiAssistant";
 import { resolvePages, PAGE_REGISTRY, PageDefinition } from "@/lib/page-registry";
 import { useCampground } from "@/contexts/CampgroundContext";
+import { listSavedReports } from "@/components/reports/savedReports";
+import { buildReportHrefV2 } from "@/lib/report-links-v2";
 import { ErrorBoundary } from "../../ErrorBoundary";
 import {
   DndContext,
@@ -631,6 +633,28 @@ export function DashboardShell({ children, className, title, subtitle, density =
 
   // Build favorites items from pinned pages (from hook)
   const favoritesItems = useMemo(() => {
+    const savedReports = typeof window === "undefined"
+      ? []
+      : listSavedReports(selected || null);
+    const savedReportMap = new Map(
+      savedReports.map((report) => [
+        buildReportHrefV2({
+          tab: report.tab,
+          subTab: report.subTab ?? null,
+          dateRange: report.dateRange,
+          filters: report.filters
+        }),
+        report
+      ])
+    );
+    const titleCase = (value: string) =>
+      value.replace(/-/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    const formatFallbackLabel = (href: string) => {
+      const base = href.split(/[?#]/)[0];
+      const last = base.split("/").filter(Boolean).slice(-1)[0] ?? "Pinned";
+      return titleCase(decodeURIComponent(last));
+    };
+
     return pinnedPages
       .map((href) => {
         // First check allNavItems for exact match
@@ -647,10 +671,26 @@ export function DashboardShell({ children, className, title, subtitle, density =
             tooltip: pageDef.description,
           } as NavItem;
         }
-        return null;
+
+        const savedReport = savedReportMap.get(href);
+        if (savedReport) {
+          return {
+            label: savedReport.name,
+            href,
+            icon: "reports",
+            tooltip: savedReport.description ?? "Saved report"
+          } as NavItem;
+        }
+
+        return {
+          label: formatFallbackLabel(href),
+          href,
+          icon: "star",
+          tooltip: href
+        } as NavItem;
       })
       .filter(Boolean) as NavItem[];
-  }, [pinnedPages, allNavItems, allPages]);
+  }, [pinnedPages, allNavItems, allPages, selected]);
 
   const toCommandItem = useCallback((item: NavItem, subtitle?: string): CommandItem => ({
     id: item.href,

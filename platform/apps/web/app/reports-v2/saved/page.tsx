@@ -12,12 +12,14 @@ import { ReportsV2Shell } from "@/components/reports-v2/ReportsV2Shell";
 import { ReportsV2PageHeader } from "@/components/reports-v2/ReportsV2PageHeader";
 import { deleteReport, listSavedReports, togglePinnedReport, type SavedReport } from "@/components/reports/savedReports";
 import { buildReportHrefV2 } from "@/lib/report-links-v2";
+import { useMenuConfig } from "@/hooks/use-menu-config";
 import { Pin, PinOff, Play, Trash2 } from "lucide-react";
 
 export default function ReportsV2SavedPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [reports, setReports] = useState<SavedReport[]>([]);
+  const { pinPage, unpinPage } = useMenuConfig();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -36,6 +38,14 @@ export default function ReportsV2SavedPage() {
       (r.subTab || "").toLowerCase().includes(q)
     );
   }, [reports, search]);
+
+  const buildHref = (report: SavedReport) =>
+    buildReportHrefV2({
+      tab: report.tab,
+      subTab: report.subTab ?? null,
+      dateRange: report.dateRange,
+      filters: report.filters
+    });
 
   return (
     <DashboardShell>
@@ -94,7 +104,14 @@ export default function ReportsV2SavedPage() {
                           variant="outline"
                           className="gap-1"
                           onClick={() => {
-                            togglePinnedReport(report.id, !report.pinned);
+                            const nextPinned = !report.pinned;
+                            const href = buildHref(report);
+                            togglePinnedReport(report.id, nextPinned);
+                            if (nextPinned) {
+                              pinPage(href);
+                            } else {
+                              unpinPage(href);
+                            }
                             setReports(listSavedReports(campgroundId));
                           }}
                         >
@@ -105,6 +122,9 @@ export default function ReportsV2SavedPage() {
                           size="sm"
                           variant="destructive"
                           onClick={() => {
+                            if (report.pinned) {
+                              unpinPage(buildHref(report));
+                            }
                             deleteReport(report.id);
                             setReports(listSavedReports(campgroundId));
                           }}

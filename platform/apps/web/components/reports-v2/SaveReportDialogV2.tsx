@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { saveReport, type SavedReport } from "@/components/reports/savedReports";
+import { useMenuConfig } from "@/hooks/use-menu-config";
+import { buildReportHrefV2 } from "@/lib/report-links-v2";
 import { Save } from "lucide-react";
 
 interface SaveReportDialogV2Props {
@@ -31,6 +33,7 @@ export function SaveReportDialogV2({ open, onOpenChange, reportConfig, onSaved }
   const [description, setDescription] = useState("");
   const [pinToNav, setPinToNav] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const { pinPage, unpinPage, isPinned } = useMenuConfig();
 
   const handleSave = () => {
     if (!name.trim()) return;
@@ -47,6 +50,19 @@ export function SaveReportDialogV2({ open, onOpenChange, reportConfig, onSaved }
         campgroundId: reportConfig.campgroundId,
         pinned: pinToNav
       });
+
+      const href = buildReportHrefV2({
+        tab: reportConfig.tab,
+        subTab: reportConfig.subTab ?? null,
+        dateRange: reportConfig.dateRange,
+        filters: reportConfig.filters
+      });
+
+      if (pinToNav) {
+        pinPage(href);
+      } else if (isPinned(href)) {
+        unpinPage(href);
+      }
 
       onSaved?.(saved);
 
@@ -77,7 +93,7 @@ export function SaveReportDialogV2({ open, onOpenChange, reportConfig, onSaved }
             Save this report view
           </DialogTitle>
           <DialogDescription>
-            Save filters, date range, and grouping so this view is one click away. You can pin it to the left rail.
+            Save filters, date range, and grouping so this view is one click away. You can pin it to your main menu.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,7 +126,7 @@ export function SaveReportDialogV2({ open, onOpenChange, reportConfig, onSaved }
           <div className="flex items-center justify-between rounded-xl border border-border bg-muted px-4 py-3">
             <div>
               <div className="text-sm font-medium text-foreground">Pin to navigation</div>
-              <div className="text-xs text-muted-foreground">Show this report in the left rail for quick access.</div>
+              <div className="text-xs text-muted-foreground">Show this report in the main left menu for quick access.</div>
             </div>
             <Switch checked={pinToNav} onCheckedChange={setPinToNav} aria-label="Pin saved report" />
           </div>
