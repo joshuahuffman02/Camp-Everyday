@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 const SLA_SETS = [
   { region: "north", campgroundId: "cg-north", campgroundName: "North Pines", onTime: 42, overdue: 3, slaTargetHours: 24 },
   { region: "south", campgroundId: "cg-south", campgroundName: "Sunset Dunes", onTime: 35, overdue: 6, slaTargetHours: 24 },
