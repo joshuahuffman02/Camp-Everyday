@@ -18,7 +18,7 @@ import { ChatService } from './chat.service';
 import { SendMessageDto, ChatMessageResponse } from './dto/send-message.dto';
 import { ExecuteActionDto, ExecuteActionResponse } from './dto/execute-action.dto';
 import { GetHistoryDto, ConversationHistoryResponse } from './dto/get-history.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 import { ChatParticipantType, Guest } from '@prisma/client';
 
