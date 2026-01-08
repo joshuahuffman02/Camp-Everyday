@@ -12,7 +12,7 @@ export default function TermsPage() {
                 {/* Header */}
                 <div className="mb-12">
                     <h1 className="text-4xl font-bold text-foreground mb-4">Terms of Service</h1>
-                    <p className="text-muted-foreground">Last updated: December 2024</p>
+                    <p className="text-muted-foreground">Last updated: January 2025</p>
                 </div>
 
                 {/* Content */}
@@ -32,6 +32,22 @@ export default function TermsPage() {
                             Keepr provides an online platform that connects travelers with campground
                             owners. We facilitate reservations but are not responsible for the campgrounds
                             themselves or the services they provide.
+                        </p>
+                    </section>
+
+                    <section className="mb-8">
+                        <h2 className="text-2xl font-bold text-foreground mb-4">Early Access Program</h2>
+                        <p className="text-muted-foreground mb-4">
+                            Keepr is currently in early access (&quot;Beta&quot;). By using our services, you acknowledge:
+                        </p>
+                        <ul className="list-disc list-inside text-muted-foreground space-y-2">
+                            <li><strong>Active Development:</strong> Features may be added, modified, or removed as we improve the platform</li>
+                            <li><strong>Service Availability:</strong> We do not guarantee specific uptime or performance levels during this period</li>
+                            <li><strong>Data Accuracy:</strong> While we strive for accuracy, booking data and calculations should be verified independently</li>
+                            <li><strong>Backups:</strong> We recommend maintaining independent records for critical business operations</li>
+                        </ul>
+                        <p className="text-muted-foreground mt-4">
+                            We&apos;re building Keepr alongside our founding users. Your feedback directly shapes the product.
                         </p>
                     </section>
 
@@ -86,11 +102,24 @@ export default function TermsPage() {
 
                     <section className="mb-8">
                         <h2 className="text-2xl font-bold text-foreground mb-4">Limitation of Liability</h2>
-                        <p className="text-muted-foreground">
+                        <p className="text-muted-foreground mb-4">
                             Keepr is not liable for any indirect, incidental, special, or
                             consequential damages arising from your use of our services. Our total
                             liability shall not exceed the amount you paid for the specific service
                             giving rise to the claim.
+                        </p>
+                        <p className="text-muted-foreground mb-4">
+                            During the early access period, Keepr and its affiliates shall not be liable for:
+                        </p>
+                        <ul className="list-disc list-inside text-muted-foreground space-y-2">
+                            <li>Lost reservations, revenue, or business opportunities</li>
+                            <li>Interruption to your campground operations</li>
+                            <li>Inaccuracies in reports, calculations, or guest data</li>
+                            <li>Any indirect, incidental, or consequential damages</li>
+                        </ul>
+                        <p className="text-muted-foreground mt-4">
+                            Your use of Keepr during early access is at your own discretion. Maximum liability
+                            is limited to fees paid in the 12 months preceding any claim.
                         </p>
                     </section>
 

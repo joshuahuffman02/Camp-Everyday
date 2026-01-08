@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { GuestPortalTopNav, GuestPortalBottomNav } from "@/components/portal/GuestPortalNav";
+import { PortalChatWidget } from "@/components/portal/PortalChatWidget";
 
 // Pages that should NOT show the portal navigation (pre-auth pages)
 const NO_NAV_PAGES = ["/portal/login", "/portal/verify"];
@@ -20,6 +21,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <GuestPortalTopNav />
       <main className="pb-20 md:pb-8">{children}</main>
       <GuestPortalBottomNav />
+      {/* AI Chat Widget for guest assistance */}
+      <PortalChatWidget />
     </div>
   );
 }

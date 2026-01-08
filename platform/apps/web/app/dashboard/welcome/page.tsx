@@ -289,6 +289,26 @@ export default function WelcomePage() {
           </div>
         </div>
 
+        {/* Help Shape Keepr */}
+        <div className="bg-status-success/5 border border-status-success/20 rounded-2xl p-6 text-center">
+          <h3 className="text-lg font-semibold text-foreground mb-2">Help Shape Keepr</h3>
+          <p className="text-muted-foreground mb-4">
+            You're part of our founding community. Your feedback directly influences what we build next.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button asChild variant="outline" className="border-status-success text-status-success hover:bg-status-success/10">
+              <a href="mailto:feedback@keeprstay.com">
+                Share Feedback
+              </a>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/roadmap">
+                View Roadmap
+              </Link>
+            </Button>
+          </div>
+        </div>
+
         {/* Help Section */}
         <div className="bg-muted rounded-2xl p-6 text-center">
           <h3 className="text-lg font-semibold text-foreground mb-2">Need Help?</h3>

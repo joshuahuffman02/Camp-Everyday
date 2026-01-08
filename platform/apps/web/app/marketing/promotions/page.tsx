@@ -200,7 +200,7 @@ export default function PromotionsPage() {
               <Link href="/settings/promotions">
                 <Button size="sm">Open Promotions settings</Button>
               </Link>
-              <Link href="/reports?tab=marketing&subTab=booking-sources">
+              <Link href="/reports/marketing/booking-sources">
                 <Button size="sm" variant="outline">View channel mix</Button>
               </Link>
             </div>

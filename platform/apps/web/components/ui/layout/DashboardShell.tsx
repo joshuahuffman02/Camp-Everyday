@@ -16,6 +16,7 @@ import { SyncDetailsDrawer } from "../../sync/SyncDetailsDrawer";
 import { useSyncStatus } from "@/contexts/SyncStatusContext";
 import { SupportChatWidget } from "../../support/SupportChatWidget";
 import { AdminAiAssistant } from "../../admin/AdminAiAssistant";
+import { DashboardChatWidget } from "../../dashboard/DashboardChatWidget";
 import { resolvePages, PAGE_REGISTRY, PageDefinition } from "@/lib/page-registry";
 import { useCampground } from "@/contexts/CampgroundContext";
 import { listSavedReports } from "@/components/reports/savedReports";
@@ -1133,6 +1134,8 @@ export function DashboardShell({ children, className, title, subtitle, density =
       <div data-tour="help-button">
         <SupportChatWidget />
       </div>
+      {/* AI Chat Widget for staff assistance */}
+      <DashboardChatWidget />
       {/* AI Assistant for admin users */}
       {isAdmin && <AdminAiAssistant />}
     </div>

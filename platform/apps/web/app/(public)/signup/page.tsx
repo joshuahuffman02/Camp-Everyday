@@ -701,6 +701,12 @@ export default function SignupPage() {
                   />
                 </div>
 
+                {/* Beta Acknowledgment */}
+                <p className="text-xs text-slate-500 text-center">
+                  By signing up, you acknowledge that Keepr is in early access.
+                  Features and availability may change as we improve the platform.
+                </p>
+
                 {/* Submit */}
                 <motion.div
                   whileHover={!submitting && !prefersReducedMotion ? { scale: 1.01 } : {}}

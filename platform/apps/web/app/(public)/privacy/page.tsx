@@ -12,7 +12,7 @@ export default function PrivacyPage() {
                 {/* Header */}
                 <div className="mb-12">
                     <h1 className="text-4xl font-bold text-foreground mb-4">Privacy Policy</h1>
-                    <p className="text-muted-foreground">Last updated: December 2024</p>
+                    <p className="text-muted-foreground">Last updated: January 2025</p>
                 </div>
 
                 {/* Content */}
@@ -57,6 +57,22 @@ export default function PrivacyPage() {
                             <li>Send promotional communications (with your consent)</li>
                             <li>Comply with legal obligations</li>
                         </ul>
+                    </section>
+
+                    <section className="mb-8">
+                        <h2 className="text-2xl font-bold text-foreground mb-4">Early Access Data Practices</h2>
+                        <p className="text-muted-foreground mb-4">
+                            As part of our early access program, we collect additional information to improve Keepr:
+                        </p>
+                        <ul className="list-disc list-inside text-muted-foreground space-y-2">
+                            <li><strong>Usage Analytics:</strong> How you navigate and use features, to identify improvements</li>
+                            <li><strong>Feature Feedback:</strong> Your suggestions and reported issues, linked to your account for context</li>
+                            <li><strong>Performance Data:</strong> System metrics to optimize speed and reliability</li>
+                        </ul>
+                        <p className="text-muted-foreground mt-4">
+                            This data helps us build a better product for all campground operators. We do not sell
+                            this information to third parties.
+                        </p>
                     </section>
 
                     <section className="mb-8">

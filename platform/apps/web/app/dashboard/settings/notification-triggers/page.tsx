@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback, useRef, ReactNode } from "react";
+import { useEffect, useState, useCallback, useRef, type ElementRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -575,7 +575,7 @@ function TriggerModal({
   onSaved: () => void;
 }) {
   const modalRef = useRef<HTMLDivElement>(null);
-  const firstFocusRef = useRef<HTMLButtonElement>(null);
+  const firstFocusRef = useRef<ElementRef<typeof SelectTrigger>>(null);
 
   const [event, setEvent] = useState<TriggerEvent>(trigger?.event as TriggerEvent ?? "reservation_created");
   const [channel, setChannel] = useState<"email" | "sms" | "both">(trigger?.channel ?? "email");

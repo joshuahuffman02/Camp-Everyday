@@ -87,7 +87,7 @@ export class AuthService {
                 await this.accountLockout.checkAndThrowIfLocked(normalizedEmail);
             }
 
-            this.logger.log(`Attempting login for ${normalizedEmail}`);
+            this.logger.log(`Attempting login for ${this.sanitizeEmail(normalizedEmail)}`);
             let user = await this.prisma.user.findUnique({
                 where: { email: normalizedEmail },
                 include: {
@@ -117,7 +117,7 @@ export class AuthService {
                         throw new UnauthorizedException('Bootstrap admin password must contain uppercase, lowercase, and numbers');
                     }
 
-                    this.logger.warn(`SECURITY: Bootstrapping first admin user: ${normalizedEmail}`);
+                    this.logger.warn(`SECURITY: Bootstrapping first admin user: ${this.sanitizeEmail(normalizedEmail)}`);
                     const passwordHash = await bcrypt.hash(dto.password, 12);
                     user = await this.prisma.user.create({
                         data: {
@@ -150,7 +150,7 @@ export class AuthService {
                         },
                     });
                 } else {
-                    this.logger.log(`User not found: ${normalizedEmail}`);
+                    this.logger.log(`User not found: ${this.sanitizeEmail(normalizedEmail)}`);
                     // Record failed attempt even for non-existent users (prevents enumeration)
                     await this.accountLockout.handleFailedLogin(normalizedEmail);
                     await this.securityEvents.logLoginAttempt(false, normalizedEmail, ipAddress, userAgent, undefined, "user_not_found");
@@ -159,7 +159,7 @@ export class AuthService {
             }
 
             if (!user.isActive) {
-                this.logger.log(`User not active: ${normalizedEmail}`);
+                this.logger.log(`User not active: ${this.sanitizeEmail(normalizedEmail)}`);
                 await this.accountLockout.handleFailedLogin(normalizedEmail);
                 await this.securityEvents.logLoginAttempt(false, normalizedEmail, ipAddress, userAgent, user.id, "user_inactive");
                 throw new UnauthorizedException('Invalid credentials');
@@ -168,7 +168,7 @@ export class AuthService {
             this.logger.log(`User found, comparing password hash for ${user.id}`);
             const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
             if (!passwordValid) {
-                this.logger.log(`Invalid password for ${normalizedEmail}`);
+                this.logger.log(`Invalid password for ${this.sanitizeEmail(normalizedEmail)}`);
                 // Record failed attempt and check if now locked
                 const lockStatus = await this.accountLockout.handleFailedLogin(normalizedEmail);
                 await this.securityEvents.logLoginAttempt(false, normalizedEmail, ipAddress, userAgent, user.id, "invalid_password");
@@ -202,7 +202,7 @@ export class AuthService {
                 token
             };
         } catch (error) {
-            this.logger.error(`Login error for ${normalizedEmail}:`, error instanceof Error ? error.stack : error);
+            this.logger.error(`Login error for ${this.sanitizeEmail(normalizedEmail)}:`, error instanceof Error ? error.stack : error);
             throw error;
         }
     }
@@ -307,7 +307,7 @@ export class AuthService {
                 await this.accountLockout.checkAndThrowIfLocked(normalizedEmail);
             }
 
-            this.logger.log(`Mobile login attempt for ${normalizedEmail}`);
+            this.logger.log(`Mobile login attempt for ${this.sanitizeEmail(normalizedEmail)}`);
 
             const user = await this.prisma.user.findUnique({
                 where: { email: normalizedEmail },
@@ -355,7 +355,7 @@ export class AuthService {
                 appVersion: dto.appVersion
             });
 
-            this.logger.log(`Mobile login successful for ${normalizedEmail}`);
+            this.logger.log(`Mobile login successful for ${this.sanitizeEmail(normalizedEmail)}`);
 
             return {
                 id: user.id,
@@ -374,7 +374,7 @@ export class AuthService {
                 expiresIn: tokens.expiresIn
             };
         } catch (error) {
-            this.logger.error(`Mobile login error for ${normalizedEmail}:`, error instanceof Error ? error.stack : error);
+            this.logger.error(`Mobile login error for ${this.sanitizeEmail(normalizedEmail)}:`, error instanceof Error ? error.stack : error);
             throw error;
         }
     }
@@ -573,5 +573,16 @@ export class AuthService {
 
     private hashToken(token: string): string {
         return createHash('sha256').update(token).digest('hex');
+    }
+
+    /**
+     * Sanitize email for logging - show first 2 chars + domain only
+     * Protects PII while still allowing debugging
+     */
+    private sanitizeEmail(email: string): string {
+        const [local, domain] = email.split('@');
+        if (!domain) return '***';
+        const safeLocal = local.length > 2 ? `${local.slice(0, 2)}***` : '***';
+        return `${safeLocal}@${domain}`;
     }
 }

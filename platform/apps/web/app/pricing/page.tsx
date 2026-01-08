@@ -56,6 +56,9 @@ export default function PricingPage() {
       <main>
         <section className="border-b border-slate-100 bg-gradient-to-br from-keepr-off-white via-white to-keepr-off-white">
           <div className="max-w-5xl mx-auto px-6 pt-24 pb-16 md:pt-28 md:pb-24 space-y-6 text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-keepr-evergreen/10 text-keepr-evergreen text-sm font-medium rounded-full">
+              Early Access Pricing - Locked In Forever
+            </div>
             <p className="text-sm font-semibold uppercase tracking-[0.12em] text-keepr-evergreen">Pricing</p>
             <h1 className="text-4xl md:text-5xl font-bold text-slate-900">
               Pricing built for modern campgrounds

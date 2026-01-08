@@ -320,6 +320,9 @@ export function AdminTopBar({
                             />
                         </div>
                     </Link>
+                    <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded hidden sm:inline">
+                        Beta
+                    </span>
                     {onToggleNav && (
                         <button
                             onClick={onToggleNav}

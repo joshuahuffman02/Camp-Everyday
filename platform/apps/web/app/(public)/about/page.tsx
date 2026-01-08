@@ -40,6 +40,69 @@ export default function AboutPage() {
                     </div>
                 </div>
 
+                {/* What This Is / Isn't - Beta Transparency */}
+                <div className="bg-card rounded-2xl shadow-lg p-8 md:p-12 mb-12">
+                    <h2 className="text-2xl font-bold text-foreground mb-6">What Keepr Is (And Isn&apos;t)</h2>
+                    <div className="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 className="font-semibold text-keepr-evergreen mb-4 flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                This IS
+                            </h3>
+                            <ul className="space-y-3 text-muted-foreground">
+                                <li className="flex items-start gap-2">
+                                    <span className="text-keepr-evergreen mt-1">•</span>
+                                    A modern, actively built campground management tool
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-keepr-evergreen mt-1">•</span>
+                                    A collaboration with early adopters who shape the product
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-keepr-evergreen mt-1">•</span>
+                                    Built by people who care about campgrounds
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-keepr-evergreen mt-1">•</span>
+                                    Improving every week based on real feedback
+                                </li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-slate-500 mb-4 flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                This IS NOT
+                            </h3>
+                            <ul className="space-y-3 text-muted-foreground">
+                                <li className="flex items-start gap-2">
+                                    <span className="text-slate-400 mt-1">•</span>
+                                    A finished enterprise system (yet)
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-slate-400 mt-1">•</span>
+                                    A replacement for your only backup today
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-slate-400 mt-1">•</span>
+                                    Perfect or bug-free (we&apos;re honest about that)
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-slate-400 mt-1">•</span>
+                                    Set in stone - features evolve with your input
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <p className="mt-6 text-sm text-muted-foreground border-t border-border pt-6">
+                        We&apos;re building Keepr alongside our founding parks. Your feedback directly influences what we build next.
+                        <a href="/roadmap" className="text-keepr-evergreen hover:underline ml-1">View our roadmap →</a>
+                    </p>
+                </div>
+
                 {/* Values */}
                 <div className="grid md:grid-cols-3 gap-6 mb-12">
                     <div className="bg-card rounded-xl p-6 shadow-lg">

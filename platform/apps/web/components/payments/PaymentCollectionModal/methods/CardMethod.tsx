@@ -10,9 +10,8 @@ import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { usePaymentContext } from "../context/PaymentContext";
 import { usePaymentIntent } from "../hooks/usePaymentIntent";
 
-// Initialize Stripe - hardcoded temporarily to bypass env var build issue
-const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  || "pk_test_51SfOHhRHNgCeKP35RvWQ3J506clH4SQ3v0Myu6mBROu1K18cdCn5vDBL1t0cs7YiIKlDkbNXFpiY24lqm9m04e0900njLSCFLz";
+// Initialize Stripe - requires NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY env var
+const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 interface CardMethodProps {
