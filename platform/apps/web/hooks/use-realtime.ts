@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
+import { API_BASE } from "@/lib/api-config";
+
+// Derive WebSocket base URL from API base (remove /api suffix)
+const WS_BASE = API_BASE.replace(/\/api$/, "");
 
 // Event types from the API
 export enum RealtimeEvent {
@@ -164,8 +168,6 @@ interface UseRealtimeReturn {
   emit: (event: string, data: unknown) => void;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
-
 /**
  * React hook for real-time WebSocket updates
  *
@@ -211,7 +213,7 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
       return;
     }
 
-    const socket = io(`${API_BASE}/realtime`, {
+    const socket = io(`${WS_BASE}/realtime`, {
       auth: { token },
       reconnection: reconnect,
       reconnectionAttempts,

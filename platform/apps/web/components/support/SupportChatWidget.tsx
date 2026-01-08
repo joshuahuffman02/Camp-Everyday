@@ -5,8 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { X, Send, Bot, User, LifeBuoy, ExternalLink, Ticket, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
+import { API_BASE } from "@/lib/api-config";
 
 interface SupportMessage {
   id: string;

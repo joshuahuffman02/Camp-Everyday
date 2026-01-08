@@ -4,8 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { MessageSquare, X, Send, Bot, User, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
+import { API_BASE } from "@/lib/api-config";
 
 interface Message {
     id: string;

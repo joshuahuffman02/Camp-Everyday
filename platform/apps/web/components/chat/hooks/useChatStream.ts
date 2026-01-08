@@ -3,9 +3,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { io, Socket } from "socket.io-client";
+import { API_BASE } from "@/lib/api-config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
-const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE || "http://localhost:4000";
+// Derive WebSocket base URL from API base (remove /api suffix)
+const WS_BASE = API_BASE.replace(/\/api$/, "");
 
 interface ActionOption {
   id: string;

@@ -2,8 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
+import { API_BASE } from "@/lib/api-config";
 
 interface ActionOption {
   id: string;
