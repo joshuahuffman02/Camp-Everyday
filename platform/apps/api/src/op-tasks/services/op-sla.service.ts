@@ -352,7 +352,7 @@ export class OpSlaService {
 
     const staff = await this.prisma.user.findMany({
       where: {
-        memberships: { some: { campgroundId } },
+        CampgroundMembership: { some: { campgroundId } },
         isActive: true,
       },
       select: {

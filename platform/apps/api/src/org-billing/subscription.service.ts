@@ -63,9 +63,9 @@ export class SubscriptionService {
         campgrounds: {
           take: 1,
           include: {
-            memberships: {
+            CampgroundMembership: {
               where: { role: "owner" },
-              include: { user: true },
+              include: { User: true },
               take: 1,
             },
           },
@@ -81,7 +81,7 @@ export class SubscriptionService {
     // Get billing email - prefer billingEmail, then owner email from first campground
     const ownerEmail =
       org.billingEmail ||
-      org.campgrounds[0]?.memberships[0]?.user?.email ||
+      org.campgrounds[0]?.CampgroundMembership[0]?.User?.email ||
       `org-${org.id}@keeprstay.com`;
 
     // Create new Stripe customer

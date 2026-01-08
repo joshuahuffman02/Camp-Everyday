@@ -47,8 +47,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         const user = await this.prisma.user.findUnique({
             where: { id: payload.sub },
             include: {
-                memberships: {
-                    include: { campground: true }
+                CampgroundMembership: {
+                    include: { Campground: true }
                 }
             }
         });
@@ -57,11 +57,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             throw new UnauthorizedException();
         }
 
-        const memberships = user.memberships.map((m) => ({
+        const memberships = user.CampgroundMembership.map((m) => ({
             id: m.id,
             campgroundId: m.campgroundId,
             role: m.role,
-            campground: m.campground ? { id: m.campground.id, name: m.campground.name, slug: (m.campground as any).slug } : undefined,
+            campground: m.Campground ? { id: m.Campground.id, name: m.Campground.name, slug: (m.Campground as any).slug } : undefined,
         }));
 
         return {

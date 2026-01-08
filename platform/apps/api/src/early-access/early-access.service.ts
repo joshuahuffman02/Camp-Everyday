@@ -264,7 +264,7 @@ export class EarlyAccessService {
         organization: {
           campgrounds: {
             some: {
-              memberships: {
+              CampgroundMembership: {
                 some: { userId: dto.userId }
               }
             }

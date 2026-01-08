@@ -166,7 +166,7 @@ export class OpTeamService {
     const user = await this.prisma.user.findFirst({
       where: {
         id: dto.userId,
-        memberships: { some: { campgroundId: team.campgroundId } },
+        CampgroundMembership: { some: { campgroundId: team.campgroundId } },
       },
     });
     if (!user) {
@@ -261,7 +261,7 @@ export class OpTeamService {
   async getAvailableStaff(campgroundId: string): Promise<any[]> {
     return this.prisma.user.findMany({
       where: {
-        memberships: { some: { campgroundId } },
+        CampgroundMembership: { some: { campgroundId } },
         isActive: true,
       },
       select: {

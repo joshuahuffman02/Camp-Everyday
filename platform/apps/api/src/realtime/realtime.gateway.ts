@@ -91,7 +91,7 @@ export class RealtimeGateway
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
         include: {
-          memberships: {
+          CampgroundMembership: {
             select: { campgroundId: true },
           },
         },
@@ -104,7 +104,7 @@ export class RealtimeGateway
         return;
       }
 
-      const campgroundIds = user.memberships.map((m) => m.campgroundId);
+      const campgroundIds = user.CampgroundMembership.map((m) => m.campgroundId);
 
       // Store user data on socket
       const authSocket = client as AuthenticatedSocket;

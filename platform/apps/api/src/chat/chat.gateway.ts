@@ -130,7 +130,7 @@ export class ChatGateway
           const user = await this.prisma.user.findUnique({
             where: { id: payload.sub },
             include: {
-              memberships: {
+              CampgroundMembership: {
                 select: { campgroundId: true },
               },
             },
@@ -141,7 +141,7 @@ export class ChatGateway
           }
 
           // Verify user has access to the requested campground
-          campgroundIds = user.memberships.map((m) => m.campgroundId);
+          campgroundIds = user.CampgroundMembership.map((m) => m.campgroundId);
           if (!campgroundIds.includes(campgroundId)) {
             throw new Error("Not authorized for this campground");
           }

@@ -166,7 +166,7 @@ export class SupportService {
         select: {
           id: true,
           region: true,
-          memberships: { select: { campgroundId: true } },
+          CampgroundMembership: { select: { campgroundId: true } },
           ownershipRoles: true
         }
       });
@@ -175,7 +175,7 @@ export class SupportService {
       }
       const matchesRegion = beforeRegion ? assignee.region === beforeRegion : true;
       const matchesCamp = before?.campgroundId
-        ? assignee.memberships.some((m) => m.campgroundId === before?.campgroundId)
+        ? assignee.CampgroundMembership.some((m) => m.campgroundId === before?.campgroundId)
         : true;
       if (!matchesRegion && !matchesCamp) {
         throw new ForbiddenException("Assignee not permitted for region/campground");
@@ -212,7 +212,7 @@ export class SupportService {
       whereOr.push({ region });
     }
     if (campgroundId) {
-      whereOr.push({ memberships: { some: { campgroundId } } });
+      whereOr.push({ CampgroundMembership: { some: { campgroundId } } });
     }
 
     const users = await this.prisma.user.findMany({
@@ -232,7 +232,7 @@ export class SupportService {
         platformRegion: true,
         platformActive: true,
         ownershipRoles: true,
-        memberships: { select: { campgroundId: true, role: true } }
+        CampgroundMembership: { select: { campgroundId: true, role: true } }
       }
     });
 
@@ -270,7 +270,7 @@ export class SupportService {
         platformRegion: true,
         platformActive: true,
         ownershipRoles: true,
-        memberships: { select: { campgroundId: true, role: true } }
+        CampgroundMembership: { select: { campgroundId: true, role: true } }
       }
     });
   }

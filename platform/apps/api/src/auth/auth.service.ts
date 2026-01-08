@@ -91,8 +91,8 @@ export class AuthService {
             let user = await this.prisma.user.findUnique({
                 where: { email: normalizedEmail },
                 include: {
-                    memberships: {
-                        include: { campground: { select: { id: true, name: true, slug: true } } }
+                    CampgroundMembership: {
+                        include: { Campground: { select: { id: true, name: true, slug: true } } }
                     }
                 }
             });
@@ -130,8 +130,8 @@ export class AuthService {
                             mustChangePassword: true
                         },
                         include: {
-                            memberships: {
-                                include: { campground: { select: { id: true, name: true, slug: true } } }
+                            CampgroundMembership: {
+                                include: { Campground: { select: { id: true, name: true, slug: true } } }
                             }
                         }
                     });
@@ -193,10 +193,10 @@ export class AuthService {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 platformRole: user.platformRole,
-                campgrounds: user.memberships.map((m: { campground: { id: string; name: string; slug: string }; role: string }) => ({
-                    id: m.campground.id,
-                    name: m.campground.name,
-                    slug: m.campground.slug,
+                campgrounds: user.CampgroundMembership.map((m: { Campground: { id: string; name: string; slug: string }; role: string }) => ({
+                    id: m.Campground.id,
+                    name: m.Campground.name,
+                    slug: m.Campground.slug,
                     role: m.role
                 })),
                 token
@@ -211,8 +211,8 @@ export class AuthService {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             include: {
-                memberships: {
-                    include: { campground: { select: { id: true, name: true, slug: true } } }
+                CampgroundMembership: {
+                    include: { Campground: { select: { id: true, name: true, slug: true } } }
                 }
             }
         });
@@ -226,10 +226,10 @@ export class AuthService {
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,
-            campgrounds: user.memberships.map(m => ({
-                id: m.campground.id,
-                name: m.campground.name,
-                slug: m.campground.slug,
+            campgrounds: user.CampgroundMembership.map(m => ({
+                id: m.Campground.id,
+                name: m.Campground.name,
+                slug: m.Campground.slug,
                 role: m.role
             }))
         };
@@ -312,8 +312,8 @@ export class AuthService {
             const user = await this.prisma.user.findUnique({
                 where: { email: normalizedEmail },
                 include: {
-                    memberships: {
-                        include: { campground: { select: { id: true, name: true, slug: true } } }
+                    CampgroundMembership: {
+                        include: { Campground: { select: { id: true, name: true, slug: true } } }
                     }
                 }
             });
@@ -363,10 +363,10 @@ export class AuthService {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 platformRole: user.platformRole,
-                campgrounds: user.memberships.map((m: { campground: { id: string; name: string; slug: string }; role: string }) => ({
-                    id: m.campground.id,
-                    name: m.campground.name,
-                    slug: m.campground.slug,
+                campgrounds: user.CampgroundMembership.map((m: { Campground: { id: string; name: string; slug: string }; role: string }) => ({
+                    id: m.Campground.id,
+                    name: m.Campground.name,
+                    slug: m.Campground.slug,
                     role: m.role
                 })),
                 accessToken: tokens.accessToken,
@@ -394,8 +394,8 @@ export class AuthService {
             include: {
                 user: {
                     include: {
-                        memberships: {
-                            include: { campground: { select: { id: true, name: true, slug: true } } }
+                        CampgroundMembership: {
+                            include: { Campground: { select: { id: true, name: true, slug: true } } }
                         }
                     }
                 }
@@ -431,10 +431,10 @@ export class AuthService {
             firstName: session.user.firstName,
             lastName: session.user.lastName,
             platformRole: session.user.platformRole,
-            campgrounds: session.user.memberships.map((m: { campground: { id: string; name: string; slug: string }; role: string }) => ({
-                id: m.campground.id,
-                name: m.campground.name,
-                slug: m.campground.slug,
+            campgrounds: session.user.CampgroundMembership.map((m: { Campground: { id: string; name: string; slug: string }; role: string }) => ({
+                id: m.Campground.id,
+                name: m.Campground.name,
+                slug: m.Campground.slug,
                 role: m.role
             })),
             accessToken: tokens.accessToken,

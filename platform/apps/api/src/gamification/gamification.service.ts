@@ -363,7 +363,7 @@ export class GamificationService {
         firstName: true,
         lastName: true,
         email: true,
-        memberships: {
+        CampgroundMembership: {
           where: { campgroundId },
           select: { role: true }
         }
@@ -378,7 +378,7 @@ export class GamificationService {
         rank: idx + 1,
         xp: r._sum.xp ?? 0,
         name: u ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.email : "Unknown",
-        role: u?.memberships?.[0]?.role ?? null
+        role: u?.CampgroundMembership?.[0]?.role ?? null
       };
     });
 
@@ -398,7 +398,7 @@ export class GamificationService {
             firstName: true,
             lastName: true,
             email: true,
-            memberships: { where: { campgroundId }, select: { role: true } }
+            CampgroundMembership: { where: { campgroundId }, select: { role: true } }
           }
         });
         viewer = {
@@ -406,7 +406,7 @@ export class GamificationService {
           rank: 0,
           xp: viewerAgg[0]._sum.xp ?? 0,
           name: u ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.email : "You",
-          role: u?.memberships?.[0]?.role ?? null
+          role: u?.CampgroundMembership?.[0]?.role ?? null
         };
       }
     }
