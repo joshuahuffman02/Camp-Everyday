@@ -338,7 +338,130 @@ When you want to pay yourself:
 
 ## Paying Yourself
 
-### Option A: Simple Owner's Draw (Recommended to Start)
+### The Basic Formula
+
+Every month (or whenever you want to take money out):
+
+```
+REVENUE (what came in)
+  - EXPENSES (what you paid for services)
+  - TAX RESERVE (30% of what's left)
+  - CASH BUFFER (keep 2-3 months expenses)
+  = WHAT YOU CAN TAKE
+```
+
+### Practical Example
+
+Say Keepr made $5,000 this month:
+
+| Item | Amount | Running Total |
+|------|--------|---------------|
+| Revenue | $5,000 | $5,000 |
+| - Stripe fees (2.9%) | -$145 | $4,855 |
+| - Railway | -$50 | $4,805 |
+| - Vercel | -$20 | $4,785 |
+| - Resend | -$20 | $4,765 |
+| - Other expenses | -$50 | $4,715 |
+| **Net Profit** | | **$4,715** |
+| - Tax reserve (30%) | -$1,415 | $3,300 |
+| - Cash buffer (if needed) | -$300 | $3,000 |
+| **= What you can take** | | **$3,000** |
+
+### How Much Should You Actually Take?
+
+**Early stage (first 6-12 months):**
+- Take 40-50% of profit (after tax reserve)
+- Build up a 3-month expense buffer in the business
+- You need runway in case of slow months
+
+**Stable stage (consistent revenue):**
+- Take 60-70% of profit (after tax reserve)
+- Keep 2 months expenses as buffer
+- More predictable, can be more aggressive
+
+**Growth stage (reinvesting):**
+- Take 30-40% of profit
+- Use rest for marketing, features, hiring contractors
+- Building value now, pay yourself more later
+
+### What "Profit" Actually Means
+
+```
+Gross Revenue:     $5,000  (what Stripe deposits)
+- Stripe Fees:       -$145  (2.9% + $0.30 per transaction)
+- Services:          -$140  (Railway, Vercel, Resend, etc.)
+- Contractors:         $0  (if any)
+────────────────────────────
+Net Profit:        $4,715  ← This is what you can distribute
+```
+
+### The 30% Tax Reserve (Critical!)
+
+This is non-negotiable. Set aside 30% of net profit for taxes BEFORE calculating what you can take.
+
+**Why 30%?**
+- Federal income tax: 12-22% (depends on your bracket)
+- Minnesota state tax: 5.35-9.85%
+- Self-employment tax: 15.3% (but only on 92.35% of profit)
+- Combined effective: Usually 25-35%
+
+**30% is safe.** If you end up owing less, nice surprise. If you owe more, you're not scrambling.
+
+**Where to put it:** Open a savings account at the same bank. Transfer tax reserve there monthly. Don't touch it until quarterly estimate payments are due.
+
+### Cash Buffer Guidelines
+
+Keep this much in Keepr LLC's account at all times:
+
+| Monthly Expenses | Buffer to Keep |
+|------------------|----------------|
+| $100-300/mo | $500-800 (2-3 months) |
+| $300-500/mo | $800-1,500 (2-3 months) |
+| $500-1,000/mo | $1,500-3,000 (2-3 months) |
+
+This covers slow months, unexpected costs, or customers requesting refunds.
+
+### Realistic Scenarios
+
+**Scenario 1: Side Project ($500/mo revenue)**
+```
+Revenue:           $500
+- Expenses:        -$100
+- Stripe fees:      -$15
+= Net Profit:       $385
+- Tax reserve:     -$115 (30%)
+- Buffer contrib:   -$50 (building up)
+= You take:         $220
+```
+That's $220/month in your pocket. Not life-changing, but real money.
+
+**Scenario 2: Growing ($3,000/mo revenue)**
+```
+Revenue:         $3,000
+- Expenses:        -$150
+- Stripe fees:      -$90
+= Net Profit:     $2,760
+- Tax reserve:     -$830 (30%)
+- Buffer:            $0 (already have enough)
+= You take:       $1,930
+```
+$1,930/month = $23k/year extra income.
+
+**Scenario 3: Real Business ($10,000/mo revenue)**
+```
+Revenue:        $10,000
+- Expenses:        -$300
+- Stripe fees:     -$300
+= Net Profit:     $9,400
+- Tax reserve:   -$2,820 (30%)
+- Buffer:            $0
+= You take:       $6,580
+```
+$6,580/month = $79k/year. That's a real salary.
+
+### Owner's Draw vs. Salary
+
+**Option A: Simple Owner's Draw (Recommended to Start)**
 
 Just transfer money when you need it:
 
@@ -351,7 +474,7 @@ Keepr LLC  ──►  Holdings LLC  ──►  Personal Account
 - Just regular bank transfers
 - Pay quarterly estimated taxes yourself
 
-### Option B: Salary (Later, If Profitable)
+**Option B: Salary (Later, If Profitable)**
 
 If Keepr makes $50k+ profit/year, consider S-Corp election:
 
@@ -362,6 +485,31 @@ If Keepr makes $50k+ profit/year, consider S-Corp election:
 5. **Saves money on self-employment tax**
 
 This is complex - get an accountant when you reach this point.
+
+### Frequency: How Often to Take Money
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Weekly** | Steady personal cash flow | More transfers to track |
+| **Bi-weekly** | Feels like a "paycheck" | Moderate tracking |
+| **Monthly** | Easy to track, see full picture | Wait longer for money |
+| **As needed** | Flexible | Can lose track of what you've taken |
+
+**Recommendation:** Monthly. At the end of each month:
+1. Review revenue and expenses
+2. Calculate net profit
+3. Transfer 30% to tax savings
+4. Transfer remaining to Holdings → Personal
+
+### Don't Forget: The Transfer Path
+
+Money always flows:
+
+```
+Keepr LLC → Holdings LLC → Personal
+```
+
+Never go directly from Keepr → Personal. Going through Holdings maintains the corporate structure that protects you.
 
 ---
 
