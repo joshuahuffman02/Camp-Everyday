@@ -99,8 +99,8 @@ export class OpTaskService {
         createdById,
       },
       include: {
-        site: true,
-        reservation: { include: { guest: true } },
+        Site: true,
+        Reservation: { include: { Guest: true } },
         assignedToUser: { select: { id: true, firstName: true, lastName: true } },
         assignedToTeam: true,
         template: true,
@@ -145,8 +145,8 @@ export class OpTaskService {
           { createdAt: 'desc' },
         ],
         include: {
-          site: true,
-          reservation: { include: { guest: true } },
+          Site: true,
+          Reservation: { include: { Guest: true } },
           assignedToUser: { select: { id: true, firstName: true, lastName: true } },
           assignedToTeam: true,
           template: true,
@@ -165,8 +165,8 @@ export class OpTaskService {
     const task = await this.prisma.opTask.findUnique({
       where: { id },
       include: {
-        site: true,
-        reservation: { include: { guest: true } },
+        Site: true,
+        Reservation: { include: { Guest: true } },
         assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
         assignedToTeam: { include: { members: { include: { user: true } } } },
         completedBy: { select: { id: true, firstName: true, lastName: true } },
@@ -234,8 +234,8 @@ export class OpTaskService {
       where: { id },
       data: updateData,
       include: {
-        site: true,
-        reservation: { include: { guest: true } },
+        Site: true,
+        Reservation: { include: { Guest: true } },
         assignedToUser: { select: { id: true, firstName: true, lastName: true } },
         assignedToTeam: true,
         template: true,
@@ -491,7 +491,7 @@ export class OpTaskService {
       },
       orderBy: { slaDueAt: 'asc' },
       include: {
-        site: true,
+        Site: true,
         assignedToUser: { select: { id: true, firstName: true, lastName: true } },
         assignedToTeam: true,
       },
@@ -510,7 +510,7 @@ export class OpTaskService {
       },
       orderBy: { slaDueAt: 'asc' },
       include: {
-        site: true,
+        Site: true,
         assignedToUser: { select: { id: true, firstName: true, lastName: true } },
         assignedToTeam: true,
       },
@@ -539,8 +539,8 @@ export class OpTaskService {
       },
       orderBy: [{ priority: 'desc' }, { slaDueAt: 'asc' }],
       include: {
-        site: true,
-        reservation: { include: { guest: true } },
+        Site: true,
+        Reservation: { include: { Guest: true } },
         template: true,
       },
     });

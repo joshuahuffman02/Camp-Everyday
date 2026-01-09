@@ -35,7 +35,7 @@ export class SitesService {
         campgroundId,
         ...(options?.isActive !== undefined ? { isActive: options.isActive } : {})
       },
-      include: { siteClass: true },
+      include: { SiteClass: true },
       orderBy: { siteNumber: 'asc' },
       take: limit,
       skip: offset
