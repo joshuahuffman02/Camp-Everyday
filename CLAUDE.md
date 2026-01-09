@@ -387,6 +387,7 @@ For long-running tasks, use a background agent to verify:
 - **Icons**: Use Lucide SVG icons, never emojis
 - **Verification**: Always run build + tests after changes
 - **Error Tracking**: Wrap risky operations in try/catch + Sentry.captureException()
+- **Real Solutions Only**: No band-aid fixes or workarounds - find and fix the root cause. If something is broken, understand why before fixing it.
 
 ---
 

@@ -404,11 +404,12 @@ export default function Dashboard() {
     placeholderData: keepPreviousData,
   });
 
-  // Get today's date as YYYY-MM-DD string (for reliable date comparison)
+  // Get today's date as YYYY-MM-DD string in UTC (for reliable date comparison with backend)
+  // The backend stores all dates in UTC, so we must compare using UTC dates
   const todayString = useMemo(() => {
     if (!hasMounted) return null;
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
   }, [hasMounted]);
 
   // Also keep a Date object for display purposes
