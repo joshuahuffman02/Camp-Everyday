@@ -103,6 +103,12 @@ interface ChatContext {
   currentReservationId?: string;
 }
 
+interface PreValidateResult {
+  valid: boolean;
+  message?: string; // Error message if invalid
+  [key: string]: any; // Additional data to pass to execute
+}
+
 interface ToolDefinition {
   name: string;
   description: string;
@@ -112,6 +118,8 @@ interface ToolDefinition {
   requiresConfirmation?: boolean;
   confirmationTitle?: string;
   confirmationDescription?: string;
+  // Pre-validate before showing confirmation dialog - can fail early with helpful message
+  preValidate?: (args: Record<string, any>, context: ChatContext, prisma: PrismaService) => Promise<PreValidateResult>;
   execute: (args: Record<string, any>, context: ChatContext, prisma: PrismaService) => Promise<any>;
 }
 
@@ -213,7 +221,7 @@ export class ChatToolsService {
       parameters: {
         type: 'object',
         properties: {
-          siteId: { type: 'string', description: 'Site ID' },
+          siteId: { type: 'string', description: 'Site ID or name' },
           arrivalDate: { type: 'string', description: 'Arrival date (YYYY-MM-DD)' },
           departureDate: { type: 'string', description: 'Departure date (YYYY-MM-DD)' },
           guests: { type: 'number', description: 'Number of guests' },
@@ -221,10 +229,57 @@ export class ChatToolsService {
         required: ['siteId', 'arrivalDate', 'departureDate'],
       },
       guestAllowed: true,
-      execute: async (args, context, prisma) => {
-        const { siteId, arrivalDate, departureDate, guests = 2 } = args;
+      // Pre-validate site exists and resolve name to ID
+      preValidate: async (args, context, prisma) => {
+        const { siteId } = args;
 
-        const site = await prisma.site.findFirst({
+        // Try to find the site by ID first
+        let site = await prisma.site.findFirst({
+          where: { id: siteId, campgroundId: context.campgroundId },
+          include: { siteClass: true },
+        });
+
+        // If not found by ID, try to find by name
+        if (!site) {
+          site = await prisma.site.findFirst({
+            where: {
+              campgroundId: context.campgroundId,
+              OR: [
+                { name: siteId },
+                { name: `Site ${siteId}` },
+                { name: { contains: siteId, mode: 'insensitive' } },
+              ],
+            },
+            include: { siteClass: true },
+          });
+        }
+
+        if (!site) {
+          // Get available sites to suggest alternatives
+          const availableSites = await prisma.site.findMany({
+            where: { campgroundId: context.campgroundId, status: 'active' },
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' },
+            take: 15,
+          });
+
+          const siteNames = availableSites.map(s => s.name).join(', ');
+          return {
+            valid: false,
+            message: `Site "${siteId}" was not found. Available sites: ${siteNames}. Please specify a valid site name.`,
+          };
+        }
+
+        // Update args with resolved site ID
+        args.siteId = site.id;
+        args._resolvedSite = site; // Pass the full site object to avoid re-querying
+        return { valid: true, siteName: site.name };
+      },
+      execute: async (args, context, prisma) => {
+        const { siteId, arrivalDate, departureDate, guests = 2, _resolvedSite } = args;
+
+        // Use pre-resolved site if available, otherwise query
+        const site = _resolvedSite || await prisma.site.findFirst({
           where: { id: siteId, campgroundId: context.campgroundId },
           include: { siteClass: true },
         });
@@ -254,6 +309,21 @@ export class ChatToolsService {
         const taxCents = Math.round(subtotalCents * taxRate);
         const totalCents = subtotalCents + taxCents;
 
+        // Get site lock fee from site class (if campground charges one)
+        const siteLockFeeCents = site.siteClass?.siteLockFeeCents || 0;
+
+        // Build response - only mention site lock fee if campground actually charges one
+        const isGuest = context.participantType === ChatParticipantType.guest;
+        let siteNote = '';
+        let canGuaranteeSite = true;
+
+        if (isGuest && site.siteClass && siteLockFeeCents > 0) {
+          // Campground charges a site lock fee - let guest know
+          siteNote = `\n\nNote: Bookings guarantee the site class (${site.siteClass.name}) but not a specific site. To guarantee ${site.name}, add the site lock fee of $${(siteLockFeeCents / 100).toFixed(2)}.`;
+          canGuaranteeSite = false;
+        }
+        // If no site lock fee, guest can book the specific site directly - no note needed
+
         return {
           success: true,
           quote: {
@@ -270,8 +340,14 @@ export class ChatToolsService {
               total: `$${(totalCents / 100).toFixed(2)}`,
             },
             totalCents,
+            // Only include site lock info if campground charges for it
+            siteLockFee: siteLockFeeCents > 0 ? `$${(siteLockFeeCents / 100).toFixed(2)}` : null,
+            canGuaranteeSpecificSite: canGuaranteeSite,
+            siteClassGuaranteeNote: (isGuest && siteLockFeeCents > 0)
+              ? `Bookings guarantee the ${site.siteClass?.name} class, not a specific site. Add $${(siteLockFeeCents / 100).toFixed(2)} site lock fee to guarantee ${site.name}.`
+              : null,
           },
-          message: `Quote for ${site.name}: ${nights} night${nights > 1 ? 's' : ''} = $${(totalCents / 100).toFixed(2)} total`,
+          message: `Quote for ${site.name}: ${nights} night${nights > 1 ? 's' : ''} = $${(totalCents / 100).toFixed(2)} total${siteNote}`,
         };
       },
     });
@@ -1173,8 +1249,52 @@ export class ChatToolsService {
       staffRoles: ['owner', 'manager'],
       requiresConfirmation: true,
       confirmationTitle: 'Confirm Site Block',
+      // Pre-validate before showing confirmation - check site exists and suggest alternatives
+      preValidate: async (args, context, prisma) => {
+        const { siteId } = args;
+
+        // Try to find the site by ID first
+        let site = await prisma.site.findFirst({
+          where: { id: siteId, campgroundId: context.campgroundId },
+        });
+
+        // If not found by ID, try to find by name (e.g., "Site 21", "21", etc.)
+        if (!site) {
+          site = await prisma.site.findFirst({
+            where: {
+              campgroundId: context.campgroundId,
+              OR: [
+                { name: siteId },
+                { name: `Site ${siteId}` },
+                { name: { contains: siteId, mode: 'insensitive' } },
+              ],
+            },
+          });
+        }
+
+        if (!site) {
+          // Get available sites to suggest alternatives
+          const availableSites = await prisma.site.findMany({
+            where: { campgroundId: context.campgroundId, status: 'active' },
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' },
+            take: 20,
+          });
+
+          const siteNames = availableSites.map(s => s.name).join(', ');
+          return {
+            valid: false,
+            message: `Site "${siteId}" was not found. Available sites: ${siteNames}. Please specify a valid site name.`,
+          };
+        }
+
+        // Update args with the actual site ID for the execute function
+        args.siteId = site.id;
+        args._siteName = site.name; // Store for display
+        return { valid: true, siteName: site.name };
+      },
       execute: async (args, context, prisma) => {
-        const { siteId, reason, startDate, endDate } = args;
+        const { siteId, reason, startDate, endDate, _siteName } = args;
 
         const site = await prisma.site.findFirst({
           where: { id: siteId, campgroundId: context.campgroundId },
@@ -1763,6 +1883,33 @@ export class ChatToolsService {
   }
 
   /**
+   * Run preValidate for a tool if it exists
+   * Returns null if no preValidate or if validation passes
+   * Returns error message if validation fails
+   */
+  async runPreValidate(
+    name: string,
+    args: Record<string, any>,
+    context: ChatContext,
+  ): Promise<PreValidateResult | null> {
+    const tool = this.tools.get(name);
+    if (!tool || !tool.preValidate) {
+      return null; // No preValidate, continue normally
+    }
+
+    try {
+      const result = await tool.preValidate(args, context, this.prisma);
+      return result;
+    } catch (error) {
+      this.logger.error(`PreValidate error for ${name}:`, error);
+      return {
+        valid: false,
+        message: error instanceof Error ? error.message : 'Validation failed',
+      };
+    }
+  }
+
+  /**
    * Format confirmation description for display
    */
   formatConfirmationDescription(toolName: string, args: Record<string, any>): string {
@@ -1775,6 +1922,15 @@ export class ChatToolsService {
         return `Process refund of $${((args.amountCents || 0) / 100).toFixed(2)}?`;
       case 'cancel_reservation':
         return `Cancel reservation ${args.reservationId}? This action cannot be undone.`;
+      case 'block_site': {
+        const siteName = args._siteName || args.siteName || args.siteId;
+        const dateInfo = args.startDate && args.endDate
+          ? ` from ${args.startDate} to ${args.endDate}`
+          : args.startDate
+          ? ` starting ${args.startDate}`
+          : '';
+        return `Block ${siteName}${dateInfo} for "${args.reason}"?`;
+      }
       default:
         return `Execute ${toolName}?`;
     }

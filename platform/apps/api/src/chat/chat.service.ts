@@ -776,16 +776,35 @@ For destructive actions (refunds, cancellations), always confirm with the user f
       };
       toolCalls.push(toolCall);
 
-      // Check if tool requires confirmation
       const tool = this.toolsService.getTool(rawCall.name);
-      if (tool?.requiresConfirmation && !args.confirmed) {
+
+      // Run preValidate for ALL tools that have it (before confirmation OR execution)
+      const preValidateResult = await this.toolsService.runPreValidate(rawCall.name, args, context);
+
+      if (preValidateResult && !preValidateResult.valid) {
+        // PreValidate failed - return error immediately
+        toolResults.push({
+          toolCallId,
+          result: {
+            success: false,
+            message: preValidateResult.message || 'Validation failed',
+          },
+        });
+        continue; // Skip to next tool call
+      }
+
+      // If preValidate returned data, merge it into args (e.g., resolved siteId)
+      const mergedArgs = preValidateResult ? { ...args, ...preValidateResult } : args;
+
+      // Check if tool requires confirmation
+      if (tool?.requiresConfirmation && !mergedArgs.confirmed) {
         // Store pending action with expiration and return confirmation requirement
         const actionId = randomUUID();
         const pendingAction: PendingAction = {
           id: actionId,
           type: 'confirmation',
           tool: rawCall.name,
-          args,
+          args: mergedArgs,
           title: tool.confirmationTitle || `Confirm ${rawCall.name}`,
           description: tool.confirmationDescription || 'Please confirm this action',
           expiresAt: new Date(Date.now() + PENDING_ACTION_TTL_MS),
@@ -798,8 +817,8 @@ For destructive actions (refunds, cancellations), always confirm with the user f
           type: 'confirmation',
           actionId,
           title: pendingAction.title,
-          description: this.toolsService.formatConfirmationDescription(rawCall.name, args),
-          data: args,
+          description: this.toolsService.formatConfirmationDescription(rawCall.name, mergedArgs),
+          data: mergedArgs,
           options: [
             { id: 'confirm', label: 'Confirm', variant: 'default' },
             { id: 'cancel', label: 'Cancel', variant: 'outline' },
@@ -811,9 +830,9 @@ For destructive actions (refunds, cancellations), always confirm with the user f
           result: { pending: true, message: 'Awaiting user confirmation' },
         });
       } else {
-        // Execute tool directly
+        // Execute tool directly (with merged args from preValidate)
         try {
-          const result = await this.toolsService.executeTool(rawCall.name, args, context);
+          const result = await this.toolsService.executeTool(rawCall.name, mergedArgs, context);
           toolResults.push({ toolCallId, result });
         } catch (error) {
           toolResults.push({
