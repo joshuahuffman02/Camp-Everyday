@@ -895,6 +895,13 @@ export class ReportsService {
     campgroundId: string,
     range: number | { start?: Date; end?: Date; days?: number } = 30
   ) {
+    // Get campground timezone for accurate "today" calculations
+    const campground = await this.prisma.campground.findUnique({
+      where: { id: campgroundId },
+      select: { timezone: true }
+    });
+    const tz = campground?.timezone || "America/Chicago";
+
     const now = typeof range === "object" && range.end ? new Date(range.end) : new Date();
     let startDate: Date;
     let days: number;
@@ -1007,17 +1014,23 @@ export class ReportsService {
       return sum + (balance > 0 ? balance : 0);
     }, 0);
 
-    // Today's stats
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(todayStart);
-    todayEnd.setDate(todayEnd.getDate() + 1);
+    // Today's stats - using campground's local timezone
+    // Get "today" in the campground's timezone, not server UTC
+    const nowInTz = new Date().toLocaleString("en-US", { timeZone: tz });
+    const localNow = new Date(nowInTz);
+    const todayStart = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate());
+    // Convert back to UTC for database comparison
+    const todayStartUtc = new Date(todayStart.toLocaleString("en-US", { timeZone: "UTC" }));
+    // Calculate the offset and create proper UTC boundaries
+    const tzOffset = todayStart.getTime() - todayStartUtc.getTime();
+    const todayStartForQuery = new Date(todayStart.getTime() - tzOffset);
+    const todayEndForQuery = new Date(todayStartForQuery.getTime() + 24 * 60 * 60 * 1000);
 
     const todayArrivals = await this.prisma.reservation.count({
       where: {
         campgroundId,
         status: { notIn: ['cancelled'] },
-        arrivalDate: { gte: todayStart, lt: todayEnd }
+        arrivalDate: { gte: todayStartForQuery, lt: todayEndForQuery }
       }
     });
 
@@ -1025,7 +1038,7 @@ export class ReportsService {
       where: {
         campgroundId,
         status: { notIn: ['cancelled'] },
-        departureDate: { gte: todayStart, lt: todayEnd }
+        departureDate: { gte: todayStartForQuery, lt: todayEndForQuery }
       }
     });
 

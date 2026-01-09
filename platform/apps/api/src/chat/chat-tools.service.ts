@@ -6,6 +6,18 @@ import { z } from 'zod';
 // Date string validation (YYYY-MM-DD format)
 const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use YYYY-MM-DD');
 
+// Helper to get today's start/end in a specific timezone
+function getTodayInTimezone(tz: string): { todayStart: Date; todayEnd: Date } {
+  const nowInTz = new Date().toLocaleString("en-US", { timeZone: tz });
+  const localNow = new Date(nowInTz);
+  const todayStart = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate());
+  const todayStartUtc = new Date(todayStart.toLocaleString("en-US", { timeZone: "UTC" }));
+  const tzOffset = todayStart.getTime() - todayStartUtc.getTime();
+  const todayStartForQuery = new Date(todayStart.getTime() - tzOffset);
+  const todayEndForQuery = new Date(todayStartForQuery.getTime() + 24 * 60 * 60 * 1000);
+  return { todayStart: todayStartForQuery, todayEnd: todayEndForQuery };
+}
+
 // Tool argument schemas
 const toolArgSchemas: Record<string, z.ZodSchema> = {
   check_availability: z.object({
@@ -536,15 +548,18 @@ export class ChatToolsService {
       },
       guestAllowed: false,
       execute: async (args, context, prisma) => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        // Get campground timezone for accurate "today" calculation
+        const campground = await prisma.campground.findUnique({
+          where: { id: context.campgroundId },
+          select: { timezone: true }
+        });
+        const tz = campground?.timezone || "America/Chicago";
+        const { todayStart, todayEnd } = getTodayInTimezone(tz);
 
         const arrivals = await prisma.reservation.findMany({
           where: {
             campgroundId: context.campgroundId,
-            arrivalDate: { gte: today, lt: tomorrow },
+            arrivalDate: { gte: todayStart, lt: todayEnd },
             status: { in: ['pending', 'confirmed'] },
           },
           include: {
@@ -582,15 +597,18 @@ export class ChatToolsService {
       },
       guestAllowed: false,
       execute: async (args, context, prisma) => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        // Get campground timezone for accurate "today" calculation
+        const campground = await prisma.campground.findUnique({
+          where: { id: context.campgroundId },
+          select: { timezone: true }
+        });
+        const tz = campground?.timezone || "America/Chicago";
+        const { todayStart, todayEnd } = getTodayInTimezone(tz);
 
         const departures = await prisma.reservation.findMany({
           where: {
             campgroundId: context.campgroundId,
-            departureDate: { gte: today, lt: tomorrow },
+            departureDate: { gte: todayStart, lt: todayEnd },
             status: 'checked_in',
           },
           include: {
