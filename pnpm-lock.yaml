@@ -95,6 +95,7 @@ importers:
       tsconfig-paths: ^4.2.0
       tsup: ^8.5.1
       typescript: ^5.9.3
+      uuid: ^13.0.0
       vitest: ^2.1.5
       ws: ^8.18.3
       xlsx: ^0.18.5
@@ -152,6 +153,7 @@ importers:
       socket.io: 4.8.3
       stripe: 20.1.0_@types+node@22.19.3
       swagger-ui-express: 5.0.1_express@5.2.1
+      uuid: 13.0.0
       xlsx: 0.18.5
       zod: 3.25.76
       zod-prisma-types: 3.3.10_7y7yywevg4x77ero4lrbtqhsfq
