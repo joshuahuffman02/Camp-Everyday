@@ -32,7 +32,7 @@ interface PhoneAgentTool {
   description: string;
   parameters: {
     type: "object";
-    properties: Record<string, any>;
+    properties: Record<string, unknown>;
     required?: string[];
   };
 }
@@ -392,7 +392,7 @@ export class AiPhoneAgentService {
   async handleToolCall(
     callSid: string,
     toolName: string,
-    toolArgs: Record<string, any>
+    toolArgs: Record<string, unknown>
   ): Promise<any> {
     const session = this.activeSessions.get(callSid);
     if (!session) return { error: "Session not found" };

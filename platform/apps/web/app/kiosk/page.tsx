@@ -310,7 +310,7 @@ export default function KioskPage() {
     const [iceQty, setIceQty] = useState(0);
 
     // Forms state
-    const [formResponses, setFormResponses] = useState<Record<string, Record<string, any>>>({});
+    const [formResponses, setFormResponses] = useState<Record<string, Record<string, string | boolean>>>({});
     const [completedForms, setCompletedForms] = useState<Set<string>>(new Set());
     const [expandedForm, setExpandedForm] = useState<string | null>(null);
     const [skipNotes, setSkipNotes] = useState<Record<string, string>>({});
@@ -2023,7 +2023,7 @@ export default function KioskPage() {
 
                                                                             {q.type === "text" && (
                                                                                 <Input
-                                                                                    value={formResponses[form.id]?.[q.id] || ""}
+                                                                                    value={String(formResponses[form.id]?.[q.id] ?? "")}
                                                                                     onChange={(e) => {
                                                                                         setFormResponses(prev => ({
                                                                                             ...prev,
@@ -2038,7 +2038,7 @@ export default function KioskPage() {
 
                                                                             {q.type === "textarea" && (
                                                                                 <Textarea
-                                                                                    value={formResponses[form.id]?.[q.id] || ""}
+                                                                                    value={String(formResponses[form.id]?.[q.id] ?? "")}
                                                                                     onChange={(e) => {
                                                                                         setFormResponses(prev => ({
                                                                                             ...prev,
@@ -2054,7 +2054,7 @@ export default function KioskPage() {
                                                                             {q.type === "number" && (
                                                                                 <Input
                                                                                     type="number"
-                                                                                    value={formResponses[form.id]?.[q.id] || ""}
+                                                                                    value={String(formResponses[form.id]?.[q.id] ?? "")}
                                                                                     onChange={(e) => {
                                                                                         setFormResponses(prev => ({
                                                                                             ...prev,
@@ -2071,11 +2071,11 @@ export default function KioskPage() {
                                                                             {q.type === "checkbox" && (
                                                                                 <div className="flex items-center gap-3 py-2">
                                                                                     <Checkbox
-                                                                                        checked={formResponses[form.id]?.[q.id] || false}
+                                                                                        checked={Boolean(formResponses[form.id]?.[q.id])}
                                                                                         onCheckedChange={(checked) => {
                                                                                             setFormResponses(prev => ({
                                                                                                 ...prev,
-                                                                                                [form.id]: { ...(prev[form.id] || {}), [q.id]: checked }
+                                                                                                [form.id]: { ...(prev[form.id] || {}), [q.id]: Boolean(checked) }
                                                                                             }));
                                                                                             handleActivity();
                                                                                         }}
@@ -2087,7 +2087,7 @@ export default function KioskPage() {
 
                                                                             {q.type === "select" && q.options && (
                                                                                 <Select
-                                                                                    value={formResponses[form.id]?.[q.id] || ""}
+                                                                                    value={String(formResponses[form.id]?.[q.id] ?? "")}
                                                                                     onValueChange={(v) => {
                                                                                         setFormResponses(prev => ({
                                                                                             ...prev,

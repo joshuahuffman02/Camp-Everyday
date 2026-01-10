@@ -3,6 +3,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { IdempotencyStatus } from "@prisma/client";
 import * as crypto from "crypto";
 import { RedisService } from "../redis/redis.service";
+import type { Request } from "express";
 
 export type RateAction = "lookup" | "apply" | "report";
 
@@ -13,7 +14,7 @@ type IdempotencyOptions = {
   checksum?: string;
   sequence?: string | number | null;
   ttlSeconds?: number;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
   rateAction?: RateAction;
   requestBody?: any;
 };
@@ -268,7 +269,7 @@ export class IdempotencyService {
     await this.enforceRateLimit(scope, action);
   }
 
-  private async updateRecord(key: string, data: Record<string, any>) {
+  private async updateRecord(key: string, data: Record<string, unknown>) {
     const scope = this.scopeCache.get(key);
     if (scope) {
       const result = await this.prisma.idempotencyRecord.update({

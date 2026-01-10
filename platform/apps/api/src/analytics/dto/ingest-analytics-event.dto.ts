@@ -80,6 +80,6 @@ export class IngestAnalyticsEventDto {
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 

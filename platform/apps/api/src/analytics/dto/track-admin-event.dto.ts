@@ -110,7 +110,7 @@ export class TrackAdminEventDto {
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -270,7 +270,7 @@ export class TrackFunnelDto {
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -305,7 +305,7 @@ export class CompleteFunnelDto {
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -350,5 +350,5 @@ export class TrackFeatureUsageDto {
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }

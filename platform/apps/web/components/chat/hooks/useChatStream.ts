@@ -19,7 +19,7 @@ interface ActionRequired {
   actionId: string;
   title: string;
   description: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   options?: ActionOption[];
 }
 
@@ -41,7 +41,7 @@ interface StreamToken {
   toolCall?: {
     id: string;
     name: string;
-    args: Record<string, any>;
+    args: Record<string, unknown>;
   };
   toolResult?: {
     toolCallId: string;

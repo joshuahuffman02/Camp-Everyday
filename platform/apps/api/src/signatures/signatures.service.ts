@@ -279,7 +279,7 @@ export class SignaturesService {
     recipientName?: string | null;
     recipientEmail?: string | null;
     recipientPhone?: string | null;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }) {
     const token = randomBytes(24).toString("hex");
     const request = await this.prisma.signatureRequest.create({

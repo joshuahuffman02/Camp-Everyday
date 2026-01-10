@@ -25,6 +25,6 @@ export class ApplyRecommendationDto {
   campgroundId!: string;
 
   @IsOptional()
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
 }
 

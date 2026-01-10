@@ -119,7 +119,7 @@ export function ReservationFormsCard({
     }: {
       id: string;
       status?: "pending" | "completed" | "void";
-      responses?: Record<string, any>;
+      responses?: Record<string, unknown>;
     }) => apiClient.updateFormSubmission(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({

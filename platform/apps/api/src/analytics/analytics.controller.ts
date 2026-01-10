@@ -6,6 +6,7 @@ import { ProposeRecommendationDto } from "./dto/propose-recommendation.dto";
 import { JwtAuthGuard, Roles, RolesGuard } from "../auth/guards";
 import { UserRole } from "@prisma/client";
 import { Request } from "express";
+import type { Request } from "express";
 
 @Controller("analytics")
 export class AnalyticsController {

@@ -1,6 +1,7 @@
 import { INestApplication } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule, OpenAPIObject } from "@nestjs/swagger";
 import { API_VERSIONS, CURRENT_VERSION } from "./api-version.middleware";
+import type { Request } from "express";
 
 /**
  * OpenAPI 3.1 Specification Configuration

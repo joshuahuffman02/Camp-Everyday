@@ -332,7 +332,7 @@ export class SiteMapService {
   async setBaseImage(campgroundId: string, url: string) {
     const existing = await this.prisma.campgroundMapConfig.findUnique({ where: { campgroundId } });
     const existingLayers = existing?.layers && typeof existing.layers === "object" ? existing.layers : {};
-    const layers = { ...(existingLayers as Record<string, any>), baseImageUrl: url };
+    const layers = { ...(existingLayers as Record<string, unknown>), baseImageUrl: url };
 
     await this.prisma.campgroundMapConfig.upsert({
       where: { campgroundId },

@@ -71,7 +71,7 @@ interface FunnelDetail {
   abandonedAt: string | null;
   abandonedStep: number | null;
   totalTimeSecs: number | null;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 const FUNNEL_CONFIGS: Record<string, { name: string; steps: string[]; description: string }> = {

@@ -287,7 +287,7 @@ export class EnhancedAnalyticsService {
         stepNames.push(dto.stepName);
       }
 
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         stepNames,
         updatedAt: now,
       };
@@ -524,7 +524,7 @@ export class EnhancedAnalyticsService {
     eventType: string;
     actorType: string;
     actorId?: string;
-    eventData: Record<string, any>;
+    eventData: Record<string, unknown>;
   }) {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);

@@ -1,3 +1,4 @@
+import type { Request } from "express";
 import {
   BadRequestException,
   Body,
@@ -177,7 +178,7 @@ export class WebhookAdminController {
   getDeadLetterQueue(
     @Query("campgroundId") campgroundId: string,
     @Query("limit") limit?: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.webhookService.getDeadLetterQueue(

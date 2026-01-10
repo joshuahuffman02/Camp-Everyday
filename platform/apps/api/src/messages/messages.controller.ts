@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, UseGuards, Request, Patch } from '@
 import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { AuthGuard } from '@nestjs/passport';
+import type { Request } from "express";
 
 @Controller()
 export class MessagesController {

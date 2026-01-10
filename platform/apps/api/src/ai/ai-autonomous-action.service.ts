@@ -14,7 +14,7 @@ export interface LogAutonomousActionParams {
   entityType: string;
   entityId: string;
   description: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   confidence?: number;
   reasoning?: string;
   reversible?: boolean;

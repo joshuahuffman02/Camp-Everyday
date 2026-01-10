@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChatParticipantType } from '@prisma/client';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
+import type { Request } from "express";
 
 // Date string validation (YYYY-MM-DD format)
 const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use YYYY-MM-DD');
@@ -113,15 +114,15 @@ interface PreValidateResult {
 interface ToolDefinition {
   name: string;
   description: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   guestAllowed: boolean;
   staffRoles?: string[]; // If not specified, all staff can use
   requiresConfirmation?: boolean;
   confirmationTitle?: string;
   confirmationDescription?: string;
   // Pre-validate before showing confirmation dialog - can fail early with helpful message
-  preValidate?: (args: Record<string, any>, context: ChatContext, prisma: PrismaService) => Promise<PreValidateResult>;
-  execute: (args: Record<string, any>, context: ChatContext, prisma: PrismaService) => Promise<any>;
+  preValidate?: (args: Record<string, unknown>, context: ChatContext, prisma: PrismaService) => Promise<PreValidateResult>;
+  execute: (args: Record<string, unknown>, context: ChatContext, prisma: PrismaService) => Promise<any>;
 }
 
 @Injectable()
@@ -1882,7 +1883,7 @@ export class ChatToolsService {
    */
   async executeTool(
     name: string,
-    args: Record<string, any>,
+    args: Record<string, unknown>,
     context: ChatContext,
   ): Promise<any> {
     const tool = this.tools.get(name);
@@ -1925,7 +1926,7 @@ export class ChatToolsService {
    */
   async runPreValidate(
     name: string,
-    args: Record<string, any>,
+    args: Record<string, unknown>,
     context: ChatContext,
   ): Promise<PreValidateResult | null> {
     const tool = this.tools.get(name);
@@ -1948,7 +1949,7 @@ export class ChatToolsService {
   /**
    * Format confirmation description for display
    */
-  formatConfirmationDescription(toolName: string, args: Record<string, any>): string {
+  formatConfirmationDescription(toolName: string, args: Record<string, unknown>): string {
     switch (toolName) {
       case 'check_in_guest':
         return `Check in reservation ${args.reservationId}?`;

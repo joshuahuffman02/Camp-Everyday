@@ -151,7 +151,7 @@ export function DataImport({
   const [aiAccessLevel, setAiAccessLevel] = useState<AiAccessLevel | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
-  const [corrections, setCorrections] = useState<Record<string, Record<string, any>>>({});
+  const [corrections, setCorrections] = useState<Record<string, Record<string, unknown>>>({});
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Import flow state

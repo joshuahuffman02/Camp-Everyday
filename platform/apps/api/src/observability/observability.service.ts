@@ -22,7 +22,7 @@ type DomainSample = {
   at: number;
   kind?: string;
   value?: number;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 };
 
 type DomainKey = "redeem" | "offline" | "offer" | "report" | "comms" | "ota" | "ready";
@@ -119,28 +119,28 @@ export class ObservabilityService {
     };
   }
 
-  recordRedeemOutcome(ok: boolean, latencyMs?: number, meta?: Record<string, any>) {
+  recordRedeemOutcome(ok: boolean, latencyMs?: number, meta?: Record<string, unknown>) {
     this.emit("redeem", { ok, latencyMs, meta });
   }
 
-  recordOfflineReplay(ok: boolean, latencyMs?: number, meta?: Record<string, any>) {
+  recordOfflineReplay(ok: boolean, latencyMs?: number, meta?: Record<string, unknown>) {
     this.emit("offline", { ok, latencyMs, meta });
   }
 
-  recordOfferLag(seconds: number, meta?: Record<string, any>) {
+  recordOfferLag(seconds: number, meta?: Record<string, unknown>) {
     this.emit("offer", { ok: seconds <= 30, latencyMs: seconds * 1000, value: seconds, meta });
   }
 
-  recordReportResult(ok: boolean, latencyMs?: number, meta?: Record<string, any>) {
+  recordReportResult(ok: boolean, latencyMs?: number, meta?: Record<string, unknown>) {
     this.emit("report", { ok, latencyMs, meta });
   }
 
-  recordCommsStatus(status: "delivered" | "sent" | "bounced" | "spam_complaint" | "failed", meta?: Record<string, any>) {
+  recordCommsStatus(status: "delivered" | "sent" | "bounced" | "spam_complaint" | "failed", meta?: Record<string, unknown>) {
     const ok = status === "delivered" || status === "sent";
     this.emit("comms", { ok, kind: status, meta });
   }
 
-  recordOtaStatus(ok: boolean, backlogSeconds?: number, meta?: Record<string, any>) {
+  recordOtaStatus(ok: boolean, backlogSeconds?: number, meta?: Record<string, unknown>) {
     this.emit("ota", { ok, value: backlogSeconds, meta });
   }
 
@@ -155,7 +155,7 @@ export class ObservabilityService {
     this.syntheticResults[name] = { ok, latencyMs, at: Date.now(), message };
   }
 
-  recordReady(ok: boolean, meta?: Record<string, any>) {
+  recordReady(ok: boolean, meta?: Record<string, unknown>) {
     this.emit("ready", { ok, meta });
   }
 

@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import type { Request } from "express";
 import {
   ApiTags,
   ApiOperation,

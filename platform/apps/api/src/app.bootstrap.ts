@@ -16,6 +16,7 @@ import { RedactingLogger } from "./logger/redacting.logger";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import type { Request, Response, NextFunction } from "express";
 import { DeveloperApiModule } from "./developer-api/developer-api.module";
+import type { Request } from "express";
 
 const logger = new Logger('AppBootstrap');
 
@@ -197,7 +198,7 @@ export async function createApp(): Promise<INestApplication> {
 
     // Scope middleware
     app.use((req: Request, _res: Response, next: NextFunction) => {
-        const headers = req.headers as Record<string, any>;
+        const headers = req.headers as Record<string, unknown>;
         const cgHeader = headers["x-campground-id"];
         const orgHeader = headers["x-organization-id"];
         req.campgroundId = Array.isArray(cgHeader) ? cgHeader[0] : cgHeader || null;

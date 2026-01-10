@@ -4,6 +4,7 @@ import { ApiScopeGuard } from "./guards/api-scope.guard";
 import { ApiScopes } from "./decorators/api-scopes.decorator";
 import { PublicApiService } from "./public-api.service";
 import { IsEmail, IsOptional, IsString } from "class-validator";
+import type { Request } from "express";
 
 class CreateGuestBody {
   @IsString() primaryFirstName!: string;

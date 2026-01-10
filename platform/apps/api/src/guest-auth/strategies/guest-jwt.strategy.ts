@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Request } from 'express';
+import type { Request } from "express";
 
 /**
  * Extract JWT from httpOnly cookie or Authorization header

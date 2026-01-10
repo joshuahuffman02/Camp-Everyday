@@ -64,7 +64,7 @@ type ActivityItem = {
   icon?: string;
   color?: string;
   status?: "success" | "pending" | "warning" | "error";
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   reversible?: boolean;
 };
 

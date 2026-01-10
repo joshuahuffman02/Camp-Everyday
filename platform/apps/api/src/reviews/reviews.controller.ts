@@ -8,6 +8,7 @@ import { SubmitReviewDto } from "./dto/submit-review.dto";
 import { ModerateReviewDto } from "./dto/moderate-review.dto";
 import { VoteReviewDto } from "./dto/vote-review.dto";
 import { ReplyReviewDto } from "./dto/reply-review.dto";
+import type { Request } from "express";
 
 @Controller()
 export class ReviewsController {

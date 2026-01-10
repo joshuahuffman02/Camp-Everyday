@@ -26,7 +26,7 @@ export class PerfInterceptor implements NestInterceptor {
     const start = Date.now();
     const route =
       `${req.method} ${anyReq.route?.path ?? anyReq.path ?? req.url ?? ""}`.trim() || "unknown";
-    const headers = (anyReq.headers ?? {}) as Record<string, any>;
+    const headers = (anyReq.headers ?? {}) as Record<string, unknown>;
     const orgHeader = anyReq.organizationId ?? headers["x-organization-id"] ?? headers.get?.("x-organization-id");
     const orgId = Array.isArray(orgHeader) ? orgHeader[0] : orgHeader ?? null;
     // Extract and validate client IP to prevent spoofing via x-forwarded-for

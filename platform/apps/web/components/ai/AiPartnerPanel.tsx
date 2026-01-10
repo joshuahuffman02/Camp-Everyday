@@ -25,13 +25,13 @@ type ActionDraft = {
   actionType: string;
   resource: string;
   action: "read" | "write";
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   status: "draft" | "executed" | "denied";
   requiresConfirmation?: boolean;
   sensitivity?: "low" | "medium" | "high";
   impact?: ImpactSummary;
   evidenceLinks?: EvidenceLink[];
-  result?: Record<string, any>;
+  result?: Record<string, unknown>;
 };
 
 type PartnerMessage = {

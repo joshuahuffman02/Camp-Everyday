@@ -767,8 +767,10 @@ export class LocationService {
         });
 
         return products.map((p) => {
-            const override = (p.priceOverrides as any)?.[0];
-            const locInventory = (p.locationInventory as any)?.[0];
+            const overrides = Array.isArray(p.priceOverrides) ? p.priceOverrides : [];
+            const inventories = Array.isArray(p.locationInventory) ? p.locationInventory : [];
+            const override = overrides[0];
+            const locInventory = inventories[0];
 
             const effectiveStock = p.trackInventory
                 ? (p.inventoryMode === "per_location"

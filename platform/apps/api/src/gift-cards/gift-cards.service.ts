@@ -3,6 +3,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { StoredValueStatus } from "@prisma/client";
 import { StoredValueService } from "../stored-value/stored-value.service";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
+import type { AuthUser } from "../auth/auth.types";
 
 type RedemptionChannel = "booking" | "pos";
 
@@ -24,6 +25,11 @@ type LedgerEntryInput = {
   direction: "debit" | "credit";
   externalRef?: string | null;
   dedupeKey?: string;
+};
+
+type GiftCardActor = AuthUser & {
+  campgroundId: string;
+  tenantId?: string | null;
 };
 
 @Injectable()
@@ -48,7 +54,7 @@ export class GiftCardsService {
     return this.loadCard(code);
   }
 
-  async redeemAgainstBooking(code: string, amountCents: number, bookingId: string, actor?: any) {
+  async redeemAgainstBooking(code: string, amountCents: number, bookingId: string, actor?: GiftCardActor) {
     if (!code) throw new BadRequestException("Gift card code is required to process redemption");
     if (!amountCents || amountCents <= 0) throw new BadRequestException("Redemption amount must be greater than zero");
     if (!actor?.campgroundId) {
@@ -177,7 +183,7 @@ export class GiftCardsService {
     });
   }
 
-  async redeemAgainstPosOrder(code: string, amountCents: number, orderId: string, actor?: any) {
+  async redeemAgainstPosOrder(code: string, amountCents: number, orderId: string, actor?: GiftCardActor) {
     if (!actor?.campgroundId) {
       throw new BadRequestException("campground context required");
     }
@@ -196,7 +202,7 @@ export class GiftCardsService {
     code: string,
     amountCents: number,
     context: { channel: RedemptionChannel; referenceId: string },
-    actor?: any
+    actor?: GiftCardActor
   ) {
     if (!code) throw new BadRequestException("Gift card code is required to process purchase");
     if (!amountCents || amountCents <= 0) throw new BadRequestException("Purchase amount must be greater than zero");

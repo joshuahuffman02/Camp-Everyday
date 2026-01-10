@@ -9,6 +9,7 @@ import { SyncRequestDto } from "./dto/sync-request.dto";
 import { CreateExportJobDto } from "./dto/create-export-job.dto";
 import { RawBodyRequest } from "@nestjs/common";
 import { Request, Response } from "express";
+import type { Request } from "express";
 
 @Controller("integrations")
 export class IntegrationsController {

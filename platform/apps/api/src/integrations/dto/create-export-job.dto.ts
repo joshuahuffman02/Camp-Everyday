@@ -27,6 +27,6 @@ export class CreateExportJobDto {
 
   @IsOptional()
   @IsObject()
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
 }
 

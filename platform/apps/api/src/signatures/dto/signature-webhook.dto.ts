@@ -18,7 +18,7 @@ export class SignatureWebhookDto {
   storageKey?: string;
 
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()

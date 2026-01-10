@@ -24,7 +24,7 @@ interface BookingFormsSectionProps {
     };
   };
   stayLength: number;
-  onFormsComplete: (complete: boolean, responses: Record<string, any>) => void;
+  onFormsComplete: (complete: boolean, responses: Record<string, Record<string, string | boolean>>) => void;
 }
 
 interface FormQuestion {
@@ -127,7 +127,7 @@ export function BookingFormsSection({
   stayLength,
   onFormsComplete
 }: BookingFormsSectionProps) {
-  const [formResponses, setFormResponses] = useState<Record<string, Record<string, any>>>({});
+  const [formResponses, setFormResponses] = useState<Record<string, Record<string, string | boolean>>>({});
   const [completedForms, setCompletedForms] = useState<Set<string>>(new Set());
   const [expandedForm, setExpandedForm] = useState<string | null>(null);
   const [skipNotes, setSkipNotes] = useState<Record<string, string>>({});
@@ -291,7 +291,7 @@ export function BookingFormsSection({
 
                           {q.type === "text" && (
                             <Input
-                              value={formResponses[template.id]?.[q.id] || ""}
+                              value={String(formResponses[template.id]?.[q.id] ?? "")}
                               onChange={(e) => handleInputChange(template.id, q.id, e.target.value)}
                               placeholder="Enter your answer"
                             />
@@ -299,7 +299,7 @@ export function BookingFormsSection({
 
                           {q.type === "textarea" && (
                             <Textarea
-                              value={formResponses[template.id]?.[q.id] || ""}
+                              value={String(formResponses[template.id]?.[q.id] ?? "")}
                               onChange={(e) => handleInputChange(template.id, q.id, e.target.value)}
                               placeholder="Enter your answer"
                               rows={3}
@@ -309,7 +309,7 @@ export function BookingFormsSection({
                           {q.type === "number" && (
                             <Input
                               type="number"
-                              value={formResponses[template.id]?.[q.id] || ""}
+                              value={String(formResponses[template.id]?.[q.id] ?? "")}
                               onChange={(e) => handleInputChange(template.id, q.id, e.target.value)}
                               placeholder="Enter a number"
                             />
@@ -318,7 +318,7 @@ export function BookingFormsSection({
                           {q.type === "checkbox" && (
                             <div className="flex items-center gap-2">
                               <Checkbox
-                                checked={formResponses[template.id]?.[q.id] || false}
+                                checked={Boolean(formResponses[template.id]?.[q.id])}
                                 onCheckedChange={(checked) => handleInputChange(template.id, q.id, checked)}
                               />
                               <span className="text-sm text-muted-foreground">I agree</span>
@@ -327,7 +327,7 @@ export function BookingFormsSection({
 
                           {q.type === "select" && q.options && (
                             <Select
-                              value={formResponses[template.id]?.[q.id] || ""}
+                              value={String(formResponses[template.id]?.[q.id] ?? "")}
                               onValueChange={(v) => handleInputChange(template.id, q.id, v)}
                             >
                               <SelectTrigger>

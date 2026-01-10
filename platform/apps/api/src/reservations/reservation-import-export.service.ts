@@ -33,7 +33,7 @@ type ExportParams = {
   pageSize?: number;
   format?: "json" | "csv";
   includePII?: boolean;
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   requestedById?: string | null;
 };
 
@@ -100,12 +100,12 @@ export class ReservationImportExportService {
     const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
     if (!lines.length) return { records: [], errors: ["CSV has no rows"] };
     const headers = lines[0].split(",").map((h) => h.trim());
-    const records: Record<string, any>[] = [];
+    const records: Record<string, unknown>[] = [];
     const errors: string[] = [];
 
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-      const row: Record<string, any> = {};
+      const row: Record<string, unknown> = {};
       headers.forEach((h, idx) => {
         row[h] = cells[idx] ?? "";
       });
@@ -125,7 +125,7 @@ export class ReservationImportExportService {
 
   private validateRecords(
     campgroundId: string,
-    records: Record<string, any>[]
+    records: Record<string, unknown>[]
   ): { valid: ReservationImportRecord[]; errors: ReservationImportValidationError[] } {
     const valid: ReservationImportRecord[] = [];
     const errors: ReservationImportValidationError[] = [];
@@ -204,7 +204,7 @@ export class ReservationImportExportService {
     await this.enforceCapacityGuard();
 
     // Parse based on format
-    let records: Record<string, any>[] = [];
+    let records: Record<string, unknown>[] = [];
     let parseErrors: string[] = [];
     let newbookResults: NewbookImportResult[] = [];
 
@@ -394,7 +394,7 @@ export class ReservationImportExportService {
     return Number(process.env.RESERVATION_EXPORT_PAGE_SIZE ?? 500);
   }
 
-  private encodeToken(payload: Record<string, any>): string {
+  private encodeToken(payload: Record<string, unknown>): string {
     return Buffer.from(JSON.stringify(payload)).toString("base64url");
   }
 
@@ -521,7 +521,7 @@ export class ReservationImportExportService {
     });
   }
 
-  async queueExport(campgroundId: string, filters?: Record<string, any>, format: "json" | "csv" = "json", requestedById?: string | null) {
+  async queueExport(campgroundId: string, filters?: Record<string, unknown>, format: "json" | "csv" = "json", requestedById?: string | null) {
     await this.idempotency.throttleScope(campgroundId, null, "apply");
     const job = await this.prisma.integrationExportJob.create({
       data: {

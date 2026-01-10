@@ -7,6 +7,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { OnboardingTokenGateService } from "./onboarding-token-gate.service";
 import { OnboardingGoLiveCheckService } from "./onboarding-go-live-check.service";
 import { EmailService } from "../email/email.service";
+import type { Request } from "express";
 
 @Controller("onboarding")
 export class OnboardingController {

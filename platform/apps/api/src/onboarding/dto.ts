@@ -34,7 +34,7 @@ export class UpdateOnboardingStepDto {
   step!: string;
 
   @IsObject()
-  payload!: Record<string, any>;
+  payload!: Record<string, unknown>;
 
   @IsOptional()
   @IsString()

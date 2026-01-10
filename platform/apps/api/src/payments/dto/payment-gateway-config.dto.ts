@@ -46,7 +46,7 @@ export class UpsertPaymentGatewayConfigDto {
 
   @IsOptional()
   @IsObject()
-  additionalConfig?: Record<string, any>;
+  additionalConfig?: Record<string, unknown>;
 }
 
 export interface PaymentGatewayConfigResponse {
@@ -70,5 +70,5 @@ export interface PaymentGatewayConfigResponse {
     webhookSecretId: string | null;
   };
   hasProductionCredentials: boolean;
-  additionalConfig: Record<string, any> | null;
+  additionalConfig: Record<string, unknown> | null;
 }

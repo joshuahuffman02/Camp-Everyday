@@ -36,7 +36,7 @@ interface TrackingEvent {
   scrollDepth?: number;
   errorMessage?: string;
   errorCode?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   occurredAt: string;
   campgroundId?: string;
   organizationId?: string;
@@ -292,7 +292,7 @@ export function useAnalytics() {
   const trackAction = useCallback((options: {
     actionType: string;
     actionTarget?: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }) => {
     if (typeof window === "undefined") return;
 
@@ -362,7 +362,7 @@ export function useAnalytics() {
     subFeature?: string;
     durationSecs?: number;
     outcome?: "success" | "failure" | "partial";
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }) => {
     if (typeof window === "undefined") return;
 
@@ -417,7 +417,7 @@ export function useAnalytics() {
   }, [getSession, campgroundId, organizationId]);
 
   // Advance funnel
-  const advanceFunnel = useCallback((funnelName: string, stepName?: string, metadata?: Record<string, any>) => {
+  const advanceFunnel = useCallback((funnelName: string, stepName?: string, metadata?: Record<string, unknown>) => {
     if (typeof window === "undefined") return;
 
     const session = getSession();
@@ -450,7 +450,7 @@ export function useAnalytics() {
   }, [getSession, startFunnel, campgroundId, organizationId]);
 
   // Complete funnel
-  const completeFunnel = useCallback((funnelName: string, metadata?: Record<string, any>) => {
+  const completeFunnel = useCallback((funnelName: string, metadata?: Record<string, unknown>) => {
     if (typeof window === "undefined") return;
 
     const session = getSession();

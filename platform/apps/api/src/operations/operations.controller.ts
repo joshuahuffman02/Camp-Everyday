@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/guards';
 import { CreateTaskDto, UpdateTaskDto } from './dto/operations.dto';
 import { ScopeGuard } from '../permissions/scope.guard';
 import { RequireScope } from '../permissions/scope.decorator';
+import type { Request } from "express";
 
 @UseGuards(JwtAuthGuard, ScopeGuard)
 @RequireScope({ resource: 'operations', action: 'read' })

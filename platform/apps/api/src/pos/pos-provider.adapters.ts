@@ -99,7 +99,7 @@ abstract class BasePosProviderAdapter implements PosProviderAdapter {
     return digest === input.signature;
   }
 
-  async handlePaymentWebhook(input: { integration: IntegrationRecord; body: any; headers?: Record<string, any> }): Promise<ProviderWebhookResult> {
+  async handlePaymentWebhook(input: { integration: IntegrationRecord; body: any; headers?: Record<string, unknown> }): Promise<ProviderWebhookResult> {
     this.logger.debug(`Webhook received for ${input.integration.provider}`);
     return { acknowledged: true, message: "stubbed_webhook_handler" };
   }

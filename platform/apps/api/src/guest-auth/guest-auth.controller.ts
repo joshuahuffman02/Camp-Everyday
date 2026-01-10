@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { GuestAuthService } from './guest-auth.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Response as ExpressResponse } from 'express';
+import type { Request } from "express";
 
 @Controller('guest-auth')
 export class GuestAuthController {

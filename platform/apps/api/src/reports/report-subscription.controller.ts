@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
 import { ReportSubscriptionService } from "./report-subscription.service";
+import type { Request } from "express";
 
 class CreateSubscriptionDto {
     reportType!: string;

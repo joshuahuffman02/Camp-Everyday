@@ -508,7 +508,7 @@ Output:
             return value.map((item) => this.resolveTokenValue(item, tokenMap));
         }
         if (value && typeof value === 'object') {
-            const resolved: Record<string, any> = {};
+            const resolved: Record<string, unknown> = {};
             for (const [key, item] of Object.entries(value)) {
                 resolved[key] = this.resolveTokenValue(item, tokenMap);
             }

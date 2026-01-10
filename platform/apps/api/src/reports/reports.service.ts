@@ -33,7 +33,7 @@ export class ReportsService {
     private readonly defaultSampleLimit = Number(process.env.REPORT_QUERY_SAMPLE_LIMIT ?? 5000);
     private readonly exportQueueName = "reports-export";
 
-    private encodeToken(payload: Record<string, any>): string {
+    private encodeToken(payload: Record<string, unknown>): string {
       return Buffer.from(JSON.stringify(payload)).toString("base64url");
     }
 
@@ -62,7 +62,7 @@ export class ReportsService {
       return Number(process.env.REPORT_EXPORT_RETRY_AFTER_SEC ?? 60);
     }
 
-    private resolveRangeFromFilters(filters?: Record<string, any>) {
+    private resolveRangeFromFilters(filters?: Record<string, unknown>) {
       const now = new Date();
       const range = filters?.range ?? filters?.timeRange;
       const days = filters?.days ? Number(filters.days) : undefined;
@@ -343,7 +343,7 @@ export class ReportsService {
         });
 
         const programIds = Array.from(new Set(reservations.map((r: any) => r.referralProgramId).filter(Boolean)));
-        const programMap: Record<string, any> = {};
+        const programMap: Record<string, unknown> = {};
         if (programIds.length) {
             const programs = await this.prisma.referralProgram.findMany({
                 where: { id: { in: programIds } }
@@ -353,7 +353,7 @@ export class ReportsService {
             }
         }
 
-        const byProgram: Record<string, any> = {};
+        const byProgram: Record<string, unknown> = {};
         let totalRevenueCents = 0;
         let totalReferralDiscountCents = 0;
 
@@ -471,7 +471,7 @@ export class ReportsService {
     return depth;
   }
 
-  async queueExport(params: { campgroundId: string; filters?: Record<string, any>; format?: string; requestedById?: string; emailTo?: string[] }) {
+  async queueExport(params: { campgroundId: string; filters?: Record<string, unknown>; format?: string; requestedById?: string; emailTo?: string[] }) {
     const { campgroundId, filters, format, requestedById, emailTo } = params;
     await this.enforceCapacityGuard();
     const exportFormat = (format ?? "csv").toLowerCase();
@@ -510,7 +510,7 @@ export class ReportsService {
 
   private async scheduleRecurringExport(params: {
     campgroundId: string;
-    filters?: Record<string, any>;
+    filters?: Record<string, unknown>;
     format?: string;
     requestedById?: string;
     emailTo?: string[];
@@ -545,7 +545,7 @@ export class ReportsService {
     }
     return this.queueExport({
       campgroundId,
-      filters: previous.filters as Record<string, any> | undefined,
+      filters: previous.filters as Record<string, unknown> | undefined,
       format: previous.location ?? undefined,
       emailTo: (previous.filters as any)?.emailTo ?? undefined,
       requestedById: requestedById ?? previous.requestedById ?? undefined
@@ -792,7 +792,7 @@ export class ReportsService {
     campgroundId: string;
     paginationToken?: string;
     pageSize?: number;
-    filters?: Record<string, any>;
+    filters?: Record<string, unknown>;
     summary?: any;
   }) {
     const { campgroundId, paginationToken, pageSize, filters, summary } = params;
@@ -863,7 +863,7 @@ export class ReportsService {
     };
   }
 
-  private async buildExportSummary(campgroundId: string, filters?: Record<string, any>) {
+  private async buildExportSummary(campgroundId: string, filters?: Record<string, unknown>) {
     const range = this.resolveRangeFromFilters(filters);
     const metrics = await this.getDashboardMetrics(campgroundId, { start: range.start, end: range.end, days: range.days });
     const sources = await this.getBookingSources(campgroundId, range.start?.toISOString(), range.end?.toISOString());
@@ -1458,7 +1458,7 @@ export class ReportsService {
     }
   }
 
-  private buildWhereFromFilters(spec: ReportSpec, campgroundId: string, filters: Record<string, any>, range: { gte?: Date; lte?: Date }) {
+  private buildWhereFromFilters(spec: ReportSpec, campgroundId: string, filters: Record<string, unknown>, range: { gte?: Date; lte?: Date }) {
     const allowedFilters = resolveFilters(spec.source);
     const timeField = spec.timeField ?? this.defaultTimeField(spec.source);
     const base: any =

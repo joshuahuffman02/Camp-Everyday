@@ -5,6 +5,7 @@ import { CreateWaitlistEntryDto } from '@keepr/shared';
 import { IdempotencyStatus, WaitlistStatus, WaitlistType } from '@prisma/client';
 import { IdempotencyService } from '../payments/idempotency.service';
 import { ObservabilityService } from '../observability/observability.service';
+import type { Request } from "express";
 
 interface CreateStaffWaitlistDto {
     campgroundId: string;

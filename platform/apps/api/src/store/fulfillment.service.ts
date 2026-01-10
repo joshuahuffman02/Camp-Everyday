@@ -17,11 +17,17 @@ export class FulfillmentService {
             limit?: number;
         }
     ) {
+        const defaultStatuses: FulfillmentAssignmentStatus[] = [
+            FulfillmentAssignmentStatus.unassigned,
+            FulfillmentAssignmentStatus.assigned,
+            FulfillmentAssignmentStatus.preparing,
+            FulfillmentAssignmentStatus.ready,
+        ];
         const statusFilter = filters?.status
             ? Array.isArray(filters.status)
                 ? { in: filters.status }
                 : filters.status
-            : { in: ["unassigned", "assigned", "preparing", "ready"] as FulfillmentAssignmentStatus[] };
+            : { in: defaultStatuses };
 
         const orders = await this.prisma.storeOrder.findMany({
             where: {
@@ -61,13 +67,17 @@ export class FulfillmentService {
             _count: { id: true },
         });
 
-        return counts.reduce(
-            (acc, item) => {
-                acc[item.fulfillmentStatus] = item._count.id;
-                return acc;
-            },
-            {} as Record<FulfillmentAssignmentStatus, number>
-        );
+        const base: Record<FulfillmentAssignmentStatus, number> = {
+            [FulfillmentAssignmentStatus.unassigned]: 0,
+            [FulfillmentAssignmentStatus.assigned]: 0,
+            [FulfillmentAssignmentStatus.preparing]: 0,
+            [FulfillmentAssignmentStatus.ready]: 0,
+            [FulfillmentAssignmentStatus.completed]: 0,
+        };
+        return counts.reduce((acc, item) => {
+            acc[item.fulfillmentStatus] = item._count.id;
+            return acc;
+        }, base);
     }
 
     /**
@@ -155,15 +165,15 @@ export class FulfillmentService {
         }
 
         // If completing, mark the order as completed too
-        const updateData: any = {
-            fulfillmentStatus: status,
-        };
-
-        if (status === FulfillmentAssignmentStatus.completed) {
-            updateData.completedAt = new Date();
-            updateData.completedById = actorUserId;
-            updateData.status = "completed";
-        }
+        const updateData =
+            status === FulfillmentAssignmentStatus.completed
+                ? {
+                      fulfillmentStatus: status,
+                      completedAt: new Date(),
+                      completedById: actorUserId,
+                      status: "completed",
+                  }
+                : { fulfillmentStatus: status };
 
         const updated = await this.prisma.storeOrder.update({
             where: { id: orderId },
@@ -193,13 +203,12 @@ export class FulfillmentService {
             throw new NotFoundException(`Location ${locationId} not found`);
         }
 
+        const activeStatuses: FulfillmentAssignmentStatus[] = ["assigned", "preparing", "ready"];
         const orders = await this.prisma.storeOrder.findMany({
             where: {
                 campgroundId,
                 fulfillmentLocationId: locationId,
-                fulfillmentStatus: includeCompleted
-                    ? undefined
-                    : { in: ["assigned", "preparing", "ready"] as FulfillmentAssignmentStatus[] },
+                fulfillmentStatus: includeCompleted ? undefined : { in: activeStatuses },
             },
             include: {
                 items: {

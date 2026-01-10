@@ -40,5 +40,5 @@ export class UpdatePolicyTemplateDto {
 
   @IsOptional()
   @IsObject()
-  policyConfig?: Record<string, any> | null;
+  policyConfig?: Record<string, unknown> | null;
 }

@@ -1754,7 +1754,7 @@ export const apiClient = {
   },
   async queueReservationExportJob(
     campgroundId: string,
-    payload: { format?: "json" | "csv"; filters?: Record<string, any> }
+    payload: { format?: "json" | "csv"; filters?: Record<string, unknown> }
   ) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/reservations/export/jobs`, {
       method: "POST",
@@ -1863,8 +1863,8 @@ export const apiClient = {
     provider: string;
     status?: string;
     authType?: string;
-    credentials?: Record<string, any>;
-    settings?: Record<string, any>;
+    credentials?: Record<string, unknown>;
+    settings?: Record<string, unknown>;
     webhookSecret?: string;
   }) {
     const res = await fetch(`${API_BASE}/integrations/connections`, {
@@ -1879,8 +1879,8 @@ export const apiClient = {
     organizationId: string;
     status: string;
     authType: string;
-    credentials: Record<string, any>;
-    settings: Record<string, any>;
+    credentials: Record<string, unknown>;
+    settings: Record<string, unknown>;
     webhookSecret: string;
   }>) {
     const res = await fetch(`${API_BASE}/integrations/connections/${id}`, {
@@ -1986,7 +1986,7 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return AiSemanticSearchResponseSchema.parse(data);
   },
-  async runCopilot(payload: { campgroundId: string; action: string; prompt?: string; payload?: Record<string, any> }) {
+  async runCopilot(payload: { campgroundId: string; action: string; prompt?: string; payload?: Record<string, unknown> }) {
     const res = await fetch(`${API_BASE}/ai/copilot`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
@@ -2088,7 +2088,7 @@ export const apiClient = {
     sessionId: string,
     token: string,
     step: z.infer<typeof OnboardingStepEnum>,
-    payload: Record<string, any>,
+    payload: Record<string, unknown>,
     idempotencyKey?: string
   ) {
     const headers: Record<string, string> = { "Content-Type": "application/json", "x-onboarding-token": token };
@@ -2113,7 +2113,7 @@ export const apiClient = {
   },
   async queueReportExport(
     campgroundId: string,
-    payload: { filters?: Record<string, any>; format?: string; emailTo?: string[] } = {}
+    payload: { filters?: Record<string, unknown>; format?: string; emailTo?: string[] } = {}
   ) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/reports/exports`, {
       method: "POST",
@@ -2159,8 +2159,8 @@ export const apiClient = {
   async runReport(campgroundId: string, payload: {
     reportId: string;
     dimensions?: string[];
-    filters?: Record<string, any>;
-    timeRange?: Record<string, any>;
+    filters?: Record<string, unknown>;
+    timeRange?: Record<string, unknown>;
     limit?: number;
     offset?: number;
     sample?: boolean;
@@ -2814,7 +2814,7 @@ export const apiClient = {
       autoSend?: boolean;
       siteClassId?: string | null;
       siteId?: string | null;
-      policyConfig?: Record<string, any> | null;
+      policyConfig?: Record<string, unknown> | null;
     }
   ) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/policy-templates`, {
@@ -2837,7 +2837,7 @@ export const apiClient = {
       autoSend?: boolean;
       siteClassId?: string | null;
       siteId?: string | null;
-      policyConfig?: Record<string, any> | null;
+      policyConfig?: Record<string, unknown> | null;
     },
     campgroundId?: string
   ) {
@@ -3705,7 +3705,7 @@ export const apiClient = {
   },
   async recordConsent(
     campgroundId: string,
-    payload: { subject: string; consentType: string; grantedBy: string; method?: string; purpose?: string; expiresAt?: string; metadata?: Record<string, any> }
+    payload: { subject: string; consentType: string; grantedBy: string; method?: string; purpose?: string; expiresAt?: string; metadata?: Record<string, unknown> }
   ) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/privacy/consents`, {
       method: "POST",
@@ -3761,7 +3761,7 @@ export const apiClient = {
       exportVersion: string;
       campgroundId: string;
       generatedAt: string;
-      settings: Record<string, any>;
+      settings: Record<string, unknown>;
       consents: any[];
       piiTags: any[];
     };
@@ -3779,7 +3779,7 @@ export const apiClient = {
     });
     return parseResponse<any>(res);
   },
-  async submitApproval(payload: { action: string; requestedBy: string; campgroundId?: string; resource?: string; targetId?: string; justification?: string; payload?: Record<string, any> }) {
+  async submitApproval(payload: { action: string; requestedBy: string; campgroundId?: string; resource?: string; targetId?: string; justification?: string; payload?: Record<string, unknown> }) {
     const res = await fetch(`${API_BASE}/permissions/approvals`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
@@ -4127,7 +4127,7 @@ export const apiClient = {
       secretKeySecretId?: string | null;
       merchantAccountIdSecretId?: string | null;
       webhookSecretId?: string | null;
-      additionalConfig?: Record<string, any> | null;
+      additionalConfig?: Record<string, unknown> | null;
     }
   ) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/payment-gateway`, {
@@ -4711,7 +4711,7 @@ export const apiClient = {
       accepted: boolean;
       signerName?: string;
       signerEmail?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     }[];
     holdId?: string;
     charityDonation?: {
@@ -5387,7 +5387,7 @@ export const apiClient = {
     title: string;
     type: "waiver" | "vehicle" | "intake" | "custom";
     description?: string;
-    fields?: Record<string, any>;
+    fields?: Record<string, unknown>;
     isActive?: boolean;
     autoAttachMode?: "manual" | "all_bookings" | "site_classes";
     siteClassIds?: string[];
@@ -5412,7 +5412,7 @@ export const apiClient = {
     title: string;
     type: "waiver" | "vehicle" | "intake" | "custom";
     description?: string | null;
-    fields?: Record<string, any> | null;
+    fields?: Record<string, unknown> | null;
     isActive?: boolean;
     autoAttachMode?: "manual" | "all_bookings" | "site_classes";
     siteClassIds?: string[];
@@ -5450,7 +5450,7 @@ export const apiClient = {
     formTemplateId: string;
     reservationId?: string;
     guestId?: string;
-    responses?: Record<string, any>;
+    responses?: Record<string, unknown>;
   }) {
     const res = await fetch(`${API_BASE}/forms/submissions`, {
       method: "POST",
@@ -5460,7 +5460,7 @@ export const apiClient = {
     const data = await parseResponse<unknown>(res);
     return FormSubmissionSchema.parse(data);
   },
-  async updateFormSubmission(id: string, payload: Partial<{ status: "pending" | "completed" | "void"; responses: Record<string, any> }>) {
+  async updateFormSubmission(id: string, payload: Partial<{ status: "pending" | "completed" | "void"; responses: Record<string, unknown> }>) {
     const res = await fetch(`${API_BASE}/forms/submissions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
@@ -7025,7 +7025,7 @@ export const apiClient = {
     referrerUrl?: string;
     deviceType?: string;
     region?: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }) {
     const res = await fetch(`${API_BASE}/analytics/events`, {
       method: "POST",
@@ -7034,7 +7034,7 @@ export const apiClient = {
     });
     return parseResponse<unknown>(res);
   },
-  async applyAnalyticsRecommendation(payload: { recommendationId: string; campgroundId: string; type?: string; action?: string; targetId?: string; payload?: Record<string, any> }) {
+  async applyAnalyticsRecommendation(payload: { recommendationId: string; campgroundId: string; type?: string; action?: string; targetId?: string; payload?: Record<string, unknown> }) {
     const res = await fetch(`${API_BASE}/analytics/recommendations/apply`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
@@ -7042,7 +7042,7 @@ export const apiClient = {
     });
     return parseResponse<unknown>(res);
   },
-  async proposeAnalyticsRecommendation(payload: { recommendationId: string; campgroundId: string; type?: string; targetId?: string; payload?: Record<string, any> }) {
+  async proposeAnalyticsRecommendation(payload: { recommendationId: string; campgroundId: string; type?: string; targetId?: string; payload?: Record<string, unknown> }) {
     const res = await fetch(`${API_BASE}/analytics/recommendations/propose`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...scopedHeaders() },
@@ -7086,7 +7086,7 @@ export const apiClient = {
     payload: {
       action: {
         type: string;
-        parameters?: Record<string, any>;
+        parameters?: Record<string, unknown>;
         sensitivity?: "low" | "medium" | "high";
         impactArea?: string;
       };
@@ -7371,7 +7371,7 @@ export const apiClient = {
     currency: string;
     reason: string;
     requester: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }) {
     const res = await fetch(`${API_BASE}/approvals`, {
       method: "POST",
@@ -8154,7 +8154,7 @@ export const apiClient = {
     type: "gift" | "credit";
     scopeType?: "campground" | "organization" | "global";
     scopeId?: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }) {
     const res = await fetch(`${API_BASE}/stored-value/issue`, {
       method: "POST",
@@ -8222,7 +8222,7 @@ export const apiClient = {
     enabled?: boolean;
     templateId?: string;
     delayMinutes?: number;
-    conditions?: Record<string, any>;
+    conditions?: Record<string, unknown>;
   }) {
     const res = await fetch(`${API_BASE}/campgrounds/${campgroundId}/notification-triggers`, {
       method: "POST",
@@ -8237,7 +8237,7 @@ export const apiClient = {
     enabled: boolean;
     templateId: string | null;
     delayMinutes: number;
-    conditions: Record<string, any> | null;
+    conditions: Record<string, unknown> | null;
   }>) {
     const res = await fetch(`${API_BASE}/notification-triggers/${id}`, {
       method: "PATCH",
@@ -9369,8 +9369,8 @@ export const apiClient = {
       displayName: string | null;
       status: string;
       capabilities: string[];
-      credentials: Record<string, any>;
-      settings: Record<string, any> | null;
+      credentials: Record<string, unknown>;
+      settings: Record<string, unknown> | null;
       locationMappings: Record<string, string> | null;
       lastSyncAt: string | null;
       lastSyncStatus: string | null;
@@ -9384,8 +9384,8 @@ export const apiClient = {
     campgroundId: string;
     provider: string;
     displayName?: string;
-    credentials: Record<string, any>;
-    settings?: Record<string, any>;
+    credentials: Record<string, unknown>;
+    settings?: Record<string, unknown>;
     capabilities?: string[];
   }) {
     const res = await fetch(`${API_BASE}/pos/integrations`, {
@@ -9398,8 +9398,8 @@ export const apiClient = {
 
   async updatePosIntegration(id: string, payload: {
     displayName?: string;
-    credentials?: Record<string, any>;
-    settings?: Record<string, any>;
+    credentials?: Record<string, unknown>;
+    settings?: Record<string, unknown>;
     capabilities?: string[];
     status?: string;
   }) {
@@ -9424,7 +9424,7 @@ export const apiClient = {
       method: "POST",
       headers: scopedHeaders(),
     });
-    return parseResponse<{ success: boolean; message?: string; details?: Record<string, any> }>(res);
+    return parseResponse<{ success: boolean; message?: string; details?: Record<string, unknown> }>(res);
   },
 
   async triggerPosSync(id: string, type: "products" | "inventory" | "sales") {
@@ -9451,7 +9451,7 @@ export const apiClient = {
       lastSyncedAt: string | null;
       syncStatus: string | null;
       syncError: string | null;
-      metadata: Record<string, any> | null;
+      metadata: Record<string, unknown> | null;
       product: {
         id: string;
         name: string;
@@ -9552,7 +9552,7 @@ export const apiClient = {
       id: string;
       externalId: string;
       externalSku: string | null;
-      metadata: Record<string, any> | null;
+      metadata: Record<string, unknown> | null;
     }>;
   },
 

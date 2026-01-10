@@ -5,6 +5,7 @@ import { ApiScopes } from "./decorators/api-scopes.decorator";
 import { PublicApiService } from "./public-api.service";
 import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 import { ApiTags, ApiOperation, ApiResponse, ApiProperty } from "@nestjs/swagger";
+import type { Request } from "express";
 
 class CreateSiteBody {
   @ApiProperty({ description: "Name of the site" })

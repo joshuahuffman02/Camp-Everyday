@@ -3,6 +3,7 @@ import { Response } from "express";
 import { JwtAuthGuard } from "../auth/guards";
 import { TillService } from "./till.service";
 import { CloseTillDto, OpenTillDto, TillMovementDto, ListTillsDto, DailyTillReportQueryDto } from "./till.dto";
+import type { Request } from "express";
 
 @UseGuards(JwtAuthGuard)
 @Controller("pos/tills")

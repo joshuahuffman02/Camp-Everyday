@@ -20,7 +20,7 @@ export class CreateFormTemplateDto {
 
   @IsOptional()
   @IsObject()
-  fields?: Record<string, any> | null;
+  fields?: Record<string, unknown> | null;
 
   @IsOptional()
   @IsBoolean()
@@ -43,7 +43,7 @@ export class UpdateFormTemplateDto {
 
   @IsOptional()
   @IsObject()
-  fields?: Record<string, any> | null;
+  fields?: Record<string, unknown> | null;
 
   @IsOptional()
   @IsBoolean()
@@ -65,7 +65,7 @@ export class CreateFormSubmissionDto {
 
   @IsOptional()
   @IsObject()
-  responses?: Record<string, any> | null;
+  responses?: Record<string, unknown> | null;
 }
 
 export class UpdateFormSubmissionDto {
@@ -75,6 +75,6 @@ export class UpdateFormSubmissionDto {
 
   @IsOptional()
   @IsObject()
-  responses?: Record<string, any> | null;
+  responses?: Record<string, unknown> | null;
 }
 

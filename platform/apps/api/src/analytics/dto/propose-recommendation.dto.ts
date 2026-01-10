@@ -20,6 +20,6 @@ export class ProposeRecommendationDto {
   campgroundId!: string;
 
   @IsOptional()
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
 }
 

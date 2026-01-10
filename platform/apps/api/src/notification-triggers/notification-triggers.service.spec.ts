@@ -37,7 +37,7 @@ describe('NotificationTriggersService', () => {
   });
 
   describe('matchesConditions', () => {
-    const matchesConditions = (conditions: Record<string, any>, payload: TriggerPayload) => {
+    const matchesConditions = (conditions: Record<string, unknown>, payload: TriggerPayload) => {
       return (service as any).matchesConditions(conditions, payload);
     };
 

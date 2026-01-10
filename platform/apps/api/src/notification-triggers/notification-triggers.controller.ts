@@ -36,7 +36,7 @@ export class NotificationTriggersController {
       enabled?: boolean;
       templateId?: string;
       delayMinutes?: number;
-      conditions?: Record<string, any>;
+      conditions?: Record<string, unknown>;
     }
   ) {
     return this.service.create(campgroundId, body);
@@ -53,7 +53,7 @@ export class NotificationTriggersController {
       enabled: boolean;
       templateId: string | null;
       delayMinutes: number;
-      conditions: Record<string, any> | null;
+      conditions: Record<string, unknown> | null;
     }>
   ) {
     return this.service.update(id, body, campgroundId);
@@ -89,7 +89,7 @@ export class NotificationTriggersByIdController {
       enabled: boolean;
       templateId: string | null;
       delayMinutes: number;
-      conditions: Record<string, any> | null;
+      conditions: Record<string, unknown> | null;
     }>
   ) {
     return this.service.update(id, body, campgroundId);

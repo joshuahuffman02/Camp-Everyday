@@ -1,5 +1,6 @@
 import { Injectable, NestMiddleware, Logger, BadRequestException } from "@nestjs/common";
 import { Request, Response, NextFunction } from "express";
+import type { Request } from "express";
 
 /**
  * API Version configuration

@@ -2,6 +2,7 @@ import { Body, Controller, Param, Patch, Post, Req, UseGuards } from "@nestjs/co
 import { JwtAuthGuard } from "../auth/guards";
 import { CheckoutCartDto, CreateCartDto, OfflineReplayDto, UpdateCartDto, CreateReturnDto } from "./pos.dto";
 import { PosService } from "./pos.service";
+import type { Request } from "express";
 
 @UseGuards(JwtAuthGuard)
 @Controller("pos")

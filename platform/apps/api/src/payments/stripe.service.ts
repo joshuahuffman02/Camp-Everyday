@@ -1,5 +1,19 @@
-import { Injectable, Logger, BadRequestException } from "@nestjs/common";
+import { Injectable, Logger, BadRequestException, NotFoundException } from "@nestjs/common";
 import Stripe from "stripe";
+import { isRecord } from "../utils/type-guards";
+
+const normalizeCapabilities = (
+    capabilities: Stripe.Account.Capabilities | null | undefined
+): Record<string, string> | undefined => {
+    if (!capabilities) return undefined;
+    const normalized: Record<string, string> = {};
+    for (const [key, value] of Object.entries(capabilities)) {
+        if (typeof value === "string") {
+            normalized[key] = value;
+        }
+    }
+    return Object.keys(normalized).length ? normalized : undefined;
+};
 
 @Injectable()
 export class StripeService {
@@ -137,13 +151,24 @@ export class StripeService {
         const mock = process.env.STRIPE_CAPABILITIES_MOCK;
         if (mock) {
             try {
-                return JSON.parse(mock) as Record<string, string>;
+                const parsed = JSON.parse(mock);
+                if (isRecord(parsed)) {
+                    const normalized: Record<string, string> = {};
+                    for (const [key, value] of Object.entries(parsed)) {
+                        if (typeof value === "string") {
+                            normalized[key] = value;
+                        }
+                    }
+                    if (Object.keys(normalized).length) {
+                        return normalized;
+                    }
+                }
             } catch {
                 // fall through to live fetch
             }
         }
         const acct = await this.stripe.accounts.retrieve(stripeAccountId);
-        return (acct as any).capabilities as Record<string, string> | undefined;
+        return normalizeCapabilities(acct.capabilities);
     }
 
     /**
@@ -356,7 +381,8 @@ export class StripeService {
      */
     async getCustomer(customerId: string): Promise<Stripe.Customer> {
         const stripe = this.assertConfigured("get customers");
-        return stripe.customers.retrieve(customerId) as Promise<Stripe.Customer>;
+        const customer = await stripe.customers.retrieve(customerId);
+        return this.ensureActiveCustomer(customer);
     }
 
     /**
@@ -780,10 +806,20 @@ export class StripeService {
         customerId: string
     ): Promise<Stripe.Customer> {
         const stripe = this.assertConfigured("get customers on connected accounts");
-        return stripe.customers.retrieve(
+        const customer = await stripe.customers.retrieve(
             customerId,
             { stripeAccount: stripeAccountId }
-        ) as Promise<Stripe.Customer>;
+        );
+        return this.ensureActiveCustomer(customer);
+    }
+
+    private ensureActiveCustomer(
+        customer: Stripe.Customer | Stripe.DeletedCustomer
+    ): Stripe.Customer {
+        if ("deleted" in customer && customer.deleted) {
+            throw new NotFoundException("Customer not found");
+        }
+        return customer;
     }
 
     /**

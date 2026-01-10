@@ -10,6 +10,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
+import type { Request } from "express";
 
 // SECURITY FIX (RES-HIGH-001): Added RolesGuard and ScopeGuard with membership validation
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -131,7 +132,7 @@ export class ReservationsController {
     @Query("status") status?: string,
     @Query("source") source?: string
   ) {
-    const filters: Record<string, any> = {};
+    const filters: Record<string, unknown> = {};
     if (status) filters.status = status;
     if (source) filters.source = source;
     return this.importExport.exportReservations({
@@ -152,7 +153,7 @@ export class ReservationsController {
   @Post("campgrounds/:campgroundId/reservations/export/jobs")
   queueReservationExport(
     @Param("campgroundId") campgroundId: string,
-    @Body() body: { format?: "json" | "csv"; filters?: Record<string, any> },
+    @Body() body: { format?: "json" | "csv"; filters?: Record<string, unknown> },
     @Req() req: Request
   ) {
     return this.importExport.queueExport(campgroundId, body.filters, body.format ?? "json", req?.user?.id ?? null);

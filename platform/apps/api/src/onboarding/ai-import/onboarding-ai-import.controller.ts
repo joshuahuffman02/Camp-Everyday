@@ -136,7 +136,7 @@ export class OnboardingAiImportController {
         @Body() body: {
             token?: string;
             documentId: string;
-            corrections?: Record<number, Record<string, any>>;
+            corrections?: Record<number, Record<string, unknown>>;
         },
     ) {
         const token = this.getToken(tokenHeader, undefined, body.token);

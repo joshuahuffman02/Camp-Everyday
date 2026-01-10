@@ -110,7 +110,7 @@ export class OnboardingGoLiveCheckService {
             throw new BadRequestException('Campground not found');
         }
 
-        const sessionData = (session.data as Record<string, any>) || {};
+        const sessionData = (session.data as Record<string, unknown>) || {};
         const completedSteps = new Set(session.completedSteps);
 
         // Check requirements

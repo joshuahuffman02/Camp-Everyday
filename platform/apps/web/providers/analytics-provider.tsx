@@ -183,7 +183,7 @@ export function useTrackAction() {
   const analytics = useAnalyticsContext();
 
   return useCallback(
-    (actionType: string, actionTarget?: string, metadata?: Record<string, any>) => {
+    (actionType: string, actionTarget?: string, metadata?: Record<string, unknown>) => {
       analytics.trackAction({ actionType, actionTarget, metadata });
     },
     [analytics]
@@ -212,7 +212,7 @@ export function useFeatureTracking(featureName: string, subFeature?: string) {
   const startTimeRef = useRef<number>(Date.now());
 
   const trackSuccess = useCallback(
-    (metadata?: Record<string, any>) => {
+    (metadata?: Record<string, unknown>) => {
       const durationSecs = Math.floor((Date.now() - startTimeRef.current) / 1000);
       analytics.trackFeature({
         feature: featureName,
@@ -227,7 +227,7 @@ export function useFeatureTracking(featureName: string, subFeature?: string) {
   );
 
   const trackFailure = useCallback(
-    (error?: string, metadata?: Record<string, any>) => {
+    (error?: string, metadata?: Record<string, unknown>) => {
       const durationSecs = Math.floor((Date.now() - startTimeRef.current) / 1000);
       analytics.trackFeature({
         feature: featureName,
@@ -262,14 +262,14 @@ export function useFunnelTracking(funnelName: string) {
   );
 
   const advance = useCallback(
-    (stepName?: string, metadata?: Record<string, any>) => {
+    (stepName?: string, metadata?: Record<string, unknown>) => {
       analytics.advanceFunnel(funnelName, stepName, metadata);
     },
     [analytics, funnelName]
   );
 
   const complete = useCallback(
-    (metadata?: Record<string, any>) => {
+    (metadata?: Record<string, unknown>) => {
       analytics.completeFunnel(funnelName, metadata);
     },
     [analytics, funnelName]

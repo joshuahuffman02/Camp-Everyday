@@ -5,6 +5,7 @@ import { AiInsightsService } from "./ai-insights.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
 import { AiNoShowPredictionService } from "./ai-no-show-prediction.service";
 import { EmailService } from "../email/email.service";
+import type { Request } from "express";
 
 interface ArrivingGuest {
   guestName: string;

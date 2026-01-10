@@ -301,7 +301,7 @@ export class FormsService {
     campgroundId: string;
     reservationId?: string;
     guestEmail?: string;
-    responses: Record<string, any>;
+    responses: Record<string, unknown>;
   }) {
     if (!data.campgroundId) {
       throw new BadRequestException("campgroundId is required");

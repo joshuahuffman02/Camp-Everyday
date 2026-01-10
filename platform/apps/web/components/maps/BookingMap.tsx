@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Caravan, Tent, Home, Users, Sparkles, MapPin } from "lucide-react";
+import { Caravan, Tent, Home, Users, Sparkles, MapPin, type LucideIcon } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +55,7 @@ const STATUS_COLORS: Record<MapSite["status"], string> = {
   maintenance: "#ef4444"
 };
 
-const SITE_TYPE_ICONS: Record<string, any> = {
+const SITE_TYPE_ICONS: Record<string, LucideIcon> = {
   rv: Caravan,
   tent: Tent,
   cabin: Home,

@@ -45,7 +45,7 @@ interface LiveEvent {
   guestId: string | null;
   actorType: "staff" | "guest" | "system";
   eventType: string;
-  eventData: Record<string, any>;
+  eventData: Record<string, unknown>;
   page: string | null;
   createdAt: string;
   expiresAt: string;

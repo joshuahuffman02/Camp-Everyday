@@ -426,7 +426,7 @@ export class PrometheusService implements OnModuleInit {
   /**
    * Get current metric values as JSON (for debugging)
    */
-  getMetricsJson(): Record<string, any> {
+  getMetricsJson(): Record<string, unknown> {
     this.updateFromSnapshot();
 
     return {

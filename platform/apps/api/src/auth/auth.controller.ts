@@ -5,6 +5,7 @@ import { RegisterDto, LoginDto, MobileLoginDto, RefreshTokenDto } from './dto';
 import { JwtAuthGuard } from './guards';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { extractClientIpFromRequest } from '../common/ip-utils';
+import type { Request } from "express";
 
 @Controller('auth')
 export class AuthController {

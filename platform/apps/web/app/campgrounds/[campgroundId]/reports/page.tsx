@@ -18,7 +18,7 @@ type CatalogEntry = {
 
 type ReportRun = {
   meta: { id: string; name: string; category: string; defaultChart?: string };
-  rows: Array<Record<string, any>>;
+  rows: Array<Record<string, unknown>>;
   series: Array<{ label: string; chart: string; points: Array<{ x: string; y: number }> }>;
 };
 

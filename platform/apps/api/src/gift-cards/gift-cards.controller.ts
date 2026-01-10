@@ -7,6 +7,8 @@ import { IsInt, IsString, Min } from "class-validator";
 import { Type } from "class-transformer";
 import { GiftCardsService } from "./gift-cards.service";
 import { ScopeGuard } from "../permissions/scope.guard";
+import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
 
 class RedeemGiftCardDto {
   @IsString()
@@ -23,23 +25,26 @@ class RedeemGiftCardDto {
 export class GiftCardsController {
   constructor(private readonly giftCards: GiftCardsService) {}
 
-  private requireCampgroundId(req: any): string {
-    const campgroundId = req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: Request): string {
+    const headerValue = req.headers["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = req.campgroundId ?? headerCampgroundId ?? undefined;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
     return campgroundId;
   }
 
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
-    const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                            user?.platformRole === "platform_superadmin" ||
-                            user?.platformRole === "support_agent";
+  private assertCampgroundAccess(campgroundId: string, user: AuthUser | null | undefined): void {
+    const isPlatformStaff =
+      user?.platformRole === "platform_admin" ||
+      user?.platformRole === "platform_superadmin" ||
+      user?.platformRole === "support_agent";
     if (isPlatformStaff) {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user?.memberships?.map((membership) => membership.campgroundId) ?? [];
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new BadRequestException("You do not have access to this campground");
     }
@@ -51,7 +56,7 @@ export class GiftCardsController {
   redeemBooking(@Param("bookingId") bookingId: string, @Body() body: RedeemGiftCardDto, @Req() req: Request) {
     const requiredCampgroundId = this.requireCampgroundId(req);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
-    const actor = { ...req.user, campgroundId: requiredCampgroundId };
+    const actor = req.user ? { ...req.user, campgroundId: requiredCampgroundId } : undefined;
     return this.giftCards.redeemAgainstBooking(body.code, body.amountCents, bookingId, actor);
   }
 
@@ -61,7 +66,7 @@ export class GiftCardsController {
   redeemPosOrder(@Param("orderId") orderId: string, @Body() body: RedeemGiftCardDto, @Req() req: Request) {
     const requiredCampgroundId = this.requireCampgroundId(req);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
-    const actor = { ...req.user, campgroundId: requiredCampgroundId };
+    const actor = req.user ? { ...req.user, campgroundId: requiredCampgroundId } : undefined;
     return this.giftCards.redeemAgainstPosOrder(body.code, body.amountCents, orderId, actor);
   }
 }

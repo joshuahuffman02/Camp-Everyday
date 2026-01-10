@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { InternalMessagesService } from './internal-messages.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import type { Request } from "express";
 
 @Controller('internal-messages')
 @UseGuards(JwtAuthGuard)

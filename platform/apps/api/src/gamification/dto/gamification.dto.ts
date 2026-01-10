@@ -50,7 +50,7 @@ export class AwardXpDto {
   membershipId?: string;
 
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class UpsertXpRuleDto {

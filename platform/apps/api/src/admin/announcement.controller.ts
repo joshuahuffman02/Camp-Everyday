@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuard
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
 import { PlatformRole } from "@prisma/client";
 import { AnnouncementService } from "./announcement.service";
+import type { Request } from "express";
 
 class CreateAnnouncementDto {
     title!: string;

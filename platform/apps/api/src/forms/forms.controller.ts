@@ -4,6 +4,7 @@ import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
 import { CreateFormTemplateDto, UpdateFormTemplateDto, CreateFormSubmissionDto, UpdateFormSubmissionDto } from "./dto/form-template.dto";
+import type { Request } from "express";
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()

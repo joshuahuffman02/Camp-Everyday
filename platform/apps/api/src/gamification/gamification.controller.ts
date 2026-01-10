@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Patch, Post, Query, Request
 import { JwtAuthGuard } from "../auth/guards";
 import { GamificationService } from "./gamification.service";
 import { AwardXpDto, UpdateGamificationSettingsDto, UpsertXpRuleDto } from "./dto/gamification.dto";
+import type { Request } from "express";
 
 @UseGuards(JwtAuthGuard)
 @Controller("gamification")

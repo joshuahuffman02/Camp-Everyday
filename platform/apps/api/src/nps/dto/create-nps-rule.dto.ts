@@ -19,7 +19,7 @@ export class CreateNpsRuleDto {
   cooldownDays?: number;
 
   @IsOptional()
-  segmentJson?: Record<string, any>;
+  segmentJson?: Record<string, unknown>;
 
   @IsOptional()
   @IsBoolean()

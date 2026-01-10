@@ -10,34 +10,39 @@ import {
     Req,
     UseGuards,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { FulfillmentService } from "./fulfillment.service";
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { FulfillmentAssignmentStatus } from "@prisma/client";
+import type { AuthUser } from "../auth/auth.types";
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class FulfillmentController {
     constructor(private readonly fulfillmentService: FulfillmentService) {}
 
-    private requireCampgroundId(req: any, fallback?: string): string {
-        const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+    private requireCampgroundId(req: Request, fallback?: string): string {
+        const headerValue = req.headers["x-campground-id"];
+        const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+        const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId ?? undefined;
         if (!campgroundId) {
             throw new BadRequestException("campgroundId is required");
         }
         return campgroundId;
     }
 
-    private assertCampgroundAccess(campgroundId: string, user: any): void {
-        const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                                user?.platformRole === "platform_superadmin" ||
-                                user?.platformRole === "support_agent";
+    private assertCampgroundAccess(campgroundId: string, user: AuthUser | null | undefined): void {
+        const isPlatformStaff =
+            user?.platformRole === "platform_admin" ||
+            user?.platformRole === "platform_superadmin" ||
+            user?.platformRole === "support_agent";
         if (isPlatformStaff) {
             return;
         }
 
-        const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+        const userCampgroundIds = user?.memberships?.map((membership) => membership.campgroundId) ?? [];
         if (!userCampgroundIds.includes(campgroundId)) {
             throw new BadRequestException("You do not have access to this campground");
         }
@@ -53,11 +58,14 @@ export class FulfillmentController {
         @Query("status") status?: string,
         @Query("locationId") locationId?: string,
         @Query("limit") limit?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
+        this.assertCampgroundAccess(campgroundId, req.user);
+        const statusValues: Set<string> = new Set(Object.values(FulfillmentAssignmentStatus));
         const statusFilter = status
-            ? (status.split(",") as FulfillmentAssignmentStatus[])
+            ? status
+                  .split(",")
+                  .filter((value): value is FulfillmentAssignmentStatus => statusValues.has(value))
             : undefined;
 
         return this.fulfillmentService.getFulfillmentQueue(campgroundId, {
@@ -130,7 +138,7 @@ export class FulfillmentController {
         @Param("id") locationId: string,
         @Query("includeCompleted") includeCompleted?: string,
         @Query("campgroundId") campgroundId?: string,
-        @Req() req?: any
+        @Req() req?: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req?.user);

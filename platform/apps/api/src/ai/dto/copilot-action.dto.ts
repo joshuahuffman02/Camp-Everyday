@@ -15,7 +15,7 @@ export class CopilotActionDto {
   prompt?: string;
 
   @IsOptional()
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
 }
 
 

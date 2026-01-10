@@ -139,7 +139,7 @@ export class ExternalCampgroundUpsertDto {
   reviewsUpdatedAt?: string;
 
   @IsOptional()
-  amenitySummary?: Record<string, any>;
+  amenitySummary?: Record<string, unknown>;
 }
 
 export class OsmIngestRequestDto {

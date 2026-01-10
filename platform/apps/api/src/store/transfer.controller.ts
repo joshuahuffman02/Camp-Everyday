@@ -7,36 +7,42 @@ import {
     Patch,
     Post,
     Query,
-    UseGuards,
     Req,
+    UseGuards,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { TransferService, CreateTransferDto } from "./transfer.service";
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
+import type { AuthUser } from "../auth/auth.types";
+import { InventoryTransferStatus } from "@prisma/client";
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class TransferController {
     constructor(private readonly transferService: TransferService) {}
 
-    private requireCampgroundId(req: any, fallback?: string): string {
-        const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+    private requireCampgroundId(req: Request, fallback?: string): string {
+        const headerValue = req.headers["x-campground-id"];
+        const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+        const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId ?? undefined;
         if (!campgroundId) {
             throw new BadRequestException("campgroundId is required");
         }
         return campgroundId;
     }
 
-    private assertCampgroundAccess(campgroundId: string, user: any): void {
-        const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                                user?.platformRole === "platform_superadmin" ||
-                                user?.platformRole === "support_agent";
+    private assertCampgroundAccess(campgroundId: string, user: AuthUser | null | undefined): void {
+        const isPlatformStaff =
+            user?.platformRole === "platform_admin" ||
+            user?.platformRole === "platform_superadmin" ||
+            user?.platformRole === "support_agent";
         if (isPlatformStaff) {
             return;
         }
 
-        const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+        const userCampgroundIds = user?.memberships?.map((membership) => membership.campgroundId) ?? [];
         if (!userCampgroundIds.includes(campgroundId)) {
             throw new BadRequestException("You do not have access to this campground");
         }
@@ -48,11 +54,15 @@ export class TransferController {
         @Query("status") status?: string,
         @Query("fromLocationId") fromLocationId?: string,
         @Query("toLocationId") toLocationId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
+        this.assertCampgroundAccess(campgroundId, req.user);
+        const statusValues: Set<string> = new Set(Object.values(InventoryTransferStatus));
+        const isInventoryTransferStatus = (value: string): value is InventoryTransferStatus =>
+            statusValues.has(value);
+        const statusFilter = status && isInventoryTransferStatus(status) ? status : undefined;
         return this.transferService.listTransfers(campgroundId, {
-            status,
+            status: statusFilter,
             fromLocationId,
             toLocationId,
         });

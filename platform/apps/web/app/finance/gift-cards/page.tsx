@@ -58,7 +58,7 @@ type StoredValueAccount = {
   status: "active" | "frozen" | "expired";
   issuedAt: string;
   expiresAt?: string | null;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
   campground?: { id: string; name: string };
@@ -120,7 +120,7 @@ const mapLedgerType = (direction: string): GiftCardHistory["type"] | null => {
   return null;
 };
 
-const readMetadataString = (metadata: Record<string, any> | null | undefined, key: string) => {
+const readMetadataString = (metadata: Record<string, unknown> | null | undefined, key: string) => {
   const value = metadata?.[key];
   return typeof value === "string" ? value : undefined;
 };
@@ -182,7 +182,7 @@ export default function GiftCardsPage() {
       type: "gift" | "credit";
       scopeType?: "campground" | "organization" | "global";
       scopeId?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     }) => apiClient.issueStoredValue(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stored-value-accounts", campgroundId] });

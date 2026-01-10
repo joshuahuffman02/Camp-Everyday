@@ -5,6 +5,7 @@ import { JwtAuthGuard } from "../auth/guards";
 import { Roles, RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
+import type { Request } from "express";
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller("holds")

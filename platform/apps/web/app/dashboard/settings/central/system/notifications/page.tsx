@@ -26,6 +26,7 @@ import {
   Pencil,
   Trash2,
   Send,
+  type LucideIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -61,7 +62,7 @@ interface NotificationTrigger {
   } | null;
 }
 
-const EVENT_ICONS: Record<string, any> = {
+const EVENT_ICONS: Record<string, LucideIcon> = {
   reservation_created: Ticket,
   reservation_confirmed: CheckCircle,
   reservation_cancelled: XCircle,

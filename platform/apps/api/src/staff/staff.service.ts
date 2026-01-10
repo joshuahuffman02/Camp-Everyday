@@ -4,6 +4,7 @@ import { PushNotificationType } from '@prisma/client';
 import { AuditService } from "../audit/audit.service";
 import { EmailService } from "../email/email.service";
 import { minutesBetween } from "./payroll.service";
+import type { Request } from "express";
 
 interface CreateShiftDto {
   campgroundId: string;
@@ -33,7 +34,7 @@ interface OverrideRequestDto {
   targetEntity?: string;
   targetId?: string;
   deltaAmount?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 @Injectable()
@@ -401,7 +402,7 @@ export class StaffService {
     type: PushNotificationType,
     title: string,
     body: string,
-    data?: Record<string, any>
+    data?: Record<string, unknown>
   ) {
     const pushEnabled = process.env.PUSH_NOTIFICATIONS_ENABLED === 'true';
     const fcmKey = process.env.FCM_SERVER_KEY;

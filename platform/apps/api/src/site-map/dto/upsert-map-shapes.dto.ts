@@ -12,15 +12,15 @@ export class MapShapeDto {
 
   @IsObject()
   @IsNotEmpty()
-  geometry!: Record<string, any>;
+  geometry!: Record<string, unknown>;
 
   @IsOptional()
   @IsObject()
-  centroid?: Record<string, any>;
+  centroid?: Record<string, unknown>;
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class UpsertMapShapesDto {

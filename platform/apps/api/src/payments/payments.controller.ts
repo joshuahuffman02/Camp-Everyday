@@ -1,15 +1,34 @@
-import { Body, Controller, Get, Headers, Param, Post, RawBodyRequest, Req, BadRequestException, UseGuards, NotFoundException, Query, Res, Logger, ForbiddenException, ConflictException, ServiceUnavailableException, UsePipes } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  ConflictException,
+  Controller,
+  ForbiddenException,
+  Get,
+  Headers,
+  Logger,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  RawBodyRequest,
+  Req,
+  Res,
+  ServiceUnavailableException,
+  UseGuards,
+  UsePipes,
+} from "@nestjs/common";
 import Stripe from "stripe";
-import { Response } from "express";
+import type { Request, Response } from "express";
 import { ReservationsService } from "../reservations/reservations.service";
 import { CreatePaymentIntentDto } from "./dto/create-payment-intent.dto";
 import { StripeService } from "./stripe.service";
-import { Request } from 'express';
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { RequireScope } from "../permissions/scope.decorator";
 import { UserRole, IdempotencyStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 type BillingPlan = "ota_only" | "standard" | "enterprise";
 type PaymentFeeMode = "absorb" | "pass_through";
 type DisputeStatus = "warning_needs_response" | "warning_under_review" | "needs_response" | "under_review" | "charge_refunded" | "won" | "lost";
@@ -31,8 +50,33 @@ import {
   CreatePublicSetupIntentSchema,
   ConfirmPublicPaymentIntentSchema,
 } from "./schemas/payment-validation.schema";
+import type { AuthUser } from "../auth/auth.types";
+import { isRecord } from "../utils/type-guards";
 
 import { IsNotEmpty, IsString } from "class-validator";
+
+type StripeCapabilities = Record<string, string>;
+
+const isStripeCapabilities = (value: unknown): value is StripeCapabilities =>
+  isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
+
+const isStripePaymentIntent = (value: unknown): value is Stripe.PaymentIntent =>
+  isRecord(value) && value.object === "payment_intent";
+
+const isStripeAccount = (value: unknown): value is Stripe.Account =>
+  isRecord(value) && value.object === "account";
+
+const isStripePayout = (value: unknown): value is Stripe.Payout =>
+  isRecord(value) && value.object === "payout";
+
+const isStripeDispute = (value: unknown): value is Stripe.Dispute =>
+  isRecord(value) && value.object === "dispute";
+
+const isStripeCharge = (value: unknown): value is Stripe.Charge =>
+  isRecord(value) && value.object === "charge";
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 // DTO for public payment intent creation
 // Note: amountCents is NOT accepted - the server computes the amount from the reservation balance
@@ -140,27 +184,39 @@ export class PaymentsController {
         return { capabilities: currentCapabilities ?? null, fetchedAt: fetchedAt ?? null, refreshed: false, skipped: true };
       }
 
+      const capabilitiesJson: Prisma.InputJsonValue = capabilities ?? null;
       const updated = await this.prisma.campground.update({
         where: { id: campgroundId },
         data: {
-          stripeCapabilities: capabilities as any,
-          stripeCapabilitiesFetchedAt: new Date()
+          stripeCapabilities: capabilitiesJson,
+          stripeCapabilitiesFetchedAt: new Date(),
         },
         select: {
-          stripeCapabilities: true as any,
-          stripeCapabilitiesFetchedAt: true as any
-        }
-      } as any);
+          stripeCapabilities: true,
+          stripeCapabilitiesFetchedAt: true,
+        },
+      });
 
+      const storedCapabilities = isStripeCapabilities(updated.stripeCapabilities)
+        ? updated.stripeCapabilities
+        : null;
       return {
-        capabilities: (updated as any).stripeCapabilities as Record<string, string> | null,
-        fetchedAt: (updated as any).stripeCapabilitiesFetchedAt as Date | null,
+        capabilities: storedCapabilities,
+        fetchedAt: updated.stripeCapabilitiesFetchedAt ?? null,
         refreshed: true,
         skipped: false
       };
-    } catch (err: any) {
-      this.logger.warn(`Capability refresh failed for campground ${campgroundId}: ${err?.message || err}`);
-      return { capabilities: currentCapabilities ?? null, fetchedAt: fetchedAt ?? null, refreshed: false, skipped: false, error: err };
+    } catch (err) {
+      this.logger.warn(
+        `Capability refresh failed for campground ${campgroundId}: ${getErrorMessage(err)}`
+      );
+      return {
+        capabilities: currentCapabilities ?? null,
+        fetchedAt: fetchedAt ?? null,
+        refreshed: false,
+        skipped: false,
+        error: err,
+      };
     }
   }
 
@@ -193,40 +249,46 @@ export class PaymentsController {
     const campground = await this.prisma.campground.findUnique({
       where: { id: reservation.campgroundId },
       select: {
-        // Note: prisma types may lag schema changes; cast to any for new fields.
-        stripeAccountId: true as any,
-        applicationFeeFlatCents: true as any,
+        stripeAccountId: true,
+        applicationFeeFlatCents: true,
         billingPlan: true,
-        perBookingFeeCents: true as any,
-        monthlyFeeCents: true as any,
+        perBookingFeeCents: true,
+        monthlyFeeCents: true,
         feeMode: true,
         name: true,
         currency: true,
-        stripeCapabilities: true as any,
-        stripeCapabilitiesFetchedAt: true as any
-      } as any
+        stripeCapabilities: true,
+        stripeCapabilitiesFetchedAt: true,
+      },
     });
-    const stripeAccountId = (campground as any)?.stripeAccountId as string | undefined;
+    const stripeAccountId = campground?.stripeAccountId ?? undefined;
     if (!stripeAccountId) {
       throw new BadRequestException("Campground is not connected to Stripe. Please complete onboarding.");
     }
     if (!this.stripeService.isConfigured()) {
       throw new BadRequestException("Stripe keys are not configured for the platform. Set STRIPE_SECRET_KEY to enable payments.");
     }
-    const plan = (campground as any)?.billingPlan as BillingPlan | undefined;
+    const plan = campground?.billingPlan ?? undefined;
     const planDefaultFee = plan === "standard" ? 200 : plan === "enterprise" ? 100 : 300;
     const applicationFeeCents =
-      (campground as any)?.perBookingFeeCents ??
-      (campground as any)?.applicationFeeFlatCents ??
+      campground?.perBookingFeeCents ??
+      campground?.applicationFeeFlatCents ??
       Number(process.env.PAYMENT_PLATFORM_FEE_CENTS ?? planDefaultFee);
-    const feeMode = (gatewayConfig?.feeMode as PaymentFeeMode | undefined) ?? ((campground as any)?.feeMode as PaymentFeeMode | undefined) ?? "absorb";
+    const feeModeCandidate = gatewayConfig?.feeMode ?? campground?.feeMode;
+    const feeMode =
+      feeModeCandidate && (feeModeCandidate === "absorb" || feeModeCandidate === "pass_through")
+        ? feeModeCandidate
+        : "absorb";
     const gatewayFeePercentBasisPoints = gatewayConfig?.effectiveFee?.percentBasisPoints ?? 0;
     const gatewayFeeFlatCents = gatewayConfig?.effectiveFee?.flatFeeCents ?? 0;
+    const storedCapabilities = isStripeCapabilities(campground?.stripeCapabilities)
+      ? campground?.stripeCapabilities
+      : undefined;
     const refreshed = await this.refreshCapabilitiesIfNeeded({
       campgroundId: reservation.campgroundId,
       stripeAccountId,
-      currentCapabilities: (campground as any)?.stripeCapabilities as any,
-      fetchedAt: (campground as any)?.stripeCapabilitiesFetchedAt as any
+      currentCapabilities: storedCapabilities ?? null,
+      fetchedAt: campground?.stripeCapabilitiesFetchedAt ?? null,
     });
     return {
       stripeAccountId,
@@ -237,9 +299,9 @@ export class PaymentsController {
       gatewayFeePercentBasisPoints,
       gatewayFeeFlatCents,
       reservation,
-      capabilities: refreshed.capabilities ?? ((campground as any)?.stripeCapabilities as Record<string, string> | undefined),
-      currency: (campground as any)?.currency as string | undefined,
-      capabilitiesFetchedAt: refreshed.fetchedAt ?? ((campground as any)?.stripeCapabilitiesFetchedAt as Date | undefined)
+      capabilities: refreshed.capabilities ?? storedCapabilities,
+      currency: campground?.currency ?? undefined,
+      capabilitiesFetchedAt: refreshed.fetchedAt ?? campground?.stripeCapabilitiesFetchedAt ?? undefined,
     };
   }
 
@@ -281,12 +343,13 @@ export class PaymentsController {
     return { amountCents, platformPassThroughFeeCents, gatewayPassThroughFeeCents, baseDue };
   }
 
-  private buildReceiptLinesFromIntent(intent: any) {
-    const toNumber = (v: any) => (v === undefined || v === null || Number.isNaN(Number(v)) ? 0 : Number(v));
+  private buildReceiptLinesFromIntent(intent: Stripe.PaymentIntent) {
+    const toNumber = (v: unknown) =>
+      v === undefined || v === null || Number.isNaN(Number(v)) ? 0 : Number(v);
     const baseAmount = toNumber(intent?.metadata?.baseAmountCents ?? intent?.amount_received ?? intent?.amount);
     const platformFee = toNumber(intent?.metadata?.platformPassThroughFeeCents ?? intent?.metadata?.applicationFeeCents);
     const gatewayFee = toNumber(intent?.metadata?.gatewayPassThroughFeeCents);
-    const taxCents = toNumber((intent?.metadata as any)?.taxCents);
+    const taxCents = toNumber(intent?.metadata?.taxCents);
 
     const lineItems = baseAmount > 0 ? [{ label: "Reservation charge", amountCents: baseAmount }] : [];
     if (platformFee > 0) lineItems.push({ label: "Platform fee", amountCents: platformFee });
@@ -301,8 +364,8 @@ export class PaymentsController {
     };
   }
 
-  private ensureCampgroundMembership(user: any, campgroundId: string | null | undefined) {
-    const actorCampgrounds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+  private ensureCampgroundMembership(user: AuthUser | null | undefined, campgroundId: string | null | undefined) {
+    const actorCampgrounds = user?.memberships?.map((membership) => membership.campgroundId) ?? [];
     if (!campgroundId || !actorCampgrounds.includes(campgroundId)) {
       throw new ForbiddenException("Forbidden by campground scope");
     }
@@ -717,12 +780,14 @@ export class PaymentsController {
       // At this point, intent.status === "succeeded" (requires_capture handled above)
       const receivedAmountCents = intent.amount_received ?? intent.amount;
       const receiptLines = this.buildReceiptLinesFromIntent(intent);
+      const latestChargeId =
+        typeof intent.latest_charge === "string" ? intent.latest_charge : intent.latest_charge?.id;
       await this.reservations.recordPayment(body.reservationId, receivedAmountCents, {
         transactionId: intent.id,
         paymentMethod: intent.payment_method_types?.[0] || "card",
         source: intent.metadata?.source || "public_checkout",
         stripePaymentIntentId: intent.id,
-        stripeChargeId: (intent as any)?.latest_charge as any,
+        stripeChargeId: latestChargeId,
         capturedAt: new Date(),
         lineItems: receiptLines.lineItems,
         taxCents: receiptLines.taxCents,
@@ -777,17 +842,17 @@ export class PaymentsController {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
-      select: { id: true, email: true, stripeAccountId: true as any }
-    } as any);
+      select: { id: true, email: true, stripeAccountId: true },
+    });
     if (!campground) throw new BadRequestException("Campground not found");
 
-    let accountId = (campground as any)?.stripeAccountId as string | undefined;
+    let accountId = campground.stripeAccountId ?? undefined;
     if (!accountId) {
       const account = await this.stripeService.createExpressAccount(campground.email || undefined, { campgroundId });
       accountId = account.id;
       await this.prisma.campground.update({
         where: { id: campgroundId },
-        data: { stripeAccountId: accountId } as any
+        data: { stripeAccountId: accountId },
       });
     }
 
@@ -798,13 +863,14 @@ export class PaymentsController {
     // Fetch capabilities after onboarding link creation
     try {
       const capabilities = await this.stripeService.retrieveAccountCapabilities(accountId);
+      const capabilitiesJson: Prisma.InputJsonValue = capabilities ?? null;
       await this.prisma.campground.update({
         where: { id: campgroundId },
         data: {
-          stripeCapabilities: capabilities as any,
-          stripeCapabilitiesFetchedAt: new Date()
-        }
-      } as any);
+          stripeCapabilities: capabilitiesJson,
+          stripeCapabilitiesFetchedAt: new Date(),
+        },
+      });
     } catch { /* noop */ }
 
     return { accountId, onboardingUrl: link.url };
@@ -814,7 +880,10 @@ export class PaymentsController {
    * Determine 3DS policy based on currency/region and gateway config.
    * EU/UK currencies default to "any" while others stay "automatic".
    */
-  private buildThreeDsPolicy(currency: string, gatewayConfig?: any): "any" | "automatic" {
+  private buildThreeDsPolicy(
+    currency: string,
+    gatewayConfig?: import("./gateway-config.mapper").GatewayConfigView | null
+  ): "any" | "automatic" {
     const cur = currency?.toLowerCase?.() ?? "usd";
     const region = gatewayConfig?.additionalConfig?.region ?? gatewayConfig?.region ?? null;
     const euLikeCurrencies = ["eur", "gbp", "chf", "sek", "nok"];
@@ -832,13 +901,13 @@ export class PaymentsController {
     try {
       return await fn();
     } catch (err) {
-      this.logger.error(`Primary gateway failed: ${(err as any)?.message ?? err}`, err as any);
+      this.logger.error(`Primary gateway failed: ${getErrorMessage(err)}`, err);
       this.logger.warn("Secondary gateway failover stub invoked (no secondary configured)");
       const fallback = new ServiceUnavailableException({
         message: "Payment processor unavailable; retry with backoff or alternate gateway",
         reason: "gateway_unavailable"
       });
-      (fallback as any).cause = err;
+      Object.defineProperty(fallback, "cause", { value: err, configurable: true });
       throw fallback;
     }
   }
@@ -860,26 +929,40 @@ export class PaymentsController {
     const campground = await this.prisma.campground.findUnique({ where: { id: campgroundId } });
     if (!campground) throw new BadRequestException("Campground not found");
 
+    const billingPlanCandidate = body.billingPlan ?? campground.billingPlan ?? null;
+    const billingPlan =
+      billingPlanCandidate &&
+      (billingPlanCandidate === "ota_only" ||
+        billingPlanCandidate === "standard" ||
+        billingPlanCandidate === "enterprise")
+        ? billingPlanCandidate
+        : undefined;
+    const feeModeCandidate = body.feeMode ?? campground.feeMode ?? null;
+    const feeMode =
+      feeModeCandidate && (feeModeCandidate === "absorb" || feeModeCandidate === "pass_through")
+        ? feeModeCandidate
+        : undefined;
+
     const updated = await this.prisma.campground.update({
       where: { id: campgroundId },
       data: {
-        applicationFeeFlatCents: body.applicationFeeFlatCents ?? (campground as any).applicationFeeFlatCents,
-        perBookingFeeCents: body.perBookingFeeCents ?? (campground as any).perBookingFeeCents,
-        monthlyFeeCents: body.monthlyFeeCents ?? (campground as any).monthlyFeeCents,
-        billingPlan: body.billingPlan ?? ((campground as any).billingPlan as BillingPlan),
-        feeMode: body.feeMode ?? ((campground as any).feeMode as PaymentFeeMode)
-      } as any,
+        applicationFeeFlatCents: body.applicationFeeFlatCents ?? campground.applicationFeeFlatCents,
+        perBookingFeeCents: body.perBookingFeeCents ?? campground.perBookingFeeCents,
+        monthlyFeeCents: body.monthlyFeeCents ?? campground.monthlyFeeCents,
+        billingPlan: billingPlan ?? undefined,
+        feeMode: feeMode ?? undefined,
+      },
       select: {
-        stripeAccountId: true as any,
-        applicationFeeFlatCents: true as any,
-        perBookingFeeCents: true as any,
-        monthlyFeeCents: true as any,
+        stripeAccountId: true,
+        applicationFeeFlatCents: true,
+        perBookingFeeCents: true,
+        monthlyFeeCents: true,
         billingPlan: true,
         feeMode: true,
-        stripeCapabilities: true as any,
-        stripeCapabilitiesFetchedAt: true as any
-      }
-    } as any);
+        stripeCapabilities: true,
+        stripeCapabilitiesFetchedAt: true,
+      },
+    });
 
     return updated;
   }
@@ -893,16 +976,16 @@ export class PaymentsController {
     const cg = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
       select: {
-        stripeAccountId: true as any,
-        applicationFeeFlatCents: true as any,
-        perBookingFeeCents: true as any,
-        monthlyFeeCents: true as any,
+        stripeAccountId: true,
+        applicationFeeFlatCents: true,
+        perBookingFeeCents: true,
+        monthlyFeeCents: true,
         billingPlan: true,
         feeMode: true,
-        stripeCapabilities: true as any,
-        stripeCapabilitiesFetchedAt: true as any
-      }
-    } as any);
+        stripeCapabilities: true,
+        stripeCapabilitiesFetchedAt: true,
+      },
+    });
 
     if (!cg?.stripeAccountId) {
       return {
@@ -917,8 +1000,8 @@ export class PaymentsController {
     const refreshed = await this.refreshCapabilitiesIfNeeded({
       campgroundId,
       stripeAccountId: cg.stripeAccountId,
-      currentCapabilities: cg.stripeCapabilities as any,
-      fetchedAt: cg.stripeCapabilitiesFetchedAt as any,
+      currentCapabilities: isStripeCapabilities(cg.stripeCapabilities) ? cg.stripeCapabilities : null,
+      fetchedAt: cg.stripeCapabilitiesFetchedAt ?? null,
       force: true
     });
 
@@ -941,7 +1024,7 @@ export class PaymentsController {
   async getPaymentIntent(@Param("id") id: string, @Req() req: Request) {
     try {
       const intent = await this.stripeService.retrievePaymentIntent(id);
-      const campgroundId = (intent.metadata as any)?.campgroundId ?? null;
+      const campgroundId = intent.metadata?.campgroundId ?? null;
       this.ensureCampgroundMembership(req?.user, campgroundId);
       return {
         id: intent.id,
@@ -953,8 +1036,8 @@ export class PaymentsController {
         captureMethod: intent.capture_method,
         createdAt: new Date(intent.created * 1000).toISOString(),
       };
-    } catch (error: any) {
-      if (error.code === 'resource_missing') {
+    } catch (error) {
+      if (isRecord(error) && error.code === "resource_missing") {
         throw new NotFoundException(`Payment intent ${id} not found`);
       }
       throw error;
@@ -978,7 +1061,7 @@ export class PaymentsController {
   ) {
     try {
       const current = await this.stripeService.retrievePaymentIntent(id);
-      const campgroundId = (current.metadata as any)?.campgroundId ?? null;
+      const campgroundId = current.metadata?.campgroundId ?? null;
       this.ensureCampgroundMembership(req?.user, campgroundId);
 
       // Check idempotency if key provided
@@ -995,12 +1078,14 @@ export class PaymentsController {
       const receiptLines = this.buildReceiptLinesFromIntent(intent);
       const reservationId = intent.metadata?.reservationId;
       if (reservationId) {
+        const latestChargeId =
+          typeof intent.latest_charge === "string" ? intent.latest_charge : intent.latest_charge?.id;
         await this.reservations.recordPayment(reservationId, intent.amount_received, {
           transactionId: intent.id,
           paymentMethod: intent.payment_method_types?.[0] || 'card',
           source: intent.metadata?.source || 'staff_checkout',
           stripePaymentIntentId: intent.id,
-          stripeChargeId: (intent as any)?.latest_charge as any,
+          stripeChargeId: latestChargeId,
           capturedAt: new Date(),
           lineItems: receiptLines.lineItems,
           taxCents: receiptLines.taxCents,
@@ -1033,14 +1118,14 @@ export class PaymentsController {
       }
 
       return response;
-    } catch (error: any) {
+    } catch (error) {
       if (idempotencyKey) {
         await this.idempotency.fail(idempotencyKey);
       }
-      if (error.code === 'resource_missing') {
+      if (isRecord(error) && error.code === "resource_missing") {
         throw new NotFoundException(`Payment intent ${id} not found`);
       }
-      throw new BadRequestException(error.message);
+      throw new BadRequestException(getErrorMessage(error));
     }
   }
 
@@ -1061,7 +1146,7 @@ export class PaymentsController {
   ) {
     try {
       const intent = await this.stripeService.retrievePaymentIntent(id);
-      const campgroundId = (intent.metadata as any)?.campgroundId ?? null;
+      const campgroundId = intent.metadata?.campgroundId ?? null;
       this.ensureCampgroundMembership(req?.user, campgroundId);
 
       // Check idempotency if key provided
@@ -1077,6 +1162,8 @@ export class PaymentsController {
 
       const reservationId = intent.metadata?.reservationId;
       if (reservationId) {
+        const refundChargeId =
+          typeof refund.charge === "string" ? refund.charge : refund.charge?.id;
         await this.reservations.recordRefund(reservationId, refund.amount || 0, refund.id, {
           lineItems: receiptLines.lineItems,
           taxCents: receiptLines.taxCents,
@@ -1085,7 +1172,7 @@ export class PaymentsController {
           paymentMethod: intent.payment_method_types?.[0] || "card",
           source: intent.metadata?.source || "online",
           stripePaymentIntentId: intent.id,
-          stripeChargeId: refund.charge as string | undefined,
+          stripeChargeId: refundChargeId,
           tenders: [
             {
               method: intent.payment_method_types?.[0] || "card",
@@ -1112,14 +1199,14 @@ export class PaymentsController {
       }
 
       return response;
-    } catch (error: any) {
+    } catch (error) {
       if (idempotencyKey) {
         await this.idempotency.fail(idempotencyKey);
       }
-      if (error.code === 'resource_missing') {
+      if (isRecord(error) && error.code === "resource_missing") {
         throw new NotFoundException(`Payment intent ${id} not found`);
       }
-      throw new BadRequestException(error.message);
+      throw new BadRequestException(getErrorMessage(error));
     }
   }
 
@@ -1130,16 +1217,19 @@ export class PaymentsController {
   async handleWebhook(@Req() req: RawBodyRequest<Request>, @Headers("stripe-signature") signature: string) {
     if (!signature) throw new BadRequestException("Missing stripe-signature header");
 
-    let event;
+    let event: Stripe.Event;
     try {
       event = this.stripeService.constructEventFromPayload(signature, req.rawBody!);
-    } catch (err: any) {
-      throw new BadRequestException(`Webhook Error: ${err.message}`);
+    } catch (err) {
+      throw new BadRequestException(`Webhook Error: ${getErrorMessage(err)}`);
     }
 
     if (event.type === "payment_intent.succeeded") {
-      const paymentIntent = event.data.object as any;
-      const reservationId = paymentIntent.metadata.reservationId;
+      if (!isStripePaymentIntent(event.data.object)) {
+        throw new BadRequestException("Webhook Error: invalid payment intent payload");
+      }
+      const paymentIntent = event.data.object;
+      const reservationId = paymentIntent.metadata?.reservationId;
       const amountCents = paymentIntent.amount;
 
       if (reservationId) {
@@ -1152,7 +1242,8 @@ export class PaymentsController {
         if (existingPayment) {
           this.logger.log(`[Webhook] Payment already recorded for intent ${paymentIntent.id}, skipping`);
         } else {
-          const toNumber = (v: any) => (v === undefined || v === null || Number.isNaN(Number(v)) ? 0 : Number(v));
+          const toNumber = (v: unknown) =>
+            v === undefined || v === null || Number.isNaN(Number(v)) ? 0 : Number(v);
           const lineItems = [
             { label: "Reservation charge", amountCents: toNumber(paymentIntent.metadata?.baseAmountCents ?? amountCents) }
           ];
@@ -1160,15 +1251,23 @@ export class PaymentsController {
           const gatewayFee = toNumber(paymentIntent.metadata?.gatewayPassThroughFeeCents);
           if (platformFee > 0) lineItems.push({ label: "Platform fee", amountCents: platformFee });
           if (gatewayFee > 0) lineItems.push({ label: "Gateway fee", amountCents: gatewayFee });
-          const taxCents = toNumber((paymentIntent.metadata as any)?.taxCents);
+          const taxCents = toNumber(paymentIntent.metadata?.taxCents);
+          const latestChargeId =
+            typeof paymentIntent.latest_charge === "string"
+              ? paymentIntent.latest_charge
+              : paymentIntent.latest_charge?.id;
+          const balanceTransactionId =
+            typeof paymentIntent.charges?.data?.[0]?.balance_transaction === "string"
+              ? paymentIntent.charges?.data?.[0]?.balance_transaction
+              : paymentIntent.charges?.data?.[0]?.balance_transaction?.id;
 
           await this.reservations.recordPayment(reservationId, amountCents, {
             transactionId: paymentIntent.id,
             paymentMethod: paymentIntent.payment_method_types?.[0] || 'card',
             source: paymentIntent.metadata.source || 'online',
             stripePaymentIntentId: paymentIntent.id,
-            stripeChargeId: paymentIntent.latest_charge,
-            stripeBalanceTransactionId: paymentIntent.charges?.data?.[0]?.balance_transaction,
+            stripeChargeId: latestChargeId,
+            stripeBalanceTransactionId: balanceTransactionId,
             applicationFeeCents: paymentIntent.application_fee_amount ?? undefined,
             methodType: paymentIntent.payment_method_types?.[0],
             capturedAt: paymentIntent.status === 'succeeded' ? new Date(paymentIntent.created * 1000) : undefined,
@@ -1183,7 +1282,10 @@ export class PaymentsController {
     }
 
     if (event.type === "payment_intent.payment_failed") {
-      const pi = event.data.object as any;
+      if (!isStripePaymentIntent(event.data.object)) {
+        throw new BadRequestException("Webhook Error: invalid payment intent payload");
+      }
+      const pi = event.data.object;
       const pmType = pi.payment_method_types?.[0];
       if (pmType === "us_bank_account") {
         this.logger.warn(`[ACH] Payment failed for PI ${pi.id}: ${pi.last_payment_error?.message ?? "unknown"}`);
@@ -1192,17 +1294,21 @@ export class PaymentsController {
     }
 
     if (event.type === "account.updated") {
-      const acct = event.data.object as any;
-      const acctId = acct.id as string;
+      if (!isStripeAccount(event.data.object)) {
+        throw new BadRequestException("Webhook Error: invalid account payload");
+      }
+      const acct = event.data.object;
+      const acctId = acct.id;
       try {
         const capabilities = acct.capabilities;
+        const capabilitiesJson: Prisma.InputJsonValue = capabilities ?? null;
         await this.prisma.campground.updateMany({
           where: { stripeAccountId: acctId },
           data: {
-            stripeCapabilities: capabilities as any,
-            stripeCapabilitiesFetchedAt: new Date()
+            stripeCapabilities: capabilitiesJson,
+            stripeCapabilitiesFetchedAt: new Date(),
           }
-        } as any);
+        });
         await this.recon.sendAlert(`Stripe capabilities updated for ${acctId}: ${JSON.stringify(capabilities)}`);
       } catch (err) {
         this.logger.warn(`Failed to update capabilities for account ${acctId}: ${err instanceof Error ? err.message : err}`);
@@ -1210,18 +1316,27 @@ export class PaymentsController {
     }
 
     if (event.type === "payout.paid" || event.type === "payout.failed" || event.type === "payout.updated") {
-      const payout = event.data.object as any;
+      if (!isStripePayout(event.data.object)) {
+        throw new BadRequestException("Webhook Error: invalid payout payload");
+      }
+      const payout = event.data.object;
       await this.recon.reconcilePayout(payout);
     }
 
     if (event.type === "charge.dispute.created" || event.type === "charge.dispute.updated" || event.type === "charge.dispute.closed") {
-      const dispute = event.data.object as any;
+      if (!isStripeDispute(event.data.object)) {
+        throw new BadRequestException("Webhook Error: invalid dispute payload");
+      }
+      const dispute = event.data.object;
       await this.recon.upsertDispute(dispute);
     }
 
     // Handle refund events - use individual refund objects to avoid double-processing
     if (event.type === "charge.refunded") {
-      const charge = event.data.object as any;
+      if (!isStripeCharge(event.data.object)) {
+        throw new BadRequestException("Webhook Error: invalid charge payload");
+      }
+      const charge = event.data.object;
       const paymentIntentId = charge.payment_intent;
 
       if (paymentIntentId) {
@@ -1293,7 +1408,7 @@ export class PaymentsController {
     @Query("status") status?: PayoutStatus,
     @Query("limit") limitStr?: string,
     @Query("offset") offsetStr?: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const limit = Math.min(parseInt(limitStr ?? "100", 10) || 100, 500);
@@ -1302,7 +1417,7 @@ export class PaymentsController {
     const payouts = await this.prisma.payout.findMany({
       where: {
         campgroundId,
-        status: status ? (status as string) : undefined
+        status: status ?? undefined
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -1321,7 +1436,7 @@ export class PaymentsController {
   async getPayout(
     @Param("campgroundId") campgroundId: string,
     @Param("payoutId") payoutId: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const payout = await this.prisma.payout.findFirst({
@@ -1339,13 +1454,14 @@ export class PaymentsController {
   async getPayoutRecon(
     @Param("campgroundId") campgroundId: string,
     @Param("payoutId") payoutId: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     try {
       return await this.recon.computeReconSummary(payoutId, campgroundId);
     } catch (err) {
-      throw new NotFoundException((err as Error).message);
+      const message = err instanceof Error ? err.message : "Payout not found";
+      throw new NotFoundException(message);
     }
   }
 
@@ -1357,7 +1473,7 @@ export class PaymentsController {
     @Param("campgroundId") campgroundId: string,
     @Param("payoutId") payoutId: string,
     @Res() res: Response,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const payout = await this.prisma.payout.findFirst({
@@ -1366,22 +1482,32 @@ export class PaymentsController {
     });
     if (!payout) throw new NotFoundException("Payout not found");
 
-    const headers = ["type", "amount_cents", "currency", "description", "reservation_id", "payment_intent_id", "charge_id", "balance_transaction_id", "created_at"];
-    const rows = (payout.lines || []).map((l: any) => [
-      l.type,
-      l.amountCents,
-      l.currency,
-      l.description ?? "",
-      l.reservationId ?? "",
-      l.paymentIntentId ?? "",
-      l.chargeId ?? "",
-      l.balanceTransactionId ?? "",
-      l.createdAt ?? ""
+    const headers = [
+      "type",
+      "amount_cents",
+      "currency",
+      "description",
+      "reservation_id",
+      "payment_intent_id",
+      "charge_id",
+      "balance_transaction_id",
+      "created_at",
+    ];
+    const rows = payout.lines.map((line) => [
+      line.type,
+      line.amountCents,
+      line.currency,
+      line.description ?? "",
+      line.reservationId ?? "",
+      line.paymentIntentId ?? "",
+      line.chargeId ?? "",
+      line.balanceTransactionId ?? "",
+      line.createdAt ?? "",
     ]);
-    const csv = [headers.join(","), ...rows.map((r: any[]) => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-    (res as any).setHeader("Content-Type", "text/csv");
-    (res as any).setHeader("Content-Disposition", `attachment; filename="payout-${payout.stripePayoutId}.csv"`);
-    return (res as any).send(csv);
+    const csv = [headers.join(","), ...rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="payout-${payout.stripePayoutId}.csv"`);
+    return res.send(csv);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -1392,7 +1518,7 @@ export class PaymentsController {
     @Param("campgroundId") campgroundId: string,
     @Param("payoutId") payoutId: string,
     @Res() res: Response,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const payout = await this.prisma.payout.findFirst({
@@ -1400,25 +1526,31 @@ export class PaymentsController {
       include: { lines: true }
     });
     if (!payout) throw new NotFoundException("Payout not found");
-    const reservationIds = Array.from(new Set((payout.lines || []).map((l: any) => l.reservationId).filter(Boolean)));
+    const reservationIds = Array.from(
+      new Set(
+        payout.lines
+          .map((line) => line.reservationId)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
     const ledgerEntries = reservationIds.length
       ? await this.prisma.ledgerEntry.findMany({ where: { reservationId: { in: reservationIds } } })
       : [];
     const headers = ["id", "reservation_id", "gl_code", "account", "description", "amount_cents", "direction", "occurred_at"];
-    const rows = ledgerEntries.map((e: any) => [
-      e.id,
-      e.reservationId ?? "",
-      e.glCode ?? "",
-      e.account ?? "",
-      e.description ?? "",
-      e.amountCents,
-      e.direction,
-      e.occurredAt?.toISOString?.() ?? ""
+    const rows = ledgerEntries.map((entry) => [
+      entry.id,
+      entry.reservationId ?? "",
+      entry.glCode ?? "",
+      entry.account ?? "",
+      entry.description ?? "",
+      entry.amountCents,
+      entry.direction,
+      entry.occurredAt?.toISOString?.() ?? "",
     ]);
-    const csv = [headers.join(","), ...rows.map((r: any[]) => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-    (res as any).setHeader("Content-Type", "text/csv");
-    (res as any).setHeader("Content-Disposition", `attachment; filename="payout-ledger-${payout.stripePayoutId}.csv"`);
-    return (res as any).send(csv);
+    const csv = [headers.join(","), ...rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="payout-ledger-${payout.stripePayoutId}.csv"`);
+    return res.send(csv);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -1430,7 +1562,7 @@ export class PaymentsController {
     @Query("status") status?: DisputeStatus,
     @Query("limit") limitStr?: string,
     @Query("offset") offsetStr?: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const limit = Math.min(parseInt(limitStr ?? "100", 10) || 100, 500);
@@ -1439,7 +1571,7 @@ export class PaymentsController {
     const disputes = await this.prisma.dispute.findMany({
       where: {
         campgroundId,
-        status: status ? (status as string) : undefined
+        status: status ?? undefined
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -1455,7 +1587,7 @@ export class PaymentsController {
   async getDispute(
     @Param("campgroundId") campgroundId: string,
     @Param("disputeId") disputeId: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const dispute = await this.prisma.dispute.findFirst({
@@ -1473,35 +1605,35 @@ export class PaymentsController {
     @Param("campgroundId") campgroundId: string,
     @Query("status") status: string | undefined,
     @Res() res: Response,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const disputes = await this.prisma.dispute.findMany({
-      where: { campgroundId, status: status ? (status as string) : undefined }
+      where: { campgroundId, status: status ?? undefined }
     });
     const headers = ["stripe_dispute_id", "status", "amount_cents", "currency", "reason", "reservation_id", "charge_id", "payment_intent_id", "evidence_due_by"];
-    const rows = disputes.map((d: any) => [
-      d.stripeDisputeId,
-      d.status,
-      d.amountCents,
-      d.currency,
-      d.reason ?? "",
-      d.reservationId ?? "",
-      d.stripeChargeId ?? "",
-      d.stripePaymentIntentId ?? "",
-      d.evidenceDueBy ? d.evidenceDueBy.toISOString() : ""
+    const rows = disputes.map((dispute) => [
+      dispute.stripeDisputeId,
+      dispute.status,
+      dispute.amountCents,
+      dispute.currency,
+      dispute.reason ?? "",
+      dispute.reservationId ?? "",
+      dispute.stripeChargeId ?? "",
+      dispute.stripePaymentIntentId ?? "",
+      dispute.evidenceDueBy ? dispute.evidenceDueBy.toISOString() : "",
     ]);
-    const csv = [headers.join(","), ...rows.map((r: any[]) => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-    (res as any).setHeader("Content-Type", "text/csv");
-    (res as any).setHeader("Content-Disposition", `attachment; filename="disputes-${campgroundId}.csv"`);
-    return (res as any).send(csv);
+    const csv = [headers.join(","), ...rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="disputes-${campgroundId}.csv"`);
+    return res.send(csv);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @RequireScope({ resource: "payments", action: "read" })
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
   @Get("campgrounds/:campgroundId/disputes/templates")
-  async disputeTemplates(@Param("campgroundId") campgroundId: string, @Req() req?: any) {
+  async disputeTemplates(@Param("campgroundId") campgroundId: string, @Req() req?: Request) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     return [
       { id: "receipt", label: "Receipt / proof of payment" },
@@ -1522,7 +1654,7 @@ export class PaymentsController {
    * The method includes idempotency checks using the payment intent ID to
    * prevent double-processing from webhook retries.
    */
-  private async handleAchReturn(paymentIntent: any) {
+  private async handleAchReturn(paymentIntent: Stripe.PaymentIntent) {
     const reservationId = paymentIntent.metadata?.reservationId;
     const campgroundId = paymentIntent.metadata?.campgroundId ?? "";
     const paymentIntentId = paymentIntent.id;

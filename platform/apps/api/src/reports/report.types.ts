@@ -81,7 +81,7 @@ export type ReportSpec = {
 export type ReportQueryInput = {
   reportId: string;
   dimensions?: string[];
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   timeRange?: ReportTimeRange;
   limit?: number;
   offset?: number;
@@ -105,7 +105,7 @@ export type ReportRunResult = {
     cacheHint?: number;
     sampling?: { limit: number; rate?: number; applied?: boolean };
   };
-  rows: Array<Record<string, any>>;
+  rows: Array<Record<string, unknown>>;
   series: ReportSeries[];
   paging: { returned: number; nextToken?: string | null };
 };

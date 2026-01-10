@@ -19,7 +19,7 @@ export interface SoftwarePageData {
   metaDescription: string;
   heroHeadline: string;
   heroSubheadline: string | null;
-  content: Record<string, any>;
+  content: Record<string, unknown>;
   isPublished: boolean;
   publishedAt: Date | null;
 }
@@ -464,7 +464,7 @@ export class SoftwarePagesService {
       metaDescription: page.metaDescription || "",
       heroHeadline: page.heroHeadline,
       heroSubheadline: page.heroSubheadline,
-      content: page.content as Record<string, any>,
+      content: page.content as Record<string, unknown>,
       isPublished: page.isPublished,
       publishedAt: page.publishedAt,
     };
@@ -516,7 +516,7 @@ export class SoftwarePagesService {
     metaDescription?: string;
     heroHeadline: string;
     heroSubheadline?: string;
-    content: Record<string, any>;
+    content: Record<string, unknown>;
     isPublished?: boolean;
   }): Promise<SoftwarePageData> {
     const page = await this.prisma.softwarePage.upsert({
@@ -554,7 +554,7 @@ export class SoftwarePagesService {
       metaDescription: page.metaDescription || "",
       heroHeadline: page.heroHeadline,
       heroSubheadline: page.heroSubheadline,
-      content: page.content as Record<string, any>,
+      content: page.content as Record<string, unknown>,
       isPublished: page.isPublished,
       publishedAt: page.publishedAt,
     };

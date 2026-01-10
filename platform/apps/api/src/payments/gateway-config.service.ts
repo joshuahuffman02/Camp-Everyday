@@ -3,9 +3,11 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { GatewayConfigMapper, GatewayConfigView } from "./gateway-config.mapper";
 import { UpsertPaymentGatewayConfigDto } from "./dto/payment-gateway-config.dto";
+import { CampgroundPaymentGatewayConfig, GatewayFeePreset } from "@prisma/client";
 
 type GatewayProvider = "stripe" | "adyen" | "authorize_net" | "other";
 type GatewayMode = "test" | "prod";
+type GatewayConfigRecord = CampgroundPaymentGatewayConfig & { feePreset?: GatewayFeePreset | null };
 
 @Injectable()
 export class GatewayConfigService {
@@ -24,7 +26,7 @@ export class GatewayConfigService {
     dto: UpsertPaymentGatewayConfigDto,
     actor?: { userId?: string | null; ip?: string | null; userAgent?: string | null }
   ): Promise<GatewayConfigView> {
-    const existing = await this.prisma.campgroundPaymentGatewayConfig.findUnique({
+    const existing: GatewayConfigRecord | null = await this.prisma.campgroundPaymentGatewayConfig.findUnique({
       where: { campgroundId },
       include: { feePreset: true }
     });
@@ -43,7 +45,7 @@ export class GatewayConfigService {
       secretKeySecretId: dto.secretKeySecretId ?? existing?.secretKeySecretId ?? null,
       merchantAccountIdSecretId: dto.merchantAccountIdSecretId ?? existing?.merchantAccountIdSecretId ?? null,
       webhookSecretId: dto.webhookSecretId ?? existing?.webhookSecretId ?? null,
-      additionalConfig: dto.additionalConfig ?? (existing?.additionalConfig as any) ?? null
+      additionalConfig: dto.additionalConfig ?? existing?.additionalConfig ?? null
     };
 
     if (existing && this.isSame(existing, nextData)) {
@@ -68,8 +70,8 @@ export class GatewayConfigService {
       action: "payment_gateway_config.updated",
       entity: "payment_gateway_config",
       entityId: saved.id,
-      before: GatewayConfigMapper.toView(existing as any) ?? undefined,
-      after: GatewayConfigMapper.toView(saved as any) ?? undefined,
+      before: GatewayConfigMapper.toView(existing) ?? undefined,
+      after: GatewayConfigMapper.toView(saved) ?? undefined,
       ip: actor?.ip,
       userAgent: actor?.userAgent
     });
@@ -97,7 +99,7 @@ export class GatewayConfigService {
     });
   }
 
-  private isSame(existing: any, candidate: Record<string, any>) {
+  private isSame(existing: GatewayConfigRecord, candidate: Record<string, unknown>) {
     return (
       existing.gateway === candidate.gateway &&
       existing.mode === candidate.mode &&
@@ -113,7 +115,11 @@ export class GatewayConfigService {
     );
   }
 
-  private ensureProdGuard(mode: GatewayMode, dto: UpsertPaymentGatewayConfigDto, existing?: any) {
+  private ensureProdGuard(
+    mode: GatewayMode,
+    dto: UpsertPaymentGatewayConfigDto,
+    existing?: GatewayConfigRecord | null
+  ) {
     if (mode !== "prod") return;
     const hasSecret = Boolean(
       dto.secretKeySecretId ||

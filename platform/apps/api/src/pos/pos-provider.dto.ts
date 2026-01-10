@@ -9,7 +9,7 @@ export class UpsertPosProviderDto {
   displayName?: string;
 
   @IsObject()
-  credentials!: Record<string, any>;
+  credentials!: Record<string, unknown>;
 
   @IsOptional()
   @IsObject()
@@ -35,7 +35,7 @@ export class UpsertPosProviderDto {
 
 export class ValidatePosProviderDto {
   @IsObject()
-  credentials!: Record<string, any>;
+  credentials!: Record<string, unknown>;
 
   @IsOptional()
   @IsArray()

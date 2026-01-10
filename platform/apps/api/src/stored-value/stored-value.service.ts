@@ -3,8 +3,34 @@ import { PrismaService } from "../prisma/prisma.service";
 import { IdempotencyService } from "../payments/idempotency.service";
 import { IssueStoredValueDto, RedeemStoredValueDto, AdjustStoredValueDto, ReloadStoredValueDto, RefundStoredValueDto, VoidStoredValueDto } from "./stored-value.dto";
 import { IdempotencyStatus, StoredValueDirection, StoredValueStatus, TaxRuleType } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import crypto from "crypto";
 import { ObservabilityService } from "../observability/observability.service";
+import type { Request } from "express";
+import { isRecord } from "../utils/type-guards";
+
+type StoredValueActor = {
+  id?: string | null;
+  role?: string | null;
+  campgroundId?: string | null;
+  tenantId?: string | null;
+};
+
+type StoredValueAccount = {
+  id: string;
+  campgroundId: string | null;
+  scopeType: string;
+  scopeId: string | null;
+  status: StoredValueStatus;
+  currency: string;
+  metadata: unknown;
+  expiresAt?: Date | null;
+};
+
+type StoredValueClient = Prisma.TransactionClient | PrismaService;
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 @Injectable()
 export class StoredValueService {
@@ -14,7 +40,7 @@ export class StoredValueService {
     private readonly observability: ObservabilityService
   ) {}
 
-  async issue(dto: IssueStoredValueDto, idempotencyKey?: string, actor?: any) {
+  async issue(dto: IssueStoredValueDto, idempotencyKey?: string, actor?: StoredValueActor) {
     const scope = { campgroundId: actor?.campgroundId ?? dto.tenantId ?? null, tenantId: actor?.tenantId ?? dto.tenantId ?? null };
     const existing = await this.guardIdempotency(
       idempotencyKey,
@@ -34,7 +60,7 @@ export class StoredValueService {
 
     try {
       await this.validateTaxableLoad(issuerCampgroundId, dto.taxableLoad);
-      const result = await this.prisma.$transaction(async (tx: any) => {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const codeValue = dto.code || this.generateCode();
         const pinValue = dto.codeOptions?.pin || this.generatePinIfRequested(dto.codeOptions);
 
@@ -128,7 +154,7 @@ export class StoredValueService {
     }
   }
 
-  async reload(dto: ReloadStoredValueDto, idempotencyKey?: string, actor?: any) {
+  async reload(dto: ReloadStoredValueDto, idempotencyKey?: string, actor?: StoredValueActor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(
       idempotencyKey,
@@ -154,7 +180,7 @@ export class StoredValueService {
 
     try {
       await this.validateTaxableLoad(scope.campgroundId ?? account.campgroundId ?? null, dto.taxableLoad);
-      const result = await this.prisma.$transaction(async (tx: any) => {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const { balanceCents } = await this.getBalances(tx, account.id);
         const after = balanceCents + dto.amountCents;
 
@@ -195,7 +221,7 @@ export class StoredValueService {
     }
   }
 
-  async redeem(dto: RedeemStoredValueDto, idempotencyKey?: string, actor?: any) {
+  async redeem(dto: RedeemStoredValueDto, idempotencyKey?: string, actor?: StoredValueActor) {
     const started = Date.now();
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, dto, scope, "stored-value/redeem", `${dto.referenceType}:${dto.referenceId}`);
@@ -212,7 +238,7 @@ export class StoredValueService {
     try {
       const context = await this.resolveRedeemContext(account, dto.redeemCampgroundId, actor);
       redeemContext = context;
-      const result = await this.prisma.$transaction(async (tx: any) => {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const { balanceCents, availableCents } = await this.getBalances(tx, account.id);
 
         if (!dto.holdOnly && availableCents < dto.amountCents) {
@@ -284,14 +310,14 @@ export class StoredValueService {
     } catch (err) {
       if (idempotencyKey) await this.idempotency.fail(idempotencyKey);
       this.observability.recordRedeemOutcome(false, Date.now() - started, {
-        error: (err as any)?.message ?? "redeem_failed",
+        error: getErrorMessage(err) || "redeem_failed",
         campgroundId: redeemContext?.transactionCampgroundId ?? actor?.campgroundId ?? dto.referenceId,
       });
       throw err;
     }
   }
 
-  async captureHold(holdId: string, idempotencyKey?: string, actor?: any) {
+  async captureHold(holdId: string, idempotencyKey?: string, actor?: StoredValueActor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, { holdId }, scope, "stored-value/hold-capture");
     if (existing?.status === IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
@@ -315,7 +341,7 @@ export class StoredValueService {
     const transactionCampgroundId = actor?.campgroundId ?? account.campgroundId;
 
     try {
-      const result = await this.prisma.$transaction(async (tx: any) => {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const { balanceCents, availableCents } = await this.getBalances(tx, account.id);
         // hold already counted as open; available excludes it. Capture should not double subtract.
         if (availableCents < 0) throw new BadRequestException("Insufficient available balance");
@@ -359,7 +385,7 @@ export class StoredValueService {
     }
   }
 
-  async refundToCredit(dto: RefundStoredValueDto, idempotencyKey?: string, actor?: any) {
+  async refundToCredit(dto: RefundStoredValueDto, idempotencyKey?: string, actor?: StoredValueActor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(
       idempotencyKey,
@@ -385,7 +411,7 @@ export class StoredValueService {
     this.ensureCurrency(account, dto.currency);
 
     try {
-      const result = await this.prisma.$transaction(async (tx: any) => {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const { balanceCents } = await this.getBalances(tx, account.id);
         const after = balanceCents + dto.amountCents;
         await tx.storedValueLedger.create({
@@ -418,7 +444,7 @@ export class StoredValueService {
     }
   }
 
-  async voidOrChargeback(dto: VoidStoredValueDto, idempotencyKey?: string, actor?: any) {
+  async voidOrChargeback(dto: VoidStoredValueDto, idempotencyKey?: string, actor?: StoredValueActor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, dto, scope, "stored-value/void", dto.referenceId ?? dto.accountId);
     if (existing?.status === IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
@@ -432,7 +458,7 @@ export class StoredValueService {
     const transactionCampgroundId = actor?.campgroundId ?? account.campgroundId;
 
     try {
-      const result = await this.prisma.$transaction(async (tx: any) => {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const { balanceCents } = await this.getBalances(tx, account.id);
         if (balanceCents <= 0) {
           await tx.storedValueAccount.update({ where: { id: account.id }, data: { status: StoredValueStatus.frozen } });
@@ -476,7 +502,7 @@ export class StoredValueService {
     }
   }
 
-  async releaseHold(holdId: string, idempotencyKey?: string, actor?: any) {
+  async releaseHold(holdId: string, idempotencyKey?: string, actor?: StoredValueActor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, { holdId }, scope, "stored-value/hold-release");
     if (existing?.status === IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
@@ -495,7 +521,7 @@ export class StoredValueService {
     await this.assertCampgroundScope(account, actor.campgroundId);
 
     try {
-      const result = await this.prisma.$transaction(async (tx: any) => {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.storedValueHold.update({
           where: { id: hold.id },
           data: { status: "released" }
@@ -521,8 +547,9 @@ export class StoredValueService {
       select: { id: true }
     });
     if (!expiredIds.length) return { released: 0 };
+    const expiredHoldIds = expiredIds.map((hold) => hold.id);
     await this.prisma.storedValueHold.updateMany({
-      where: { id: { in: expiredIds.map((h: any) => h.id) } },
+      where: { id: { in: expiredHoldIds } },
       data: { status: "expired" }
     });
     return { released: expiredIds.length };
@@ -543,7 +570,7 @@ export class StoredValueService {
     let zeroedCount = 0;
 
     for (const acc of accounts) {
-      await this.prisma.$transaction(async (tx: any) => {
+      await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const { balanceCents } = await this.getBalances(tx, acc.id);
         if (balanceCents <= 0) {
           await tx.storedValueAccount.update({
@@ -584,7 +611,7 @@ export class StoredValueService {
     return { expired: expiredCount, zeroed: zeroedCount };
   }
 
-  async adjust(dto: AdjustStoredValueDto, idempotencyKey?: string, actor?: any) {
+  async adjust(dto: AdjustStoredValueDto, idempotencyKey?: string, actor?: StoredValueActor) {
     const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
     const existing = await this.guardIdempotency(idempotencyKey, dto, scope, "stored-value/adjust");
     if (existing?.status === IdempotencyStatus.succeeded && existing.responseJson) return existing.responseJson;
@@ -599,7 +626,7 @@ export class StoredValueService {
     const transactionCampgroundId = actor?.campgroundId ?? account.campgroundId;
 
     try {
-      const result = await this.prisma.$transaction(async (tx: any) => {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const { balanceCents } = await this.getBalances(tx, account.id);
         const after = balanceCents + dto.deltaCents;
         if (after < 0) throw new BadRequestException("Adjustment would result in negative balance");
@@ -707,8 +734,9 @@ export class StoredValueService {
 
     if (!accounts.length) return [];
 
+    const accountIds = accounts.map((account) => account.id);
     const ledger = await this.prisma.storedValueLedger.findMany({
-      where: { accountId: { in: accounts.map((acc: any) => acc.id) } },
+      where: { accountId: { in: accountIds } },
       select: { accountId: true, direction: true, amountCents: true }
     });
 
@@ -722,7 +750,7 @@ export class StoredValueService {
       }
     }
 
-    return accounts.map((account: any) => ({
+    return accounts.map((account) => ({
       ...account,
       balanceCents: balances.get(account.id) ?? 0,
       issuedCents: issued.get(account.id) ?? 0
@@ -761,7 +789,7 @@ export class StoredValueService {
     });
     if (!accounts.length) return { campgroundId, taxableCents: 0, nonTaxableCents: 0, totalCents: 0 };
 
-    const accountIds = accounts.map((a: any) => a.id);
+    const accountIds = accounts.map((account) => account.id);
     const ledger = await this.prisma.storedValueLedger.findMany({
       where: { accountId: { in: accountIds } },
       select: { accountId: true, direction: true, amountCents: true }
@@ -785,7 +813,7 @@ export class StoredValueService {
     }
 
     const rollForwardCents = ledger.reduce(
-      (sum: number, row: any) => sum + this.directionToSigned(row.direction, row.amountCents),
+      (sum, row) => sum + this.directionToSigned(row.direction, row.amountCents),
       0
     );
     const totalCents = taxableCents + nonTaxableCents;
@@ -805,13 +833,13 @@ export class StoredValueService {
     return 0;
   }
 
-  private async getBalances(tx: any, accountId: string) {
+  private async getBalances(tx: StoredValueClient, accountId: string) {
     const ledger = await tx.storedValueLedger.findMany({
       where: { accountId },
       select: { direction: true, amountCents: true }
     });
     const balanceCents = ledger.reduce(
-      (sum: number, row: any) => sum + this.directionToSigned(row.direction, row.amountCents),
+      (sum, row) => sum + this.directionToSigned(row.direction, row.amountCents),
       0
     );
     const openHolds = await tx.storedValueHold.aggregate({
@@ -824,7 +852,7 @@ export class StoredValueService {
 
   private async guardIdempotency(
     key: string | undefined,
-    body: any,
+    body: unknown,
     scope: { campgroundId?: string | null; tenantId?: string | null },
     endpoint: string,
     sequence?: string | number | null
@@ -838,7 +866,7 @@ export class StoredValueService {
     });
   }
 
-  private ensureActive(account: any) {
+  private ensureActive(account: StoredValueAccount) {
     if (account.status !== StoredValueStatus.active) {
       throw new ForbiddenException("Stored value account not active");
     }
@@ -847,13 +875,13 @@ export class StoredValueService {
     }
   }
 
-  private ensureCurrency(account: any, currency: string) {
+  private ensureCurrency(account: Pick<StoredValueAccount, "currency">, currency: string) {
     if (account.currency !== currency.toLowerCase()) {
       throw new BadRequestException("Currency mismatch");
     }
   }
 
-  private ensureTaxableFlag(metadata: any, incoming?: boolean) {
+  private ensureTaxableFlag(metadata: unknown, incoming?: boolean) {
     if (incoming === undefined || incoming === null) return;
     const existing = this.isTaxable(metadata);
     if (existing !== incoming) {
@@ -874,13 +902,13 @@ export class StoredValueService {
     }
   }
 
-  private isTaxable(metadata: any) {
-    if (!metadata) return false;
-    return Boolean((metadata as any).taxableLoad);
+  private isTaxable(metadata: unknown) {
+    if (!isRecord(metadata)) return false;
+    return metadata.taxableLoad === true;
   }
 
-  private mergeMetadata(metadata: any, taxableLoad?: boolean) {
-    const merged = { ...(metadata ?? {}) };
+  private mergeMetadata(metadata: unknown, taxableLoad?: boolean) {
+    const merged: Record<string, unknown> = isRecord(metadata) ? { ...metadata } : {};
     if (taxableLoad !== undefined) {
       merged.taxableLoad = taxableLoad;
     }
@@ -890,7 +918,8 @@ export class StoredValueService {
   private normalizeScope(account: { scopeType?: string | null; scopeId?: string | null; campgroundId?: string | null }) {
     const scopeType = account?.scopeType ?? "campground";
     if (scopeType === "global") {
-      return { scopeType: "global", scopeId: null as string | null };
+      const scopeId: string | null = null;
+      return { scopeType: "global", scopeId };
     }
     if (scopeType === "organization") {
       return { scopeType: "organization", scopeId: account?.scopeId ?? null };
@@ -920,7 +949,10 @@ export class StoredValueService {
     }
   }
 
-  private ensureScopeMatches(account: any, expected: { scopeType: string; scopeId: string | null }) {
+  private ensureScopeMatches(
+    account: { scopeType?: string | null; scopeId?: string | null; campgroundId?: string | null },
+    expected: { scopeType: string; scopeId: string | null }
+  ) {
     const normalized = this.normalizeScope(account);
     if (normalized.scopeType !== expected.scopeType || (normalized.scopeId ?? null) !== (expected.scopeId ?? null)) {
       throw new ConflictException("Stored value scope mismatch");
@@ -930,7 +962,8 @@ export class StoredValueService {
   private async resolveIssueScope(issuerCampgroundId: string | null, dto: IssueStoredValueDto) {
     const scopeType = dto.scopeType ?? "campground";
     if (scopeType === "global") {
-      return { scopeType: "global", scopeId: null as string | null };
+      const scopeId: string | null = null;
+      return { scopeType: "global", scopeId };
     }
     if (scopeType === "organization") {
       const scopeId =
@@ -948,7 +981,11 @@ export class StoredValueService {
     return { scopeType: "campground", scopeId };
   }
 
-  private async resolveRedeemContext(account: any, redeemCampgroundId?: string | null, actor?: any) {
+  private async resolveRedeemContext(
+    account: StoredValueAccount,
+    redeemCampgroundId?: string | null,
+    actor?: StoredValueActor
+  ) {
     const transactionCampgroundId = redeemCampgroundId ?? actor?.campgroundId ?? account?.campgroundId ?? null;
     if (!transactionCampgroundId) {
       throw new BadRequestException("campground context required for redemption");

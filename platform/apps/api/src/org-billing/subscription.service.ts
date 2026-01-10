@@ -358,7 +358,7 @@ export class SubscriptionService {
     const subscription = await this.stripe.getSubscription(org.stripeSubscriptionId);
     const tierConfig = STRIPE_PRICE_IDS[org.billingTier || "standard"];
 
-    const usage: Record<string, any> = {
+    const usage: Record<string, unknown> = {
       periodStart: new Date(subscription.current_period_start * 1000),
       periodEnd: new Date(subscription.current_period_end * 1000),
       items: {},

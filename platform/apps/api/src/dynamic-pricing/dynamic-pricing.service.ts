@@ -6,7 +6,7 @@ interface CreateDynamicRuleDto {
   campgroundId: string;
   name: string;
   trigger: DynamicPricingTrigger;
-  conditions: Record<string, any>;
+  conditions: Record<string, unknown>;
   adjustmentType: 'percent' | 'flat';
   adjustmentValue: number;
   priority?: number;

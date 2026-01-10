@@ -14,6 +14,7 @@ import { OperationsService } from "../operations/operations.service";
 import { RepeatChargesService } from "../repeat-charges/repeat-charges.service";
 import { ReservationsService } from "../reservations/reservations.service";
 import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
+import type { Request } from "express";
 // Analytical services for enhanced insights
 import { AiYieldService } from "./ai-yield.service";
 import { AiDynamicPricingService } from "./ai-dynamic-pricing.service";
@@ -58,14 +59,14 @@ type ActionDraft = {
   actionType: ActionType;
   resource: string;
   action: "read" | "write";
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   status: "draft" | "executed" | "denied";
   requiresConfirmation?: boolean;
   sensitivity?: "low" | "medium" | "high";
   impactArea?: ImpactArea;
   impact?: ImpactSummary;
   evidenceLinks?: EvidenceLink[];
-  result?: Record<string, any>;
+  result?: Record<string, unknown>;
 };
 
 export type AiPartnerResponse = {
@@ -88,7 +89,7 @@ type PartnerChatRequest = {
 
 type PartnerConfirmRequest = {
   campgroundId: string;
-  action: { type: ActionType; parameters?: Record<string, any>; sensitivity?: "low" | "medium" | "high"; impactArea?: ImpactArea };
+  action: { type: ActionType; parameters?: Record<string, unknown>; sensitivity?: "low" | "medium" | "high"; impactArea?: ImpactArea };
   user: any;
 };
 
@@ -976,7 +977,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
 
   private applyRelativeDateDefaults(
     actionType: ActionType,
-    parameters: Record<string, any>,
+    parameters: Record<string, unknown>,
     requestText: string,
     timeZone: string
   ) {
@@ -1053,8 +1054,8 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     return "general";
   }
 
-  private resolveParameters(parameters: Record<string, any>, tokenMap: Map<string, string>): Record<string, any> {
-    const resolved: Record<string, any> = Array.isArray(parameters) ? [] : {};
+  private resolveParameters(parameters: Record<string, unknown>, tokenMap: Map<string, string>): Record<string, unknown> {
+    const resolved: Record<string, unknown> = Array.isArray(parameters) ? [] : {};
     for (const [key, value] of Object.entries(parameters || {})) {
       resolved[key] = this.resolveValue(value, tokenMap);
     }
@@ -1069,7 +1070,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
       return value.map((item) => this.resolveValue(item, tokenMap));
     }
     if (value && typeof value === "object") {
-      return this.resolveParameters(value as Record<string, any>, tokenMap);
+      return this.resolveParameters(value as Record<string, unknown>, tokenMap);
     }
     return value;
   }
@@ -1594,7 +1595,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     });
     if (targetSiteNumber && !resolvedSiteId) return null;
 
-    const updatePayload: Record<string, any> = { updatedBy: user?.id ?? null };
+    const updatePayload: Record<string, unknown> = { updatedBy: user?.id ?? null };
     if (targetArrival) updatePayload.arrivalDate = String(targetArrival);
     if (targetDeparture) updatePayload.departureDate = String(targetDeparture);
     if (resolvedSiteId) updatePayload.siteId = resolvedSiteId;
@@ -1869,7 +1870,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     return ["get_yield_metrics", "get_occupancy_forecast", "get_pricing_recommendations", "get_revenue_insights", "get_dashboard_summary"].includes(actionType);
   }
 
-  private buildEvidenceLinks(actionType: ActionType, parameters: Record<string, any>): EvidenceLink[] {
+  private buildEvidenceLinks(actionType: ActionType, parameters: Record<string, unknown>): EvidenceLink[] {
     if (actionType === "lookup_availability") {
       const params = new URLSearchParams();
       if (parameters.arrivalDate) params.set("arrivalDate", parameters.arrivalDate);
@@ -1937,7 +1938,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     campgroundId: string;
     actionType: ActionType;
     impactArea: ImpactArea;
-    parameters: Record<string, any>;
+    parameters: Record<string, unknown>;
   }): Promise<ImpactSummary | null> {
     if (!["availability", "pricing", "policy", "revenue"].includes(params.impactArea)) {
       return null;

@@ -89,7 +89,7 @@ export function initializeSentry() {
  *   throw error;
  * }
  */
-export function captureError(error: Error, context?: Record<string, any>) {
+export function captureError(error: Error, context?: Record<string, unknown>) {
   if (context) {
     Sentry.setContext('additional', context);
   }
@@ -103,7 +103,7 @@ export function captureError(error: Error, context?: Record<string, any>) {
  * Usage:
  * addBreadcrumb('Processing payment', { amount: 9999, currency: 'usd' });
  */
-export function addBreadcrumb(message: string, data?: Record<string, any>) {
+export function addBreadcrumb(message: string, data?: Record<string, unknown>) {
   Sentry.addBreadcrumb({
     message,
     data,

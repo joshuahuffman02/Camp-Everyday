@@ -4,6 +4,7 @@ import { DynamicPricingService } from './dynamic-pricing.service';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard';
 import { ScopeGuard } from '../permissions/scope.guard';
 import { UserRole } from '@prisma/client';
+import type { Request } from "express";
 
 @Controller('dynamic-pricing')
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)

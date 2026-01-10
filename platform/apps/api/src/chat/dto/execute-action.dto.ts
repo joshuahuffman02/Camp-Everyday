@@ -26,7 +26,7 @@ export class ExecuteActionDto {
 
   @IsOptional()
   @IsObject()
-  formData?: Record<string, any>;
+  formData?: Record<string, unknown>;
 }
 
 // Response type
@@ -40,6 +40,6 @@ export interface ExecuteActionResponse {
     actionId: string;
     title: string;
     description: string;
-    data?: Record<string, any>;
+    data?: Record<string, unknown>;
   };
 }

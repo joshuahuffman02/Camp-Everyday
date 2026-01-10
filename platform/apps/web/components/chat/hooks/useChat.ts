@@ -15,7 +15,7 @@ interface ActionRequired {
   actionId: string;
   title: string;
   description: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   options?: ActionOption[];
 }
 

@@ -1,3 +1,4 @@
+import type { Request } from "express";
 import {
   Controller,
   Get,
@@ -202,7 +203,7 @@ export class PublicValueStackController {
     @Body() body: { email: string; source: string; marketingOptIn?: boolean },
     @Headers('x-forwarded-for') forwardedFor?: string,
     @Headers('user-agent') userAgent?: string,
-    @Req() req?: any,
+    @Req() req?: Request,
   ) {
     // Extract and validate client IP to prevent spoofing via x-forwarded-for
     const ipAddress = extractClientIp({

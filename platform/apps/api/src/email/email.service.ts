@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import nodemailer from 'nodemailer';
 import fetch from 'node-fetch';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Request } from "express";
 
 interface EmailOptions {
     to: string;

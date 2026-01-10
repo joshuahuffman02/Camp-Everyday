@@ -6,6 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
 import { AiNaturalSearchService } from "../ai/ai-natural-search.service";
 import { Throttle } from "@nestjs/throttler";
+import type { Request } from "express";
 
 @Controller("public")
 @Throttle({ default: { limit: 60, ttl: 60000 } }) // 60 requests per minute per IP
@@ -167,7 +168,7 @@ export class PublicReservationsController {
             campgroundId: string;
             reservationId?: string;
             guestEmail?: string;
-            responses: Record<string, any>;
+            responses: Record<string, unknown>;
         }
     ) {
         return this.formsService.submitPublicForm(body);

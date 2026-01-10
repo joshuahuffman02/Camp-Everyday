@@ -66,7 +66,7 @@ interface ProductMapping {
   lastSyncedAt: string | null;
   syncStatus: string | null;
   syncError: string | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
   product: {
     id: string;
     name: string;
@@ -80,7 +80,7 @@ interface ExternalProduct {
   id: string;
   externalId: string;
   externalSku: string | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
 }
 
 export default function ProductMappingsPage() {

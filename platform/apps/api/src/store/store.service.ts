@@ -9,13 +9,106 @@ import {
     UpdateAddOnDto,
     CreateOrderDto,
 } from "./dto/store.dto";
-import { AddOnPricingType, PaymentMethod, OrderChannel, ChannelInventoryMode, TaxRuleType } from "@prisma/client";
+import {
+    AddOnPricingType,
+    PaymentMethod,
+    OrderChannel,
+    ChannelInventoryMode,
+    TaxRuleType,
+    OrderStatus,
+} from "@prisma/client";
 import { EmailService } from "../email/email.service";
 import { StripeService } from "../payments/stripe.service";
 import { randomUUID } from "crypto";
 import { Decimal } from "@prisma/client/runtime/library";
 import { LocationService } from "./location.service";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
+
+type FulfillmentType = "pickup" | "curbside" | "delivery" | "table_service";
+
+type InventoryProduct = {
+    id: string;
+    name: string;
+    priceCents: number;
+    trackInventory: boolean;
+    channelInventoryMode: ChannelInventoryMode | null;
+    inventoryMode?: string | null;
+    afterHoursAllowed?: boolean | null;
+    onlineStockQty?: number | null;
+    onlineBufferQty?: number | null;
+    posStockQty?: number | null;
+    stockQty?: number | null;
+};
+
+type OrderWithItems = {
+    id: string;
+    campgroundId: string;
+    items?: Array<{ id?: string; name: string; qty: number; totalCents?: number | null }>;
+    totalCents: number;
+    paymentMethod?: PaymentMethod | null;
+    channel?: OrderChannel | null;
+    fulfillmentType?: string | null;
+    deliveryInstructions?: string | null;
+    promisedAt?: Date | null;
+    createdAt: Date;
+    siteNumber?: string | null;
+    reservationId?: string | null;
+    guest?: { email?: string | null; firstName?: string | null } | null;
+    reservation?: { guestEmail?: string | null; guestName?: string | null } | null;
+    campground?: { name?: string | null } | null;
+};
+
+type RefundOrder = {
+    id: string;
+    campgroundId: string;
+    totalCents: number;
+    status: OrderStatus;
+    paymentMethod: PaymentMethod;
+    paymentIntentId?: string | null;
+    reservationId?: string | null;
+    items: Array<{
+        id: string;
+        productId: string | null;
+        name: string;
+        qty: number;
+        totalCents?: number | null;
+    }>;
+    guest?: { email?: string | null; firstName?: string | null } | null;
+    reservation?: { guestEmail?: string | null; guestName?: string | null } | null;
+    campground?: { name?: string | null } | null;
+};
+
+type OrderAdjustmentItem = {
+    itemId?: string;
+    productId?: string | null;
+    name?: string;
+    qty?: number;
+    amountCents?: number;
+};
+
+type RefundSelection = {
+    itemId: string;
+    productId: string | null;
+    name: string;
+    qty: number;
+    amountCents: number;
+};
+
+type ActorUser = {
+    id?: string | null;
+};
+
+const orderChannelValues: Set<string> = new Set(Object.values(OrderChannel));
+const paymentMethodValues: Set<string> = new Set(Object.values(PaymentMethod));
+const addOnPricingTypeValues: Set<string> = new Set(Object.values(AddOnPricingType));
+
+const isOrderChannel = (value: string): value is OrderChannel => orderChannelValues.has(value);
+const isPaymentMethod = (value: string): value is PaymentMethod => paymentMethodValues.has(value);
+const isAddOnPricingType = (value: string): value is AddOnPricingType =>
+    addOnPricingTypeValues.has(value);
+
+const getErrorMessage = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error);
 
 @Injectable()
 export class StoreService {
@@ -89,15 +182,21 @@ export class StoreService {
     async updateOrderStatus(
         campgroundId: string,
         id: string,
-        status: "pending" | "ready" | "delivered" | "completed" | "cancelled" | "refunded",
+        status: OrderStatus,
         userId?: string
     ) {
         await this.requireOrder(campgroundId, id);
-        const data: any = { status };
+        const data: {
+            status: OrderStatus;
+            readyAt?: Date;
+            deliveredAt?: Date;
+            completedAt?: Date;
+            completedById?: string;
+        } = { status };
         const now = new Date();
-        if (status === "ready") data.readyAt = now;
-        if (status === "delivered") data.deliveredAt = now;
-        if (status === "completed") {
+        if (status === OrderStatus.ready) data.readyAt = now;
+        if (status === OrderStatus.delivered) data.deliveredAt = now;
+        if (status === OrderStatus.completed) {
             data.completedAt = now;
             if (userId) data.completedById = userId;
         }
@@ -213,23 +312,29 @@ export class StoreService {
     }
 
     createAddOn(data: CreateAddOnDto) {
+        const pricingType =
+            data.pricingType && isAddOnPricingType(data.pricingType)
+                ? data.pricingType
+                : AddOnPricingType.flat;
         return this.prisma.addOnService.create({
             data: {
                 ...data,
-                pricingType: (data.pricingType as AddOnPricingType) || "flat",
+                pricingType,
             },
         });
     }
 
     async updateAddOn(campgroundId: string, id: string, data: UpdateAddOnDto) {
         await this.requireAddOn(campgroundId, id);
+        const pricingType =
+            data.pricingType && isAddOnPricingType(data.pricingType)
+                ? data.pricingType
+                : undefined;
         return this.prisma.addOnService.update({
             where: { id },
             data: {
                 ...data,
-                ...(data.pricingType
-                    ? { pricingType: data.pricingType as AddOnPricingType }
-                    : {}),
+                ...(pricingType ? { pricingType } : {}),
             },
         });
     }
@@ -250,12 +355,12 @@ export class StoreService {
 
     async listOrders(
         campgroundId: string,
-        options?: { status?: string; reservationId?: string }
+        options?: { status?: OrderStatus; reservationId?: string }
     ) {
         const orders = await this.prisma.storeOrder.findMany({
             where: {
                 campgroundId,
-                ...(options?.status ? { status: options.status as any } : {}),
+                ...(options?.status ? { status: options.status } : {}),
                 ...(options?.reservationId
                     ? { reservationId: options.reservationId }
                     : {}),
@@ -279,7 +384,7 @@ export class StoreService {
             },
         });
 
-        return Promise.all(orders.map((order: any) => this.attachAdjustments(order)));
+        return Promise.all(orders.map((order) => this.attachAdjustments(order)));
     }
 
     /**
@@ -308,7 +413,9 @@ export class StoreService {
     }
 
     async getOrderSummary(campgroundId: string, opts?: { start?: Date; end?: Date }) {
-        const where: any = { campgroundId };
+        const where: { campgroundId: string; createdAt?: { gte?: Date; lte?: Date } } = {
+            campgroundId,
+        };
         if (opts?.start || opts?.end) {
             where.createdAt = {
                 ...(opts?.start ? { gte: opts.start } : {}),
@@ -390,18 +497,20 @@ export class StoreService {
     }
 
     private resolveInventoryChannel(channel?: string | null): OrderChannel {
-        if (!channel) return "pos";
-        if (channel === "online" || channel === "portal" || channel === "kiosk" || channel === "internal") return channel;
-        return "pos";
+        if (!channel) return OrderChannel.pos;
+        if (isOrderChannel(channel)) return channel;
+        return OrderChannel.pos;
     }
 
-    private resolveFulfillmentType(type?: string | null) {
-        if (type === "curbside" || type === "delivery" || type === "table_service" || type === "pickup") return type;
+    private resolveFulfillmentType(type?: string | null): FulfillmentType {
+        if (type === "curbside" || type === "delivery" || type === "table_service" || type === "pickup") {
+            return type;
+        }
         return "pickup";
     }
 
-    private async adjustInventoryForChannel(product: any, channel: OrderChannel, delta: number) {
-        const mode = (product.channelInventoryMode as ChannelInventoryMode) ?? "shared";
+    private async adjustInventoryForChannel(product: InventoryProduct, channel: OrderChannel, delta: number) {
+        const mode = product.channelInventoryMode ?? ChannelInventoryMode.shared;
         if (!product.trackInventory) return;
         if (mode === "split") {
             if (channel === "online" || channel === "portal") {
@@ -420,7 +529,13 @@ export class StoreService {
     async createOrder(data: CreateOrderDto, actorUserId?: string) {
         const campground = await this.prisma.campground.findUnique({
             where: { id: data.campgroundId },
-            select: { storeOpenHour: true, storeCloseHour: true, email: true, name: true }
+            select: {
+                storeOpenHour: true,
+                storeCloseHour: true,
+                email: true,
+                name: true,
+                orderWebhookUrl: true,
+            },
         });
         const now = new Date();
         const openHour = campground?.storeOpenHour ?? Number(process.env.STORE_OPEN_HOUR ?? 8);
@@ -442,16 +557,20 @@ export class StoreService {
                 : [],
         ]);
 
-        const productMap = new Map(products.map((p) => [p.id, p]));
+        const productMap = new Map<string, InventoryProduct>(products.map((p) => [p.id, p]));
         const addOnMap = new Map(addOns.map((a) => [a.id, a]));
 
         // Calculate totals and build order items
         let subtotalCents = 0;
         let disallowedAfterHours = false;
 
-        const channel = this.resolveInventoryChannel((data as any).channel);
-        const fulfillmentType = this.resolveFulfillmentType((data as any).fulfillmentType);
+        const channel = this.resolveInventoryChannel(data.channel ?? null);
+        const fulfillmentType = this.resolveFulfillmentType(data.fulfillmentType ?? null);
         const locationId = data.locationId ?? null;
+        const paymentMethod =
+            data.paymentMethod && isPaymentMethod(data.paymentMethod)
+                ? data.paymentMethod
+                : PaymentMethod.card;
 
         const orderItems = data.items.map((item) => {
             let name = "";
@@ -460,15 +579,15 @@ export class StoreService {
             let availableQty = Infinity;
 
             if (item.productId) {
-                const product: any = productMap.get(item.productId);
+                const product = productMap.get(item.productId);
                 if (product) {
                     name = product.name;
                     unitCents = product.priceCents;
                     afterHoursAllowed = !!product.afterHoursAllowed;
-                    const mode = (product.channelInventoryMode as ChannelInventoryMode) ?? "shared";
+                    const mode = product.channelInventoryMode ?? ChannelInventoryMode.shared;
                     if (mode === "split") {
                         availableQty =
-                            channel === "online" || channel === "portal"
+                            channel === OrderChannel.online || channel === OrderChannel.portal
                                 ? Math.max(0, (product.onlineStockQty ?? 0) - (product.onlineBufferQty ?? 0))
                                 : Math.max(0, product.posStockQty ?? 0);
                     } else {
@@ -520,10 +639,10 @@ export class StoreService {
                 siteNumber: data.siteNumber || null,
                 channel,
                 fulfillmentType,
-                deliveryInstructions: (data as any).deliveryInstructions || null,
-                promisedAt: (data as any).promisedAt ? new Date((data as any).promisedAt) : null,
-                prepTimeMinutes: (data as any).prepTimeMinutes ?? null,
-                paymentMethod: (data.paymentMethod as PaymentMethod) || "card",
+                deliveryInstructions: data.deliveryInstructions || null,
+                promisedAt: data.promisedAt ? new Date(data.promisedAt) : null,
+                prepTimeMinutes: data.prepTimeMinutes ?? null,
+                paymentMethod,
                 notes: data.notes || null,
                 subtotalCents,
                 taxCents,
@@ -539,15 +658,15 @@ export class StoreService {
         });
 
         // Fire-and-forget notifications - log errors but don't block the order
-        this.notifyStaffNewOrder(order, campground?.email, campground?.name, (campground as any)?.orderWebhookUrl)
+        this.notifyStaffNewOrder(order, campground?.email, campground?.name, campground?.orderWebhookUrl)
           .catch((err) => this.logger.warn(`Failed to notify staff of new order: ${err instanceof Error ? err.message : err}`));
 
         const perLocationItems: Array<{ productId: string; qty: number }> = [];
-        const channelItems: Array<{ product: any; qty: number }> = [];
+        const channelItems: Array<{ product: InventoryProduct; qty: number }> = [];
 
         for (const item of data.items) {
             if (!item.productId) continue;
-            const product: any = productMap.get(item.productId);
+            const product = productMap.get(item.productId);
             if (!product?.trackInventory || (product.afterHoursAllowed && !isOpen)) continue;
 
             if (product.inventoryMode === "per_location" && locationId && actorUserId) {
@@ -574,7 +693,7 @@ export class StoreService {
         // Handle payment recording and GL entries based on payment method
         const dedupeKeyBase = `store_order_${order.id}`;
 
-        if (data.paymentMethod === "charge_to_site" && data.reservationId) {
+        if (paymentMethod === PaymentMethod.charge_to_site && data.reservationId) {
             // Charge to site: debit A/R (guest owes more), credit Store Revenue
             await postBalancedLedgerEntries(this.prisma, [
                 {
@@ -607,10 +726,10 @@ export class StoreService {
                     totalAmount: { increment: totalCents },
                 },
             });
-        } else if (data.paymentMethod === "card" || data.paymentMethod === "cash") {
+        } else if (paymentMethod === PaymentMethod.card || paymentMethod === PaymentMethod.cash) {
             // Card/Cash payment: debit Cash (money received), credit Store Revenue
-            const glCode = data.paymentMethod === "card" ? "CARD" : "CASH";
-            const accountName = data.paymentMethod === "card" ? "Card Receipts" : "Cash";
+            const glCode = paymentMethod === PaymentMethod.card ? "CARD" : "CASH";
+            const accountName = paymentMethod === PaymentMethod.card ? "Card Receipts" : "Cash";
 
             await postBalancedLedgerEntries(this.prisma, [
                 {
@@ -618,7 +737,7 @@ export class StoreService {
                     reservationId: data.reservationId ?? null,
                     glCode,
                     account: accountName,
-                    description: `Store order #${order.id.slice(-6)} (${data.paymentMethod})`,
+                    description: `Store order #${order.id.slice(-6)} (${paymentMethod})`,
                     amountCents: totalCents,
                     direction: "debit",
                     dedupeKey: `${dedupeKeyBase}:${glCode.toLowerCase()}:debit`
@@ -628,7 +747,7 @@ export class StoreService {
                     reservationId: data.reservationId ?? null,
                     glCode: "STORE_REVENUE",
                     account: "Store Revenue",
-                    description: `Store order #${order.id.slice(-6)} (${data.paymentMethod})`,
+                    description: `Store order #${order.id.slice(-6)} (${paymentMethod})`,
                     amountCents: totalCents,
                     direction: "credit",
                     dedupeKey: `${dedupeKeyBase}:store_revenue:credit`
@@ -642,7 +761,7 @@ export class StoreService {
                         campgroundId: data.campgroundId,
                         reservationId: data.reservationId,
                         amountCents: totalCents,
-                        method: data.paymentMethod,
+                        method: paymentMethod,
                         direction: "charge",
                         note: `Store order #${order.id.slice(-6)}`,
                         paymentSource: "store"
@@ -695,7 +814,7 @@ export class StoreService {
     /**
      * Attach adjustments to order object
      */
-    private async attachAdjustments(order: any) {
+    private async attachAdjustments<T extends { id: string; campgroundId: string }>(order: T) {
         const adjustments = await this.getOrderAdjustments(order.id, order.campgroundId);
         return { ...order, adjustments };
     }
@@ -714,15 +833,15 @@ export class StoreService {
         campgroundId: string,
         payload: {
             type?: "refund" | "exchange";
-            items?: Array<{ itemId?: string; qty?: number; amountCents?: number; name?: string; productId?: string }>;
+            items?: OrderAdjustmentItem[];
             amountCents?: number;
             note?: string | null;
             restock?: boolean; // Whether to restore inventory
             notifyGuest?: boolean; // Whether to send email to guest
         },
-        user?: any
+        user?: ActorUser
     ) {
-        const order = await this.prisma.storeOrder.findFirst({
+        const order: RefundOrder | null = await this.prisma.storeOrder.findFirst({
             where: { id: orderId, campgroundId },
             include: {
                 items: true,
@@ -736,10 +855,12 @@ export class StoreService {
         }
 
         // Validate refund amount doesn't exceed order total
-        const selectedItems =
+        const selectedItems: RefundSelection[] =
             payload.items && payload.items.length > 0
                 ? payload.items.map((item) => {
-                    const match = order.items.find((i: any) => i.id === item.itemId);
+                    const match = item.itemId
+                        ? order.items.find((candidate) => candidate.id === item.itemId)
+                        : undefined;
                     if (item.itemId && !match) {
                         throw new NotFoundException(`Item ${item.itemId} not found in order`);
                     }
@@ -751,17 +872,17 @@ export class StoreService {
                         amountCents: item.amountCents ?? match?.totalCents ?? 0,
                     };
                 })
-                : order.items.map((i: any) => ({
-                    itemId: i.id,
-                    productId: i.productId,
-                    name: i.name,
-                    qty: i.qty,
-                    amountCents: i.totalCents ?? 0,
+                : order.items.map((item) => ({
+                    itemId: item.id,
+                    productId: item.productId,
+                    name: item.name,
+                    qty: item.qty,
+                    amountCents: item.totalCents ?? 0,
                 }));
 
         const amountCents =
             payload.amountCents ??
-            selectedItems.reduce((sum: number, i: { amountCents?: number }) => sum + (i.amountCents ?? 0), 0);
+            selectedItems.reduce((sum, item) => sum + item.amountCents, 0);
 
         // Validate refund amount
         if (amountCents > order.totalCents) {
@@ -780,7 +901,11 @@ export class StoreService {
         let notificationSent = false;
 
         // 1. Process payment processor refund for card payments
-        if (adjustmentType === "refund" && order.paymentMethod === "card" && order.paymentIntentId) {
+        if (
+            adjustmentType === "refund" &&
+            order.paymentMethod === PaymentMethod.card &&
+            order.paymentIntentId
+        ) {
             try {
                 const refund = await this.stripeService.createRefund(
                     order.paymentIntentId,
@@ -791,9 +916,9 @@ export class StoreService {
                 stripeRefundId = refund.id;
                 refundStatus = refund.status ?? "succeeded";
                 this.logger.log(`Stripe refund created: ${refund.id} for order ${orderId}`);
-            } catch (err: any) {
+            } catch (err) {
                 refundStatus = "failed";
-                refundError = err.message ?? "Stripe refund failed";
+                refundError = getErrorMessage(err) || "Stripe refund failed";
                 this.logger.error(`Stripe refund failed for order ${orderId}: ${refundError}`);
                 // Continue with database record even if Stripe fails - can retry later
             }
@@ -812,8 +937,8 @@ export class StoreService {
                 }
                 inventoryRestored = true;
                 this.logger.log(`Inventory restored for order ${orderId}: ${selectedItems.length} items`);
-            } catch (err: any) {
-                this.logger.error(`Failed to restore inventory for order ${orderId}: ${err.message}`);
+            } catch (err) {
+                this.logger.error(`Failed to restore inventory for order ${orderId}: ${getErrorMessage(err)}`);
                 // Continue even if inventory restore fails
             }
         }
@@ -841,12 +966,16 @@ export class StoreService {
         });
 
         // Update order status
-        if (adjustmentType === "refund" && order.status !== "refunded") {
-            await this.updateOrderStatus(campgroundId, orderId, "refunded", user?.id);
+        if (adjustmentType === "refund" && order.status !== OrderStatus.refunded) {
+            await this.updateOrderStatus(campgroundId, orderId, OrderStatus.refunded, user?.id ?? undefined);
         }
 
         // 3. If order was charged to site, create offsetting ledger entry
-        if (order.paymentMethod === "charge_to_site" && order.reservationId && adjustmentType === "refund") {
+        if (
+            order.paymentMethod === PaymentMethod.charge_to_site &&
+            order.reservationId &&
+            adjustmentType === "refund"
+        ) {
             try {
                 await this.prisma.ledgerEntry.create({
                     data: {
@@ -868,8 +997,8 @@ export class StoreService {
                         totalAmount: { decrement: amountCents },
                     },
                 });
-            } catch (error: any) {
-                this.logger.error(`Failed to create ledger entry for refund: ${error.message}`);
+            } catch (error) {
+                this.logger.error(`Failed to create ledger entry for refund: ${getErrorMessage(error)}`);
             }
         }
 
@@ -881,7 +1010,10 @@ export class StoreService {
         if (shouldNotify && guestEmail && adjustmentType === "refund") {
             try {
                 const itemsList = selectedItems
-                    .map((i: any) => `<li>${i.qty} x ${i.name} - $${((i.amountCents ?? 0) / 100).toFixed(2)}</li>`)
+                    .map(
+                        (item) =>
+                            `<li>${item.qty} x ${item.name} - $${(item.amountCents / 100).toFixed(2)}</li>`
+                    )
                     .join("");
 
                 await this.emailService.sendEmail({
@@ -910,8 +1042,10 @@ export class StoreService {
                 });
 
                 this.logger.log(`Refund notification sent to ${guestEmail} for order ${orderId}`);
-            } catch (err: any) {
-                this.logger.error(`Failed to send refund notification for order ${orderId}: ${err.message}`);
+            } catch (err) {
+                this.logger.error(
+                    `Failed to send refund notification for order ${orderId}: ${getErrorMessage(err)}`
+                );
             }
         }
 
@@ -924,12 +1058,23 @@ export class StoreService {
         };
     }
 
-    private async notifyStaffNewOrder(order: any, email?: string | null, campgroundName?: string | null, webhookUrl?: string | null) {
+    private async notifyStaffNewOrder(
+        order: OrderWithItems,
+        email?: string | null,
+        campgroundName?: string | null,
+        webhookUrl?: string | null
+    ) {
         const title = `New Store Order ${order.id.slice(0, 8)}`;
         const total = `$${(order.totalCents / 100).toFixed(2)}`;
-        const itemsList = order.items?.map((i: any) => `<li>${i.qty} x ${i.name} - $${(i.totalCents / 100).toFixed(2)}</li>`).join("") ?? "";
+        const itemsList =
+            order.items
+                ?.map(
+                    (item) =>
+                        `<li>${item.qty} x ${item.name} - $${((item.totalCents ?? 0) / 100).toFixed(2)}</li>`
+                )
+                .join("") ?? "";
         const fulfillment = order.fulfillmentType ? String(order.fulfillmentType).replace("_", " ") : "pickup";
-        const channel = order.channel ?? "pos";
+        const channel = order.channel ?? OrderChannel.pos;
         const instructions = order.deliveryInstructions ? `<p><strong>Instructions:</strong> ${order.deliveryInstructions}</p>` : "";
         const promised = order.promisedAt ? `<p><strong>Promised at:</strong> ${new Date(order.promisedAt).toLocaleString()}</p>` : "";
 
@@ -938,7 +1083,7 @@ export class StoreService {
               <h2>${campgroundName || "Campground"} - New Store Order</h2>
               <p><strong>Order ID:</strong> ${order.id}</p>
               <p><strong>Total:</strong> ${total}</p>
-              <p><strong>Payment:</strong> ${order.paymentMethod || "charge_to_site"}</p>
+              <p><strong>Payment:</strong> ${order.paymentMethod || PaymentMethod.charge_to_site}</p>
               <p><strong>Channel:</strong> ${channel}</p>
               <p><strong>Fulfillment:</strong> ${fulfillment}</p>
               <p><strong>Site:</strong> ${order.siteNumber || "N/A"}</p>
@@ -973,11 +1118,11 @@ export class StoreService {
                         deliveryInstructions: order.deliveryInstructions,
                         promisedAt: order.promisedAt,
                         createdAt: order.createdAt,
-                        items: order.items?.map((i: any) => ({
-                            name: i.name,
-                            qty: i.qty,
-                            totalCents: i.totalCents
-                        }))
+                        items: order.items?.map((item) => ({
+                            name: item.name,
+                            qty: item.qty,
+                            totalCents: item.totalCents ?? 0,
+                        })),
                     })
                 });
             } catch {

@@ -167,7 +167,7 @@ export default function AnalyticsPage() {
                   setExportStatus("queued");
                   setExportError(null);
                   setExportUrl(null);
-                  const payload: { format: "csv" | "xlsx"; filters: Record<string, any>; emailTo?: string[] } = {
+                  const payload: { format: "csv" | "xlsx"; filters: Record<string, unknown>; emailTo?: string[] } = {
                     format: exportFormat,
                     filters: { range: `last_${period}_days`, days: period }
                   };

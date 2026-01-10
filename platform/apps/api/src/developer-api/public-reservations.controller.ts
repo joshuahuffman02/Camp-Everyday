@@ -5,6 +5,7 @@ import { ApiScopes } from "./decorators/api-scopes.decorator";
 import { PublicApiService, ApiReservationInput } from "./public-api.service";
 import { IsBoolean, IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 import { ApiTags, ApiOperation, ApiResponse, ApiProperty, ApiBearerAuth } from "@nestjs/swagger";
+import type { Request } from "express";
 
 class CreateReservationBody implements ApiReservationInput {
   @ApiProperty({ description: "ID of the site to reserve" })

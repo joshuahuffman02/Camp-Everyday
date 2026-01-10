@@ -35,7 +35,7 @@ export class MatchScoreService {
 
         // 3. Preferences vs Vibe Tags
         // guest.preferences is Json, we need to cast it safely
-        const preferences = guest.preferences as Record<string, any> || {};
+        const preferences = guest.preferences as Record<string, unknown> || {};
         const vibeTags = site.vibeTags || [];
 
         // Example preference: { "secluded": true, "view": "lake" }

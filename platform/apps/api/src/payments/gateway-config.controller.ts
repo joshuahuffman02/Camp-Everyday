@@ -6,6 +6,7 @@ import { JwtAuthGuard } from "../auth/guards";
 import { Roles, RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { RequireScope } from "../permissions/scope.decorator";
+import type { Request } from "express";
 
 @Controller()
 export class GatewayConfigController {

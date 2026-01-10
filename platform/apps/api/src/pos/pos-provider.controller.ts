@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/comm
 import { JwtAuthGuard } from "../auth/guards";
 import { TriggerPosSyncDto, UpsertPosProviderDto, ValidatePosProviderDto } from "./pos-provider.dto";
 import { PosProviderService } from "./pos-provider.service";
+import type { Request } from "express";
 
 @Controller("pos/providers")
 export class PosProviderController {

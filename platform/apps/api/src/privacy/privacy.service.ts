@@ -19,7 +19,7 @@ export class PrivacyService {
       return Object.entries(value).reduce((acc, [k, v]) => {
         acc[k] = this.scrub(v);
         return acc;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, unknown>);
     }
     return this.maskValue(value);
   }
@@ -28,7 +28,7 @@ export class PrivacyService {
     if (Array.isArray(sample)) return sample.map((v) => this.applyTagRedactions(v, tags));
     if (sample && typeof sample === "object") {
       const byField = new Map(tags.map((t) => [t.field, t.redactionMode]));
-      const out: Record<string, any> = {};
+      const out: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(sample)) {
         const mode = byField.get(key);
         if (mode === "remove") continue;
@@ -73,7 +73,7 @@ export class PrivacyService {
     purpose?: string;
     expiresAt?: Date | null;
     revokedAt?: Date | null;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }) {
     return this.prisma.consentLog.create({
       data: {

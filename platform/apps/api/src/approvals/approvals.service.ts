@@ -35,7 +35,7 @@ export class ApprovalsService {
       requester: r.requesterName || r.requestedBy,
       approvals: (r.approvals as ApprovalEntry[]) || [],
       requiredApprovals: r.requiredApprovals,
-      metadata: r.payload as Record<string, any>,
+      metadata: r.payload as Record<string, unknown>,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
       policyId: r.policyId,
@@ -63,7 +63,7 @@ export class ApprovalsService {
     currency: string;
     reason: string;
     requester: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     campgroundId?: string;
     requestedBy: string;
   }) {
@@ -175,7 +175,7 @@ export class ApprovalsService {
         decidedBy: approver,
         decidedAt: new Date(),
         payload: {
-          ...((request.payload as Record<string, any>) || {}),
+          ...((request.payload as Record<string, unknown>) || {}),
           rejectionReason: reason,
           rejectedBy: approver,
         },

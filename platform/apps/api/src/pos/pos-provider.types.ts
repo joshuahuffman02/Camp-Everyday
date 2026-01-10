@@ -9,7 +9,7 @@ export type IntegrationRecord = {
   displayName?: string | null;
   status?: string | null;
   capabilities: ProviderCapabilities;
-  credentials: Record<string, any>;
+  credentials: Record<string, unknown>;
   locations?: Record<string, string>;
   devices?: Record<string, string>;
   webhookSecret?: string | null;
@@ -18,7 +18,7 @@ export type IntegrationRecord = {
 export type ProviderValidationResult = {
   ok: boolean;
   message?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 };
 
 export type ProviderSyncResult = {
@@ -26,7 +26,7 @@ export type ProviderSyncResult = {
   target: PosSyncTarget;
   status?: PosSyncStatus;
   message?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 };
 
 export type ProviderPaymentRequest = {
@@ -35,12 +35,12 @@ export type ProviderPaymentRequest = {
   idempotencyKey: string;
   cartId: string;
   terminalId?: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 };
 
 export type ProviderPaymentResult = {
   status: "pending" | "succeeded" | "failed";
-  processorIds?: Record<string, any> | null;
+  processorIds?: Record<string, unknown> | null;
   raw?: any;
 };
 
@@ -55,7 +55,7 @@ export type ProviderWebhookResult = {
   acknowledged: boolean;
   deduped?: boolean;
   message?: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 };
 
 export interface PosProviderAdapter {
@@ -71,7 +71,7 @@ export interface PosProviderAdapter {
   handlePaymentWebhook?(input: {
     integration: IntegrationRecord;
     body: any;
-    headers?: Record<string, any>;
+    headers?: Record<string, unknown>;
   }): Promise<ProviderWebhookResult>;
 
   // Outbound inventory sync methods (optional - for 3rd party POS integration)
@@ -91,7 +91,7 @@ export interface ExternalProduct {
   priceCents: number;
   category?: string | null;
   barcode?: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Product info to push to 3rd party POS
@@ -136,7 +136,7 @@ export interface ExternalSale {
   }>;
   totalCents: number;
   paymentMethod?: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Result of push operations

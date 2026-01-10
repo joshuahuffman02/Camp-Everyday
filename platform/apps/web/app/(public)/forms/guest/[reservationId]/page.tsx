@@ -36,7 +36,7 @@ export default function GuestFormsPage() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
 
-  const [formResponses, setFormResponses] = useState<Record<string, Record<string, any>>>({});
+  const [formResponses, setFormResponses] = useState<Record<string, Record<string, string | boolean>>>({});
   const [completedForms, setCompletedForms] = useState<Set<string>>(new Set());
   const [expandedForm, setExpandedForm] = useState<string | null>(null);
   const [skipNotes, setSkipNotes] = useState<Record<string, string>>({});
@@ -85,7 +85,7 @@ export default function GuestFormsPage() {
 
   // Submit form mutation
   const submitMutation = useMutation({
-    mutationFn: async ({ formTemplateId, responses }: { formTemplateId: string; responses: Record<string, any> }) => {
+    mutationFn: async ({ formTemplateId, responses }: { formTemplateId: string; responses: Record<string, unknown> }) => {
       const res = await fetch("/api/public/forms/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -290,7 +290,7 @@ export default function GuestFormsPage() {
 
                             {q.type === "text" && (
                               <Input
-                                value={formResponses[form.id]?.[q.id] || ""}
+                                value={String(formResponses[form.id]?.[q.id] ?? "")}
                                 onChange={(e) => handleInputChange(form.id, q.id, e.target.value)}
                                 placeholder="Enter your answer"
                               />
@@ -298,7 +298,7 @@ export default function GuestFormsPage() {
 
                             {q.type === "textarea" && (
                               <Textarea
-                                value={formResponses[form.id]?.[q.id] || ""}
+                                value={String(formResponses[form.id]?.[q.id] ?? "")}
                                 onChange={(e) => handleInputChange(form.id, q.id, e.target.value)}
                                 placeholder="Enter your answer"
                                 rows={3}
@@ -308,7 +308,7 @@ export default function GuestFormsPage() {
                             {q.type === "number" && (
                               <Input
                                 type="number"
-                                value={formResponses[form.id]?.[q.id] || ""}
+                                value={String(formResponses[form.id]?.[q.id] ?? "")}
                                 onChange={(e) => handleInputChange(form.id, q.id, e.target.value)}
                                 placeholder="Enter a number"
                               />
@@ -317,7 +317,7 @@ export default function GuestFormsPage() {
                             {q.type === "checkbox" && (
                               <div className="flex items-center gap-2">
                                 <Checkbox
-                                  checked={formResponses[form.id]?.[q.id] || false}
+                                  checked={Boolean(formResponses[form.id]?.[q.id])}
                                   onCheckedChange={(checked) => handleInputChange(form.id, q.id, checked)}
                                 />
                                 <span className="text-sm text-slate-600">I agree</span>
@@ -326,7 +326,7 @@ export default function GuestFormsPage() {
 
                             {q.type === "select" && q.options && (
                               <Select
-                                value={formResponses[form.id]?.[q.id] || ""}
+                                value={String(formResponses[form.id]?.[q.id] ?? "")}
                                 onValueChange={(v) => handleInputChange(form.id, q.id, v)}
                               >
                                 <SelectTrigger>

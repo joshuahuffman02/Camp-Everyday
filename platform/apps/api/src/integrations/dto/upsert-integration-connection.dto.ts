@@ -24,10 +24,10 @@ export class UpsertIntegrationConnectionDto {
   authType?: string;
 
   @IsOptional()
-  credentials?: Record<string, any>;
+  credentials?: Record<string, unknown>;
 
   @IsOptional()
-  settings?: Record<string, any>;
+  settings?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()

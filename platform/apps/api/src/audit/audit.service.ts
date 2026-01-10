@@ -135,8 +135,8 @@ export class AuditService {
     action: string;
     entity: string;
     entityId: string;
-    before?: Record<string, any> | null;
-    after?: Record<string, any> | null;
+    before?: Record<string, unknown> | null;
+    after?: Record<string, unknown> | null;
     ip?: string | null;
     userAgent?: string | null;
     retentionDays?: number | null;
@@ -175,7 +175,7 @@ export class AuditService {
     });
   }
 
-  async recordExport(params: { campgroundId: string; requestedById: string; format: "csv" | "json"; filters?: Record<string, any>; recordCount: number }) {
+  async recordExport(params: { campgroundId: string; requestedById: string; format: "csv" | "json"; filters?: Record<string, unknown>; recordCount: number }) {
     return this.prisma.auditExport.create({
       data: {
         campgroundId: params.campgroundId,

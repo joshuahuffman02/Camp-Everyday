@@ -1,7 +1,9 @@
 import { BadRequestException } from "@nestjs/common";
+import type { LedgerEntry, Prisma } from "@prisma/client";
 import type { PrismaService } from "../prisma/prisma.service";
+import { compact } from "../utils/array";
 
-type PrismaLike = PrismaService | any;
+type PrismaLedgerClient = PrismaService | Prisma.TransactionClient;
 
 export type LedgerEntryInput = {
   campgroundId: string;
@@ -25,7 +27,7 @@ export type PostLedgerOptions = {
 
 const DEFAULT_GL = "UNASSIGNED";
 
-async function assertPeriodsOpen(prisma: PrismaLike, entries: LedgerEntryInput[]) {
+async function assertPeriodsOpen(prisma: PrismaLedgerClient, entries: LedgerEntryInput[]) {
   const byCampground: Record<string, { min: Date; max: Date }> = {};
   for (const entry of entries) {
     const occurredAt = entry.occurredAt ?? new Date();
@@ -39,7 +41,7 @@ async function assertPeriodsOpen(prisma: PrismaLike, entries: LedgerEntryInput[]
   }
 
   for (const [campgroundId, range] of Object.entries(byCampground)) {
-    const blocked = await (prisma as any).glPeriod?.findFirst?.({
+    const blocked = await prisma.glPeriod.findFirst({
       where: {
         campgroundId,
         status: { in: ["closed", "locked"] },
@@ -86,7 +88,7 @@ function normalizeEntries(entries: LedgerEntryInput[], opts?: PostLedgerOptions)
 }
 
 export async function postBalancedLedgerEntries(
-  prisma: PrismaLike,
+  prisma: PrismaLedgerClient,
   entries: LedgerEntryInput[],
   opts?: PostLedgerOptions
 ) {
@@ -109,14 +111,14 @@ export async function postBalancedLedgerEntries(
   await assertPeriodsOpen(prisma, normalized);
 
   // Stronger dedupe than description/amount: prefer dedupeKey/externalRef when present.
-  const dedupeKeys = normalized.map((e) => e.dedupeKey).filter(Boolean) as string[];
-  const externalRefs = normalized.map((e) => e.externalRef).filter(Boolean) as string[];
-  const dedupeWhere = [];
+  const dedupeKeys = compact(normalized.map((e) => e.dedupeKey));
+  const externalRefs = compact(normalized.map((e) => e.externalRef));
+  const dedupeWhere: Prisma.LedgerEntryWhereInput[] = [];
   if (dedupeKeys.length) dedupeWhere.push({ dedupeKey: { in: dedupeKeys } });
   if (externalRefs.length) dedupeWhere.push({ externalRef: { in: externalRefs } });
 
   if (dedupeWhere.length) {
-    const existing = await (prisma as any).ledgerEntry.findMany({
+    const existing = await prisma.ledgerEntry.findMany({
       where: { OR: dedupeWhere }
     });
     if (existing.length) {
@@ -128,9 +130,9 @@ export async function postBalancedLedgerEntries(
   // This works both inside and outside transactions:
   // - When called from within a $transaction callback, entries are part of that transaction
   // - When called with regular PrismaService, each create is its own operation
-  const results = [];
+  const results: LedgerEntry[] = [];
   for (const entry of normalized) {
-    results.push(await (prisma as any).ledgerEntry.create({ data: entry }));
+    results.push(await prisma.ledgerEntry.create({ data: entry }));
   }
   return results;
 }

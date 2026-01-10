@@ -56,7 +56,7 @@ export class IssueStoredValueDto {
   referenceId?: string;
 
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class RedeemStoredValueDto {

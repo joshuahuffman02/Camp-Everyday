@@ -4,11 +4,11 @@ import { IsArray, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Validate
 class MapConfigDto {
   @IsOptional()
   @IsObject()
-  bounds?: Record<string, any> | null;
+  bounds?: Record<string, unknown> | null;
 
   @IsOptional()
   @IsObject()
-  defaultCenter?: Record<string, any> | null;
+  defaultCenter?: Record<string, unknown> | null;
 
   @IsOptional()
   @IsNumber()
@@ -16,11 +16,11 @@ class MapConfigDto {
 
   @IsOptional()
   @IsObject()
-  layers?: Record<string, any> | null;
+  layers?: Record<string, unknown> | null;
 
   @IsOptional()
   @IsObject()
-  legend?: Record<string, any> | null;
+  legend?: Record<string, unknown> | null;
 }
 
 class MapSiteDto {
@@ -29,11 +29,11 @@ class MapSiteDto {
   siteId!: string;
 
   @IsObject()
-  geometry!: Record<string, any>;
+  geometry!: Record<string, unknown>;
 
   @IsOptional()
   @IsObject()
-  centroid?: Record<string, any>;
+  centroid?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()
@@ -45,7 +45,7 @@ class MapSiteDto {
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class UpsertMapDto {

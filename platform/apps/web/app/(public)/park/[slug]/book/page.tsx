@@ -1802,8 +1802,8 @@ function ReviewStep({
 
     // Forms state
     const [formsComplete, setFormsComplete] = useState(true); // Default to true until we check if there are forms
-    const [formResponses, setFormResponses] = useState<Record<string, any>>({});
-    const handleFormsComplete = (complete: boolean, responses: Record<string, any>) => {
+    const [formResponses, setFormResponses] = useState<Record<string, Record<string, string | boolean>>>({});
+    const handleFormsComplete = (complete: boolean, responses: Record<string, Record<string, string | boolean>>) => {
         setFormsComplete(complete);
         setFormResponses(responses);
     };
@@ -1855,7 +1855,7 @@ function ReviewStep({
     const policyRequirements = useMemo(() => quote?.policyRequirements ?? [], [quote]);
     const bookingPolicies = useMemo(() => {
         return policyRequirements.filter((policy) => {
-            const config = (policy?.config ?? {}) as Record<string, any>;
+            const config = (policy?.config ?? {}) as Record<string, unknown>;
             const enforcement = config.enforcement ?? "post_booking";
             const showDuringBooking = config.showDuringBooking ?? true;
             return showDuringBooking || enforcement === "pre_booking";
@@ -1863,7 +1863,7 @@ function ReviewStep({
     }, [policyRequirements]);
     const requiredPolicies = useMemo(() => {
         return bookingPolicies.filter((policy) => {
-            const config = (policy?.config ?? {}) as Record<string, any>;
+            const config = (policy?.config ?? {}) as Record<string, unknown>;
             return (config.enforcement ?? "post_booking") === "pre_booking";
         });
     }, [bookingPolicies]);
@@ -2412,7 +2412,7 @@ function ReviewStep({
                     </div>
                     <div className="space-y-3">
                         {bookingPolicies.map((policy) => {
-                            const config = (policy?.config ?? {}) as Record<string, any>;
+                            const config = (policy?.config ?? {}) as Record<string, unknown>;
                             const enforcement = config.enforcement ?? "post_booking";
                             const requireSignature = config.requireSignature ?? true;
                             const showAcceptance = enforcement === "pre_booking" || requireSignature;

@@ -31,7 +31,7 @@ export class PrivacyController {
   async recordConsent(
     @Param("campgroundId") campgroundId: string,
     @Body()
-    body: { subject: string; consentType: string; grantedBy: string; method?: string; purpose?: string; expiresAt?: string; metadata?: Record<string, any> }
+    body: { subject: string; consentType: string; grantedBy: string; method?: string; purpose?: string; expiresAt?: string; metadata?: Record<string, unknown> }
   ) {
     return this.privacy.recordConsent({
       campgroundId,

@@ -6,6 +6,7 @@ import { UpdateSupportReportDto } from "./dto/update-support-report.dto";
 import { UpdateStaffScopeDto } from "./dto/update-staff-scope.dto";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { RequireScope } from "../permissions/scope.decorator";
+import type { Request } from "express";
 
 const PLATFORM_SUPPORT_ROLES = ["support_agent", "support_lead", "regional_support", "platform_admin"];
 

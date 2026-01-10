@@ -19,7 +19,7 @@ export class PolicyAcceptanceDto {
   signerEmail?: string;
 
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class CreateReservationDto {

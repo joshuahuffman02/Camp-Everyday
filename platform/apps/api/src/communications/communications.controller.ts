@@ -18,6 +18,81 @@ import { ObservabilityService } from "../observability/observability.service";
 import { AlertingService } from "../observability/alerting.service";
 import { AiAutoReplyService } from "../ai/ai-auto-reply.service";
 import { AiSentimentService } from "../ai/ai-sentiment.service";
+import { isRecord } from "../utils/type-guards";
+
+type CommunicationCampground = {
+  parkTimeZone?: string | null;
+  timezone?: string | null;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
+};
+
+type CommunicationJob = {
+  id: string;
+  playbookId: string;
+  campgroundId: string;
+  attempts: number;
+  metadata?: Record<string, unknown> | null;
+  reservationId?: string | null;
+  guestId?: string | null;
+};
+
+type ConversationRow = {
+  conversationId: string;
+  lastMessageId: string;
+  lastMessagePreview: string | null;
+  lastMessageDirection: string;
+  toAddress: string | null;
+  fromAddress: string | null;
+  guestId: string | null;
+  lastMessageAt: Date;
+  messageCount: bigint | number;
+  unreadCount: bigint | number;
+  guestFirstName: string | null;
+  guestLastName: string | null;
+  guestPhone: string | null;
+};
+
+type TwilioInboundBody = {
+  From?: string;
+  To?: string;
+  MessageSid?: string;
+  Body?: string;
+  campgroundId?: string;
+};
+
+type TwilioStatusBody = {
+  MessageSid?: string;
+  MessageStatus?: string;
+  SmsStatus?: string;
+  ErrorCode?: string;
+  To?: string;
+  From?: string;
+};
+
+type PostmarkInboundBody = {
+  FromFull?: { Email?: string };
+  ToFull?: Array<{ Email?: string }>;
+  Subject?: string;
+  TextBody?: string;
+  HtmlBody?: string;
+  MessageID?: string;
+  campgroundId?: string;
+};
+
+type PostmarkStatusBody = {
+  MessageID?: string;
+  RecordType?: string;
+  BounceType?: string;
+  BounceSubType?: string;
+  Description?: string;
+};
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const readString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
 
 @Controller()
 export class CommunicationsController {
@@ -124,10 +199,10 @@ export class CommunicationsController {
       minute: "2-digit",
       second: "2-digit"
     });
-    const parts = dtf.formatToParts(date).reduce((acc: any, p) => {
-      if (p.type !== "literal") acc[p.type] = p.value;
+    const parts = dtf.formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+      if (part.type !== "literal") acc[part.type] = part.value;
       return acc;
-    }, {} as Record<string, string>);
+    }, {});
     return {
       year: Number(parts.year),
       month: Number(parts.month),
@@ -150,7 +225,7 @@ export class CommunicationsController {
     return new Date(baseUtc - offsetMinutes * 60000);
   }
 
-  private campgroundTz(campground: any) {
+  private campgroundTz(campground: CommunicationCampground | null | undefined) {
     return campground?.parkTimeZone || campground?.timezone || "UTC";
   }
 
@@ -208,7 +283,7 @@ export class CommunicationsController {
     }
   }
 
-  private isQuietHours(campground: any, date: Date) {
+  private isQuietHours(campground: CommunicationCampground | null | undefined, date: Date) {
     if (!campground?.quietHoursStart || !campground?.quietHoursEnd) return false;
     const timeZone = this.campgroundTz(campground);
     const parts = this.getLocalTimeParts(date, timeZone);
@@ -254,7 +329,7 @@ export class CommunicationsController {
     return token === expected;
   }
 
-  private recordComms(status: "delivered" | "sent" | "bounced" | "spam_complaint" | "failed", meta?: Record<string, any>) {
+  private recordComms(status: "delivered" | "sent" | "bounced" | "spam_complaint" | "failed", meta?: Record<string, unknown>) {
     if (!this.commsMetricsEnabled) return;
     this.observability.recordCommsStatus(status, meta);
   }
@@ -296,7 +371,7 @@ export class CommunicationsController {
     if (!query.campgroundId) throw new BadRequestException("campgroundId is required");
     const limit = Math.min(query.limit || 20, 100);
 
-    const where: any = { campgroundId: query.campgroundId };
+    const where: Prisma.CommunicationWhereInput = { campgroundId: query.campgroundId };
     if (query.guestId) where.guestId = query.guestId;
     if (query.reservationId) where.reservationId = query.reservationId;
     if (query.type) where.type = query.type;
@@ -331,8 +406,7 @@ export class CommunicationsController {
     const clientConsentProvided = body.consentGranted === true || Boolean(body.consentSource);
     if (clientConsentProvided) {
       // Do not trust client-provided consent flags; enforce server-side logs only.
-      (body as any).consentGranted = undefined;
-      (body as any).consentSource = undefined;
+      this.logger.debug("Client-provided consent flags ignored");
     }
     const campground = await this.prisma.campground.findUnique({
       where: { id: body.campgroundId },
@@ -395,7 +469,11 @@ export class CommunicationsController {
             provider: result.provider || "postmark",
             providerMessageId: result.providerMessageId ?? null,
             sentAt: new Date(),
-            metadata: { ...(comm as any).metadata, provider: result.provider, fallback: result.fallback }
+            metadata: {
+              ...(isRecord(comm.metadata) ? comm.metadata : {}),
+              provider: result.provider,
+              fallback: result.fallback,
+            }
           }
         });
         this.recordComms("sent", { campgroundId: body.campgroundId, provider: result.provider });
@@ -403,9 +481,12 @@ export class CommunicationsController {
       } catch (err) {
         await prisma.communication.update({
           where: { id: comm.id },
-          data: { status: "failed", metadata: { ...(comm as any).metadata, error: (err as any)?.message } }
+          data: {
+            status: "failed",
+            metadata: { ...(isRecord(comm.metadata) ? comm.metadata : {}), error: getErrorMessage(err) }
+          }
         });
-        this.recordComms("failed", { campgroundId: body.campgroundId, error: (err as any)?.message });
+        this.recordComms("failed", { campgroundId: body.campgroundId, error: getErrorMessage(err) });
         throw new InternalServerErrorException("Failed to send email");
       }
     }
@@ -456,7 +537,7 @@ export class CommunicationsController {
             status: result.success ? "sent" : "failed",
             provider: result.provider,
             providerMessageId: result.providerMessageId ?? null,
-            metadata: { ...(comm as any).metadata, fallback: result.fallback }
+            metadata: { ...(isRecord(comm.metadata) ? comm.metadata : {}), fallback: result.fallback }
           }
         });
         if (result.success) {
@@ -476,15 +557,18 @@ export class CommunicationsController {
       } catch (err) {
         await prisma.communication.update({
           where: { id: comm.id },
-          data: { status: "failed", metadata: { ...(comm as any).metadata, error: (err as any)?.message } }
+          data: {
+            status: "failed",
+            metadata: { ...(isRecord(comm.metadata) ? comm.metadata : {}), error: getErrorMessage(err) }
+          }
         });
-        this.recordComms("failed", { campgroundId: body.campgroundId, error: (err as any)?.message });
+        this.recordComms("failed", { campgroundId: body.campgroundId, error: getErrorMessage(err) });
         await this.alerting.dispatch(
           "SMS send failure",
           `SMS send errored for ${normalizedPhone}`,
           "error",
           `sms-send-error-${comm.id}`,
-          { campgroundId: body.campgroundId, error: (err as any)?.message }
+          { campgroundId: body.campgroundId, error: getErrorMessage(err) }
         ).catch(() => undefined);
         throw new InternalServerErrorException("Failed to send sms");
       }
@@ -551,20 +635,20 @@ export class CommunicationsController {
    * Twilio inbound SMS webhook
    */
   @Post("communications/webhook/twilio")
-  async twilioInbound(@Body() body: any, @Query("token") token?: string) {
+  async twilioInbound(@Body() body: TwilioInboundBody, @Query("token") token?: string) {
     if (!this.ensureWebhookToken(token)) {
       throw new BadRequestException("Invalid webhook token");
     }
-    const from = body.From as string | undefined;
-    const to = body.To as string | undefined;
-    const messageSid = body.MessageSid as string | undefined;
-    const text = body.Body as string | undefined;
+    const from = readString(body.From);
+    const to = readString(body.To);
+    const messageSid = readString(body.MessageSid);
+    const text = readString(body.Body);
     if (!from || !to || !messageSid) {
       throw new BadRequestException("Missing required Twilio fields");
     }
 
     const { guestId, reservationId, campgroundId } = await this.resolveGuestAndReservationByPhone(from);
-    const resolvedCampgroundId = body.campgroundId || campgroundId || "";
+    const resolvedCampgroundId = body.campgroundId ?? campgroundId ?? "";
     const conversationId = resolvedCampgroundId ? this.generateSmsConversationId(from, to, resolvedCampgroundId) : null;
 
     const communication = await this.prisma.communication.create({
@@ -608,15 +692,17 @@ export class CommunicationsController {
    * Twilio status webhook for outbound SMS
    */
   @Post("communications/webhook/twilio/status")
-  async twilioStatus(@Body() body: any, @Query("token") token?: string) {
+  async twilioStatus(@Body() body: TwilioStatusBody, @Query("token") token?: string) {
     if (!this.ensureWebhookToken(token)) {
       throw new BadRequestException("Invalid webhook token");
     }
-    const messageSid = body.MessageSid as string | undefined;
+    const messageSid = readString(body.MessageSid);
     if (!messageSid) {
       throw new BadRequestException("Missing MessageSid");
     }
-    const status = this.normalizeTwilioStatus((body.MessageStatus || body.SmsStatus || "").toString());
+    const status = this.normalizeTwilioStatus(
+      readString(body.MessageStatus ?? body.SmsStatus) ?? ""
+    );
 
     await this.prisma.communication.updateMany({
       where: { providerMessageId: messageSid },
@@ -630,7 +716,7 @@ export class CommunicationsController {
         `Twilio reported failure for message ${messageSid}`,
         "error",
         `sms-delivery-failure-${messageSid}`,
-        { status: body.MessageStatus || body.SmsStatus, to: body.To, from: body.From }
+        { status: readString(body.MessageStatus ?? body.SmsStatus), to: body.To, from: body.From }
       ).catch(() => undefined);
     } else if (status === "delivered") {
       this.recordComms("delivered", { provider: "twilio" });
@@ -644,15 +730,15 @@ export class CommunicationsController {
    * Postmark inbound email webhook
    */
   @Post("communications/webhook/postmark/inbound")
-  async postmarkInbound(@Body() body: any, @Query("token") token?: string) {
+  async postmarkInbound(@Body() body: PostmarkInboundBody, @Query("token") token?: string) {
     if (!this.ensurePostmarkToken(token)) {
       throw new BadRequestException("Invalid webhook token");
     }
-    const from = body.FromFull?.Email as string | undefined;
-    const to = body.ToFull?.[0]?.Email as string | undefined;
-    const subject = body.Subject as string | undefined;
-    const textBody = body.TextBody as string | undefined;
-    const messageId = body.MessageID as string | undefined;
+    const from = readString(body.FromFull?.Email);
+    const to = readString(body.ToFull?.[0]?.Email);
+    const subject = readString(body.Subject);
+    const textBody = readString(body.TextBody);
+    const messageId = readString(body.MessageID);
 
     if (!from || !to || !messageId) {
       throw new BadRequestException("Missing required Postmark fields");
@@ -716,11 +802,11 @@ export class CommunicationsController {
    */
   @HttpCode(200)
   @Post("communications/webhook/postmark/status")
-  async postmarkStatus(@Body() body: any, @Query("token") token?: string) {
+  async postmarkStatus(@Body() body: PostmarkStatusBody, @Query("token") token?: string) {
     if (!this.ensurePostmarkToken(token)) {
       throw new BadRequestException("Invalid webhook token");
     }
-    const messageId = body.MessageID as string | undefined;
+    const messageId = readString(body.MessageID);
     if (!messageId) {
       throw new BadRequestException("Missing MessageID");
     }
@@ -775,7 +861,7 @@ export class CommunicationsController {
   @Get("communications/templates")
   async listTemplates(@Query("campgroundId") campgroundId?: string, @Query("status") status?: string) {
     if (!campgroundId) throw new BadRequestException("campgroundId is required");
-    const where: any = { campgroundId };
+    const where: Prisma.CommunicationTemplateWhereInput = { campgroundId };
     if (status) where.status = status;
     const templates = await this.prisma.communicationTemplate.findMany({
       where,
@@ -819,15 +905,31 @@ export class CommunicationsController {
       throw new BadRequestException("Unauthorized campground scope");
     }
 
+    const before: Record<string, unknown> = {
+      name: existing.name,
+      subject: existing.subject,
+      bodyHtml: existing.bodyHtml,
+      status: existing.status,
+    };
+    const after: Record<string, unknown> = {
+      name: body.name,
+      subject: body.subject,
+      bodyHtml: body.bodyHtml,
+      status: body.status,
+    };
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    for (const key of ["name", "subject", "bodyHtml", "status"]) {
+      const afterValue = after[key];
+      const beforeValue = before[key];
+      if (afterValue !== undefined && afterValue !== beforeValue) {
+        changes[key] = { from: beforeValue, to: afterValue };
+      }
+    }
+
     const auditEntry = {
       action: "updated",
       at: new Date().toISOString(),
-      changes: ["name", "subject", "bodyHtml", "status"].reduce((acc: any, key) => {
-        if ((body as any)[key] !== undefined && (body as any)[key] !== (existing as any)[key]) {
-          acc[key] = { from: (existing as any)[key], to: (body as any)[key] };
-        }
-        return acc;
-      }, {})
+      changes
     };
 
     const updated = await this.prisma.communicationTemplate.update({
@@ -837,7 +939,7 @@ export class CommunicationsController {
         subject: body.subject ?? existing.subject,
         bodyHtml: body.bodyHtml ?? existing.bodyHtml,
         status: body.status ?? existing.status,
-        auditLog: [...(existing.auditLog as any[]) ?? [], auditEntry]
+        auditLog: [...(Array.isArray(existing.auditLog) ? existing.auditLog : []), auditEntry]
       }
     });
     return updated;
@@ -848,7 +950,7 @@ export class CommunicationsController {
   @Get("communications/playbooks/jobs")
   async listJobs(@Query("campgroundId") campgroundId?: string, @Query("status") status?: string) {
     if (!campgroundId) throw new BadRequestException("campgroundId is required");
-    const where: any = { campgroundId };
+    const where: Prisma.CommunicationPlaybookJobWhereInput = { campgroundId };
     if (status) where.status = status;
     return this.prisma.communicationPlaybookJob.findMany({
       where,
@@ -856,7 +958,7 @@ export class CommunicationsController {
     });
   }
 
-  private async processJob(job: any) {
+  private async processJob(job: CommunicationJob) {
     const playbook = await this.prisma.communicationPlaybook.findUnique({
       where: { id: job.playbookId },
       include: { campground: true, template: true }
@@ -911,10 +1013,10 @@ export class CommunicationsController {
 
       if (playbook.type === "nps") {
         if (!toEmail) throw new BadRequestException("Missing recipient email");
-        const metadata = job.metadata || {};
-        const surveyId = metadata.surveyId;
+        const metadata = isRecord(job.metadata) ? job.metadata : {};
+        const surveyId = readString(metadata.surveyId);
         if (!surveyId) throw new BadRequestException("Missing surveyId for NPS job");
-        const templateId = metadata.templateId || playbook.templateId || null;
+        const templateId = readString(metadata.templateId) ?? playbook.templateId ?? null;
         await this.npsService.createInvite({
           surveyId,
           campgroundId: job.campgroundId,
@@ -941,7 +1043,7 @@ export class CommunicationsController {
         where: { id: job.id },
         data: { status: "sent", lastError: null }
       });
-    } catch (err: any) {
+    } catch (err) {
       const attempts = job.attempts + 1;
       const maxAttempts = 3;
       const nextTime = new Date(now);
@@ -952,7 +1054,7 @@ export class CommunicationsController {
           status: attempts >= maxAttempts ? "failed" : "pending",
           scheduledAt: attempts >= maxAttempts ? job.scheduledAt : nextTime,
           attempts,
-          lastError: err?.message || "Send failed"
+          lastError: getErrorMessage(err) || "Send failed"
         }
       });
     }
@@ -1081,7 +1183,7 @@ export class CommunicationsController {
         status: "approved",
         approvedById: actorId ?? null,
         approvedAt: new Date(),
-        auditLog: [...(existing.auditLog as any[]) ?? [], auditEntry]
+        auditLog: [...(Array.isArray(existing.auditLog) ? existing.auditLog : []), auditEntry]
       }
     });
     return updated;
@@ -1113,7 +1215,7 @@ export class CommunicationsController {
         status: "rejected",
         approvedById: null,
         approvedAt: null,
-        auditLog: [...(existing.auditLog as any[]) ?? [], auditEntry]
+        auditLog: [...(Array.isArray(existing.auditLog) ? existing.auditLog : []), auditEntry]
       }
     });
     return updated;
@@ -1221,7 +1323,7 @@ export class CommunicationsController {
     if (!campgroundId) throw new BadRequestException("campgroundId is required");
 
     // Get the latest message per conversationId, plus metadata
-    const conversations = await this.prisma.$queryRaw`
+    const conversations = await this.prisma.$queryRaw<ConversationRow[]>`
       WITH latest_messages AS (
         SELECT
           "conversationId",
@@ -1256,7 +1358,7 @@ export class CommunicationsController {
       ORDER BY c."createdAt" DESC
     `;
 
-    return conversations.map((conv: any) => ({
+    return conversations.map((conv) => ({
       conversationId: conv.conversationId,
       lastMessageId: conv.lastMessageId,
       lastMessagePreview: conv.lastMessagePreview?.slice(0, 100) || "",
@@ -1403,9 +1505,9 @@ export class CommunicationsController {
     } catch (err) {
       await this.prisma.communication.update({
         where: { id: comm.id },
-        data: { status: "failed", metadata: { error: (err as any)?.message } }
+        data: { status: "failed", metadata: { error: getErrorMessage(err) } }
       });
-      this.recordComms("failed", { campgroundId: body.campgroundId, error: (err as any)?.message });
+      this.recordComms("failed", { campgroundId: body.campgroundId, error: getErrorMessage(err) });
       throw new InternalServerErrorException("Failed to send SMS reply");
     }
   }
@@ -1440,4 +1542,3 @@ export class CommunicationsController {
     return { updated: result.count };
   }
 }
-

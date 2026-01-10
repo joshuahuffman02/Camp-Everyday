@@ -735,7 +735,7 @@ I have read and understand this waiver and agree to its terms.`;
     }
 
     // Get session data
-    const data = (session.data ?? {}) as Record<string, any>;
+    const data = (session.data ?? {}) as Record<string, unknown>;
     const accountProfile = data.account_profile ?? {};
 
     // Get organization and check for early access enrollment

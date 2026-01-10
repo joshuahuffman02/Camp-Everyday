@@ -14,7 +14,7 @@ export class UpsertAccessIntegrationDto {
   status?: string;
 
   @IsObject()
-  credentials!: Record<string, any>;
+  credentials!: Record<string, unknown>;
 
   @IsOptional()
   @IsString()

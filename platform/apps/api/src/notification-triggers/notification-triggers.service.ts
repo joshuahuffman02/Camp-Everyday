@@ -27,7 +27,7 @@ export interface NotificationTrigger {
   enabled: boolean;
   templateId?: string;
   delayMinutes: number;
-  conditions?: Record<string, any>;
+  conditions?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,7 +42,7 @@ export interface TriggerPayload {
   arrivalDate?: Date;
   departureDate?: Date;
   amountCents?: number;
-  customData?: Record<string, any>;
+  customData?: Record<string, unknown>;
 }
 
 @Injectable()
@@ -75,7 +75,7 @@ export class NotificationTriggersService {
     enabled?: boolean;
     templateId?: string;
     delayMinutes?: number;
-    conditions?: Record<string, any>;
+    conditions?: Record<string, unknown>;
   }) {
     return this.prisma.notificationTrigger.create({
       data: {
@@ -120,7 +120,7 @@ export class NotificationTriggersService {
     enabled: boolean;
     templateId: string | null;
     delayMinutes: number;
-    conditions: Record<string, any> | null;
+    conditions: Record<string, unknown> | null;
   }>, campgroundId: string) {
     // Always validate ownership for multi-tenant isolation
     await this.validateTriggerOwnership(id, campgroundId);
@@ -172,7 +172,7 @@ export class NotificationTriggersService {
     let fired = 0;
     for (const trigger of triggers) {
       // Check conditions
-      if (trigger.conditions && !this.matchesConditions(trigger.conditions as Record<string, any>, payload)) {
+      if (trigger.conditions && !this.matchesConditions(trigger.conditions as Record<string, unknown>, payload)) {
         continue;
       }
 
@@ -191,7 +191,7 @@ export class NotificationTriggersService {
   /**
    * Check if payload matches trigger conditions
    */
-  private matchesConditions(conditions: Record<string, any>, payload: TriggerPayload): boolean {
+  private matchesConditions(conditions: Record<string, unknown>, payload: TriggerPayload): boolean {
     for (const [key, value] of Object.entries(conditions)) {
       const payloadValue = (payload as any)[key] ?? payload.customData?.[key];
       

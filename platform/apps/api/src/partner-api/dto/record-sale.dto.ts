@@ -48,7 +48,7 @@ export class RecordSaleDto {
   locationId?: string;
 
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class RecordSaleResponseDto {

@@ -14,7 +14,7 @@ export interface AlertPayload {
   severity: AlertSeverity;
   dedupKey?: string;
   source?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   timestamp?: Date;
 }
 
@@ -416,28 +416,28 @@ export class AlertSinksService {
   /**
    * Convenience method for critical alerts
    */
-  async critical(title: string, message: string, details?: Record<string, any>): Promise<Record<string, AlertResult>> {
+  async critical(title: string, message: string, details?: Record<string, unknown>): Promise<Record<string, AlertResult>> {
     return this.dispatch({ title, message, severity: "critical", details });
   }
 
   /**
    * Convenience method for error alerts
    */
-  async error(title: string, message: string, details?: Record<string, any>): Promise<Record<string, AlertResult>> {
+  async error(title: string, message: string, details?: Record<string, unknown>): Promise<Record<string, AlertResult>> {
     return this.dispatch({ title, message, severity: "error", details });
   }
 
   /**
    * Convenience method for warning alerts
    */
-  async warning(title: string, message: string, details?: Record<string, any>): Promise<Record<string, AlertResult>> {
+  async warning(title: string, message: string, details?: Record<string, unknown>): Promise<Record<string, AlertResult>> {
     return this.dispatch({ title, message, severity: "warning", details });
   }
 
   /**
    * Convenience method for info alerts
    */
-  async info(title: string, message: string, details?: Record<string, any>): Promise<Record<string, AlertResult>> {
+  async info(title: string, message: string, details?: Record<string, unknown>): Promise<Record<string, AlertResult>> {
     return this.dispatch({ title, message, severity: "info", details });
   }
 }

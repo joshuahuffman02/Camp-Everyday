@@ -15,6 +15,7 @@ import { EmailService } from "../email/email.service";
 import { BatchInventoryService, ExpiredBatchException } from "../inventory/batch-inventory.service";
 import { MarkdownRulesService } from "../inventory/markdown-rules.service";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
+import type { Request } from "express";
 
 @Injectable()
 export class PosService {

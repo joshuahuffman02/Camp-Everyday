@@ -21,7 +21,7 @@ interface GenerateQROptions {
   eventId?: string;
   amenityId?: string;
   expiresAt?: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface QRCodeResult {
@@ -216,7 +216,7 @@ export class QRCodeService {
     reservationId?: string;
     siteId?: string;
     campgroundId?: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     error?: string;
   }> {
     const qrCode = await this.prisma.qRCode.findUnique({
@@ -253,7 +253,7 @@ export class QRCodeService {
       reservationId: qrCode.reservationId || undefined,
       siteId: qrCode.siteId || undefined,
       campgroundId: qrCode.campgroundId,
-      metadata: qrCode.metadata as Record<string, any>,
+      metadata: qrCode.metadata as Record<string, unknown>,
     };
   }
 

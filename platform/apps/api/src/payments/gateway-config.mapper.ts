@@ -1,4 +1,5 @@
 import { CampgroundPaymentGatewayConfig, GatewayFeePreset } from "@prisma/client";
+import { isRecord } from "../utils/type-guards";
 
 type ConfigRecord = (CampgroundPaymentGatewayConfig & { feePreset?: GatewayFeePreset | null }) | null;
 
@@ -23,7 +24,7 @@ export interface GatewayConfigView {
     webhookSecretId: string | null;
   };
   hasProductionCredentials: boolean;
-  additionalConfig: Record<string, any> | null;
+  additionalConfig: Record<string, unknown> | null;
 }
 
 export const GatewayConfigMapper = {
@@ -53,7 +54,7 @@ export const GatewayConfigMapper = {
         webhookSecretId: record.webhookSecretId ?? null
       },
       hasProductionCredentials: Boolean(record.secretKeySecretId || record.merchantAccountIdSecretId),
-      additionalConfig: (record.additionalConfig as Record<string, any> | null) ?? null
+      additionalConfig: isRecord(record.additionalConfig) ? record.additionalConfig : null
     };
   }
 };

@@ -8,6 +8,7 @@ import {
   UseGuards,
   Req,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { AnalyticsExportService } from "./analytics-export.service";
 import { AnalyticsShareService } from "./analytics-share.service";
 import { JwtAuthGuard } from "../auth/guards";

@@ -24,7 +24,7 @@ export interface AnomalyAlert {
   currentValue: number;
   expectedValue: number;
   deviation: number; // Percentage deviation from expected
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface MetricStats {

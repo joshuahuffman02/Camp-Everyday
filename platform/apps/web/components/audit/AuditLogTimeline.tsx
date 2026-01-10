@@ -32,8 +32,8 @@ type AuditLog = {
     firstName: string | null;
     lastName: string | null;
   } | null;
-  before: Record<string, any> | null;
-  after: Record<string, any> | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
   createdAt: string;
 };
 
@@ -118,7 +118,7 @@ function formatValue(value: any): string {
   return String(value);
 }
 
-function DiffView({ before, after }: { before: Record<string, any> | null; after: Record<string, any> | null }) {
+function DiffView({ before, after }: { before: Record<string, unknown> | null; after: Record<string, unknown> | null }) {
   if (!before && !after) return null;
 
   const allKeys = new Set([

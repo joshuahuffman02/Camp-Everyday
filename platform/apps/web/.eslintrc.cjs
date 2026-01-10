@@ -6,8 +6,5 @@ module.exports = {
     "@next/next/no-html-link-for-pages": "off",
     "@next/next/no-img-element": "off",
     "react-hooks/exhaustive-deps": "off",
-    "react-hooks/purity": "off",
-    "react-hooks/immutability": "off",
-    "react-hooks/set-state-in-effect": "off",
   },
 };

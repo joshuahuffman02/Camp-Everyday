@@ -8,9 +8,10 @@ import {
     Patch,
     Post,
     Query,
-    UseGuards,
     Req,
+    UseGuards,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { LocationService } from "./location.service";
 import {
     CreateStoreLocationDto,
@@ -23,29 +24,33 @@ import {
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
+import type { AuthUser } from "../auth/auth.types";
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class LocationController {
     constructor(private readonly locationService: LocationService) {}
 
-    private requireCampgroundId(req: any, fallback?: string): string {
-        const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+    private requireCampgroundId(req: Request, fallback?: string): string {
+        const headerValue = req.headers["x-campground-id"];
+        const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+        const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId ?? undefined;
         if (!campgroundId) {
             throw new BadRequestException("campgroundId is required");
         }
         return campgroundId;
     }
 
-    private assertCampgroundAccess(campgroundId: string, user: any): void {
-        const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                                user?.platformRole === "platform_superadmin" ||
-                                user?.platformRole === "support_agent";
+    private assertCampgroundAccess(campgroundId: string, user: AuthUser | null | undefined): void {
+        const isPlatformStaff =
+            user?.platformRole === "platform_admin" ||
+            user?.platformRole === "platform_superadmin" ||
+            user?.platformRole === "support_agent";
         if (isPlatformStaff) {
             return;
         }
 
-        const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+        const userCampgroundIds = user?.memberships?.map((membership) => membership.campgroundId) ?? [];
         if (!userCampgroundIds.includes(campgroundId)) {
             throw new BadRequestException("You do not have access to this campground");
         }
@@ -57,9 +62,9 @@ export class LocationController {
     listLocations(
         @Param("campgroundId") campgroundId: string,
         @Query("includeInactive") includeInactive?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.locationService.listLocations(
             campgroundId,
             includeInactive === "true"
@@ -123,10 +128,10 @@ export class LocationController {
         @Param("id") locationId: string,
         @Query("productId") productId?: string,
         @Query("campgroundId") campgroundId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        this.assertCampgroundAccess(requiredCampgroundId, req?.user);
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.locationService.getLocationInventory(requiredCampgroundId, locationId, productId);
     }
 
@@ -163,10 +168,10 @@ export class LocationController {
     getLocationPriceOverrides(
         @Param("id") locationId: string,
         @Query("campgroundId") campgroundId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        this.assertCampgroundAccess(requiredCampgroundId, req?.user);
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.locationService.getLocationPriceOverrides(requiredCampgroundId, locationId);
     }
 
@@ -175,10 +180,10 @@ export class LocationController {
         @Param("id") locationId: string,
         @Body() body: CreateLocationPriceOverrideDto,
         @Query("campgroundId") campgroundId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        this.assertCampgroundAccess(requiredCampgroundId, req?.user);
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.locationService.createPriceOverride(requiredCampgroundId, locationId, body);
     }
 
@@ -187,10 +192,10 @@ export class LocationController {
         @Param("id") id: string,
         @Body() body: UpdateLocationPriceOverrideDto,
         @Query("campgroundId") campgroundId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        this.assertCampgroundAccess(requiredCampgroundId, req?.user);
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.locationService.updatePriceOverride(requiredCampgroundId, id, body);
     }
 
@@ -199,10 +204,10 @@ export class LocationController {
         @Param("locationId") locationId: string,
         @Param("productId") productId: string,
         @Query("campgroundId") campgroundId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        this.assertCampgroundAccess(requiredCampgroundId, req?.user);
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.locationService.deletePriceOverride(requiredCampgroundId, locationId, productId);
     }
 
@@ -217,9 +222,9 @@ export class LocationController {
         @Query("startDate") startDate?: string,
         @Query("endDate") endDate?: string,
         @Query("limit") limit?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.locationService.getInventoryMovements(
             campgroundId,
             {
@@ -246,10 +251,10 @@ export class LocationController {
         @Param("productId") productId: string,
         @Query("locationId") locationId?: string,
         @Query("campgroundId") campgroundId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        this.assertCampgroundAccess(requiredCampgroundId, req?.user);
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.locationService.getEffectivePrice(requiredCampgroundId, productId, locationId);
     }
 
@@ -258,10 +263,10 @@ export class LocationController {
         @Param("productId") productId: string,
         @Query("locationId") locationId?: string,
         @Query("campgroundId") campgroundId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        this.assertCampgroundAccess(requiredCampgroundId, req?.user);
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.locationService.getEffectiveStock(requiredCampgroundId, productId, locationId);
     }
 
@@ -271,9 +276,9 @@ export class LocationController {
     getProductsForLocation(
         @Param("campgroundId") campgroundId: string,
         @Query("locationId") locationId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.locationService.getProductsForLocation(campgroundId, locationId);
     }
 }

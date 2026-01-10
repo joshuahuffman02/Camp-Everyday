@@ -1,6 +1,7 @@
 import { Controller, Get, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards"; // Assuming standard guard exists
 import { TaskBundlerService } from "./task-bundler.service";
+import type { Request } from "express";
 
 @UseGuards(JwtAuthGuard)
 @Controller("tasks/bundles")

@@ -81,7 +81,7 @@ export class CampgroundsService {
     charge: "EV Charging"
   };
 
-  private extractAmenitiesFromTags(tags?: Record<string, any>): string[] {
+  private extractAmenitiesFromTags(tags?: Record<string, unknown>): string[] {
     if (!tags) return [];
     const amenities = new Set<string>();
     for (const [key, label] of Object.entries(this.amenityKeyMap)) {
@@ -110,9 +110,9 @@ export class CampgroundsService {
     return Array.from(amenities);
   }
 
-  private amenitySummaryFromTags(tags?: Record<string, any>) {
+  private amenitySummaryFromTags(tags?: Record<string, unknown>) {
     if (!tags) return undefined;
-    const summary: Record<string, any> = {};
+    const summary: Record<string, unknown> = {};
     for (const [key, label] of Object.entries(this.amenityKeyMap)) {
       if (tags[key] !== undefined) {
         summary[label] = tags[key];
@@ -1119,7 +1119,7 @@ export class CampgroundsService {
       where: { campgroundId: id, userId: { in: userIds } },
       orderBy: { createdAt: "desc" }
     });
-    const latestInviteByUser: Record<string, any> = {};
+    const latestInviteByUser: Record<string, unknown> = {};
     for (const inv of invites) {
       if (!latestInviteByUser[inv.userId]) {
         latestInviteByUser[inv.userId] = inv;

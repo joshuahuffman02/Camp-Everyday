@@ -211,7 +211,7 @@ export class SmsService {
     body: string,
     severity: "info" | "warning" | "error" | "critical",
     dedupKey?: string,
-    details?: Record<string, any>
+    details?: Record<string, unknown>
   ) {
     try {
       await this.alerting.dispatch(title, body, severity, dedupKey, details);

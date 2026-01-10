@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 interface DashboardWidget {
   type: 'occupancy' | 'revenue' | 'bookings' | 'adr' | 'revpar' | 'chart';
   position: { x: number; y: number; w: number; h: number };
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 interface CreateDashboardDto {
@@ -213,7 +213,7 @@ export class PortfolioService {
   async createRatePush(
     orgId: string,
     name: string,
-    rateConfig: Record<string, any>,
+    rateConfig: Record<string, unknown>,
     targetCampIds: string[],
     createdBy: string
   ) {

@@ -56,7 +56,7 @@ export interface CreateSuggestionDto {
     proposedDate?: Date | string | null;
     opportunityAt?: Date | string | null;
     postId?: string | null;
-    reason?: Record<string, any>;
+    reason?: Record<string, unknown>;
 }
 
 export interface UpdateSuggestionStatusDto {
@@ -68,7 +68,7 @@ export interface CreateStrategyDto {
     campgroundId: string;
     month: Date | string;
     annual?: boolean;
-    plan: Record<string, any>;
+    plan: Record<string, unknown>;
 }
 
 export interface CreateAlertDto {

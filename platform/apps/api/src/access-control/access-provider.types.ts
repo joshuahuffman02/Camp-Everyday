@@ -5,7 +5,7 @@ export type AccessIntegrationConfig = {
   campgroundId: string;
   provider: AccessProviderType;
   displayName?: string | null;
-  credentials: Record<string, any>;
+  credentials: Record<string, unknown>;
   webhookSecret?: string | null;
 };
 

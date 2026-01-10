@@ -444,7 +444,7 @@ export class OnboardingAiImportService {
     async confirmImport(
         sessionId: string,
         documentId: string,
-        corrections: Record<number, Record<string, any>>,
+        corrections: Record<number, Record<string, unknown>>,
     ): Promise<{ success: boolean; created: number; errors: string[] }> {
         const draft = await this.prisma.onboardingImportDraft.findUnique({
             where: { documentId },
@@ -647,7 +647,7 @@ Be concise and helpful. If users want to change data, explain how to use the inl
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { header: 1 });
+        const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { header: 1 });
 
         if (data.length === 0) return { columns: [], rows: [] };
 
@@ -780,7 +780,7 @@ Only include rows with actual data. Convert dates to YYYY-MM-DD format. Convert 
     }
 
     private getDefaultValue(fieldName: string, entity: TargetEntity): any {
-        const defaults: Record<string, any> = {
+        const defaults: Record<string, unknown> = {
             // Sites
             siteType: 'rv',
             maxOccupancy: 6,
@@ -802,8 +802,8 @@ Only include rows with actual data. Convert dates to YYYY-MM-DD format. Convert 
         entity: TargetEntity,
         fields: Record<string, FieldConfidence>,
         campgroundId: string,
-    ): Record<string, any> {
-        const data: Record<string, any> = { campgroundId };
+    ): Record<string, unknown> {
+        const data: Record<string, unknown> = { campgroundId };
 
         for (const [key, field] of Object.entries(fields)) {
             if (field.value !== null && field.value !== undefined) {

@@ -29,13 +29,13 @@ type ActionDraft = {
   actionType: string;
   resource: string;
   action: "read" | "write";
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   status: "draft" | "executed" | "denied";
   requiresConfirmation?: boolean;
   sensitivity?: "low" | "medium" | "high";
   impact?: ImpactSummary;
   evidenceLinks?: EvidenceLink[];
-  result?: Record<string, any>;
+  result?: Record<string, unknown>;
 };
 
 interface PartnerMessage {
@@ -123,8 +123,8 @@ function toLabel(value: string) {
 
 function buildActionSummary(draft: ActionDraft) {
   const params = draft.parameters ?? {};
-  const primaryArrival = params.newArrivalDate ?? params.arrivalDate;
-  const primaryDeparture = params.newDepartureDate ?? params.departureDate;
+  const primaryArrival = (params.newArrivalDate ?? params.arrivalDate) as string | undefined;
+  const primaryDeparture = (params.newDepartureDate ?? params.departureDate) as string | undefined;
   const dateRange = formatDateRange(primaryArrival, primaryDeparture);
   const siteLabel = params.newSiteNumber
     ? `Site ${params.newSiteNumber}`
@@ -201,7 +201,7 @@ function buildActionHighlights(draft: ActionDraft) {
     items.push({ key: list[0], label, value });
   };
 
-  const dateRange = formatDateRange(params.arrivalDate, params.departureDate);
+  const dateRange = formatDateRange(params.arrivalDate as string | undefined, params.departureDate as string | undefined);
   if (dateRange) addItem(["arrivalDate", "departureDate"], "Dates", dateRange);
 
   if (params.siteNumber) {
@@ -233,7 +233,7 @@ function buildActionHighlights(draft: ActionDraft) {
     addItem("newSiteId", "New site", formatId(params.newSiteId));
   }
 
-  const newDateRange = formatDateRange(params.newArrivalDate, params.newDepartureDate);
+  const newDateRange = formatDateRange(params.newArrivalDate as string | undefined, params.newDepartureDate as string | undefined);
   if (newDateRange) addItem(["newArrivalDate", "newDepartureDate"], "New dates", newDateRange);
 
   const extras = Object.entries(params)

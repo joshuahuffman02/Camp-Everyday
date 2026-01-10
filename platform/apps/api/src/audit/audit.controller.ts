@@ -7,6 +7,7 @@ import { UserRole } from "@prisma/client";
 import type { Response } from "express";
 import { PermissionGuard } from "../permissions/permission.guard";
 import { RequirePermission } from "../permissions/permission.decorator";
+import type { Request } from "express";
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard, PermissionGuard)
 @Controller("campgrounds/:campgroundId/audit")
@@ -24,7 +25,7 @@ export class AuditController {
     @Query("end") end?: string,
     @Query("limit") limit?: string,
     @Query("format") format?: string,
-    @Req() req?: any,
+    @Req() req?: Request,
     @Res() res?: Response
   ) {
     const params = {

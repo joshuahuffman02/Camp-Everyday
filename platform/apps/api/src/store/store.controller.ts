@@ -12,6 +12,7 @@ import {
     Req,
     UseGuards,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { StoreService } from "./store.service";
 import {
     CreateProductCategoryDto,
@@ -27,7 +28,8 @@ import { AuthGuard } from "@nestjs/passport";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { RequireScope } from "../permissions/scope.decorator";
-import { UserRole } from "@prisma/client";
+import { UserRole, Guest, OrderStatus } from "@prisma/client";
+import type { AuthUser } from "../auth/auth.types";
 
 // SECURITY FIX (STORE-HIGH-001): Added membership validation to prevent cross-tenant access
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -35,8 +37,10 @@ import { UserRole } from "@prisma/client";
 export class StoreController {
     constructor(private readonly store: StoreService) { }
 
-    private requireCampgroundId(req: any, fallback?: string): string {
-        const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+    private requireCampgroundId(req: Request, fallback?: string): string {
+        const headerValue = req.headers["x-campground-id"];
+        const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+        const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId ?? undefined;
         if (!campgroundId) {
             throw new BadRequestException("campgroundId is required");
         }
@@ -47,16 +51,17 @@ export class StoreController {
      * Verify the authenticated user has access to the specified campground.
      * Prevents cross-tenant access by ensuring users can only access campgrounds they are members of.
      */
-    private assertCampgroundAccess(campgroundId: string, user: any): void {
+    private assertCampgroundAccess(campgroundId: string, user: AuthUser | null | undefined): void {
         // Platform staff can access any campground
-        const isPlatformStaff = user?.platformRole === 'platform_admin' ||
-                                user?.platformRole === 'platform_superadmin' ||
-                                user?.platformRole === 'support_agent';
+        const isPlatformStaff =
+            user?.platformRole === "platform_admin" ||
+            user?.platformRole === "platform_superadmin" ||
+            user?.platformRole === "support_agent";
         if (isPlatformStaff) {
             return;
         }
 
-        const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+        const userCampgroundIds = user?.memberships?.map((membership) => membership.campgroundId) ?? [];
         if (!userCampgroundIds.includes(campgroundId)) {
             throw new BadRequestException("You do not have access to this campground");
         }
@@ -109,9 +114,9 @@ export class StoreController {
     listProducts(
         @Param("campgroundId") campgroundId: string,
         @Query("categoryId") categoryId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
+        this.assertCampgroundAccess(campgroundId, req.user);
         return this.store.listProducts(campgroundId, categoryId);
     }
 
@@ -228,10 +233,13 @@ export class StoreController {
         @Param("campgroundId") campgroundId: string,
         @Query("status") status?: string,
         @Query("reservationId") reservationId?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
-        return this.store.listOrders(campgroundId, { status, reservationId });
+        this.assertCampgroundAccess(campgroundId, req.user);
+        const statusValues: Set<string> = new Set(Object.values(OrderStatus));
+        const isOrderStatus = (value: string): value is OrderStatus => statusValues.has(value);
+        const statusFilter = status && isOrderStatus(status) ? status : undefined;
+        return this.store.listOrders(campgroundId, { status: statusFilter, reservationId });
     }
 
     @Get("campgrounds/:campgroundId/store/orders/summary")
@@ -239,9 +247,9 @@ export class StoreController {
         @Param("campgroundId") campgroundId: string,
         @Query("start") start?: string,
         @Query("end") end?: string,
-        @Req() req?: any
+        @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
+        this.assertCampgroundAccess(campgroundId, req.user);
         const startDate = start ? new Date(start) : undefined;
         const endDate = end ? new Date(end) : undefined;
         return this.store.getOrderSummary(campgroundId, { start: startDate, end: endDate });
@@ -264,8 +272,8 @@ export class StoreController {
         @Body() body: Omit<CreateOrderDto, "campgroundId">,
         @Req() req: Request
     ) {
-        this.assertCampgroundAccess(campgroundId, req?.user);
-        return this.store.createOrder({ campgroundId, ...body }, req?.user?.id);
+        this.assertCampgroundAccess(campgroundId, req.user);
+        return this.store.createOrder({ campgroundId, ...body }, req.user?.id);
     }
 
     // ============= Guest Portal (guest-jwt) =============
@@ -283,8 +291,11 @@ export class StoreController {
 
     @UseGuards(AuthGuard("guest-jwt"))
     @Post("portal/store/orders")
-    async createOrderPortal(@Req() req: Request, @Body() body: Omit<CreateOrderDto, "campgroundId" | "guestId">) {
-        const guest = req.user as any;
+    async createOrderPortal(
+        @Req() req: Request & { user: Guest },
+        @Body() body: Omit<CreateOrderDto, "campgroundId" | "guestId">
+    ) {
+        const guest = req.user;
         // Validate reservation belongs to this guest
         if (!body.reservationId) {
             throw new BadRequestException("reservationId is required");
@@ -314,22 +325,20 @@ export class StoreController {
         @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        const user = req.user as any;
-    this.assertCampgroundAccess(requiredCampgroundId, req.user);
-    return this.store.updateOrderStatus(requiredCampgroundId, id, "completed", user?.id);
-  }
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
+        return this.store.updateOrderStatus(requiredCampgroundId, id, OrderStatus.completed, req.user?.id);
+    }
 
   @Patch("store/orders/:id/status")
   updateStatus(
       @Param("id") id: string,
-      @Body() body: { status: "pending" | "ready" | "delivered" | "completed" | "cancelled" | "refunded" },
+      @Body() body: { status: OrderStatus },
       @Query("campgroundId") campgroundId: string | undefined,
       @Req() req: Request
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-    const user = req.user as any;
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
-    return this.store.updateOrderStatus(requiredCampgroundId, id, body.status, user?.id);
+    return this.store.updateOrderStatus(requiredCampgroundId, id, body.status, req.user?.id);
     }
 
     @Get("store/orders/:id/history")
@@ -357,9 +366,8 @@ export class StoreController {
         @Req() req: Request
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        const user = req.user as any;
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
-        return this.store.recordRefundOrExchange(id, requiredCampgroundId, body, user);
+        return this.store.recordRefundOrExchange(id, requiredCampgroundId, body, req.user);
     }
 
     // Staff notifications: list unseen/pending orders

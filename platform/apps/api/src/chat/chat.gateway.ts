@@ -29,7 +29,7 @@ interface ChatStreamToken {
   toolCall?: {
     id: string;
     name: string;
-    args: Record<string, any>;
+    args: Record<string, unknown>;
   };
   toolResult?: {
     toolCallId: string;

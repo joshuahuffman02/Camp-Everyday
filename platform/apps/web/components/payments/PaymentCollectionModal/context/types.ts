@@ -189,7 +189,7 @@ export interface TenderEntry {
   amountCents: number;
   status: "pending" | "processing" | "completed" | "failed";
   reference?: string; // Payment ID, check number, etc.
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -208,7 +208,7 @@ export interface PaymentResult {
   appliedDiscounts: AppliedDiscount[];
   charityDonation?: CharityDonation;
   receiptId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PaymentError {

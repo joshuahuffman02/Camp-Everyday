@@ -1,3 +1,4 @@
+import type { Request } from "express";
 import {
   Body,
   Controller,
@@ -59,7 +60,7 @@ export class ReservationImportController {
     @Param("campgroundId") campgroundId: string,
     @Body() body: UploadDto,
     @Headers("x-onboarding-token") onboardingToken?: string,
-    @Req() req?: any,
+    @Req() req?: Request,
   ) {
     await this.validateCampgroundAccess(campgroundId, onboardingToken, req?.user);
 
@@ -81,7 +82,7 @@ export class ReservationImportController {
     @Param("campgroundId") campgroundId: string,
     @Body() body: PreviewDto,
     @Headers("x-onboarding-token") onboardingToken?: string,
-    @Req() req?: any,
+    @Req() req?: Request,
   ) {
     await this.validateCampgroundAccess(campgroundId, onboardingToken, req?.user);
 
@@ -108,7 +109,7 @@ export class ReservationImportController {
     @Param("campgroundId") campgroundId: string,
     @Body() body: ExecuteDto,
     @Headers("x-onboarding-token") onboardingToken?: string,
-    @Req() req?: any,
+    @Req() req?: Request,
   ) {
     await this.validateCampgroundAccess(campgroundId, onboardingToken, req?.user);
 

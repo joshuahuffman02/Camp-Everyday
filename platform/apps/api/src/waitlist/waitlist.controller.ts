@@ -3,6 +3,7 @@ import { WaitlistService } from './waitlist.service';
 import { CreateWaitlistEntryDto } from '@keepr/shared';
 import { JwtAuthGuard } from '../auth/guards';
 import { ScopeGuard } from '../auth/guards/scope.guard';
+import type { Request } from "express";
 
 interface CreateStaffWaitlistDto {
     campgroundId: string;

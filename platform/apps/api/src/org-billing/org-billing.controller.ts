@@ -1,3 +1,4 @@
+import type { Request } from "express";
 import {
   Controller,
   Get,
@@ -101,7 +102,7 @@ export class OrgBillingController {
   async getBillingHistory(
     @Param("organizationId") organizationId: string,
     @Query("limit") limit?: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     await this.validateOrgAccess(organizationId, req?.user);
     return this.billingService.getBillingHistory(
@@ -121,7 +122,7 @@ export class OrgBillingController {
     @Query("periodEnd") periodEndStr?: string,
     @Query("limit") limitStr?: string,
     @Query("offset") offsetStr?: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     await this.validateOrgAccess(organizationId, req?.user);
     const periodStart = periodStartStr ? new Date(periodStartStr) : undefined;
@@ -154,7 +155,7 @@ export class OrgBillingController {
       referenceId?: string;
       metadata?: Record<string, unknown>;
     },
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     await this.validateOrgAccess(organizationId, req?.user);
     return this.billingService.recordUsageEvent({
@@ -258,7 +259,7 @@ export class OrgBillingController {
   async cancelSubscription(
     @Param("organizationId") organizationId: string,
     @Query("immediately") immediately?: string,
-    @Req() req?: any
+    @Req() req?: Request
   ) {
     await this.validateOrgAccess(organizationId, req?.user);
     return this.subscriptionService.cancelSubscription(

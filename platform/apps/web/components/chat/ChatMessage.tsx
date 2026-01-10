@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 interface ToolCall {
   id: string;
   name: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
 }
 
 interface ToolResult {
@@ -20,7 +20,7 @@ interface ActionRequired {
   actionId: string;
   title: string;
   description: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   options?: ActionOption[];
 }
 

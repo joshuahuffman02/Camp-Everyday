@@ -43,7 +43,7 @@ export function TrackedPage({
 interface TrackedButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   actionType: string;
   actionTarget?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   children: React.ReactNode;
 }
 
@@ -362,7 +362,7 @@ export function useRenderTracking(componentName: string) {
 export function useTrackedClick(
   actionType: string,
   actionTarget?: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ) {
   const analytics = useAnalyticsContext();
 

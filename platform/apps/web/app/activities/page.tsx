@@ -555,7 +555,7 @@ export default function ActivitiesPage() {
 
     const createMutation = useMutation({
         mutationFn: async () => {
-            const activityData: Record<string, any> = {
+            const activityData: Record<string, unknown> = {
                 name: newActivity.name,
                 description: newActivity.description || undefined,
                 price: Math.round(parseFloat(newActivity.price || "0") * 100),

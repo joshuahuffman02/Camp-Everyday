@@ -48,7 +48,7 @@ type PricingRecommendation = {
   adjustmentPercent: number;
   confidence: number;
   reasoning: string;
-  factors: Record<string, any>;
+  factors: Record<string, unknown>;
   status: "pending" | "applied" | "dismissed";
   estimatedRevenueDelta?: number;
   expiresAt: string;

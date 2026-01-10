@@ -35,7 +35,7 @@ interface PendingAction {
   id: string;
   type: 'confirmation' | 'form' | 'selection';
   tool: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
   title: string;
   description: string;
   expiresAt: Date;
@@ -346,7 +346,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         // Emit tool call notifications
         for (const tc of aiResponse.toolCalls) {
           const toolCallId = tc.id || `tc_${randomUUID()}`;
-          let args: Record<string, any>;
+          let args: Record<string, unknown>;
           try {
             args = JSON.parse(tc.arguments);
           } catch {
@@ -817,7 +817,7 @@ For destructive actions (refunds, cancellations), always confirm with the user f
     for (const rawCall of rawToolCalls) {
       // Use crypto.randomUUID() for secure, unpredictable IDs
       const toolCallId = rawCall.id || `tc_${randomUUID()}`;
-      let args: Record<string, any>;
+      let args: Record<string, unknown>;
 
       try {
         args = JSON.parse(rawCall.arguments);

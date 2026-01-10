@@ -9,7 +9,7 @@ export class AlertingService {
   private readonly pagerDutyKey = process.env.PAGERDUTY_SERVICE_KEY;
   private readonly namespace = process.env.METRICS_NAMESPACE || "campreserv";
 
-  async notifySlack(text: string, payload?: Record<string, any>) {
+  async notifySlack(text: string, payload?: Record<string, unknown>) {
     if (!this.slackWebhook) {
       this.logger.debug(`Slack alert skipped (no webhook configured)`);
       return { ok: false, skipped: true };
@@ -27,7 +27,7 @@ export class AlertingService {
     }
   }
 
-  async notifyPagerDuty(summary: string, severity: Severity = "error", source = "campreserv-api", dedupKey?: string, details?: Record<string, any>) {
+  async notifyPagerDuty(summary: string, severity: Severity = "error", source = "campreserv-api", dedupKey?: string, details?: Record<string, unknown>) {
     if (!this.pagerDutyKey) {
       this.logger.debug(`PagerDuty alert skipped (no service key configured)`);
       return { ok: false, skipped: true };
@@ -58,7 +58,7 @@ export class AlertingService {
     }
   }
 
-  async dispatch(title: string, body: string, severity: Severity = "error", dedupKey?: string, details?: Record<string, any>) {
+  async dispatch(title: string, body: string, severity: Severity = "error", dedupKey?: string, details?: Record<string, unknown>) {
     const slack = await this.notifySlack(`:rotating_light: ${title}\n${body}`);
     const pd = await this.notifyPagerDuty(`${title} — ${body}`, severity, "campreserv-api", dedupKey, details);
     return { slack, pagerDuty: pd };

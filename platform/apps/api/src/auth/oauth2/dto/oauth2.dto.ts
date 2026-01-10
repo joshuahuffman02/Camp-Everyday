@@ -1,6 +1,7 @@
 import { IsString, IsOptional, IsIn, IsUrl, IsNotEmpty, Matches } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { OAuth2GrantType, OAuth2ResponseType } from "../oauth2.types";
+import type { Request } from "express";
 
 /**
  * Token Request DTO

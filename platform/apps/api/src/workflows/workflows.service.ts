@@ -9,7 +9,7 @@ interface CreateWorkflowDto {
   description?: string;
   trigger: WorkflowTrigger;
   triggerValue?: number;
-  conditions?: Record<string, any>;
+  conditions?: Record<string, unknown>;
   status?: WorkflowStatus;
   priority?: number;
 }
@@ -17,7 +17,7 @@ interface CreateWorkflowDto {
 interface WorkflowStepDto {
   stepOrder: number;
   actionType: 'send_email' | 'send_sms' | 'wait' | 'condition' | 'webhook';
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   isActive?: boolean;
 }
 
@@ -110,7 +110,7 @@ export class WorkflowsService {
    */
   async triggerWorkflow(
     workflowId: string,
-    context: { reservationId?: string; guestId?: string; data?: Record<string, any> }
+    context: { reservationId?: string; guestId?: string; data?: Record<string, unknown> }
   ) {
     const workflow = await this.getWorkflow(workflowId);
     if (workflow.status !== 'active') {
@@ -198,7 +198,7 @@ export class WorkflowsService {
   }
 
   private async executeStep(step: any, execution: any) {
-    const config = step.config as Record<string, any>;
+    const config = step.config as Record<string, unknown>;
 
     switch (step.actionType) {
       case 'send_email':

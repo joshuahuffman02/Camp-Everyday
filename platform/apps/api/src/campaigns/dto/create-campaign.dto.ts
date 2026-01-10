@@ -41,6 +41,6 @@ export class CreateCampaignDto {
   batchPerMinute?: string | null;
 
   @IsOptional()
-  variables?: Record<string, any>;
+  variables?: Record<string, unknown>;
 }
 

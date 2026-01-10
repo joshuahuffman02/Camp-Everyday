@@ -99,7 +99,7 @@ export interface CampgroundSearchMapProps {
   className?: string;
 }
 
-const AMENITY_ICONS: Record<string, any> = {
+const AMENITY_ICONS: Record<string, unknown> = {
   lake: Waves,
   river: Waves,
   beach: Waves,

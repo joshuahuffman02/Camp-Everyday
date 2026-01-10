@@ -69,7 +69,7 @@ export type PolicyAcceptance = {
   accepted: boolean;
   signerName?: string;
   signerEmail?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 };
 
 export type PolicyContext = {
@@ -172,7 +172,7 @@ export class PoliciesService {
     };
   }
 
-  private getContextValue(context: Record<string, any>, field: string) {
+  private getContextValue(context: Record<string, unknown>, field: string) {
     const parts = field.split(".");
     let current: any = context;
     for (const part of parts) {

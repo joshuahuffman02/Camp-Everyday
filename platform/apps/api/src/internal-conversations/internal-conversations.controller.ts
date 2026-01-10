@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, UseGuards, Req, Query } from '@nestjs/comm
 import { Request } from 'express';
 import { InternalConversationsService } from './internal-conversations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import type { Request } from "express";
 
 interface AuthenticatedRequest extends Request {
     user: { id: string; email: string };

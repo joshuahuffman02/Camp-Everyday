@@ -74,7 +74,7 @@ export interface SecurityEvent {
     ipAddress?: string;
     userAgent?: string;
     campgroundId?: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
     timestamp?: Date;
 }
 
@@ -240,7 +240,7 @@ export class SecurityEventsService {
         type: "brute_force" | "geo_anomaly" | "suspicious_ip" | "csrf",
         identifier: string,
         ipAddress?: string,
-        details?: Record<string, any>
+        details?: Record<string, unknown>
     ): Promise<void> {
         const eventTypes = {
             brute_force: SecurityEventType.BRUTE_FORCE_ATTEMPT,

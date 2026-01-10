@@ -11,6 +11,7 @@ import { CoiUploadDto } from "./dto/coi-upload.dto";
 import { MarkPaperSignedDto } from "./dto/mark-paper-signed.dto";
 import { WaiveSignatureDto } from "./dto/waive-signature.dto";
 import { SendRenewalCampaignDto } from "./dto/send-renewal-campaign.dto";
+import type { Request } from "express";
 
 @Controller("signatures")
 export class SignaturesController {

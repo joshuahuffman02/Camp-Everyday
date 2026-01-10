@@ -54,7 +54,7 @@ interface PartnerChatDto {
 interface PartnerConfirmDto {
   action: {
     type: string;
-    parameters?: Record<string, any>;
+    parameters?: Record<string, unknown>;
     sensitivity?: "low" | "medium" | "high";
     impactArea?: string;
   };
@@ -308,7 +308,7 @@ export class AiController {
       throw new ForbiddenException('Access denied');
     }
 
-    const updateData: Record<string, any> = {};
+    const updateData: Record<string, unknown> = {};
 
     if (typeof body.aiEnabled === 'boolean') updateData.aiEnabled = body.aiEnabled;
     if (typeof body.aiReplyAssistEnabled === 'boolean') updateData.aiReplyAssistEnabled = body.aiReplyAssistEnabled;
@@ -541,7 +541,7 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Body() body: {
       reportName: string;
-      rows: Record<string, any>[];
+      rows: Record<string, unknown>[];
       metrics: string[];
       dimensions: string[];
       timeRange?: { start?: string; end?: string; preset?: string };

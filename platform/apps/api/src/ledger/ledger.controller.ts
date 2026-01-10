@@ -5,6 +5,7 @@ import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
+import type { Request } from "express";
 
 // SECURITY: Added ScopeGuard for tenant validation
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -12,8 +13,10 @@ import { UserRole } from "@prisma/client";
 export class LedgerController {
   constructor(private readonly ledger: LedgerService) { }
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: Request, fallback?: string): string {
+    const headerValue = req.headers["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId ?? undefined;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
@@ -66,9 +69,9 @@ export class LedgerController {
         )
       )
       .join("\n");
-    (res as any).setHeader("Content-Type", "text/csv");
-    (res as any).setHeader("Content-Disposition", "attachment; filename=ledger.csv");
-    return (res as any).send(csv);
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=ledger.csv");
+    return res.send(csv);
   }
 
   // SECURITY: Added role check for reservation ledger access
@@ -113,14 +116,14 @@ export class LedgerController {
 
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
   @Post("campgrounds/:campgroundId/gl-periods/:id/close")
-  async closePeriod(@Param("campgroundId") campgroundId: string, @Param("id") id: string, @Req() req?: any) {
+  async closePeriod(@Param("campgroundId") campgroundId: string, @Param("id") id: string, @Req() req?: Request) {
     // campgroundId path param for scoping; service checks id existence
     return this.ledger.closePeriod(campgroundId, id, req?.user?.id);
   }
 
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
   @Post("campgrounds/:campgroundId/gl-periods/:id/lock")
-  async lockPeriod(@Param("campgroundId") campgroundId: string, @Param("id") id: string, @Req() req?: any) {
+  async lockPeriod(@Param("campgroundId") campgroundId: string, @Param("id") id: string, @Req() req?: Request) {
     return this.ledger.lockPeriod(campgroundId, id, req?.user?.id);
   }
 }

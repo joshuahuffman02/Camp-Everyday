@@ -213,7 +213,7 @@ export class PiiEncryptionService {
     /**
      * Encrypt an object's fields based on field names
      */
-    encryptObject<T extends Record<string, any>>(obj: T): T {
+    encryptObject<T extends Record<string, unknown>>(obj: T): T {
         const result = { ...obj };
 
         for (const [key, value] of Object.entries(result)) {
@@ -228,7 +228,7 @@ export class PiiEncryptionService {
     /**
      * Decrypt an object's fields based on field names
      */
-    decryptObject<T extends Record<string, any>>(obj: T): T {
+    decryptObject<T extends Record<string, unknown>>(obj: T): T {
         const result = { ...obj };
 
         for (const [key, value] of Object.entries(result)) {

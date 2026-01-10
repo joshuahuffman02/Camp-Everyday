@@ -1,5 +1,5 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, InventoryTransferStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
 export interface CreateTransferDto {
@@ -25,7 +25,7 @@ export class TransferService {
     async listTransfers(
         campgroundId: string,
         filters?: {
-            status?: string;
+            status?: InventoryTransferStatus;
             fromLocationId?: string;
             toLocationId?: string;
         }
@@ -33,7 +33,7 @@ export class TransferService {
         return this.prisma.inventoryTransfer.findMany({
             where: {
                 campgroundId,
-                ...(filters?.status ? { status: filters.status as any } : {}),
+                ...(filters?.status ? { status: filters.status } : {}),
                 ...(filters?.fromLocationId ? { fromLocationId: filters.fromLocationId } : {}),
                 ...(filters?.toLocationId ? { toLocationId: filters.toLocationId } : {}),
             },

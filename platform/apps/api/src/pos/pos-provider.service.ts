@@ -235,7 +235,7 @@ export class PosProviderService {
     providerInput: string,
     campgroundId: string,
     body: any,
-    headers: Record<string, any> = {},
+    headers: Record<string, unknown> = {},
     rawBody?: string
   ): Promise<ProviderWebhookResult> {
     const provider = this.normalizeProvider(providerInput);

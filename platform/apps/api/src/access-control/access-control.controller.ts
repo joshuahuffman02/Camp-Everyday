@@ -6,6 +6,7 @@ import { UpsertVehicleDto } from "./dto/vehicle.dto";
 import { UpsertAccessIntegrationDto } from "./dto/access-integration.dto";
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
 import { ScopeGuard } from "../permissions/scope.guard";
+import type { Request } from "express";
 
 @Controller()
 export class AccessControlController {

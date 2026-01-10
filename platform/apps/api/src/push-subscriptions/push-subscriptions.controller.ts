@@ -3,6 +3,7 @@ import { JwtAuthGuard } from "../auth/guards";
 import { PushSubscriptionsService } from "./push-subscriptions.service";
 import { MobilePushService } from "./mobile-push.service";
 import { RegisterDeviceDto, UnregisterDeviceDto } from "./dto/register-device.dto";
+import type { Request } from "express";
 
 type PushSubscriptionPayload = {
   endpoint: string;

@@ -8,7 +8,7 @@ import { getReportCatalog, getReportSpec } from "../reports/report.registry";
 interface ReportQueryInput {
   reportId: string;
   dimensions?: string[];
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   timeRange?: {
     preset?: string;
     start?: string;
@@ -21,7 +21,7 @@ interface ParsedQuery {
   reportId: string;
   reportName: string;
   dimensions?: string[];
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   timeRange?: {
     preset?: string;
     start?: string;
@@ -204,7 +204,7 @@ If asking about "today" or "now", use "today" preset.`;
     campgroundId: string,
     reportName: string,
     data: {
-      rows: Record<string, any>[];
+      rows: Record<string, unknown>[];
       metrics: string[];
       dimensions: string[];
       timeRange?: { start?: string; end?: string; preset?: string };

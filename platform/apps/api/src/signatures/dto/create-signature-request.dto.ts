@@ -78,5 +78,5 @@ export class CreateSignatureRequestDto {
   seasonYear?: number;
 
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }

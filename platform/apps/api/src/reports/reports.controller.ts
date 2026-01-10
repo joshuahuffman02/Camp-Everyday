@@ -5,6 +5,7 @@ import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 import { UserRole } from '@prisma/client';
 import { CreateReportExportDto } from './dto/create-report-export.dto';
+import type { Request } from "express";
 
 @Controller('campgrounds/:campgroundId/reports')
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -89,7 +90,7 @@ export class ReportsController {
     async queueExport(
         @Param('campgroundId') campgroundId: string,
         @Body() body: CreateReportExportDto,
-        @Req() req?: any
+        @Req() req?: Request
     ) {
         return this.reportsService.queueExport({
             campgroundId,
@@ -105,7 +106,7 @@ export class ReportsController {
     async rerunExport(
         @Param('campgroundId') campgroundId: string,
         @Param('exportId') exportId: string,
-        @Req() req?: any
+        @Req() req?: Request
     ) {
         return this.reportsService.rerunExport(campgroundId, exportId, req?.user?.id);
     }

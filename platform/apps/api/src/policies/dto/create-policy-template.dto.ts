@@ -39,5 +39,5 @@ export class CreatePolicyTemplateDto {
 
   @IsOptional()
   @IsObject()
-  policyConfig?: Record<string, any>;
+  policyConfig?: Record<string, unknown>;
 }

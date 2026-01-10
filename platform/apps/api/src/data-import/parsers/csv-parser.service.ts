@@ -9,7 +9,7 @@ export interface FieldMapping {
 
 export interface ParsedRow {
   rowNumber: number;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   errors: string[];
   warnings: string[];
 }
@@ -71,7 +71,7 @@ export class CsvParserService {
       const rows: ParsedRow[] = records.map((record: Record<string, string>, index: number) => {
         const rowErrors: string[] = [];
         const rowWarnings: string[] = [];
-        let data: Record<string, any> = {};
+        let data: Record<string, unknown> = {};
 
         if (fieldMappings && fieldMappings.length > 0) {
           // Apply field mappings

@@ -1016,7 +1016,8 @@ export const BlackoutDateSchema = z.object({
   reason: z.string().optional().nullable(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-  site: SiteSchema.optional().nullable()
+  // Use passthrough to accept extra fields from API
+  site: SiteSchema.passthrough().optional().nullable()
 });
 export type BlackoutDate = z.infer<typeof BlackoutDateSchema>;
 

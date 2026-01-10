@@ -47,7 +47,7 @@ export interface ChatMessageResponse {
 export interface ToolCall {
   id: string;
   name: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
 }
 
 export interface ToolResult {
@@ -61,7 +61,7 @@ export interface ActionRequired {
   actionId: string;
   title: string;
   description: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   options?: ActionOption[];
 }
 

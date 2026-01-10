@@ -37,7 +37,7 @@ export class ApprovalsController {
       currency: string;
       reason: string;
       requester: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
       campgroundId?: string;
       requestedBy?: string;
     }
