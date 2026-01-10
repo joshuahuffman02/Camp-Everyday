@@ -2,6 +2,7 @@ import { Injectable, Logger, ForbiddenException, BadRequestException } from '@ne
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatParticipantType } from '@prisma/client';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 
 // Date string validation (YYYY-MM-DD format)
 const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use YYYY-MM-DD');
@@ -1307,12 +1308,12 @@ export class ChatToolsService {
         // Create a blackout/block
         const block = await prisma.blackoutDate.create({
           data: {
+            id: randomUUID(),
             campgroundId: context.campgroundId,
             siteId: siteId,
             startDate: startDate ? new Date(startDate) : new Date(),
             endDate: endDate ? new Date(endDate) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
             reason: reason,
-            type: 'block',
           },
         });
 
@@ -1350,7 +1351,6 @@ export class ChatToolsService {
         const where: any = {
           campgroundId: context.campgroundId,
           siteId: siteId,
-          type: 'block',
         };
 
         if (blockId) {
