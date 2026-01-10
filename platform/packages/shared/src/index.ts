@@ -1006,9 +1006,9 @@ export type CreateInventoryTransferDto = z.infer<typeof CreateInventoryTransferS
 
 // Blackout Dates
 export const BlackoutDateSchema = z.object({
-  id: z.string().cuid(),
-  campgroundId: z.string().cuid(),
-  siteId: z.string().cuid().optional().nullable(),
+  id: z.string(),
+  campgroundId: z.string(),
+  siteId: z.string().optional().nullable(),
   startDate: z.string(),
   endDate: z.string(),
   reason: z.string().optional().nullable(),

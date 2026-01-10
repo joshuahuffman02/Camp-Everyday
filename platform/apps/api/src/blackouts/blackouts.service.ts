@@ -72,11 +72,17 @@ export class BlackoutsService {
     }
 
     async findAll(campgroundId: string) {
-        return this.prisma.blackoutDate.findMany({
+        const blackouts = await this.prisma.blackoutDate.findMany({
             where: { campgroundId },
             include: { Site: true },
             orderBy: { startDate: "asc" }
         });
+        // Transform Site to site for frontend schema compatibility
+        return blackouts.map(b => ({
+            ...b,
+            site: b.Site,
+            Site: undefined
+        }));
     }
 
     async findOne(campgroundId: string, id: string) {
