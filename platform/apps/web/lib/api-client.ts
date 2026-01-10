@@ -1192,11 +1192,38 @@ const AiSemanticSearchResponseSchema = z.object({
 
 const AiCopilotResponseSchema = z.object({
   action: z.string(),
-  preview: z.string(),
+  generatedAt: z.string(),
+  mode: z.string().optional(),
+  // Response content (varies by action)
+  preview: z.string().optional(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+  // Action response data
   steps: z.array(z.string()).optional(),
   impact: z.string().optional(),
   tone: z.string().optional(),
-  generatedAt: z.string()
+  // Help action
+  availableActions: z.array(z.object({
+    action: z.string(),
+    description: z.string(),
+    params: z.array(z.string()).optional(),
+  })).optional(),
+  // Pricing actions
+  recommendations: z.array(z.unknown()).optional(),
+  summary: z.unknown().optional(),
+  result: z.unknown().optional(),
+  // Revenue actions
+  insights: z.array(z.unknown()).optional(),
+  // Weather actions
+  weather: z.unknown().optional(),
+  forecast: z.array(z.unknown()).optional(),
+  alerts: z.array(z.unknown()).optional(),
+  activeAlerts: z.array(z.unknown()).optional(),
+  newAlerts: z.array(z.unknown()).optional(),
+  // Dashboard actions
+  metrics: z.unknown().optional(),
+  quickStats: z.unknown().optional(),
+  activity: z.array(z.unknown()).optional(),
 });
 
 // ---------------------------------------------------------------------------
