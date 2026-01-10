@@ -33,7 +33,7 @@ export class DeveloperApiClient {
     if (!res.ok) {
       throw new Error(`Auth failed (${res.status})`);
     }
-    const json = (await res.json()) as TokenResponse;
+    const json: TokenResponse = await res.json();
     this.accessToken = json.access_token;
     this.refreshToken = json.refresh_token;
     this.expiresAt = Date.now() + json.expires_in * 1000 - 5000;
@@ -45,7 +45,7 @@ export class DeveloperApiClient {
     }
   }
 
-  private async request<T>(path: string, method: HttpMethod = "GET", body?: any): Promise<T> {
+  private async request<T>(path: string, method: HttpMethod = "GET", body?: unknown): Promise<T> {
     await this.ensureAccessToken();
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
@@ -68,14 +68,16 @@ export class DeveloperApiClient {
         body: body ? JSON.stringify(body) : undefined
       });
       if (!retry.ok) throw new Error(`Request failed (${retry.status})`);
-      return retry.json() as Promise<T>;
+      const retryJson: T = await retry.json();
+      return retryJson;
     }
 
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Request failed (${res.status}): ${text}`);
     }
-    return res.json() as Promise<T>;
+    const json: T = await res.json();
+    return json;
   }
 
   // Reservations
@@ -172,4 +174,3 @@ export class DeveloperApiClient {
     };
   }
 }
-

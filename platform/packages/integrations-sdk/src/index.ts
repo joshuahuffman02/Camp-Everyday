@@ -15,8 +15,8 @@ export interface ConnectionPayload {
   provider: string;
   status?: string;
   authType?: string;
-  credentials?: Record<string, any>;
-  settings?: Record<string, any>;
+  credentials?: Record<string, unknown>;
+  settings?: Record<string, unknown>;
   webhookSecret?: string;
 }
 
@@ -98,4 +98,3 @@ export class IntegrationsClient {
     return res.json();
   }
 }
-

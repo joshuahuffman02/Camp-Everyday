@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { DeveloperApiClient } from "./client";
-import type { ReservationPayload } from "./types";
+import type { ReservationPayload, Scope, SdkConfig } from "./types";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -11,26 +11,29 @@ function jsonResponse(body: unknown, status = 200) {
 
 describe("DeveloperApiClient (mocked)", () => {
   const baseUrl = "https://api.example.com";
-  const config = {
+  const scopes: Scope[] = ["reservations:read", "reservations:write"];
+  const config: SdkConfig = {
     baseUrl,
     clientId: "client-id",
     clientSecret: "client-secret",
     campgroundId: "camp-1",
-    scopes: ["reservations:read", "reservations:write"] as const
+    scopes
   };
 
-  let fetchMock: ReturnType<typeof vi.fn>;
+  let fetchMock: typeof fetch;
+  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00Z"));
-    fetchMock = vi.fn();
-    (globalThis as any).fetch = fetchMock;
+    fetchMock = vi.fn<typeof fetch>();
+    globalThis.fetch = fetchMock;
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    globalThis.fetch = originalFetch;
   });
 
   test("authenticates with client credentials and sends bearer token", async () => {
@@ -169,4 +172,3 @@ describe("DeveloperApiClient (mocked)", () => {
     );
   });
 });
-

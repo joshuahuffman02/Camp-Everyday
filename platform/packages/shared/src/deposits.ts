@@ -84,7 +84,7 @@ export const computeDepositDue = (input: DepositInput) => {
 
     if (depositConfig.seasons && ctx.arrivalDate) {
       const seasonMatch = depositConfig.seasons.find((s) =>
-        isBetweenMonthDay(ctx.arrivalDate as string, s.startMonthDay, s.endMonthDay)
+        isBetweenMonthDay(ctx.arrivalDate, s.startMonthDay, s.endMonthDay)
       );
       if (seasonMatch) rule = seasonMatch.rule;
     }
@@ -137,5 +137,4 @@ export const parseDepositConfig = (config: unknown) => {
     return null;
   }
 };
-
 

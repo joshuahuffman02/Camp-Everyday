@@ -136,7 +136,6 @@ export const CalendarRow = memo(function CalendarRow({
                         })()}
 
                     {/* Blackouts */}
-                    {blackouts.length > 0 && console.log('[CalendarRow] Rendering blackouts for site:', site.id, site.name, 'count:', blackouts.length)}
                     {blackouts.map((blackout) => {
                         const start = days[0].date;
                         const blackoutStart = toLocalDate(blackout.startDate);
