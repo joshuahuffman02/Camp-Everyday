@@ -138,8 +138,8 @@ export function useCalendarData() {
             return apiClient.getBlackouts(selectedCampground);
         },
         enabled: isReady && !!selectedCampground,
-        staleTime: 5 * 60_000,
-        refetchInterval: 5 * 60_000
+        staleTime: 15_000,
+        refetchInterval: 60_000
     });
 
     const maintenanceQuery = useQuery({
