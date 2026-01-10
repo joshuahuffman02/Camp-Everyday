@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { apiClient } from "../../../../lib/api-client";
@@ -209,7 +209,16 @@ export default function HousekeepingPage() {
   const [slaFilter, setSlaFilter] = useState<SlaStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  // Initialize with empty string to avoid hydration mismatch, set on mount
+  const [selectedDate, setSelectedDate] = useState("");
+
+  // Set initial date on mount to avoid hydration mismatch
+  useEffect(() => {
+    if (!selectedDate) {
+      setSelectedDate(new Date().toISOString().split("T")[0]);
+    }
+  }, [selectedDate]);
+
   const [newTask, setNewTask] = useState<{
     type: TaskType;
     siteId: string;
@@ -237,13 +246,13 @@ export default function HousekeepingPage() {
   const dailyScheduleQuery = useQuery({
     queryKey: ["daily-schedule", campgroundId, selectedDate],
     queryFn: () => apiClient.getDailySchedule(campgroundId, selectedDate),
-    enabled: !!campgroundId,
+    enabled: !!campgroundId && !!selectedDate,
   });
 
   const staffWorkloadQuery = useQuery({
     queryKey: ["staff-workload", campgroundId, selectedDate],
     queryFn: () => apiClient.getStaffWorkload(campgroundId, selectedDate),
-    enabled: !!campgroundId,
+    enabled: !!campgroundId && !!selectedDate,
   });
 
   const inspectionStatsQuery = useQuery({

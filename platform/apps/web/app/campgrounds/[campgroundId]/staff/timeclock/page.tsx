@@ -68,13 +68,15 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
   const [loadingShifts, setLoadingShifts] = useState(false);
   const [clockingIn, setClockingIn] = useState(false);
   const [clockingOut, setClockingOut] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  // Initialize with null to avoid hydration mismatch
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [activeBreak, setActiveBreak] = useState<ActiveBreak | null>(null);
   const [breakLoading, setBreakLoading] = useState(false);
   const [showBreakMenu, setShowBreakMenu] = useState(false);
 
-  // Update clock every second
+  // Set initial time on mount and update every second
   useEffect(() => {
+    setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -274,10 +276,10 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
           className="bg-card rounded-2xl border border-border p-8 text-center shadow-sm"
         >
           <div className="text-muted-foreground text-sm font-medium mb-2">
-            {currentTime.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+            {currentTime?.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) ?? "Loading..."}
           </div>
           <div className="text-5xl md:text-7xl font-bold text-foreground font-mono tracking-tight">
-            {currentTime.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            {currentTime?.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) ?? "--:--:--"}
           </div>
           {whoami?.user && (
             <div className="mt-4 flex items-center justify-center gap-2 text-muted-foreground">

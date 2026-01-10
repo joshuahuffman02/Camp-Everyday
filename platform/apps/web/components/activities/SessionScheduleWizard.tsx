@@ -57,13 +57,23 @@ export function SessionScheduleWizard({
     const { toast } = useToast();
     const [step, setStep] = useState<'pattern' | 'days' | 'time' | 'preview'>('pattern');
 
-    // Form state
+    // Form state - initialize with empty strings to avoid hydration mismatch
     const [patternType, setPatternType] = useState<PatternType>('weekly');
     const [selectedDays, setSelectedDays] = useState<number[]>([1, 3, 5]); // Mon, Wed, Fri
     const [startTime, setStartTime] = useState('09:00');
-    const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [endDate, setEndDate] = useState(format(addWeeks(new Date(), 4), 'yyyy-MM-dd'));
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
     const [savePattern, setSavePattern] = useState(true);
+
+    // Set initial dates on mount to avoid hydration mismatch
+    useEffect(() => {
+        if (!startDate) {
+            setStartDate(format(new Date(), 'yyyy-MM-dd'));
+        }
+        if (!endDate) {
+            setEndDate(format(addWeeks(new Date(), 4), 'yyyy-MM-dd'));
+        }
+    }, [startDate, endDate]);
 
     // Preview state
     const [preview, setPreview] = useState<{

@@ -22,13 +22,18 @@ export function ArrivalCountdown({
   siteNumber,
   campgroundName,
 }: ArrivalCountdownProps) {
-  const [now, setNow] = useState(new Date());
+  // Initialize with null to avoid hydration mismatch, then set on mount
+  const [now, setNow] = useState<Date | null>(null);
 
-  // Update every minute for accurate countdown
+  // Set initial value and update every minute for accurate countdown
   useEffect(() => {
+    setNow(new Date());
     const interval = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Don't render until mounted to avoid hydration mismatch
+  if (!now) return null;
 
   const arrival = new Date(arrivalDate);
   const daysUntil = differenceInCalendarDays(arrival, now);
