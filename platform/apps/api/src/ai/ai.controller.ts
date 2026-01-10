@@ -12,6 +12,8 @@ import { AiMorningBriefingService } from './ai-morning-briefing.service';
 import { AiReportQueryService } from './ai-report-query.service';
 import { AiCampaignService } from './ai-campaign.service';
 import { AiSmartComposeService } from './ai-smart-compose.service';
+import { AiService } from './ai.service';
+import { CopilotActionDto } from './dto/copilot-action.dto';
 import type { Request } from 'express';
 
 interface UpdateAiSettingsDto {
@@ -73,6 +75,7 @@ export class AiController {
     private readonly reportQueryService: AiReportQueryService,
     private readonly campaignService: AiCampaignService,
     private readonly smartComposeService: AiSmartComposeService,
+    private readonly aiService: AiService,
   ) { }
 
   // ==================== PUBLIC ENDPOINTS ====================
@@ -162,6 +165,25 @@ export class AiController {
           { title: "Contact Support", url: "/help/contact" },
         ],
         showTicketPrompt: true,
+      };
+    }
+  }
+
+  /**
+   * AI Copilot endpoint for dashboard chat
+   * Handles AI actions like pricing recommendations, weather, maintenance, etc.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('copilot')
+  async copilot(@Body() body: CopilotActionDto) {
+    try {
+      return await this.aiService.copilot(body);
+    } catch (error) {
+      this.logger.error('Copilot error:', error instanceof Error ? error.stack : error);
+      return {
+        action: body.action,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        generatedAt: new Date().toISOString(),
       };
     }
   }
