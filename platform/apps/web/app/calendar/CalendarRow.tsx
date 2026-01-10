@@ -136,12 +136,15 @@ export const CalendarRow = memo(function CalendarRow({
                         })()}
 
                     {/* Blackouts */}
+                    {blackouts.length > 0 && console.log('[CalendarRow] Rendering blackouts for site:', site.id, site.name, 'count:', blackouts.length)}
                     {blackouts.map((blackout) => {
                         const start = days[0].date;
                         const blackoutStart = toLocalDate(blackout.startDate);
                         const blackoutEnd = toLocalDate(blackout.endDate);
                         const startIdx = Math.max(0, diffInDays(blackoutStart, start));
                         const endIdx = Math.min(dayCount, diffInDays(blackoutEnd, start) + 1); // +1 because end is inclusive
+
+                        console.log('[CalendarRow] Blackout:', blackout.id, 'startIdx:', startIdx, 'endIdx:', endIdx, 'visible range check:', endIdx > 0 && startIdx < dayCount);
 
                         if (endIdx <= 0 || startIdx >= dayCount) return null;
 

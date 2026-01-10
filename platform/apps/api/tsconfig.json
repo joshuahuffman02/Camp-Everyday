@@ -31,6 +31,7 @@
     },
     "incremental": true,
     "strict": true,
+    "useUnknownInCatchVariables": true,
     "skipLibCheck": true
   },
   "include": [

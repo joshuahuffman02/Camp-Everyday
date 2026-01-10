@@ -27,13 +27,16 @@ export function CalendarGrid({ data, onSelectionComplete, onReservationMove }: C
     // Group blackouts by siteId
     const blackoutsBySite = useMemo(() => {
         const grouped: Record<string, typeof blackouts.data> = {};
+        console.log('[Calendar] Raw blackouts data:', blackouts.data);
         (blackouts.data || []).forEach((b) => {
+            console.log('[Calendar] Processing blackout:', b.id, 'siteId:', b.siteId, 'reason:', b.reason);
             if (!b.siteId) return; // Skip campground-wide blackouts for now
             if (!grouped[b.siteId]) {
                 grouped[b.siteId] = [];
             }
             grouped[b.siteId]!.push(b);
         });
+        console.log('[Calendar] Grouped blackouts by site:', grouped);
         return grouped;
     }, [blackouts.data]);
 
